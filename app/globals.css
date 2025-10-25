@@ -1,0 +1,689 @@
+/* Import Tailwind CSS v4 */
+@import "tailwindcss";
+
+/* Import Google Fonts - Montserrat for headings, Inter for body */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@700;800;900&display=swap');
+
+/* Import Mapbox CSS */
+@import 'mapbox-gl/dist/mapbox-gl.css';
+@import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
+
+/* Theme configuration with SolarX brand colors */
+@theme {
+  /* Primary brand colors from SolarX logo */
+  --color-navy-50: #EBF1F8;
+  --color-navy-100: #D7E3F1;
+  --color-navy-200: #AFC7E3;
+  --color-navy-300: #87ABD5;
+  --color-navy-400: #5F8FC7;
+  --color-navy-500: #1B4E7C;
+  --color-navy-600: #163E63;
+  --color-navy-700: #102F4A;
+  --color-navy-800: #0B1F31;
+  --color-navy-900: #051018;
+  
+  /* Red accent colors from X symbol */
+  --color-red-50: #FEE9ED;
+  --color-red-100: #FDD3DB;
+  --color-red-200: #FBA7B7;
+  --color-red-300: #F97B93;
+  --color-red-400: #F74F6F;
+  --color-red-500: #DC143C;
+  --color-red-600: #B01030;
+  --color-red-700: #840C24;
+  --color-red-800: #580818;
+  --color-red-900: #2C040C;
+  
+  /* Blue accent colors for tech elements */
+  --color-blue-50: #E8F4FE;
+  --color-blue-100: #D1E9FD;
+  --color-blue-200: #A3D3FB;
+  --color-blue-300: #75BDF9;
+  --color-blue-400: #47A7F7;
+  --color-blue-500: #4A90E2;
+  --color-blue-600: #3B73B5;
+  --color-blue-700: #2C5688;
+  --color-blue-800: #1E395B;
+  --color-blue-900: #0F1C2E;
+  
+  /* Neutral grays for UI elements */
+  --color-gray-50: #F8FAFC;
+  --color-gray-100: #F1F5F9;
+  --color-gray-200: #E2E8F0;
+  --color-gray-300: #CBD5E0;
+  --color-gray-400: #94A3B8;
+  --color-gray-500: #64748B;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1E293B;
+  --color-gray-900: #0F172A;
+  
+  /* Font families */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Montserrat', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  
+  /* Custom shadows with brand colors */
+  --shadow-navy-sm: 0 1px 2px rgba(27, 78, 124, 0.05);
+  --shadow-navy-md: 0 4px 6px rgba(27, 78, 124, 0.1);
+  --shadow-navy-lg: 0 10px 15px rgba(27, 78, 124, 0.15);
+  --shadow-navy-xl: 0 20px 25px rgba(27, 78, 124, 0.2);
+  --shadow-red: 0 4px 14px rgba(220, 20, 60, 0.35);
+}
+
+/* Component layer for reusable styles - Tailwind v4 compatible */
+/* Button base styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+/* Primary button with red gradient */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+  cursor: pointer;
+  background-color: var(--color-red-500);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-red-600);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Secondary button with navy colors */
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+  cursor: pointer;
+  background-color: var(--color-navy-500);
+  color: white;
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-navy-600);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Ghost/outline button */
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+  cursor: pointer;
+  border: 2px solid currentColor;
+  background-color: transparent;
+}
+
+.btn-outline:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Card component with shadow */
+.card {
+  background-color: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  transition: box-shadow 0.3s;
+}
+
+/* Card with hover effect */
+.card-hover {
+  background-color: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  transition: all 0.3s;
+}
+
+.card-hover:hover {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  transform: translateY(-4px);
+}
+
+/* Heading styles with display font */
+.heading-xl {
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: var(--color-navy-500);
+  line-height: 1.1;
+  font-family: var(--font-display);
+}
+
+@media (min-width: 768px) {
+  .heading-xl {
+    font-size: 3rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .heading-xl {
+    font-size: 3.75rem;
+  }
+}
+
+.heading-lg {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: var(--color-navy-500);
+  line-height: 1.1;
+  font-family: var(--font-display);
+}
+
+@media (min-width: 768px) {
+  .heading-lg {
+    font-size: 2.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .heading-lg {
+    font-size: 3rem;
+  }
+}
+
+.heading-md {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-navy-500);
+  line-height: 1.1;
+  font-family: var(--font-display);
+}
+
+@media (min-width: 768px) {
+  .heading-md {
+    font-size: 1.875rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .heading-md {
+    font-size: 2.25rem;
+  }
+}
+
+/* Gradient backgrounds */
+.gradient-hero {
+  background: linear-gradient(135deg, #1B4E7C 0%, #4A90E2 100%);
+}
+
+.gradient-cta {
+  background: linear-gradient(135deg, #DC143C 0%, #B01030 100%);
+}
+
+/* Eyebrow text style */
+.eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+@media (min-width: 768px) {
+  .eyebrow {
+    font-size: 0.875rem;
+  }
+}
+
+/* Base styles */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  /* Use percentage for better zoom behavior */
+  font-size: 100%;
+  /* Prevent text size adjustment on orientation change */
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Responsive base font sizes for different laptop screens */
+@media (max-width: 1366px) {
+  html {
+    font-size: 95%; /* Slightly smaller on smaller laptops */
+  }
+}
+
+@media (min-width: 1440px) {
+  html {
+    font-size: 100%; /* Standard on larger laptops */
+  }
+}
+
+@media (min-width: 1920px) {
+  html {
+    font-size: 105%; /* Slightly larger on desktop monitors */
+  }
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-gray-800);
+  background-color: white;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Use relative line height for better scaling */
+  line-height: 1.6;
+  /* Prevent horizontal scrolling on zoom */
+  overflow-x: hidden;
+  /* Smooth transitions for zoom */
+  transition: font-size 0.1s ease;
+}
+
+/* Custom scrollbar styling */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-gray-100);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-navy-500);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-navy-600);
+}
+
+/* Focus styles for accessibility */
+:focus-visible {
+  outline: 2px solid var(--color-red-500);
+  outline-offset: 2px;
+}
+
+/* Selection styles */
+::selection {
+  background-color: var(--color-red-500);
+  color: white;
+}
+
+::-moz-selection {
+  background-color: var(--color-red-500);
+  color: white;
+}
+
+/* Smooth animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+/* Utility animations */
+.animate-fade-in {
+  animation: fadeIn 0.6s ease-out forwards;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.6s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.6s ease-out forwards;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Mapbox control customization */
+.mapboxgl-ctrl-group button {
+  transition: all 0.2s;
+}
+
+.mapboxgl-ctrl-group button:hover {
+  background-color: var(--color-red-500);
+  color: white;
+}
+
+/* ========================================
+   ZOOM-FRIENDLY LAYOUT UTILITIES
+   Optimized for laptop screens (1366px - 1920px)
+   ======================================== */
+
+/* Fluid typography using clamp() */
+.text-fluid-xs {
+  font-size: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+}
+
+.text-fluid-sm {
+  font-size: clamp(0.875rem, 0.8rem + 0.3vw, 1rem);
+}
+
+.text-fluid-base {
+  font-size: clamp(1rem, 0.9rem + 0.4vw, 1.125rem);
+}
+
+.text-fluid-lg {
+  font-size: clamp(1.125rem, 1rem + 0.5vw, 1.25rem);
+}
+
+.text-fluid-xl {
+  font-size: clamp(1.25rem, 1.1rem + 0.6vw, 1.5rem);
+}
+
+.text-fluid-2xl {
+  font-size: clamp(1.5rem, 1.3rem + 0.8vw, 2rem);
+}
+
+.text-fluid-3xl {
+  font-size: clamp(1.875rem, 1.6rem + 1vw, 2.5rem);
+}
+
+.text-fluid-4xl {
+  font-size: clamp(2.25rem, 2rem + 1.2vw, 3rem);
+}
+
+/* Responsive containers that work with zoom */
+.container-responsive {
+  width: 100%;
+  max-width: min(1400px, 95vw); /* Scales with viewport */
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: clamp(1rem, 2vw, 2rem);
+  padding-right: clamp(1rem, 2vw, 2rem);
+}
+
+/* Flexible grid columns that adapt to zoom */
+.grid-auto-fit {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: clamp(1rem, 2vw, 2rem);
+}
+
+.grid-auto-fill {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr));
+  gap: clamp(0.75rem, 1.5vw, 1.5rem);
+}
+
+/* Flexible sidebar layouts */
+.sidebar-layout {
+  display: grid;
+  gap: clamp(1rem, 2vw, 2rem);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 1024px) {
+  .sidebar-layout {
+    grid-template-columns: minmax(300px, 25%) 1fr;
+  }
+}
+
+@media (min-width: 1440px) {
+  .sidebar-layout {
+    grid-template-columns: minmax(350px, 28%) 1fr;
+  }
+}
+
+/* Flexible two-column layout */
+.two-column-layout {
+  display: grid;
+  gap: clamp(1rem, 2vw, 2rem);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  .two-column-layout {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Fluid spacing utilities */
+.space-fluid-sm {
+  gap: clamp(0.5rem, 1vw, 1rem);
+}
+
+.space-fluid-md {
+  gap: clamp(1rem, 2vw, 1.5rem);
+}
+
+.space-fluid-lg {
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+/* Padding utilities that scale with zoom */
+.p-fluid-sm {
+  padding: clamp(0.75rem, 1.5vw, 1.25rem);
+}
+
+.p-fluid-md {
+  padding: clamp(1rem, 2vw, 1.5rem);
+}
+
+.p-fluid-lg {
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+/* Max-width containers for different content types */
+.max-w-readable {
+  max-width: min(65ch, 90vw); /* Optimal reading width */
+}
+
+.max-w-content {
+  max-width: min(1200px, 92vw);
+}
+
+.max-w-wide {
+  max-width: min(1600px, 95vw);
+}
+
+/* Flexible height for map containers */
+.map-container-responsive {
+  height: clamp(400px, 60vh, 800px);
+  min-height: 400px;
+  width: 100%;
+}
+
+/* Sidebar that scales properly */
+.sidebar-responsive {
+  width: 100%;
+  max-height: clamp(500px, 70vh, 900px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+@media (min-width: 1024px) {
+  .sidebar-responsive {
+    width: clamp(300px, 25vw, 400px);
+  }
+}
+
+/* Prevent layout shift on zoom */
+img, video, iframe {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Flexible button sizing */
+.btn-fluid {
+  padding: clamp(0.625rem, 1.5vw, 0.875rem) clamp(1.25rem, 3vw, 1.75rem);
+  font-size: clamp(0.875rem, 1.5vw, 1rem);
+}
+
+/* Card spacing that adapts */
+.card-fluid {
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  border-radius: clamp(0.5rem, 1vw, 0.75rem);
+}
+
+/* ========================================
+   LAPTOP-SPECIFIC BREAKPOINTS
+   ======================================== */
+
+/* Small laptops (1366px - common resolution) */
+@media (min-width: 1366px) and (max-width: 1439px) {
+  .container-responsive {
+    max-width: 1280px;
+  }
+  
+  .sidebar-layout {
+    grid-template-columns: minmax(280px, 24%) 1fr;
+  }
+}
+
+/* Standard laptops (1440px - 1920px) */
+@media (min-width: 1440px) and (max-width: 1919px) {
+  .container-responsive {
+    max-width: 1360px;
+  }
+  
+  .sidebar-layout {
+    grid-template-columns: minmax(320px, 26%) 1fr;
+  }
+}
+
+/* Large screens (1920px+) */
+@media (min-width: 1920px) {
+  .container-responsive {
+    max-width: 1600px;
+  }
+  
+  .sidebar-layout {
+    grid-template-columns: minmax(380px, 28%) 1fr;
+  }
+}
+
+/* ========================================
+   ZOOM-SPECIFIC OPTIMIZATIONS
+   ======================================== */
+
+/* When browser is zoomed in, ensure content remains accessible */
+@media (max-width: 1024px) {
+  /* Stack layouts when space is limited (including when zoomed) */
+  .sidebar-layout,
+  .two-column-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  /* Make text more readable */
+  body {
+    font-size: clamp(1rem, 2vw, 1.125rem);
+  }
+  
+  /* Ensure buttons remain clickable */
+  .btn, .btn-primary, .btn-secondary {
+    min-height: 44px; /* Touch target size */
+    min-width: 44px;
+  }
+}
+
+/* High zoom levels - prioritize vertical layout */
+@media (max-width: 768px) {
+  .grid-auto-fit,
+  .grid-auto-fill {
+    grid-template-columns: 1fr;
+  }
+  
+  /* Larger tap targets */
+  button, a, input, select, textarea {
+    min-height: 44px;
+  }
+  
+  /* More spacing between interactive elements */
+  .space-y-4 > * + * {
+    margin-top: 1.5rem;
+  }
+}
+
+/* Ensure maps scale properly on zoom */
+.mapboxgl-canvas-container,
+.mapboxgl-canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Ensure focus indicators scale with zoom */
+:focus-visible {
+  outline-width: max(2px, 0.15em);
+  outline-offset: max(2px, 0.1em);
+}

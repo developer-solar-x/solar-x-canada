@@ -1,0 +1,43 @@
+{
+  "name": "solarx-estimator",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "cache:clear": "node scripts/clear-cache.mjs",
+    "cache:stats": "node -e \"import('./lib/cache.ts').then(c => console.log(c.getCacheStats()))\""
+  },
+  "dependencies": {
+    "@hubspot/api-client": "^11.0.0",
+    "@mapbox/mapbox-gl-draw": "^1.4.3",
+    "@supabase/supabase-js": "^2.39.0",
+    "@turf/turf": "^7.2.0",
+    "clsx": "^2.1.0",
+    "date-fns": "^3.0.0",
+    "lucide-react": "^0.460.0",
+    "mapbox-gl": "^3.1.0",
+    "next": "^15.0.3",
+    "react": "^19.0.0",
+    "react-countup": "^6.5.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^2.10.0",
+    "tailwind-merge": "^2.2.0",
+    "validator": "^13.15.15",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0-alpha.25",
+    "@types/mapbox__mapbox-gl-draw": "^1.4.0",
+    "@types/mapbox-gl": "^3.1.0",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^8",
+    "eslint-config-next": "^15.0.3",
+    "tailwindcss": "^4.0.0-alpha.25",
+    "typescript": "^5"
+  }
+}
