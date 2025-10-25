@@ -74,18 +74,18 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
   }))
 
   return (
-    <div className="sidebar-layout space-fluid-md">
+    <div className="grid lg:grid-cols-[400px_1fr] gap-6">
       {/* Left sidebar - Summary */}
-      <div className="space-fluid-sm">
-        <h2 className="text-fluid-2xl font-bold text-navy-500 mb-4">Your Solar Estimate</h2>
+      <div className="space-y-4">
+        <h2 className="text-2xl font-bold text-navy-500 mb-4">Your Solar Estimate</h2>
 
         {/* Property summary card */}
-        <div className="card-fluid bg-white rounded-lg shadow">
-          <h3 className="font-semibold text-fluid-base text-gray-700 mb-2">Property</h3>
-          <p className="text-fluid-sm text-gray-600">{data.address}</p>
+        <div className="card p-4">
+          <h3 className="font-semibold text-gray-700 mb-2">Property</h3>
+          <p className="text-sm text-gray-600">{data.address}</p>
           <button
             onClick={() => onBack && onBack()}
-            className="text-fluid-xs text-red-500 hover:underline mt-2"
+            className="text-xs text-red-500 hover:underline mt-2"
           >
             Edit
           </button>

@@ -243,7 +243,7 @@ export default function EstimatorPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header - Simple logo and exit */}
       <header className="bg-white shadow-sm sticky top-0 z-40">
-        <div className="container-responsive py-fluid-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             {/* Logo */}
             <Link href="/">
@@ -254,7 +254,7 @@ export default function EstimatorPage() {
             <div className="flex items-center gap-4">
               {/* Auto-save indicator */}
               {currentStep > 0 && (
-                <div className="hidden sm:flex items-center gap-2 text-fluid-sm">
+                <div className="hidden sm:flex items-center gap-2 text-sm">
                   {showSaveIndicator ? (
                     <div className="flex items-center gap-2 text-green-600">
                       <Save size={16} />
@@ -273,7 +273,7 @@ export default function EstimatorPage() {
               {currentStep > 0 && (
                 <button
                   onClick={handleClearProgress}
-                  className="hidden sm:flex items-center gap-2 text-gray-600 hover:text-red-600 transition-colors text-fluid-sm p-fluid-sm rounded-lg hover:bg-red-50"
+                  className="hidden sm:flex items-center gap-2 text-gray-600 hover:text-red-600 transition-colors text-sm p-2 rounded-lg hover:bg-red-50"
                   title="Clear saved progress and start over"
                 >
                   <Trash2 size={16} />
@@ -286,7 +286,7 @@ export default function EstimatorPage() {
                 className="text-gray-600 hover:text-red-500 transition-colors flex items-center gap-2"
                 aria-label="Exit estimator"
               >
-                <span className="text-fluid-sm font-medium hidden sm:inline">Exit</span>
+                <span className="text-sm font-medium hidden sm:inline">Exit</span>
                 <X size={24} />
               </Link>
             </div>
@@ -297,10 +297,10 @@ export default function EstimatorPage() {
       {/* Progress Steps Container - Only show after mode selection */}
       {data.estimatorMode && (
         <div className="bg-white border-b border-gray-200 sticky top-[73px] z-30">
-          <div className="container-responsive py-fluid-md">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             {/* Mode Badge */}
             <div className="text-center mb-4">
-              <span className={`inline-block px-4 py-1 rounded-full text-fluid-xs font-bold ${
+              <span className={`inline-block px-4 py-1 rounded-full text-xs font-bold ${
                 data.estimatorMode === 'easy' 
                   ? 'bg-red-100 text-red-600' 
                   : 'bg-navy-100 text-navy-600'
@@ -331,7 +331,7 @@ export default function EstimatorPage() {
                   </div>
                   
                   {/* Step name */}
-                  <span className={`ml-2 text-fluid-sm font-medium whitespace-nowrap ${
+                  <span className={`ml-2 text-sm font-medium whitespace-nowrap ${
                     currentStep >= step.id ? 'text-navy-500' : 'text-gray-400'
                   }`}>
                     {step.name}
@@ -350,10 +350,10 @@ export default function EstimatorPage() {
             {/* Progress indicator - mobile */}
             <div className="md:hidden">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-fluid-sm font-semibold text-navy-500">
+                <span className="text-sm font-semibold text-navy-500">
                   Step {currentStep} of {steps.length - 1}
                 </span>
-                <span className="text-fluid-sm text-gray-600">
+                <span className="text-sm text-gray-600">
                   {steps[currentStep]?.name}
                 </span>
               </div>
@@ -370,7 +370,7 @@ export default function EstimatorPage() {
       )}
 
       {/* Main content */}
-      <main className="container-responsive py-fluid-md md:py-fluid-lg">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {currentStep === 0 ? (
           <CurrentStepComponent onComplete={handleStepComplete} />
         ) : (

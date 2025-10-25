@@ -43,14 +43,14 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   }
 
   return (
-    <div className="sidebar-layout map-container-responsive">
+    <div className="grid lg:grid-cols-[360px_1fr] gap-6" style={{ height: 'calc(100vh - 200px)' }}>
       {/* Left sidebar - Instructions and measurements */}
-      <div className="bg-white rounded-xl shadow-lg p-fluid-md space-fluid-md sidebar-responsive">
+      <div className="bg-white rounded-xl shadow-lg p-6 space-y-6 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
         <div>
-          <h2 className="text-fluid-2xl font-bold text-navy-500 mb-2">
+          <h2 className="text-2xl font-bold text-navy-500 mb-2">
             Draw Your Roof
           </h2>
-          <p className="text-fluid-base text-gray-600">
+          <p className="text-gray-600">
             Click on the map to outline your roof's perimeter
           </p>
         </div>
@@ -59,9 +59,9 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
         <div className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
                   <button
                     onClick={() => setShowTips(!showTips)}
-                    className="w-full p-fluid-sm flex items-center justify-between hover:bg-gray-100 transition-colors"
+                    className="w-full p-4 flex items-center justify-between hover:bg-gray-100 transition-colors"
                   >
-                    <h3 className="font-semibold text-fluid-base text-navy-500">
+                    <h3 className="font-semibold text-navy-500">
                       Drawing Tips
                     </h3>
             {showTips ? (
@@ -72,8 +72,8 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
           </button>
           
           {showTips && (
-            <div className="p-fluid-sm">
-                      <ol className="space-y-2 text-fluid-sm text-gray-700 list-decimal list-inside">
+            <div className="px-4 pb-4">
+                      <ol className="space-y-2 text-sm text-gray-700 list-decimal list-inside">
                         <li>Pan and zoom to find your roof</li>
                         <li>Click the <strong>polygon tool</strong> (top-left of map)</li>
                         <li>Click points around roof edges</li>

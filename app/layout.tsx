@@ -27,14 +27,10 @@ export const metadata: Metadata = {
 }
 
 // Viewport configuration (Next.js 15 requirement)
-// Optimized for laptop screens and zoom functionality
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 5,        // Allow users to zoom up to 500%
-  minimumScale: 0.5,      // Allow zoom out
-  userScalable: true,     // Enable pinch-to-zoom and browser zoom
-  viewportFit: 'cover',   // Ensure proper display on all devices
+  maximumScale: 5,
 }
 
 export default function RootLayout({
