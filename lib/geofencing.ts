@@ -160,36 +160,34 @@ export function isWithinGTAServiceArea(
 }
 
 /**
- * Check if location is within Toronto ONLY (strict)
+ * Check if location is within Ontario (strict)
+ * Accepts any city in Ontario province
  */
-export function isWithinTorontoOnly(
+export function isWithinOntario(
   city: string | undefined,
   province: string | undefined,
   lat?: number,
   lng?: number,
   postalCode?: string
 ): boolean {
-  if (!city || !province) return false
+  if (!province) return false
   
-  // Check province
-  if (province.toUpperCase().trim() !== 'ON') return false
-  
-  // Check city name
-  const normalizedCity = city.toLowerCase().trim()
-  const isTorontoCity = normalizedCity.includes('toronto') || 
-                        normalizedCity === 'toronto' ||
-                        normalizedCity.startsWith('toronto')
-  
-  if (!isTorontoCity) return false
-  
-  // Additional validation with coordinates if provided
-  if (lat && lng) {
-    return isWithinTorontoBounds(lat, lng)
+  // MUST be Ontario - strict check
+  const normalizedProvince = province.toUpperCase().trim()
+  if (normalizedProvince !== 'ON' && normalizedProvince !== 'ONTARIO') {
+    return false
   }
   
-  // Additional validation with postal code if provided
+  // Any city in Ontario is accepted
+  // Optional: Additional validation with Ontario postal codes if provided
   if (postalCode) {
-    return isTorontoPostalCode(postalCode)
+    const cleanPostalCode = postalCode.replace(/\s/g, '').toUpperCase()
+    // Ontario postal codes: K, L, M, N, P
+    const ontarioPostalPrefixes = ['K', 'L', 'M', 'N', 'P']
+    const isOntarioPostal = ontarioPostalPrefixes.some(prefix => 
+      cleanPostalCode.startsWith(prefix)
+    )
+    if (!isOntarioPostal) return false
   }
   
   return true
@@ -211,10 +209,8 @@ export function validateServiceArea(
   message?: string
   suggestedAction?: string
 } {
-  // Use strict mode for Toronto only, or false for GTA-wide
-  const isValid = strictMode
-    ? isWithinTorontoOnly(city, province, lat, lng, postalCode)
-    : isWithinGTAServiceArea(city, province, postalCode)
+  // Check if location is in Ontario
+  const isValid = isWithinOntario(city, province, lat, lng, postalCode)
   
   if (isValid) {
     return {
@@ -224,12 +220,12 @@ export function validateServiceArea(
   }
   
   // Outside service area
+  const locationStr = city && province ? `${city}, ${province}` : 'Your location'
+  
   return {
     isValid: false,
-    message: `We currently only service the Toronto area.`,
-    suggestedAction: strictMode 
-      ? `We're currently serving Toronto, ON and surrounding GTA areas. Your location (${city}, ${province}) is outside our service area.`
-      : `We're currently serving the Greater Toronto Area only. Your location (${city}, ${province}) is outside our service area.`
+    message: `We currently only service Ontario.`,
+    suggestedAction: `We're currently serving Ontario only. ${locationStr} is outside our service area.`
   }
 }
 

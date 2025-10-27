@@ -56,9 +56,42 @@ export async function POST(request: Request) {
           // Get the most relevant feature (usually the first one)
           const place = data.features[0]
 
+          // Extract city, province, postal code from context
+          let city = ''
+          let province = ''
+          let postalCode = ''
+
+          // Parse the context array for region and postal code
+          if (place.context) {
+            for (const item of place.context) {
+              if (item.id.startsWith('place.')) {
+                city = item.text
+              }
+              if (item.id.startsWith('region.')) {
+                // Extract province code (e.g., "Ontario" -> get short code)
+                province = item.short_code?.replace('CA-', '') || item.text
+              }
+              if (item.id.startsWith('postcode.')) {
+                postalCode = item.text
+              }
+            }
+          }
+
+          // If city not found in context, try to extract from place_name
+          if (!city && place.place_type.includes('address')) {
+            // For addresses, city might be in the place_name
+            const parts = place.place_name.split(',').map(p => p.trim())
+            if (parts.length >= 2) {
+              city = parts[1] // Second part is usually the city
+            }
+          }
+
           return {
             address: place.place_name,
             coordinates: { lat, lng },
+            city: city || 'Unknown',
+            province: province || 'Unknown',
+            postalCode: postalCode || '',
             place_type: place.place_type,
             context: place.context,
           }
