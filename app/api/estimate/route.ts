@@ -33,18 +33,38 @@ export async function POST(request: Request) {
     }
 
     // Calculate roof area using Turf.js
-    // Mapbox Draw returns a GeoJSON Feature, we need the geometry.coordinates
-    const polygonCoordinates = roofPolygon.geometry?.coordinates || roofPolygon.coordinates
+    // Handle both single polygon and FeatureCollection (multiple polygons)
+    let areaSquareMeters = 0
     
-    if (!polygonCoordinates) {
+    if (roofPolygon.type === 'FeatureCollection' && roofPolygon.features) {
+      // Multiple polygons - sum all areas
+      roofPolygon.features.forEach((feature: any) => {
+        if (feature.geometry.type === 'Polygon') {
+          areaSquareMeters += turf.area(feature)
+        }
+      })
+    } else {
+      // Single polygon (legacy format)
+      const polygonCoordinates = roofPolygon.geometry?.coordinates || roofPolygon.coordinates
+      
+      if (!polygonCoordinates) {
+        return NextResponse.json(
+          { error: 'Invalid roof polygon data' },
+          { status: 400 }
+        )
+      }
+      
+      const polygon = turf.polygon(polygonCoordinates)
+      areaSquareMeters = turf.area(polygon)
+    }
+    
+    if (areaSquareMeters === 0) {
       return NextResponse.json(
-        { error: 'Invalid roof polygon data' },
+        { error: 'Invalid roof polygon data - no area calculated' },
         { status: 400 }
       )
     }
-
-    const polygon = turf.polygon(polygonCoordinates)
-    const areaSquareMeters = turf.area(polygon)
+    
     const areaSquareFeet = areaSquareMeters * 10.764
 
     // Calculate recommended system size

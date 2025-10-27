@@ -3,9 +3,12 @@
 // Step 4: Review estimate and results
 
 import { useState, useEffect } from 'react'
-import { Zap, DollarSign, TrendingUp, TrendingDown, PiggyBank, Loader2, Leaf } from 'lucide-react'
+import { Zap, DollarSign, TrendingUp, TrendingDown, PiggyBank, Loader2, Leaf, CreditCard } from 'lucide-react'
 import { formatCurrency, formatKw, formatNumber } from '@/lib/utils'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { FINANCING_OPTIONS, calculateFinancing } from '@/config/provinces'
+import { calculateRoofAzimuth, getDirectionLabel, getOrientationEfficiency } from '@/lib/roof-calculations'
+import * as turf from '@turf/turf'
 
 interface StepReviewProps {
   data: any
@@ -17,6 +20,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
   const [estimate, setEstimate] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'savings' | 'production' | 'environmental'>('savings')
+  const [selectedFinancing, setSelectedFinancing] = useState<string>(data.financingOption || 'cash')
 
   // Fetch estimate from API
   useEffect(() => {
@@ -115,10 +119,50 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
         <div className="card p-4">
           <h3 className="font-semibold text-gray-700 mb-2">Roof Details</h3>
           <div className="text-sm text-gray-600 space-y-1">
-            <p>Area: {data.roofAreaSqft?.toLocaleString()} sq ft</p>
+            <p>Total Area: {data.roofAreaSqft?.toLocaleString()} sq ft</p>
+            
+            {/* Show section count if multiple polygons */}
+            {data.roofPolygon?.features && data.roofPolygon.features.length > 1 && (
+              <p className="text-blue-600 font-medium">
+                {data.roofPolygon.features.length} roof sections
+              </p>
+            )}
+            
             <p>Type: {data.roofType || 'Asphalt Shingle'}</p>
             <p>Pitch: {data.roofPitch || 'Medium'}</p>
+            {data.shadingLevel && (
+              <p>Shading: {data.shadingLevel.charAt(0).toUpperCase() + data.shadingLevel.slice(1)}</p>
+            )}
           </div>
+          
+          {/* Multi-section breakdown */}
+          {data.roofPolygon?.features && data.roofPolygon.features.length > 1 && (
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              <p className="text-xs font-semibold text-gray-700 mb-2">Section Details</p>
+              <div className="space-y-1">
+                {data.roofPolygon.features.map((feature: any, index: number) => {
+                  if (feature.geometry.type !== 'Polygon') return null
+                  
+                  const areaMeters = turf.area(feature)
+                  const areaSqFt = Math.round(areaMeters * 10.764)
+                  const azimuth = calculateRoofAzimuth(feature)
+                  const direction = getDirectionLabel(azimuth)
+                  const efficiency = getOrientationEfficiency(azimuth)
+                  
+                  return (
+                    <div key={index} className="flex items-center justify-between text-xs py-1">
+                      <span className="text-gray-600">
+                        Section {index + 1}: {direction} ({efficiency}%)
+                      </span>
+                      <span className="font-medium text-navy-500">
+                        {areaSqFt.toLocaleString()} sq ft
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Photos summary card */}
@@ -181,6 +225,29 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
           <p className="text-white/90">{data.address}</p>
         </div>
 
+        {/* Add-ons summary (if any selected) */}
+        {data.selectedAddOns && data.selectedAddOns.length > 0 && (
+          <div className="card bg-blue-50 border border-blue-200 p-4">
+            <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+              <span>Selected Add-ons</span>
+              <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full">
+                {data.selectedAddOns.length}
+              </span>
+            </h3>
+            <ul className="text-sm text-blue-800 space-y-1">
+              {data.selectedAddOns.map((addOnId: string) => (
+                <li key={addOnId} className="flex items-center gap-2">
+                  <span className="text-blue-500">•</span>
+                  <span className="capitalize">{addOnId.replace('_', ' ')}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-blue-600 mt-2">
+              +${data.addOnsCost?.toLocaleString()} estimated additional cost
+            </p>
+          </div>
+        )}
+
         {/* Metrics grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* System Size */}
@@ -222,6 +289,127 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             <div className="text-sm text-gray-600">Monthly Savings</div>
             <div className="text-xs text-gray-500 mt-1">Based on current rates</div>
           </div>
+        </div>
+
+        {/* Financing Options */}
+        <div className="card p-6">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h3 className="text-xl font-bold text-navy-500 flex items-center gap-2">
+                <CreditCard size={24} className="text-red-500" />
+                Financing Options
+              </h3>
+              <p className="text-sm text-gray-600 mt-2">
+                Choose how you'd like to pay for your solar system
+              </p>
+            </div>
+            <div className="bg-blue-100 text-blue-800 text-xs font-semibold px-3 py-1 rounded-full whitespace-nowrap">
+              EXAMPLE RATES
+            </div>
+          </div>
+          
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+            <p className="text-xs text-yellow-800">
+              <span className="font-semibold">Note:</span> These are example financing rates for illustration purposes only.
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {FINANCING_OPTIONS.map((option) => {
+              const totalCost = (estimate.costs.netCost || 0) + (data.addOnsCost || 0)
+              const financing = calculateFinancing(
+                totalCost,
+                option.interestRate,
+                option.termYears
+              )
+              const isSelected = selectedFinancing === option.id
+              
+              return (
+                <button
+                  key={option.id}
+                  onClick={() => setSelectedFinancing(option.id)}
+                  className={`p-4 rounded-lg border-2 text-left transition-all ${
+                    isSelected
+                      ? 'border-red-500 bg-red-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="font-semibold text-navy-500 mb-1">
+                    {option.name}
+                  </div>
+                  {option.termYears > 0 ? (
+                    <>
+                      <div className="text-2xl font-bold text-red-500 mb-1">
+                        ${financing.monthlyPayment}/mo
+                      </div>
+                      <div className="text-xs text-gray-600 mb-2">
+                        {option.interestRate}% APR • {option.termYears} years
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Total: ${financing.totalPaid.toLocaleString()}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-2xl font-bold text-green-600 mb-1">
+                        ${totalCost.toLocaleString()}
+                      </div>
+                      <div className="text-xs text-gray-600 mb-2">
+                        One-time payment
+                      </div>
+                      <div className="text-xs text-green-600 font-semibold">
+                        Best long-term value
+                      </div>
+                    </>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+          
+          {/* Selected financing details */}
+          {selectedFinancing !== 'cash' && (() => {
+            const selectedOption = FINANCING_OPTIONS.find(opt => opt.id === selectedFinancing)
+            if (!selectedOption) return null
+            
+            const totalCost = (estimate.costs.netCost || 0) + (data.addOnsCost || 0)
+            const financing = calculateFinancing(
+              totalCost,
+              selectedOption.interestRate,
+              selectedOption.termYears
+            )
+            
+            return (
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-sm font-semibold text-gray-700 mb-2">
+                  {selectedOption.name} Breakdown
+                </p>
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-600">Monthly Payment</p>
+                    <p className="font-bold text-navy-500">
+                      ${financing.monthlyPayment.toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Total Interest</p>
+                    <p className="font-bold text-orange-600">
+                      ${financing.totalInterest.toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Total Cost</p>
+                    <p className="font-bold text-navy-500">
+                      ${financing.totalPaid.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-3">
+                  {selectedOption.description}
+                </p>
+              </div>
+            )
+          })()}
         </div>
 
         {/* Tabs for detailed results */}
@@ -393,7 +581,10 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             </button>
           )}
           <button
-            onClick={() => onComplete({ estimate })}
+            onClick={() => onComplete({ 
+              estimate,
+              financingOption: selectedFinancing
+            })}
             className="btn-primary flex-1"
           >
             Continue to Contact Form

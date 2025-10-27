@@ -192,9 +192,10 @@ export function calculateSystemSize(roofAreaSqFt: number, shadingLevel: string =
   
   // Usable roof percentage based on shading
   const usableRoofPercent: Record<string, number> = {
-    'minimal': 0.75,
-    'partial': 0.60,
-    'significant': 0.45
+    'none': 0.85, // No shade - maximum usable area (allowing for roof access, vents, etc)
+    'minimal': 0.75, // Mostly sunny
+    'partial': 0.60, // Some shade from trees/buildings
+    'significant': 0.45 // Heavy shade
   };
   
   // Calculate usable roof area
@@ -211,5 +212,88 @@ export function calculateSystemSize(roofAreaSqFt: number, shadingLevel: string =
     numPanels,
     usableAreaSqFt: Math.round(usableArea)
   };
+}
+
+// Financing options interface
+export interface FinancingOption {
+  id: string
+  name: string
+  interestRate: number // Annual interest rate as percentage
+  termYears: number // Loan term in years
+  description: string
+}
+
+// Available financing options
+export const FINANCING_OPTIONS: FinancingOption[] = [
+  {
+    id: 'cash',
+    name: 'Cash Purchase',
+    interestRate: 0,
+    termYears: 0,
+    description: 'Pay in full upfront - best long-term value'
+  },
+  {
+    id: 'loan_10',
+    name: '10-Year Loan',
+    interestRate: 6.99,
+    termYears: 10,
+    description: 'Lower monthly payments with moderate interest'
+  },
+  {
+    id: 'loan_15',
+    name: '15-Year Loan',
+    interestRate: 7.49,
+    termYears: 15,
+    description: 'Lowest monthly payments with higher total interest'
+  },
+  {
+    id: 'loan_5',
+    name: '5-Year Loan',
+    interestRate: 5.99,
+    termYears: 5,
+    description: 'Pay off quickly with lower total interest'
+  }
+]
+
+// Calculate monthly payment for a loan
+export function calculateFinancing(
+  totalAmount: number,
+  interestRate: number,
+  termYears: number
+) {
+  // Cash purchase - no financing needed
+  if (termYears === 0 || interestRate === 0) {
+    return {
+      monthlyPayment: 0,
+      totalPaid: totalAmount,
+      totalInterest: 0,
+      effectiveMonthlyPayment: Math.round(totalAmount / 300) // Amortized over 25 years for comparison
+    }
+  }
+  
+  // Convert annual interest rate to monthly decimal rate
+  const monthlyRate = (interestRate / 100) / 12
+  
+  // Total number of monthly payments
+  const numPayments = termYears * 12
+  
+  // Calculate monthly payment using loan payment formula
+  // M = P * [r(1+r)^n] / [(1+r)^n - 1]
+  const monthlyPayment = totalAmount * 
+    (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / 
+    (Math.pow(1 + monthlyRate, numPayments) - 1)
+  
+  // Calculate total amount paid over loan term
+  const totalPaid = monthlyPayment * numPayments
+  
+  // Calculate total interest paid
+  const totalInterest = totalPaid - totalAmount
+  
+  return {
+    monthlyPayment: Math.round(monthlyPayment),
+    totalPaid: Math.round(totalPaid),
+    totalInterest: Math.round(totalInterest),
+    effectiveMonthlyPayment: Math.round(monthlyPayment) // Actual monthly payment
+  }
 }
 

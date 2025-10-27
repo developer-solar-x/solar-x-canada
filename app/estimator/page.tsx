@@ -16,8 +16,9 @@ import { StepDrawRoof } from '@/components/estimator/StepDrawRoof'
 import { StepRoofSimple } from '@/components/estimator/StepRoofSimple'
 import { StepPhotos } from '@/components/estimator/StepPhotos'
 import { StepPhotosSimple } from '@/components/estimator/StepPhotosSimple'
-import { StepAppliances } from '@/components/estimator/StepAppliances'
+// import { StepAppliances } from '@/components/estimator/StepAppliances' // Temporarily disabled - solar only
 import { StepEnergySimple } from '@/components/estimator/StepEnergySimple'
+import { StepAddOns } from '@/components/estimator/StepAddOns'
 import { StepDetails } from '@/components/estimator/StepDetails'
 import { StepDetailsSimple } from '@/components/estimator/StepDetailsSimple'
 import { StepReview } from '@/components/estimator/StepReview'
@@ -47,8 +48,8 @@ export interface EstimatorData {
   photos?: any[]
   photoSummary?: any
   
-  // Step 4: Energy (easy or detailed)
-  appliances?: any[]
+  // Step 4: Energy (easy or detailed) - APPLIANCES TEMPORARILY DISABLED FOR SOLAR-ONLY
+  // appliances?: any[]
   homeSize?: string
   specialAppliances?: string[]
   energyEntryMethod?: 'simple' | 'detailed'
@@ -58,36 +59,45 @@ export interface EstimatorData {
     annualKwh: number
   }
   
-  // Step 5: Property details
+  // Step 5: Add-ons
+  selectedAddOns?: string[]
+  addOnsCost?: number
+  
+  // Step 6: Property details
   roofType?: string
   roofAge?: string
   roofPitch?: string
   shadingLevel?: string
   monthlyBill?: number
   
-  // Step 6: Estimate results
+  // Step 7: Financing preference
+  financingOption?: string
+  
+  // Step 8: Estimate results
   estimate?: any
 }
 
-// Step definitions for Easy Mode
+// Step definitions for Easy Mode (Solar-only focused)
 const easySteps = [
   { id: 0, name: 'Mode', component: StepModeSelector },
   { id: 1, name: 'Location', component: StepLocation },
   { id: 2, name: 'Roof Size', component: StepRoofSimple },
   { id: 3, name: 'Photos', component: StepPhotosSimple },
   { id: 4, name: 'Energy', component: StepEnergySimple },
-  { id: 5, name: 'Details', component: StepDetailsSimple },
-  { id: 6, name: 'Review', component: StepReview },
-  { id: 7, name: 'Submit', component: StepContact },
+  { id: 5, name: 'Add-ons', component: StepAddOns },
+  { id: 6, name: 'Details', component: StepDetailsSimple },
+  { id: 7, name: 'Review', component: StepReview },
+  { id: 8, name: 'Submit', component: StepContact },
 ]
 
-// Step definitions for Detailed Mode
+// Step definitions for Detailed Mode (Solar-only focused)
 const detailedSteps = [
   { id: 0, name: 'Mode', component: StepModeSelector },
   { id: 1, name: 'Location', component: StepLocation },
   { id: 2, name: 'Draw Roof', component: StepDrawRoof },
   { id: 3, name: 'Photos', component: StepPhotos },
-  { id: 4, name: 'Appliances', component: StepAppliances },
+  // { id: 4, name: 'Appliances', component: StepAppliances }, // Temporarily disabled - solar only
+  { id: 4, name: 'Add-ons', component: StepAddOns },
   { id: 5, name: 'Details', component: StepDetails },
   { id: 6, name: 'Review', component: StepReview },
   { id: 7, name: 'Submit', component: StepContact },

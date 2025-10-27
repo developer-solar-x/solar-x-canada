@@ -3,8 +3,9 @@
 // Step 3: Property details form
 
 import { useState } from 'react'
-import { Info } from 'lucide-react'
-import { ROOF_ORIENTATIONS, getDirectionLabel, getOrientationEfficiency } from '@/lib/roof-calculations'
+import { Info, Home } from 'lucide-react'
+import { ROOF_ORIENTATIONS, getDirectionLabel, getOrientationEfficiency, calculateRoofAzimuth } from '@/lib/roof-calculations'
+import * as turf from '@turf/turf'
 
 interface StepDetailsProps {
   data: any
@@ -27,10 +28,68 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
     onComplete(formData)
   }
 
+  // Calculate if multiple sections
+  const hasMultipleSections = data.roofPolygon?.features && data.roofPolygon.features.length > 1
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="card p-8">
         <h2 className="text-3xl font-bold text-navy-500 mb-8">Property Details</h2>
+
+        {/* Roof Summary Card - show area and sections */}
+        {data.roofAreaSqft && (
+          <div className="mb-8 p-4 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <Home className="text-blue-600 flex-shrink-0 mt-1" size={24} />
+              <div className="flex-1">
+                <h3 className="font-semibold text-navy-500 mb-2">Your Roof</h3>
+                <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Total Area:</span>
+                    <span className="ml-2 font-bold text-navy-500">
+                      {data.roofAreaSqft.toLocaleString()} sq ft
+                    </span>
+                  </div>
+                  {hasMultipleSections && (
+                    <div>
+                      <span className="text-gray-600">Sections:</span>
+                      <span className="ml-2 font-bold text-blue-600">
+                        {data.roofPolygon.features.length} roof sections
+                      </span>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Section breakdown for multiple polygons */}
+                {hasMultipleSections && (
+                  <div className="mt-3 pt-3 border-t border-blue-200">
+                    <p className="text-xs font-semibold text-gray-700 mb-2">Section Details:</p>
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      {data.roofPolygon.features.map((feature: any, index: number) => {
+                        if (feature.geometry.type !== 'Polygon') return null
+                        
+                        const areaMeters = turf.area(feature)
+                        const areaSqFt = Math.round(areaMeters * 10.764)
+                        const azimuth = calculateRoofAzimuth(feature)
+                        const direction = getDirectionLabel(azimuth)
+                        const efficiency = getOrientationEfficiency(azimuth)
+                        
+                        return (
+                          <div key={index} className="text-xs bg-white/60 rounded px-2 py-1">
+                            <span className="font-medium text-navy-500">Section {index + 1}:</span>
+                            <span className="ml-1 text-gray-600">
+                              {areaSqFt.toLocaleString()} sq ft • {direction} ({efficiency}%)
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Section 1: Roof Details */}
@@ -102,15 +161,16 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
                   onChange={(e) => setFormData({ ...formData, shadingLevel: e.target.value })}
                   className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none"
                 >
-                  <option value="minimal">Minimal</option>
-                  <option value="partial">Partial</option>
-                  <option value="significant">Significant</option>
+                  <option value="none">None (Full sun all day)</option>
+                  <option value="minimal">Minimal (Mostly sunny)</option>
+                  <option value="partial">Partial (Some shade)</option>
+                  <option value="significant">Significant (Heavy shade)</option>
                 </select>
               </div>
             </div>
 
-            {/* Roof Orientation - only show if not already detected from polygon */}
-            {!data.roofAzimuth && (
+            {/* Roof Orientation - only show if not already detected from polygon AND single section */}
+            {!data.roofAzimuth && !hasMultipleSections && (
               <div className="mt-6">
                 <label className="block text-sm font-semibold text-gray-700 mb-3">
                   Roof Orientation (Direction it Faces)
@@ -142,8 +202,8 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
               </div>
             )}
 
-            {/* Show detected orientation if available */}
-            {data.roofAzimuth && (
+            {/* Show detected orientation if available AND single section */}
+            {data.roofAzimuth && !hasMultipleSections && (
               <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="flex items-start gap-2">
                   <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={18} />
@@ -155,6 +215,19 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
                       Detected from your roof drawing. {getOrientationEfficiency(data.roofAzimuth)}% of optimal production.
                     </p>
                   </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Info note for multiple sections */}
+            {hasMultipleSections && (
+              <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <Info className="text-gray-600 flex-shrink-0 mt-0.5" size={18} />
+                  <p className="text-xs text-gray-600">
+                    Each roof section has its own orientation which has been automatically detected and is shown in the summary above. 
+                    The solar estimate will account for all sections and their individual orientations.
+                  </p>
                 </div>
               </div>
             )}

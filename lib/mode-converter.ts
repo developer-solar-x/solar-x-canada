@@ -19,13 +19,14 @@ export function convertEasyToDetailed(data: EstimatorData): Partial<EstimatorDat
   }
 
   // Convert simple energy to appliances if no appliances exist
-  if (data.energyUsage && !data.appliances && data.energyEntryMethod === 'simple') {
-    // Generate estimated appliances based on home size and special appliances
-    converted.appliances = generateEstimatedAppliances(
-      data.homeSize,
-      data.specialAppliances
-    )
-  }
+  // NOTE: Appliances feature temporarily disabled for solar-only focus
+  // if (data.energyUsage && !data.appliances && data.energyEntryMethod === 'simple') {
+  //   // Generate estimated appliances based on home size and special appliances
+  //   converted.appliances = generateEstimatedAppliances(
+  //     data.homeSize,
+  //     data.specialAppliances
+  //   )
+  // }
 
   return converted
 }
@@ -47,10 +48,11 @@ export function convertDetailedToEasy(data: EstimatorData): Partial<EstimatorDat
   }
 
   // Keep energy usage but mark as simple
-  if (data.appliances && data.appliances.length > 0) {
-    // Energy usage should already be calculated
-    converted.energyEntryMethod = 'simple'
-  }
+  // NOTE: Appliances feature temporarily disabled for solar-only focus
+  // if (data.appliances && data.appliances.length > 0) {
+  //   // Energy usage should already be calculated
+  //   converted.energyEntryMethod = 'simple'
+  // }
 
   return converted
 }
@@ -161,7 +163,8 @@ export function validateModeData(data: EstimatorData, mode: 'easy' | 'detailed')
   } else {
     // Detailed mode minimum requirements
     if (!data.roofPolygon && !data.roofAreaSqft) missing.push('roofPolygon or roofAreaSqft')
-    if (!data.appliances && !data.energyUsage) missing.push('appliances or energyUsage')
+    // NOTE: Appliances feature temporarily disabled for solar-only focus
+    if (!data.energyUsage) missing.push('energyUsage')
   }
 
   return {

@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { Ruler, ChevronDown, ChevronUp, Info, Edit2 } from 'lucide-react'
 import { MapboxDrawing } from './MapboxDrawing'
 import { calculateRoofAzimuth, getDirectionLabel, getOrientationEfficiency, getOrientationQuality, ROOF_ORIENTATIONS } from '@/lib/roof-calculations'
+import * as turf from '@turf/turf'
 
 interface StepDrawRoofProps {
   data: any
@@ -22,24 +23,86 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   )
   const [showTips, setShowTips] = useState(true)
   
-  // Roof orientation detection
+  // Individual roof sections breakdown (includes orientation per section)
+  const [roofSections, setRoofSections] = useState<Array<{
+    id: string, 
+    area: number, 
+    panels: number, 
+    azimuth: number, 
+    direction: string,
+    efficiency: number
+  }>>([])
+  
+  // Roof orientation detection (uses largest section)
   const [detectedAzimuth, setDetectedAzimuth] = useState<number | null>(data.roofAzimuth || null)
   const [showOrientationSelector, setShowOrientationSelector] = useState(false)
   const [selectedAzimuth, setSelectedAzimuth] = useState<number>(data.roofAzimuth || 180)
 
-  // Handle area calculation from map drawing
-  const handleAreaCalculated = (areaSqFt: number, polygon: any, snapshot?: string) => {
+  // Handle area calculation from map drawing (supports multiple polygons)
+  const handleAreaCalculated = (areaSqFt: number, polygonData: any, snapshot?: string) => {
+    // If no area (all polygons deleted), clear everything
+    if (areaSqFt === 0 || !polygonData.features || polygonData.features.length === 0) {
+      setRoofArea(null)
+      setRoofPolygon(null)
+      setMapSnapshot(null)
+      setEstimatedPanels(null)
+      setRoofSections([])
+      setDetectedAzimuth(null)
+      setSelectedAzimuth(180)
+      return
+    }
+    
     setRoofArea(areaSqFt)
-    setRoofPolygon(polygon)
+    setRoofPolygon(polygonData)
     if (snapshot) {
       setMapSnapshot(snapshot)
     }
     setEstimatedPanels(Math.floor(areaSqFt / 17.5)) // Assuming 17.5 sq ft per panel
     
-    // Auto-detect roof orientation from the drawn polygon
-    const azimuth = calculateRoofAzimuth(polygon)
-    setDetectedAzimuth(azimuth)
-    setSelectedAzimuth(azimuth)
+    // Calculate individual section areas and orientations
+    if (polygonData.features && polygonData.features.length > 0) {
+      let largestPolygon = polygonData.features[0]
+      let maxArea = 0
+      
+      // Calculate area, panels, and orientation for each section
+      const sections = polygonData.features.map((feature: any, index: number) => {
+        if (feature.geometry.type === 'Polygon') {
+          const areaMeters = turf.area(feature)
+          const areaSqFt = Math.round(areaMeters * 10.764)
+          const panels = Math.floor(areaSqFt / 17.5)
+          
+          // Calculate orientation for this specific section
+          const azimuth = calculateRoofAzimuth(feature)
+          const direction = getDirectionLabel(azimuth)
+          const efficiency = getOrientationEfficiency(azimuth)
+          
+          // Track largest polygon for overall orientation
+          if (areaMeters > maxArea) {
+            maxArea = areaMeters
+            largestPolygon = feature
+          }
+          
+          return {
+            id: feature.id || `section-${index + 1}`,
+            area: areaSqFt,
+            panels: panels,
+            azimuth: azimuth,
+            direction: direction,
+            efficiency: efficiency
+          }
+        }
+        return null
+      }).filter(Boolean)
+      
+      setRoofSections(sections as any)
+      
+      // Use largest section's orientation as the overall detected orientation
+      const overallAzimuth = calculateRoofAzimuth(largestPolygon)
+      setDetectedAzimuth(overallAzimuth)
+      setSelectedAzimuth(overallAzimuth)
+    } else {
+      setRoofSections([])
+    }
   }
 
   // Continue to next step
@@ -90,8 +153,9 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
                         <li>Click the <strong>polygon tool</strong> (top-left of map)</li>
                         <li>Click points around roof edges</li>
                         <li>Double-click to finish the shape</li>
+                        <li><strong>Draw multiple polygons</strong> if you have multiple roof sections</li>
                         <li>Use <strong>edit tool</strong> to adjust points</li>
-                        <li><strong>Drag the pin</strong> to reposition marker</li>
+                        <li>Use <strong>trash icon</strong> to delete a polygon</li>
                       </ol>
             </div>
           )}
@@ -117,10 +181,75 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
               <div className="text-2xl font-bold text-blue-500">
                 ~{estimatedPanels} panels
               </div>
+              {roofPolygon?.features?.length > 1 && (
+                <div className="text-xs text-blue-600 mt-1">
+                  {roofPolygon.features.length} roof sections
+                </div>
+              )}
             </div>
 
-            {/* Roof orientation detection */}
-            {detectedAzimuth !== null && !showOrientationSelector && (
+            {/* Individual section breakdown */}
+            {roofSections.length > 1 && (
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <Ruler size={16} className="text-gray-500" />
+                  Section Breakdown
+                </div>
+                <div className="space-y-2">
+                  {roofSections.map((section, index) => {
+                    // Determine color based on efficiency
+                    const qualityColor = section.efficiency >= 90 
+                      ? 'text-green-600 bg-green-50 border-green-200' 
+                      : section.efficiency >= 70 
+                      ? 'text-yellow-600 bg-yellow-50 border-yellow-200'
+                      : 'text-orange-600 bg-orange-50 border-orange-200'
+                    
+                    return (
+                      <div 
+                        key={section.id} 
+                        className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded border border-gray-200"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                            {index + 1}
+                          </div>
+                          <div>
+                            <div className="text-sm text-gray-700">Section {index + 1}</div>
+                            <div className={`text-xs font-semibold px-2 py-0.5 rounded inline-block mt-1 ${qualityColor}`}>
+                              {section.direction} ({section.azimuth}°) - {section.efficiency}%
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-semibold text-navy-500">
+                            {section.area.toLocaleString()} sq ft
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            ~{section.panels} panels
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  
+                  {/* Total */}
+                  <div className="flex items-center justify-between py-2 px-3 bg-red-50 rounded border-2 border-red-300 mt-3">
+                    <span className="text-sm font-bold text-red-700">Total</span>
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-red-700">
+                        {roofArea?.toLocaleString()} sq ft
+                      </div>
+                      <div className="text-xs text-red-600">
+                        ~{estimatedPanels} panels
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Roof orientation detection - only show for single roof section */}
+            {detectedAzimuth !== null && !showOrientationSelector && roofSections.length <= 1 && (
               <div className={`p-4 rounded-lg border ${
                 getOrientationQuality(selectedAzimuth).color === 'green' 
                   ? 'bg-green-50 border-green-200' 
@@ -168,8 +297,8 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
               </div>
             )}
 
-            {/* Manual orientation selector */}
-            {showOrientationSelector && (
+            {/* Manual orientation selector - only for single roof section */}
+            {showOrientationSelector && roofSections.length <= 1 && (
               <div className="p-4 rounded-lg border border-gray-200 bg-white">
                 <p className="text-sm font-semibold text-navy-500 mb-3">
                   Select Roof Direction

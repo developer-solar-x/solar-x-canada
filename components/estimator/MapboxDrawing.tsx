@@ -137,34 +137,41 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated }: Mapbox
     // Listen for drawing events
     map.current.on('draw.create', updateArea)
     map.current.on('draw.update', updateArea)
-    map.current.on('draw.delete', () => {
-      setCurrentArea(null)
-    })
+    map.current.on('draw.delete', updateArea)
 
-    // Calculate area when polygon is drawn or updated
+    // Calculate total area when polygons are drawn, updated, or deleted
     function updateArea() {
       const data = draw.current!.getAll()
       
       if (data.features.length > 0) {
-        const polygon = data.features[0]
+        // Calculate total area of all polygons
+        let totalAreaSqMeters = 0
         
-        // Calculate area using Turf.js
-        const area = turf.area(polygon as any)
+        data.features.forEach((feature) => {
+          if (feature.geometry.type === 'Polygon') {
+            const area = turf.area(feature as any)
+            totalAreaSqMeters += area
+          }
+        })
         
         // Convert square meters to square feet
-        const areaSqFt = area * 10.764
+        const totalAreaSqFt = totalAreaSqMeters * 10.764
         
-        setCurrentArea(areaSqFt)
+        setCurrentArea(totalAreaSqFt)
         
         // Capture map snapshot for review
         setTimeout(() => {
           if (map.current) {
             const canvas = map.current.getCanvas()
             const mapSnapshot = canvas.toDataURL('image/png')
-            // Use ref to call callback without causing re-initialization
-            onAreaCalculatedRef.current(areaSqFt, polygon, mapSnapshot)
+            // Pass all features (multiple polygons) instead of just one
+            onAreaCalculatedRef.current(totalAreaSqFt, data, mapSnapshot)
           }
         }, 500) // Wait for drawing to complete
+      } else {
+        // No polygons left - clear everything
+        setCurrentArea(null)
+        onAreaCalculatedRef.current(0, { type: 'FeatureCollection', features: [] }, undefined)
       }
     }
 

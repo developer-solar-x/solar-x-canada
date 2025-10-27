@@ -27,7 +27,8 @@ const ROOF_CONDITIONS = [
 ]
 
 const SHADE_LEVELS = [
-  { id: 'minimal', label: 'Mostly Sunny', icon: '☀️', description: 'Little to no shade' },
+  { id: 'none', label: 'No Shade', icon: '🌞', description: 'Full sun all day' },
+  { id: 'minimal', label: 'Mostly Sunny', icon: '☀️', description: 'Little shade' },
   { id: 'partial', label: 'Partial Shade', icon: '⛅', description: 'Some trees nearby' },
   { id: 'significant', label: 'Heavy Shade', icon: '☁️', description: 'Lots of trees/buildings' },
 ]
@@ -117,7 +118,7 @@ export function StepDetailsSimple({ data, onComplete, onBack, onUpgradeMode }: S
           <label className="block text-sm font-semibold text-gray-700 mb-3">
             How much shade does your roof get?
           </label>
-          <div className="grid sm:grid-cols-3 gap-3">
+          <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3">
             {SHADE_LEVELS.map((shade) => (
               <button
                 key={shade.id}
