@@ -3,7 +3,8 @@
 // Step 1: Address/Location input
 
 import { useState } from 'react'
-import { MapPin, Loader2 } from 'lucide-react'
+import { MapPin, Loader2, AlertTriangle } from 'lucide-react'
+import { validateServiceArea } from '@/lib/geofencing'
 
 interface StepLocationProps {
   data: any
@@ -16,6 +17,8 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
   const [loading, setLoading] = useState(false)
   const [loadingLocation, setLoadingLocation] = useState(false)
   const [error, setError] = useState('')
+  const [serviceAreaWarning, setServiceAreaWarning] = useState<string | null>(null)
+  const [pendingData, setPendingData] = useState<any>(null)
 
   // Handle address submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,11 +47,34 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
       const result = await response.json()
 
       if (result.success && result.data) {
-        // Pass data to next step
-        onComplete({
-          address: result.data.address,
-          coordinates: result.data.coordinates,
-        })
+        // Validate service area (Toronto only)
+        const validation = validateServiceArea(
+          result.data.city,
+          result.data.province,
+          result.data.coordinates.lat,
+          result.data.coordinates.lng,
+          result.data.postalCode,
+          true // Strict mode - Toronto only
+        )
+
+        if (!validation.isValid) {
+          // Outside service area
+          setServiceAreaWarning(validation.suggestedAction || validation.message || 'Outside service area')
+          setPendingData({
+            address: result.data.address,
+            coordinates: result.data.coordinates,
+            city: result.data.city,
+            province: result.data.province,
+          })
+        } else {
+          // Within service area - proceed
+          onComplete({
+            address: result.data.address,
+            coordinates: result.data.coordinates,
+            city: result.data.city,
+            province: result.data.province,
+          })
+        }
       } else {
         setError('Address not found. Please try a different address.')
       }
@@ -96,11 +122,34 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
               // Update address field
               setAddress(result.data.address)
               
-              // Automatically proceed to next step
-              onComplete({
-                address: result.data.address,
-                coordinates: result.data.coordinates,
-              })
+              // Validate service area
+              const validation = validateServiceArea(
+                result.data.city,
+                result.data.province,
+                latitude,
+                longitude,
+                result.data.postalCode,
+                true // Strict mode - Toronto only
+              )
+
+              if (!validation.isValid) {
+                // Outside service area
+                setServiceAreaWarning(validation.suggestedAction || validation.message || 'Outside service area')
+                setPendingData({
+                  address: result.data.address,
+                  coordinates: result.data.coordinates,
+                  city: result.data.city,
+                  province: result.data.province,
+                })
+              } else {
+                // Within service area - proceed
+                onComplete({
+                  address: result.data.address,
+                  coordinates: result.data.coordinates,
+                  city: result.data.city,
+                  province: result.data.province,
+                })
+              }
             } else {
               setError('Could not determine your address. Please enter it manually.')
             }
@@ -182,6 +231,49 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
           {error && (
             <div className="text-red-500 text-sm text-left bg-red-50 p-3 rounded-lg">
               {error}
+            </div>
+          )}
+
+          {/* Service area warning */}
+          {serviceAreaWarning && (
+            <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-6 text-left">
+              <div className="flex items-start gap-3 mb-4">
+                <AlertTriangle className="text-yellow-600 flex-shrink-0 mt-1" size={24} />
+                <div>
+                  <h3 className="font-bold text-yellow-900 mb-2">Outside Service Area</h3>
+                  <p className="text-sm text-yellow-800 mb-3">
+                    {serviceAreaWarning}
+                  </p>
+                  <p className="text-xs text-yellow-700">
+                    We're currently focused on providing the best service to Toronto residents. 
+                    Want to be notified when we expand? Continue anyway to get an estimate and we'll keep you updated.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setServiceAreaWarning(null)
+                    setPendingData(null)
+                    setAddress('')
+                  }}
+                  className="flex-1 px-4 py-2 border-2 border-yellow-600 text-yellow-700 rounded-lg hover:bg-yellow-100 transition-colors font-semibold text-sm"
+                >
+                  Try Different Address
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (pendingData) {
+                      onComplete(pendingData)
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-semibold text-sm"
+                >
+                  Continue Anyway
+                </button>
+              </div>
             </div>
           )}
 

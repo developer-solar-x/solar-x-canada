@@ -55,13 +55,15 @@ export async function syncLeadToHubSpot(lead: Lead) {
       filterGroups: [{
         filters: [{
           propertyName: 'email',
-          operator: 'EQ',
+          operator: 'EQ' as any,
           value: lead.email
         }]
       }],
       properties: ['email'],
       limit: 1,
-    })
+      after: undefined,
+      sorts: []
+    } as any)
 
     let contactId: string
 
@@ -75,7 +77,8 @@ export async function syncLeadToHubSpot(lead: Lead) {
     } else {
       // Create new contact
       const newContact = await client.crm.contacts.basicApi.create({
-        properties: contactProperties
+        properties: contactProperties,
+        associations: []
       })
       contactId = newContact.id
     }
@@ -98,7 +101,7 @@ export async function syncLeadToHubSpot(lead: Lead) {
       associations: [{
         to: { id: contactId },
         types: [{
-          associationCategory: 'HUBSPOT_DEFINED',
+          associationCategory: 'HUBSPOT_DEFINED' as any,
           associationTypeId: 3 // Deal to Contact
         }]
       }]
@@ -133,7 +136,7 @@ export async function addNoteToContact(contactId: string, noteText: string) {
       associations: [{
         to: { id: contactId },
         types: [{
-          associationCategory: 'HUBSPOT_DEFINED',
+          associationCategory: 'HUBSPOT_DEFINED' as any,
           associationTypeId: 202 // Note to Contact
         }]
       }]

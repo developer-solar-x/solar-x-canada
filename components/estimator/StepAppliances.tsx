@@ -53,7 +53,7 @@ export function StepAppliances({ data, onComplete, onBack }: StepAppliancesProps
   // Initialize appliances from saved data or presets
   const [appliances, setAppliances] = useState<Appliance[]>(() => {
     // Always start with presets
-    const presetsWithIds = PRESET_APPLIANCES.map((preset, index) => ({
+    const presetsWithIds: Appliance[] = PRESET_APPLIANCES.map((preset, index) => ({
       ...preset,
       id: `preset-${index}`,
     }))
@@ -61,19 +61,19 @@ export function StepAppliances({ data, onComplete, onBack }: StepAppliancesProps
     // If we have saved data, merge it
     if (data.appliances && data.appliances.length > 0) {
       // Create a map of saved appliances by name (for presets) or id (for custom)
-      const savedMap = new Map(
-        data.appliances.map(app => [app.name || app.id, app])
+      const savedMap = new Map<string, Appliance>(
+        data.appliances.map((app: Appliance) => [app.name || app.id, app])
       )
       
       // Update presets with saved values, and add custom appliances
-      const mergedPresets = presetsWithIds.map(preset => {
+      const mergedPresets: Appliance[] = presetsWithIds.map(preset => {
         const saved = savedMap.get(preset.name)
         savedMap.delete(preset.name) // Remove from map after processing
         return saved ? { ...preset, ...saved, id: preset.id } : preset
       })
       
       // Add any remaining custom appliances
-      const customAppliances = Array.from(savedMap.values()).filter(app => app.isCustom)
+      const customAppliances: Appliance[] = Array.from(savedMap.values()).filter(app => app.isCustom)
       
       return [...mergedPresets, ...customAppliances]
     }

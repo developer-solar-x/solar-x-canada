@@ -62,8 +62,6 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated }: Mapbox
       renderWorldCopies: true, // Allow scrolling across the world
       preserveDrawingBuffer: true, // Better rendering quality
       antialias: true, // Smooth edges (auto-detects retina displays for HD tiles)
-      // Request higher quality tiles (force @2x retina tiles)
-      pixelRatio: window.devicePixelRatio || 2,
     })
 
     // Add navigation controls (zoom and compass for rotation)

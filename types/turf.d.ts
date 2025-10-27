@@ -3,6 +3,7 @@ declare module '@turf/turf' {
   export * from '@turf/helpers'
   export * from '@turf/area'
   export * from '@turf/bbox'
+  export * from '@turf/bearing'
   export * from '@turf/center'
   export * from '@turf/distance'
   export * from '@turf/length'
