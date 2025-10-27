@@ -3,6 +3,8 @@
 // Step 3: Property details form
 
 import { useState } from 'react'
+import { Info } from 'lucide-react'
+import { ROOF_ORIENTATIONS, getDirectionLabel, getOrientationEfficiency } from '@/lib/roof-calculations'
 
 interface StepDetailsProps {
   data: any
@@ -17,6 +19,7 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
     roofPitch: data.roofPitch || 'medium',
     shadingLevel: data.shadingLevel || 'minimal',
     monthlyBill: data.monthlyBill || '',
+    roofAzimuth: data.roofAzimuth || 180, // Default to south if not detected
   })
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -105,6 +108,56 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
                 </select>
               </div>
             </div>
+
+            {/* Roof Orientation - only show if not already detected from polygon */}
+            {!data.roofAzimuth && (
+              <div className="mt-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-3">
+                  Roof Orientation (Direction it Faces)
+                </label>
+                <p className="text-xs text-gray-600 mb-3">
+                  Which direction does your roof face? This affects solar production.
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {ROOF_ORIENTATIONS.map((orientation) => (
+                    <button
+                      key={orientation.value}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, roofAzimuth: orientation.azimuth })}
+                      className={`p-3 border-2 rounded-lg text-center transition-all ${
+                        formData.roofAzimuth === orientation.azimuth
+                          ? 'border-red-500 bg-red-50'
+                          : 'border-gray-200 hover:border-red-300'
+                      }`}
+                    >
+                      <div className="text-2xl mb-1">{orientation.icon}</div>
+                      <div className="font-semibold text-xs">{orientation.label}</div>
+                      <div className="text-xs text-gray-600">{orientation.efficiency}%</div>
+                      {orientation.value === 'south' && (
+                        <div className="text-xs text-green-600 mt-1 font-medium">Best</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Show detected orientation if available */}
+            {data.roofAzimuth && (
+              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={18} />
+                  <div>
+                    <p className="text-sm font-semibold text-navy-500">
+                      Roof Orientation: {getDirectionLabel(data.roofAzimuth)}
+                    </p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Detected from your roof drawing. {getOrientationEfficiency(data.roofAzimuth)}% of optimal production.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Section 2: Energy Usage Verification */}

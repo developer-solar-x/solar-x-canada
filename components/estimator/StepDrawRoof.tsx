@@ -3,8 +3,9 @@
 // Step 2: Draw roof on map with Mapbox integration
 
 import { useState } from 'react'
-import { Ruler, ChevronDown, ChevronUp } from 'lucide-react'
+import { Ruler, ChevronDown, ChevronUp, Info, Edit2 } from 'lucide-react'
 import { MapboxDrawing } from './MapboxDrawing'
+import { calculateRoofAzimuth, getDirectionLabel, getOrientationEfficiency, getOrientationQuality, ROOF_ORIENTATIONS } from '@/lib/roof-calculations'
 
 interface StepDrawRoofProps {
   data: any
@@ -20,6 +21,11 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
     data.roofAreaSqft ? Math.floor(data.roofAreaSqft / 17.5) : null
   )
   const [showTips, setShowTips] = useState(true)
+  
+  // Roof orientation detection
+  const [detectedAzimuth, setDetectedAzimuth] = useState<number | null>(data.roofAzimuth || null)
+  const [showOrientationSelector, setShowOrientationSelector] = useState(false)
+  const [selectedAzimuth, setSelectedAzimuth] = useState<number>(data.roofAzimuth || 180)
 
   // Handle area calculation from map drawing
   const handleAreaCalculated = (areaSqFt: number, polygon: any, snapshot?: string) => {
@@ -29,6 +35,11 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
       setMapSnapshot(snapshot)
     }
     setEstimatedPanels(Math.floor(areaSqFt / 17.5)) // Assuming 17.5 sq ft per panel
+    
+    // Auto-detect roof orientation from the drawn polygon
+    const azimuth = calculateRoofAzimuth(polygon)
+    setDetectedAzimuth(azimuth)
+    setSelectedAzimuth(azimuth)
   }
 
   // Continue to next step
@@ -37,7 +48,8 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
       onComplete({
         roofAreaSqft: roofArea,
         roofPolygon: roofPolygon,
-        mapSnapshot: mapSnapshot
+        mapSnapshot: mapSnapshot,
+        roofAzimuth: selectedAzimuth // Include the azimuth
       })
     }
   }
@@ -106,6 +118,90 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
                 ~{estimatedPanels} panels
               </div>
             </div>
+
+            {/* Roof orientation detection */}
+            {detectedAzimuth !== null && !showOrientationSelector && (
+              <div className={`p-4 rounded-lg border ${
+                getOrientationQuality(selectedAzimuth).color === 'green' 
+                  ? 'bg-green-50 border-green-200' 
+                  : getOrientationQuality(selectedAzimuth).color === 'blue'
+                  ? 'bg-blue-50 border-blue-200'
+                  : getOrientationQuality(selectedAzimuth).color === 'yellow'
+                  ? 'bg-yellow-50 border-yellow-200'
+                  : 'bg-red-50 border-red-200'
+              }`}>
+                <div className="flex items-start gap-3 mb-3">
+                  <Info className={`flex-shrink-0 mt-0.5 ${
+                    getOrientationQuality(selectedAzimuth).color === 'green' 
+                      ? 'text-green-600' 
+                      : getOrientationQuality(selectedAzimuth).color === 'blue'
+                      ? 'text-blue-600'
+                      : getOrientationQuality(selectedAzimuth).color === 'yellow'
+                      ? 'text-yellow-600'
+                      : 'text-red-600'
+                  }`} size={20} />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-navy-500 mb-1">
+                      Detected: {getDirectionLabel(selectedAzimuth)}-facing {getOrientationQuality(selectedAzimuth).icon}
+                    </p>
+                    <p className="text-xs text-gray-700 mb-2">
+                      {getOrientationEfficiency(selectedAzimuth)}% of optimal production
+                    </p>
+                    <button
+                      onClick={() => setShowOrientationSelector(true)}
+                      className="text-xs font-medium flex items-center gap-1 hover:underline"
+                      style={{ 
+                        color: getOrientationQuality(selectedAzimuth).color === 'green' 
+                          ? '#059669' 
+                          : getOrientationQuality(selectedAzimuth).color === 'blue'
+                          ? '#2563eb'
+                          : getOrientationQuality(selectedAzimuth).color === 'yellow'
+                          ? '#d97706'
+                          : '#dc2626'
+                      }}
+                    >
+                      <Edit2 size={12} />
+                      Change direction
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Manual orientation selector */}
+            {showOrientationSelector && (
+              <div className="p-4 rounded-lg border border-gray-200 bg-white">
+                <p className="text-sm font-semibold text-navy-500 mb-3">
+                  Select Roof Direction
+                </p>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  {ROOF_ORIENTATIONS.map((orientation) => (
+                    <button
+                      key={orientation.value}
+                      onClick={() => {
+                        setSelectedAzimuth(orientation.azimuth)
+                        setShowOrientationSelector(false)
+                      }}
+                      className={`p-3 border-2 rounded-lg text-center transition-all ${
+                        selectedAzimuth === orientation.azimuth
+                          ? 'border-red-500 bg-red-50'
+                          : 'border-gray-200 hover:border-red-300'
+                      }`}
+                    >
+                      <div className="text-2xl mb-1">{orientation.icon}</div>
+                      <div className="font-semibold text-xs">{orientation.label}</div>
+                      <div className="text-xs text-gray-600">{orientation.efficiency}%</div>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setShowOrientationSelector(false)}
+                  className="text-xs text-gray-600 hover:text-gray-800"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
 
             {/* Validation message */}
                     {roofArea >= 200 && (

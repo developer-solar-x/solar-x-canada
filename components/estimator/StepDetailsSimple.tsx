@@ -4,6 +4,7 @@
 
 import { useState } from 'react'
 import { CheckCircle, ArrowRight } from 'lucide-react'
+import { ROOF_ORIENTATIONS } from '@/lib/roof-calculations'
 
 interface StepDetailsSimpleProps {
   data: any
@@ -35,6 +36,7 @@ export function StepDetailsSimple({ data, onComplete, onBack, onUpgradeMode }: S
   const [roofType, setRoofType] = useState<string>(data.roofType || 'asphalt_shingle')
   const [roofCondition, setRoofCondition] = useState<string>(data.roofAge || '6-15')
   const [shadeLevel, setShadeLevel] = useState<string>(data.shadingLevel || 'minimal')
+  const [roofOrientation, setRoofOrientation] = useState<number>(data.roofAzimuth || 180)
 
   const handleContinue = () => {
     onComplete({
@@ -42,6 +44,7 @@ export function StepDetailsSimple({ data, onComplete, onBack, onUpgradeMode }: S
       roofAge: roofCondition,
       shadingLevel: shadeLevel,
       roofPitch: 'medium', // Default for easy mode
+      roofAzimuth: roofOrientation, // Include roof orientation
     })
   }
 
@@ -131,6 +134,39 @@ export function StepDetailsSimple({ data, onComplete, onBack, onUpgradeMode }: S
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Roof Orientation */}
+        <div className="mb-6">
+          <label className="block text-sm font-semibold text-gray-700 mb-3">
+            Which direction does your roof face?
+          </label>
+          <p className="text-xs text-gray-600 mb-3">
+            This affects how much solar energy your panels can capture
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {ROOF_ORIENTATIONS.slice(0, 4).map((orientation) => (
+              <button
+                key={orientation.value}
+                onClick={() => setRoofOrientation(orientation.azimuth)}
+                className={`p-3 border-2 rounded-lg transition-all text-center ${
+                  roofOrientation === orientation.azimuth
+                    ? 'border-red-500 bg-red-50'
+                    : 'border-gray-200 hover:border-red-300'
+                }`}
+              >
+                <div className="text-2xl mb-1">{orientation.icon}</div>
+                <div className="font-semibold text-xs">{orientation.label}</div>
+                <div className="text-xs text-gray-600">{orientation.efficiency}%</div>
+                {orientation.value === 'south' && (
+                  <div className="text-xs text-green-600 mt-1 font-medium">Best</div>
+                )}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            South-facing roofs get the most sun in Canada
+          </p>
         </div>
 
         {/* Info Banner */}

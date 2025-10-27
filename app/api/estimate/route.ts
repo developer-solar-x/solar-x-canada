@@ -20,7 +20,8 @@ export async function POST(request: Request) {
       annualUsageKwh,
       appliances,
       energyUsage,
-      province = 'ON'
+      province = 'ON',
+      roofAzimuth = 180 // Default to south-facing if not provided
     } = body
 
     // Validate required fields
@@ -59,7 +60,8 @@ export async function POST(request: Request) {
         coordinates.lng,
         systemSizeKw,
         roofPitch || 'medium',
-        province
+        province,
+        roofAzimuth // Use actual roof orientation
       )
     } catch (error) {
       // Fallback to estimation if PVWatts fails

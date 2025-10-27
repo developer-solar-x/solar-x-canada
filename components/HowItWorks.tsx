@@ -1,30 +1,30 @@
 // How It Works section with step-by-step process
 
 import Link from 'next/link'
-import { Map, Calculator, Handshake } from 'lucide-react'
+import { Zap, LineChart, Handshake } from 'lucide-react'
 
 export function HowItWorks() {
   // Process steps data
   const steps = [
     {
       number: '01',
-      icon: Map,
-      title: 'Pinpoint Your Roof',
-      description: 'Use our interactive map tool to outline your roof in seconds. Our AI verifies the dimensions.',
+      icon: Zap,
+      title: 'Choose Your Path',
+      description: 'Select Quick Estimate for instant results or Detailed Analysis for precision. Map your roof or pick a size. Upload photos. Add your appliances.',
       color: 'text-red-500',
     },
     {
       number: '02',
-      icon: Calculator,
-      title: 'See Your Savings',
-      description: 'Instantly see system size, costs, savings, payback period, and environmental impact.',
+      icon: LineChart,
+      title: 'See Your Full Picture',
+      description: 'View accurate system sizing, costs with incentives, monthly and annual savings, payback timeline, and environmental impact with seasonal production charts.',
       color: 'text-navy-500',
     },
     {
       number: '03',
       icon: Handshake,
-      title: 'Get Matched',
-      description: 'We connect you with vetted, certified local installers for competitive quotes.',
+      title: 'Get Expert Quotes',
+      description: 'Your detailed estimate is sent to vetted local installers. Compare competitive quotes and choose the best fit for your solar journey.',
       color: 'text-red-500',
     },
   ]

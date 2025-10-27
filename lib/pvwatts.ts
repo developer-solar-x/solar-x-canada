@@ -121,7 +121,8 @@ export async function calculateSolarEstimate(
   lon: number,
   systemSizeKw: number,
   roofPitch: string = 'medium',
-  province: string = 'ON'
+  province: string = 'ON',
+  azimuth: number = 180 // Roof orientation (default south-facing)
 ) {
   // Convert roof pitch to tilt angle
   const tilt = roofPitchToDegrees(roofPitch)
@@ -145,7 +146,7 @@ export async function calculateSolarEstimate(
     lon,
     system_capacity: systemSizeKw,
     tilt,
-    azimuth: 180, // South-facing (optimal for Northern Hemisphere)
+    azimuth: azimuth, // Use provided roof orientation
     module_type: 0, // Standard panels (most common)
     losses: 14, // Default system losses (industry standard)
     array_type: 1, // Fixed roof mount

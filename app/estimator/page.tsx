@@ -9,6 +9,7 @@ import { X, Check, Save, Trash2 } from 'lucide-react'
 import { convertEasyToDetailed } from '@/lib/mode-converter'
 import { saveEstimatorProgress, loadEstimatorProgress, clearEstimatorProgress, getTimeSinceLastSave } from '@/lib/estimator-storage'
 import { SaveProgressModal } from '@/components/ui/SaveProgressModal'
+import { Modal } from '@/components/ui/Modal'
 import { StepModeSelector } from '@/components/estimator/StepModeSelector'
 import { StepLocation } from '@/components/estimator/StepLocation'
 import { StepDrawRoof } from '@/components/estimator/StepDrawRoof'
@@ -40,6 +41,7 @@ export interface EstimatorData {
   roofSizePreset?: string
   roofEntryMethod?: 'preset' | 'manual' | 'drawn'
   mapSnapshot?: string
+  roofAzimuth?: number // Roof orientation in degrees (0-360)
   
   // Step 3: Property photos
   photos?: any[]
@@ -102,6 +104,8 @@ export default function EstimatorPage() {
   const [showSaveIndicator, setShowSaveIndicator] = useState(false)
   // Save progress modal
   const [showSaveModal, setShowSaveModal] = useState(false)
+  // Clear progress modal
+  const [showClearModal, setShowClearModal] = useState(false)
   // Track if email was already captured
   const [emailCaptured, setEmailCaptured] = useState(false)
 
@@ -228,12 +232,15 @@ export default function EstimatorPage() {
 
   // Handle clearing progress
   const handleClearProgress = () => {
-    if (confirm('Are you sure you want to clear your saved progress and start over?')) {
-      clearEstimatorProgress()
-      setData({})
-      setCurrentStep(0)
-      setLastSaved(null)
-    }
+    setShowClearModal(true)
+  }
+
+  // Confirm clearing progress
+  const confirmClearProgress = () => {
+    clearEstimatorProgress()
+    setData({})
+    setCurrentStep(0)
+    setLastSaved(null)
   }
 
   // Get current step component
@@ -389,6 +396,18 @@ export default function EstimatorPage() {
         onClose={() => setShowSaveModal(false)}
         onSave={handleSaveWithEmail}
         currentStep={currentStep}
+      />
+
+      {/* Clear Progress Modal */}
+      <Modal
+        isOpen={showClearModal}
+        onClose={() => setShowClearModal(false)}
+        onConfirm={confirmClearProgress}
+        title="Clear Progress?"
+        message="Are you sure you want to clear your saved progress and start over? This action cannot be undone."
+        confirmText="Clear and Start Over"
+        cancelText="Keep My Progress"
+        variant="danger"
       />
     </div>
   )
