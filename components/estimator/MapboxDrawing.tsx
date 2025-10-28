@@ -190,6 +190,41 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated }: Mapbox
       return Math.round(angle)
     }
 
+    // Function to calculate optimal label offset based on interior angle direction
+    function calculateLabelOffset(
+      prevCoord: number[], 
+      currCoord: number[], 
+      nextCoord: number[], 
+      angle: number
+    ): [number, number] {
+      // Calculate vectors from current vertex to adjacent vertices
+      const vec1 = [prevCoord[0] - currCoord[0], prevCoord[1] - currCoord[1]]
+      const vec2 = [nextCoord[0] - currCoord[0], nextCoord[1] - currCoord[1]]
+      
+      // Calculate bisector (average direction pointing into the polygon)
+      const bisectorX = (vec1[0] + vec2[0]) / 2
+      const bisectorY = (vec1[1] + vec2[1]) / 2
+      
+      // Normalize and scale for label offset
+      const length = Math.sqrt(bisectorX * bisectorX + bisectorY * bisectorY)
+      if (length === 0) return [0, -2.5]
+      
+      // Dynamic offset based on angle sharpness
+      // Sharp angles (< 60°) need more distance, obtuse angles (> 120°) need less
+      let offsetDistance = 2.5
+      if (angle < 60) {
+        offsetDistance = 3.5 // Sharp corners need more space
+      } else if (angle > 120) {
+        offsetDistance = 2.0 // Obtuse corners need less space
+      }
+      
+      // Invert direction (we want label inside the polygon)
+      const offsetX = -(bisectorX / length) * offsetDistance
+      const offsetY = -(bisectorY / length) * offsetDistance
+      
+      return [offsetX, offsetY]
+    }
+
     // Function to add angle labels to polygons
     function addAngleLabels() {
       const data = draw.current!.getAll()
@@ -218,7 +253,20 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated }: Mapbox
               coords[nextIndex]
             )
             
-            // Create label feature
+            // Calculate smart offset pointing into the polygon
+            const offset = calculateLabelOffset(
+              coords[prevIndex],
+              coords[i],
+              coords[nextIndex],
+              angle
+            )
+            
+            // Priority system: Flag important angles for better visibility
+            // Sharp angles (< 60°) and very obtuse (> 135°) are more important
+            const priority = (angle < 60 || angle > 135) ? 1 : 
+                            (Math.abs(angle - 90) > 10) ? 2 : 3
+            
+            // Create label feature with optimized positioning
             labelFeatures.push({
               type: 'Feature',
               geometry: {
@@ -227,7 +275,10 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated }: Mapbox
               },
               properties: {
                 angle: `${angle}°`,
-                color: color
+                color: color,
+                offsetX: offset[0],
+                offsetY: offset[1],
+                priority: priority // Lower number = higher priority
               }
             })
           }
@@ -250,14 +301,45 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated }: Mapbox
           layout: {
             'text-field': ['get', 'angle'],
             'text-font': ['DIN Offc Pro Bold', 'Arial Unicode MS Bold'],
-            'text-size': 12,
-            'text-offset': [0, -1.5],
-            'text-anchor': 'center'
+            // Zoom-responsive text size: larger when zoomed in, hidden below zoom 16
+            'text-size': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              15, 0,   // Hidden below zoom 16
+              16, 9,   // At zoom 16, text is 9px
+              18, 11,  // At zoom 18, text is 11px
+              20, 13   // At zoom 20, text is 13px
+            ],
+            // Use calculated offsets that point into the polygon interior
+            'text-offset': [
+              ['get', 'offsetX'],
+              ['get', 'offsetY']
+            ],
+            'text-anchor': 'center',
+            // Enable collision detection to prevent overlapping
+            'text-allow-overlap': false, // Don't allow overlap
+            'text-ignore-placement': false, // Respect other symbols
+            'text-optional': true, // Hide labels that would overlap rather than force them
+            'text-padding': 8, // Increased padding for better spacing
+            'symbol-spacing': 250, // Minimum distance between symbols
+            'text-max-angle': 45, // Maximum angle change for line labels
+            // Priority system: show important angles first
+            'symbol-sort-key': ['get', 'priority']
           },
           paint: {
             'text-color': ['get', 'color'],
             'text-halo-color': '#FFFFFF',
-            'text-halo-width': 2
+            'text-halo-width': 3, // Thick halo for readability on satellite
+            'text-halo-blur': 1, // Slight blur for smooth halo
+            'text-opacity': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              15, 0,    // Invisible below zoom 15
+              16, 0.9,  // Fade in at zoom 16
+              18, 0.95  // Full opacity at zoom 18+
+            ]
           }
         })
       }

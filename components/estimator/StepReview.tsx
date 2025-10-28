@@ -3,7 +3,7 @@
 // Step 4: Review estimate and results
 
 import { useState, useEffect } from 'react'
-import { Zap, DollarSign, TrendingUp, TrendingDown, PiggyBank, Loader2, Leaf, CreditCard } from 'lucide-react'
+import { Zap, DollarSign, TrendingUp, TrendingDown, PiggyBank, Loader2, Leaf, CreditCard, MapPin, Home, Compass, Building, Gauge, Sun, Calendar, Droplets, Bolt } from 'lucide-react'
 import { formatCurrency, formatKw, formatNumber } from '@/lib/utils'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { FINANCING_OPTIONS, calculateFinancing } from '@/config/provinces'
@@ -84,15 +84,28 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
         <h2 className="text-2xl font-bold text-navy-500 mb-4">Your Solar Estimate</h2>
 
         {/* Property summary card */}
-        <div className="card p-4">
-          <h3 className="font-semibold text-gray-700 mb-2">Property</h3>
-          <p className="text-sm text-gray-600">{data.address}</p>
-          <button
-            onClick={() => onBack && onBack()}
-            className="text-xs text-red-500 hover:underline mt-2"
-          >
-            Edit
-          </button>
+        <div className="card p-5 bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 bg-navy-500 rounded-lg">
+              <Home className="text-white" size={22} />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-navy-500 mb-1 flex items-center gap-2">
+                Property Location
+              </h3>
+              <div className="flex items-start gap-2">
+                <MapPin size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-gray-700 font-medium">{data.address}</p>
+              </div>
+              <button
+                onClick={() => onBack && onBack()}
+                className="text-xs text-red-500 hover:text-red-600 font-semibold mt-2.5 flex items-center gap-1 hover:gap-1.5 transition-all"
+              >
+                <span>Edit Details</span>
+                <span>→</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Map snapshot card */}
@@ -116,30 +129,102 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
         )}
 
         {/* Roof summary card */}
-        <div className="card p-4">
-          <h3 className="font-semibold text-gray-700 mb-2">Roof Details</h3>
-          <div className="text-sm text-gray-600 space-y-1">
-            <p>Total Area: {data.roofAreaSqft?.toLocaleString()} sq ft</p>
-            
-            {/* Show section count if multiple polygons */}
-            {data.roofPolygon?.features && data.roofPolygon.features.length > 1 && (
-              <p className="text-blue-600 font-medium">
-                {data.roofPolygon.features.length} roof sections
-              </p>
-            )}
-            
-            <p>Type: {data.roofType || 'Asphalt Shingle'}</p>
-            <p>Pitch: {data.roofPitch || 'Medium'}</p>
-            {data.shadingLevel && (
-              <p>Shading: {data.shadingLevel.charAt(0).toUpperCase() + data.shadingLevel.slice(1)}</p>
-            )}
+        <div className="card p-5 bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="p-2.5 bg-red-500 rounded-lg">
+              <Building className="text-white" size={22} />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-navy-500 mb-0.5">Roof Details</h3>
+              <p className="text-xs text-gray-600">Analyzed roof specifications</p>
+            </div>
           </div>
+
+          {/* Main roof stats */}
+          <div className="space-y-3 mb-4">
+            {/* Total Area - Prominent */}
+            <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Gauge size={18} className="text-red-500" />
+                  <span className="text-sm font-semibold text-gray-700">Total Area</span>
+                </div>
+                <span className="text-xl font-bold text-red-500">
+                  {data.roofAreaSqft?.toLocaleString()} <span className="text-sm">sq ft</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Roof specifications grid */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-white border border-gray-200 rounded-lg p-2.5">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Droplets size={14} className="text-gray-500" />
+                  <span className="text-xs text-gray-600 font-medium">Type</span>
+                </div>
+                <p className="text-sm font-semibold text-navy-500">
+                  {data.roofType || 'Asphalt Shingle'}
+                </p>
+              </div>
+
+              <div className="bg-white border border-gray-200 rounded-lg p-2.5">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Compass size={14} className="text-gray-500" />
+                  <span className="text-xs text-gray-600 font-medium">Pitch</span>
+                </div>
+                <p className="text-sm font-semibold text-navy-500">
+                  {data.roofPitch || 'Medium'}
+                </p>
+              </div>
+
+              {data.shadingLevel && (
+                <>
+                  <div className="bg-white border border-gray-200 rounded-lg p-2.5">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Sun size={14} className="text-gray-500" />
+                      <span className="text-xs text-gray-600 font-medium">Shading</span>
+                    </div>
+                    <p className="text-sm font-semibold text-navy-500 capitalize">
+                      {data.shadingLevel}
+                    </p>
+                  </div>
+
+                  {data.roofAge && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-2.5">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Calendar size={14} className="text-gray-500" />
+                        <span className="text-xs text-gray-600 font-medium">Age</span>
+                      </div>
+                      <p className="text-sm font-semibold text-navy-500">
+                        {data.roofAge}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Section count badge */}
+          {data.roofPolygon?.features && data.roofPolygon.features.length > 1 && (
+            <div className="bg-navy-500 text-white rounded-lg p-2.5 mb-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold">Multiple Sections</span>
+                <span className="text-lg font-bold">
+                  {data.roofPolygon.features.length}
+                </span>
+              </div>
+            </div>
+          )}
           
           {/* Multi-section breakdown */}
           {data.roofPolygon?.features && data.roofPolygon.features.length > 1 && (
             <div className="mt-3 pt-3 border-t border-gray-200">
-              <p className="text-xs font-semibold text-gray-700 mb-2">Section Details</p>
-              <div className="space-y-1">
+              <p className="text-xs font-bold text-gray-700 mb-2 flex items-center gap-1.5">
+                <Compass size={12} className="text-red-500" />
+                Section Analysis
+              </p>
+              <div className="space-y-2">
                 {data.roofPolygon.features.map((feature: any, index: number) => {
                   if (feature.geometry.type !== 'Polygon') return null
                   
@@ -149,14 +234,29 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                   const direction = getDirectionLabel(azimuth)
                   const efficiency = getOrientationEfficiency(azimuth)
                   
+                  // Color based on efficiency - using brand colors
+                  const efficiencyColor = efficiency >= 90 ? 'text-navy-500' : 
+                                         efficiency >= 70 ? 'text-gray-700' : 'text-red-500'
+                  
                   return (
-                    <div key={index} className="flex items-center justify-between text-xs py-1">
-                      <span className="text-gray-600">
-                        Section {index + 1}: {direction} ({efficiency}%)
-                      </span>
-                      <span className="font-medium text-navy-500">
-                        {areaSqFt.toLocaleString()} sq ft
-                      </span>
+                    <div key={index} className="bg-white border border-gray-200 rounded-lg p-2.5">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold text-gray-700">
+                          Section {index + 1}
+                        </span>
+                        <span className="text-xs font-bold text-navy-500">
+                          {areaSqFt.toLocaleString()} sq ft
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-600 flex items-center gap-1">
+                          <Compass size={10} />
+                          {direction}
+                        </span>
+                        <span className={`text-xs font-bold ${efficiencyColor}`}>
+                          {efficiency}% efficiency
+                        </span>
+                      </div>
                     </div>
                   )
                 })}
@@ -199,21 +299,85 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
         )}
 
         {/* Energy summary card */}
-        <div className="card p-4">
-          <h3 className="font-semibold text-gray-700 mb-2">Energy Usage</h3>
-          <div className="text-sm text-gray-600 space-y-1">
-            {data.energyUsage && (
-              <>
-                <p>Daily: {data.energyUsage.dailyKwh} kWh</p>
-                <p>Monthly: {data.energyUsage.monthlyKwh.toLocaleString()} kWh</p>
-                <p>Annual: {data.energyUsage.annualKwh.toLocaleString()} kWh</p>
-              </>
-            )}
-            <p className="pt-2 border-t border-gray-200 mt-2">Monthly Bill: {formatCurrency(parseFloat(data.monthlyBill || '0'))}</p>
-            {data.appliances && data.appliances.length > 0 && (
-              <p>Active Appliances: {data.appliances.length}</p>
-            )}
+        <div className="card p-5 bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="p-2.5 bg-navy-500 rounded-lg">
+              <Bolt className="text-white" size={22} />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-navy-500 mb-0.5">Energy Usage</h3>
+              <p className="text-xs text-gray-600">Current consumption data</p>
+            </div>
           </div>
+
+          {/* Monthly bill - Most prominent */}
+          <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg p-4 mb-3 shadow-md">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-red-100 mb-1">Monthly Electricity Bill</p>
+                <p className="text-3xl font-bold">
+                  {formatCurrency(parseFloat(data.monthlyBill || '0'))}
+                </p>
+              </div>
+              <div className="text-5xl opacity-20">💡</div>
+            </div>
+          </div>
+
+          {/* Consumption breakdown */}
+          {data.energyUsage && (
+            <div className="space-y-2 mb-3">
+              <div className="bg-white border border-gray-200 rounded-lg p-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <div className="flex items-center gap-1 mb-1">
+                      <Zap size={12} className="text-red-500" />
+                      <span className="text-xs text-gray-600 font-medium">Daily</span>
+                    </div>
+                    <p className="text-base font-bold text-navy-500">
+                      {data.energyUsage.dailyKwh} <span className="text-xs font-normal">kWh</span>
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-1 mb-1">
+                      <Calendar size={12} className="text-red-500" />
+                      <span className="text-xs text-gray-600 font-medium">Monthly</span>
+                    </div>
+                    <p className="text-base font-bold text-navy-500">
+                      {data.energyUsage.monthlyKwh.toLocaleString()} <span className="text-xs font-normal">kWh</span>
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-1 mb-1">
+                      <TrendingUp size={12} className="text-red-500" />
+                      <span className="text-xs text-gray-600 font-medium">Annual</span>
+                    </div>
+                    <p className="text-base font-bold text-navy-500">
+                      {data.energyUsage.annualKwh.toLocaleString()} <span className="text-xs font-normal">kWh</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Special appliances indicator */}
+          {data.appliances && data.appliances.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">⚡</span>
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-red-900">
+                    High-Consumption Appliances
+                  </p>
+                  <p className="text-xs text-red-700">
+                    {data.appliances.length} active {data.appliances.length === 1 ? 'appliance' : 'appliances'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

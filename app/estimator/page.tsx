@@ -81,9 +81,9 @@ const easySteps = [
   { id: 0, name: 'Mode', component: StepModeSelector },
   { id: 1, name: 'Location', component: StepLocation },
   { id: 2, name: 'Roof Size', component: StepRoofSimple },
-  { id: 3, name: 'Photos', component: StepPhotosSimple },
-  { id: 4, name: 'Energy', component: StepEnergySimple },
-  { id: 5, name: 'Add-ons', component: StepAddOns },
+  { id: 3, name: 'Energy', component: StepEnergySimple }, // Moved up - capture consumption early
+  { id: 4, name: 'Add-ons', component: StepAddOns },
+  { id: 5, name: 'Photos', component: StepPhotosSimple },
   { id: 6, name: 'Details', component: StepDetailsSimple },
   { id: 7, name: 'Review', component: StepReview },
   { id: 8, name: 'Submit', component: StepContact },
@@ -94,10 +94,9 @@ const detailedSteps = [
   { id: 0, name: 'Mode', component: StepModeSelector },
   { id: 1, name: 'Location', component: StepLocation },
   { id: 2, name: 'Draw Roof', component: StepDrawRoof },
-  { id: 3, name: 'Photos', component: StepPhotos },
-  // { id: 4, name: 'Appliances', component: StepAppliances }, // Temporarily disabled - solar only
+  { id: 3, name: 'Details', component: StepDetails }, // Moved up - capture consumption early
   { id: 4, name: 'Add-ons', component: StepAddOns },
-  { id: 5, name: 'Details', component: StepDetails },
+  { id: 5, name: 'Photos', component: StepPhotos },
   { id: 6, name: 'Review', component: StepReview },
   { id: 7, name: 'Submit', component: StepContact },
 ]
@@ -176,8 +175,14 @@ export default function EstimatorPage() {
       if (currentStep < nextSteps.length - 1) {
         setCurrentStep(prev => prev + 1)
         
-        // Show save modal after Step 3 (Photos) if email not captured yet
-        if (currentStep === 3 && !emailCaptured && data.address) {
+        // Show save modal after energy/consumption step if email not captured yet
+        // This ensures we capture consumption/bill data which is critical for peak shaving
+        // Easy mode: Step 3 (Energy) - moved up to capture consumption early
+        // Detailed mode: Step 3 (Details) - moved up to capture consumption early
+        const isEnergyStep = (data.estimatorMode === 'easy' && currentStep === 3) || 
+                             (data.estimatorMode === 'detailed' && currentStep === 3)
+        
+        if (isEnergyStep && !emailCaptured && data.address) {
           setTimeout(() => setShowSaveModal(true), 500) // Small delay for smooth transition
         }
       }
