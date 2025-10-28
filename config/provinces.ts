@@ -11,6 +11,14 @@ export interface ProvinceConfig {
   
   // Electricity rates
   avgElectricityRate: number
+  
+  // Zero-export system incentives
+  zeroExportIncentives?: {
+    solarPerKw: number
+    solarMaxIncentive: number
+    batteryPerKwh: number
+    batteryMaxIncentive: number
+  }
   rateStructure: 'flat' | 'tiered' | 'time-of-use'
   
   // Solar potential
@@ -51,6 +59,14 @@ export const PROVINCE_CONFIG: Record<string, ProvinceConfig> = {
     // Average electricity rate in Ontario ($/kWh)
     avgElectricityRate: 0.134,
     rateStructure: 'time-of-use',
+    
+    // Zero-export system incentives (Ontario-specific rebates)
+    zeroExportIncentives: {
+      solarPerKw: 100, // $100 per kW
+      solarMaxIncentive: 5000, // Max $5,000
+      batteryPerKwh: 300, // $300 per kWh
+      batteryMaxIncentive: 5000, // Max $5,000
+    },
     
     // Solar irradiance in kWh/m²/year
     avgSolarIrradiance: 1250,

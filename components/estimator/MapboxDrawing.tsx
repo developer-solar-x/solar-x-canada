@@ -29,6 +29,8 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated }: Mapbox
   
   // Current drawn area
   const [currentArea, setCurrentArea] = useState<number | null>(null)
+  // Track polygon colors
+  const polygonColors = useRef<string[]>(['#DC143C', '#2563EB', '#16A34A', '#F59E0B', '#8B5CF6', '#EC4899'])
 
   // Update callback ref when it changes
   useEffect(() => {
@@ -97,21 +99,57 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated }: Mapbox
         trash: true,
       },
       styles: [
-        // Polygon fill
+        // Polygon fill - multiple colors
         {
-          id: 'gl-draw-polygon-fill',
+          id: 'gl-draw-polygon-fill-inactive',
           type: 'fill',
-          filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+          filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon']],
+          paint: {
+            'fill-color': [
+              'case',
+              ['==', ['%', ['to-number', ['get', 'user_featureCount']], 6], 0], '#DC143C',
+              ['==', ['%', ['to-number', ['get', 'user_featureCount']], 6], 1], '#2563EB',
+              ['==', ['%', ['to-number', ['get', 'user_featureCount']], 6], 2], '#16A34A',
+              ['==', ['%', ['to-number', ['get', 'user_featureCount']], 6], 3], '#F59E0B',
+              ['==', ['%', ['to-number', ['get', 'user_featureCount']], 6], 4], '#8B5CF6',
+              '#EC4899'
+            ],
+            'fill-opacity': 0.3,
+          },
+        },
+        // Active polygon fill
+        {
+          id: 'gl-draw-polygon-fill-active',
+          type: 'fill',
+          filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']],
           paint: {
             'fill-color': '#DC143C',
             'fill-opacity': 0.3,
           },
         },
-        // Polygon outline
+        // Polygon outline - multiple colors
+        {
+          id: 'gl-draw-polygon-stroke-inactive',
+          type: 'line',
+          filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon']],
+          paint: {
+            'line-color': [
+              'case',
+              ['==', ['%', ['to-number', ['get', 'user_featureCount']], 6], 0], '#DC143C',
+              ['==', ['%', ['to-number', ['get', 'user_featureCount']], 6], 1], '#2563EB',
+              ['==', ['%', ['to-number', ['get', 'user_featureCount']], 6], 2], '#16A34A',
+              ['==', ['%', ['to-number', ['get', 'user_featureCount']], 6], 3], '#F59E0B',
+              ['==', ['%', ['to-number', ['get', 'user_featureCount']], 6], 4], '#8B5CF6',
+              '#EC4899'
+            ],
+            'line-width': 3,
+          },
+        },
+        // Active polygon outline
         {
           id: 'gl-draw-polygon-stroke-active',
           type: 'line',
-          filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+          filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']],
           paint: {
             'line-color': '#DC143C',
             'line-width': 3,
@@ -139,11 +177,129 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated }: Mapbox
     map.current.on('draw.update', updateArea)
     map.current.on('draw.delete', updateArea)
 
+    // Function to calculate angle at a vertex
+    function calculateAngle(p1: number[], p2: number[], p3: number[]): number {
+      // Calculate angle at p2 formed by p1-p2-p3
+      const angle1 = Math.atan2(p1[1] - p2[1], p1[0] - p2[0])
+      const angle2 = Math.atan2(p3[1] - p2[1], p3[0] - p2[0])
+      let angle = Math.abs(angle1 - angle2) * (180 / Math.PI)
+      
+      // Normalize to 0-180 range
+      if (angle > 180) angle = 360 - angle
+      
+      return Math.round(angle)
+    }
+
+    // Function to add angle labels to polygons
+    function addAngleLabels() {
+      const data = draw.current!.getAll()
+      
+      // Remove existing angle labels
+      if (map.current.getSource('angle-labels')) {
+        map.current.removeLayer('angle-labels-layer')
+        map.current.removeSource('angle-labels')
+      }
+      
+      const labelFeatures: any[] = []
+      
+      data.features.forEach((feature, featureIndex) => {
+        if (feature.geometry.type === 'Polygon') {
+          const coords = feature.geometry.coordinates[0]
+          const color = polygonColors.current[featureIndex % polygonColors.current.length]
+          
+          // Calculate angle at each vertex
+          for (let i = 0; i < coords.length - 1; i++) {
+            const prevIndex = i === 0 ? coords.length - 2 : i - 1
+            const nextIndex = i + 1
+            
+            const angle = calculateAngle(
+              coords[prevIndex],
+              coords[i],
+              coords[nextIndex]
+            )
+            
+            // Create label feature
+            labelFeatures.push({
+              type: 'Feature',
+              geometry: {
+                type: 'Point',
+                coordinates: coords[i]
+              },
+              properties: {
+                angle: `${angle}°`,
+                color: color
+              }
+            })
+          }
+        }
+      })
+      
+      if (labelFeatures.length > 0) {
+        map.current.addSource('angle-labels', {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: labelFeatures
+          }
+        })
+        
+        map.current.addLayer({
+          id: 'angle-labels-layer',
+          type: 'symbol',
+          source: 'angle-labels',
+          layout: {
+            'text-field': ['get', 'angle'],
+            'text-font': ['DIN Offc Pro Bold', 'Arial Unicode MS Bold'],
+            'text-size': 12,
+            'text-offset': [0, -1.5],
+            'text-anchor': 'center'
+          },
+          paint: {
+            'text-color': ['get', 'color'],
+            'text-halo-color': '#FFFFFF',
+            'text-halo-width': 2
+          }
+        })
+      }
+    }
+
     // Calculate total area when polygons are drawn, updated, or deleted
     function updateArea() {
       const data = draw.current!.getAll()
       
       if (data.features.length > 0) {
+        // Assign feature count for color coding and calculate angles
+        data.features.forEach((feature, index) => {
+          feature.properties = feature.properties || {}
+          feature.properties.featureCount = index
+          
+          // Calculate and store angles for each vertex
+          if (feature.geometry.type === 'Polygon') {
+            const coords = feature.geometry.coordinates[0]
+            const angles: number[] = []
+            
+            for (let i = 0; i < coords.length - 1; i++) {
+              const prevIndex = i === 0 ? coords.length - 2 : i - 1
+              const nextIndex = i + 1
+              
+              const angle = calculateAngle(
+                coords[prevIndex],
+                coords[i],
+                coords[nextIndex]
+              )
+              
+              angles.push(angle)
+            }
+            
+            // Store angles in feature properties
+            feature.properties.vertexAngles = angles
+            feature.properties.color = polygonColors.current[index % polygonColors.current.length]
+          }
+        })
+        
+        // Update draw with color properties
+        draw.current!.set(data)
+        
         // Calculate total area of all polygons
         let totalAreaSqMeters = 0
         
@@ -159,18 +315,28 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated }: Mapbox
         
         setCurrentArea(totalAreaSqFt)
         
+        // Add angle labels
+        addAngleLabels()
+        
         // Capture map snapshot for review
         setTimeout(() => {
           if (map.current) {
             const canvas = map.current.getCanvas()
             const mapSnapshot = canvas.toDataURL('image/png')
-            // Pass all features (multiple polygons) instead of just one
+            // Pass all features (multiple polygons) with angle data
             onAreaCalculatedRef.current(totalAreaSqFt, data, mapSnapshot)
           }
         }, 500) // Wait for drawing to complete
       } else {
         // No polygons left - clear everything
         setCurrentArea(null)
+        
+        // Remove angle labels
+        if (map.current.getSource('angle-labels')) {
+          map.current.removeLayer('angle-labels-layer')
+          map.current.removeSource('angle-labels')
+        }
+        
         onAreaCalculatedRef.current(0, { type: 'FeatureCollection', features: [] }, undefined)
       }
     }
@@ -182,6 +348,11 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated }: Mapbox
         marker.current = null
       }
       if (map.current) {
+        // Remove angle labels if they exist
+        if (map.current.getSource('angle-labels')) {
+          map.current.removeLayer('angle-labels-layer')
+          map.current.removeSource('angle-labels')
+        }
         map.current.remove()
         map.current = null
       }
