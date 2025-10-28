@@ -34,36 +34,161 @@ export function calculateRoofAzimuth(polygon: any): number {
   }
 
   // Calculate the bearing (direction) of the longest edge
-  const point1 = coordinates[longestEdgeIndex]
-  const point2 = coordinates[longestEdgeIndex + 1]
+  const edgeStart = coordinates[longestEdgeIndex]
+  const edgeEnd = coordinates[longestEdgeIndex + 1]
   
   // Turf bearing returns -180 to 180
-  const bearing = turf.bearing(point1, point2)
+  const bearing = turf.bearing(edgeStart, edgeEnd)
   
   // Convert bearing to azimuth (0-360 degrees)
-  let azimuth = bearing >= 0 ? bearing : 360 + bearing
+  let edgeAzimuth = bearing >= 0 ? bearing : 360 + bearing
   
   // Solar panels face perpendicular to the ridge line
   // There are two perpendicular directions: +90° and -90° (or +270°)
-  const perpendicular1 = (azimuth + 90) % 360
-  const perpendicular2 = (azimuth + 270) % 360
+  const perpendicular1 = (edgeAzimuth + 90) % 360
+  const perpendicular2 = (edgeAzimuth + 270) % 360
   
-  // Choose the perpendicular that faces closer to south (180°)
-  // In Northern Hemisphere, roofs typically face south for optimal solar
-  const diff1 = Math.abs(180 - perpendicular1)
-  const diff2 = Math.abs(180 - perpendicular2)
+  // NEW APPROACH: Use polygon centroid to determine correct orientation
+  // The roof faces AWAY from the centroid (outward normal)
+  // Calculate polygon centroid
+  const polygonFeature = polygon.geometry ? polygon : turf.polygon(coordinates)
+  const centroid = turf.centroid(polygonFeature)
+  const centroidCoords = centroid.geometry.coordinates
   
-  // Handle wrap-around (e.g., 350° is closer to 0° than to 180°)
-  const adjustedDiff1 = Math.min(diff1, 360 - diff1)
-  const adjustedDiff2 = Math.min(diff2, 360 - diff2)
+  // Calculate midpoint of the longest edge
+  const midpoint = [
+    (edgeStart[0] + edgeEnd[0]) / 2,
+    (edgeStart[1] + edgeEnd[1]) / 2
+  ]
   
-  // Choose the perpendicular closer to south
-  azimuth = adjustedDiff1 < adjustedDiff2 ? perpendicular1 : perpendicular2
+  // Calculate bearing from centroid to midpoint (outward direction)
+  const outwardBearing = turf.bearing(centroidCoords, midpoint)
+  const outwardAzimuth = outwardBearing >= 0 ? outwardBearing : 360 + outwardBearing
+  
+  // Choose the perpendicular that's closer to the outward direction
+  // This represents the direction the roof slope faces
+  const diff1 = calculateAngularDifference(perpendicular1, outwardAzimuth)
+  const diff2 = calculateAngularDifference(perpendicular2, outwardAzimuth)
+  
+  // Choose the perpendicular closer to the outward direction
+  let roofAzimuth = diff1 < diff2 ? perpendicular1 : perpendicular2
   
   // Round to nearest 5 degrees for cleaner values
-  azimuth = Math.round(azimuth / 5) * 5
+  roofAzimuth = Math.round(roofAzimuth / 5) * 5
   
-  return azimuth
+  return roofAzimuth
+}
+
+/**
+ * Helper function to calculate the angular difference between two azimuths
+ * Returns the smallest angle between them (0-180 degrees)
+ */
+function calculateAngularDifference(azimuth1: number, azimuth2: number): number {
+  // Normalize both azimuths to 0-360 range
+  const norm1 = ((azimuth1 % 360) + 360) % 360
+  const norm2 = ((azimuth2 % 360) + 360) % 360
+  
+  // Calculate absolute difference
+  let diff = Math.abs(norm1 - norm2)
+  
+  // Handle wrap-around (e.g., 350° and 10° are only 20° apart, not 340°)
+  if (diff > 180) {
+    diff = 360 - diff
+  }
+  
+  return diff
+}
+
+/**
+ * Calculate roof azimuth with confidence score
+ * Returns both the azimuth and a confidence level (0-100%)
+ */
+export function calculateRoofAzimuthWithConfidence(polygon: any): {
+  azimuth: number
+  confidence: number
+  reason: string
+} {
+  // Extract coordinates from the polygon
+  const coordinates = polygon.geometry?.coordinates?.[0] || polygon.coordinates?.[0]
+  
+  // Low confidence if invalid data
+  if (!coordinates || coordinates.length < 3) {
+    return {
+      azimuth: 180,
+      confidence: 0,
+      reason: 'Invalid polygon data'
+    }
+  }
+
+  // Find the longest and second-longest edges
+  let maxLength = 0
+  let secondMaxLength = 0
+  let longestEdgeIndex = 0
+
+  for (let i = 0; i < coordinates.length - 1; i++) {
+    const point1 = turf.point(coordinates[i])
+    const point2 = turf.point(coordinates[i + 1])
+    const distance = turf.distance(point1, point2, { units: 'meters' })
+    
+    if (distance > maxLength) {
+      secondMaxLength = maxLength
+      maxLength = distance
+      longestEdgeIndex = i
+    } else if (distance > secondMaxLength) {
+      secondMaxLength = distance
+    }
+  }
+
+  // Calculate dominant edge ratio (how much longer is the longest edge)
+  const edgeDominanceRatio = secondMaxLength > 0 ? maxLength / secondMaxLength : 1
+  
+  // Calculate the azimuth using the standard method
+  const azimuth = calculateRoofAzimuth(polygon)
+  
+  // Calculate confidence based on multiple factors
+  let confidence = 100
+  let reason = 'High confidence detection'
+  
+  // Factor 1: Polygon complexity (simple shapes are more reliable)
+  const vertexCount = coordinates.length - 1
+  if (vertexCount > 8) {
+    confidence -= 15
+    reason = 'Complex roof shape may affect accuracy'
+  } else if (vertexCount > 6) {
+    confidence -= 10
+  }
+  
+  // Factor 2: Edge dominance (clear longest edge is more reliable)
+  if (edgeDominanceRatio < 1.2) {
+    confidence -= 20
+    reason = 'No clearly dominant edge - orientation uncertain'
+  } else if (edgeDominanceRatio < 1.5) {
+    confidence -= 10
+    reason = 'Multiple similar-length edges detected'
+  }
+  
+  // Factor 3: Roof shape regularity (check if it's roughly rectangular)
+  const polygonFeature = polygon.geometry ? polygon : turf.polygon(coordinates)
+  const area = turf.area(polygonFeature)
+  const bbox = turf.bbox(polygonFeature)
+  const bboxArea = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]) * 111320 * 111320 // Convert to square meters approx
+  const areaRatio = area / bboxArea
+  
+  if (areaRatio < 0.5) {
+    confidence -= 15
+    reason = 'Irregular shape detected'
+  } else if (areaRatio < 0.7) {
+    confidence -= 8
+  }
+  
+  // Ensure confidence stays in valid range
+  confidence = Math.max(0, Math.min(100, confidence))
+  
+  return {
+    azimuth,
+    confidence,
+    reason
+  }
 }
 
 /**

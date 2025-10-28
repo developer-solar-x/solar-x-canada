@@ -228,11 +228,25 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                 {data.roofPolygon.features.map((feature: any, index: number) => {
                   if (feature.geometry.type !== 'Polygon') return null
                   
-                  const areaMeters = turf.area(feature)
-                  const areaSqFt = Math.round(areaMeters * 10.764)
-                  const azimuth = calculateRoofAzimuth(feature)
-                  const direction = getDirectionLabel(azimuth)
-                  const efficiency = getOrientationEfficiency(azimuth)
+                  // Use manually corrected orientation from roofSections if available
+                  // Otherwise calculate from polygon geometry
+                  let azimuth, direction, efficiency, areaSqFt
+                  
+                  if (data.roofSections && data.roofSections[index]) {
+                    // Use corrected data from user edits
+                    const section = data.roofSections[index]
+                    azimuth = section.azimuth
+                    direction = section.direction
+                    efficiency = section.efficiency
+                    areaSqFt = section.area
+                  } else {
+                    // Calculate from polygon (legacy or uncorrected)
+                    const areaMeters = turf.area(feature)
+                    areaSqFt = Math.round(areaMeters * 10.764)
+                    azimuth = calculateRoofAzimuth(feature)
+                    direction = getDirectionLabel(azimuth)
+                    efficiency = getOrientationEfficiency(azimuth)
+                  }
                   
                   // Color based on efficiency - using brand colors
                   const efficiencyColor = efficiency >= 90 ? 'text-navy-500' : 

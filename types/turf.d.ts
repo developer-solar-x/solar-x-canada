@@ -5,6 +5,7 @@ declare module '@turf/turf' {
   export * from '@turf/bbox'
   export * from '@turf/bearing'
   export * from '@turf/center'
+  export * from '@turf/centroid'
   export * from '@turf/distance'
   export * from '@turf/length'
   export * from '@turf/along'
@@ -35,5 +36,6 @@ declare module '@turf/turf' {
   export function polygon(coordinates: number[][][], properties?: any): Feature<Polygon>
   export function point(coordinates: number[], properties?: any): Feature<Point>
   export function area(geojson: any): number
+  export function centroid(geojson: any): Feature<Point>
 }
 

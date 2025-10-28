@@ -68,11 +68,24 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
                       {data.roofPolygon.features.map((feature: any, index: number) => {
                         if (feature.geometry.type !== 'Polygon') return null
                         
-                        const areaMeters = turf.area(feature)
-                        const areaSqFt = Math.round(areaMeters * 10.764)
-                        const azimuth = calculateRoofAzimuth(feature)
-                        const direction = getDirectionLabel(azimuth)
-                        const efficiency = getOrientationEfficiency(azimuth)
+                        // Use manually corrected orientation from roofSections if available
+                        // Otherwise calculate from polygon geometry
+                        let direction, efficiency, areaSqFt
+                        
+                        if (data.roofSections && data.roofSections[index]) {
+                          // Use corrected data from user edits
+                          const section = data.roofSections[index]
+                          direction = section.direction
+                          efficiency = section.efficiency
+                          areaSqFt = section.area
+                        } else {
+                          // Calculate from polygon (legacy or uncorrected)
+                          const areaMeters = turf.area(feature)
+                          areaSqFt = Math.round(areaMeters * 10.764)
+                          const azimuth = calculateRoofAzimuth(feature)
+                          direction = getDirectionLabel(azimuth)
+                          efficiency = getOrientationEfficiency(azimuth)
+                        }
                         
                         return (
                           <div key={index} className="text-xs bg-white/60 rounded px-2 py-1">
