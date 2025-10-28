@@ -11,25 +11,25 @@ const ADD_ONS = [
     id: 'ev_charger',
     name: 'EV Charger',
     icon: Zap,
-    description: 'Level 2 home charging station for electric vehicles',
-    estimatedCost: 1500,
-    popular: true
+    description: 'Level 2 home charging station for electric vehicles'
   },
   {
     id: 'heat_pump',
     name: 'Heat Pump',
     icon: Wind,
-    description: 'Energy-efficient heating and cooling system',
-    estimatedCost: 8000,
-    popular: true
+    description: 'Energy-efficient heating and cooling system'
   },
   {
-    id: 'roof_replacement',
-    name: 'Roof Replacement',
+    id: 'new_roof',
+    name: 'New Roof',
     icon: Home,
-    description: 'New roof installation before solar panel mounting',
-    estimatedCost: 12000,
-    popular: false
+    description: 'New roof installation before solar panel mounting'
+  },
+  {
+    id: 'water_heater',
+    name: 'Water Heater',
+    icon: Zap,
+    description: 'High-efficiency water heating system'
   }
 ]
 
@@ -54,24 +54,17 @@ export function StepAddOns({ data, onComplete, onBack }: StepAddOnsProps) {
     }
   }
 
-  // Calculate total estimated cost of selected add-ons
-  const totalAddOnsCost = ADD_ONS
-    .filter(addOn => selectedAddOns.includes(addOn.id))
-    .reduce((sum, addOn) => sum + addOn.estimatedCost, 0)
-
   // Handle continue
   const handleContinue = () => {
     onComplete({
-      selectedAddOns,
-      addOnsCost: totalAddOnsCost
+      selectedAddOns
     })
   }
 
   // Handle skip (no add-ons selected)
   const handleSkip = () => {
     onComplete({
-      selectedAddOns: [],
-      addOnsCost: 0
+      selectedAddOns: []
     })
   }
 
@@ -103,13 +96,6 @@ export function StepAddOns({ data, onComplete, onBack }: StepAddOnsProps) {
                   : 'border-gray-200 bg-white hover:border-gray-300'
               }`}
             >
-              {/* Popular badge */}
-              {addOn.popular && (
-                <div className="absolute top-3 right-3 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded">
-                  POPULAR
-                </div>
-              )}
-
               {/* Selection indicator */}
               {isSelected && (
                 <div className="absolute top-3 right-3 bg-red-500 text-white rounded-full p-1">
@@ -131,12 +117,9 @@ export function StepAddOns({ data, onComplete, onBack }: StepAddOnsProps) {
                   <h3 className="text-xl font-bold text-navy-500 mb-1">
                     {addOn.name}
                   </h3>
-                  <p className="text-sm text-gray-600 mb-3">
+                  <p className="text-sm text-gray-600">
                     {addOn.description}
                   </p>
-                  <div className="text-lg font-bold text-red-500">
-                    Est. ${addOn.estimatedCost.toLocaleString()}
-                  </div>
                 </div>
               </div>
             </button>
@@ -147,19 +130,14 @@ export function StepAddOns({ data, onComplete, onBack }: StepAddOnsProps) {
       {/* Selected summary */}
       {selectedAddOns.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Check size={20} className="text-blue-600" />
             <div>
               <p className="text-sm font-semibold text-gray-700">
                 {selectedAddOns.length} add-on{selectedAddOns.length !== 1 ? 's' : ''} selected
               </p>
               <p className="text-xs text-gray-600">
-                Combined with your solar estimate
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-600">Estimated Cost</p>
-              <p className="text-2xl font-bold text-blue-600">
-                ${totalAddOnsCost.toLocaleString()}
+                We'll include these in your custom quote
               </p>
             </div>
           </div>
@@ -200,7 +178,7 @@ export function StepAddOns({ data, onComplete, onBack }: StepAddOnsProps) {
 
       {/* Info note */}
       <p className="text-xs text-gray-500 text-center mt-6">
-        Estimated costs are approximate and will be refined in your final quote.
+        Select any add-ons you're interested in learning more about. Pricing will be provided in your custom quote.
       </p>
     </div>
   )

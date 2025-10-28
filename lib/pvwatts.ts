@@ -141,25 +141,33 @@ export async function calculateSolarEstimate(
   const albedo = isCanada ? 0.35 : 0.2  // 0.35 accounts for seasonal snow
 
   // Call PVWatts API with optimized parameters
+  // Using Premium module type for N-type bifacial panels (22.5% efficiency)
   const pvData = await callPVWatts({
     lat,
     lon,
     system_capacity: systemSizeKw,
     tilt,
     azimuth: azimuth, // Use provided roof orientation
-    module_type: 0, // Standard panels (most common)
+    module_type: 1, // Premium panels (N-type monocrystalline, 22.5% efficiency)
     losses: 14, // Default system losses (industry standard)
     array_type: 1, // Fixed roof mount
     dc_ac_ratio: 1.2, // Modern inverter sizing (20% DC oversizing)
     inv_eff: 96, // Modern inverter efficiency (96%)
-    albedo: albedo, // Region-specific ground reflectance
+    albedo: albedo, // Region-specific ground reflectance (also benefits bifacial rear side)
     soiling: isCanada ? canadaSoiling : defaultSoiling, // Monthly soiling losses
   })
 
   // Extract production data
-  const annualProductionKwh = pvData.outputs.ac_annual
-  const monthlyProductionKwh = pvData.outputs.ac_monthly
+  let annualProductionKwh = pvData.outputs.ac_annual
+  let monthlyProductionKwh = pvData.outputs.ac_monthly
   const capacityFactor = pvData.outputs.capacity_factor
+
+  // Apply bifacial gain for rear-side energy capture
+  // Panel spec: 80% bifaciality, conservative 8% gain for typical roof installations
+  // (Ground-mounted with white rocks can achieve 15-20% gain, but roof-mounted is more conservative)
+  const bifacialGain = 1.08 // 8% additional production from rear side
+  annualProductionKwh = Math.round(annualProductionKwh * bifacialGain)
+  monthlyProductionKwh = monthlyProductionKwh.map(kwh => Math.round(kwh * bifacialGain))
 
   return {
     annualProductionKwh,

@@ -1,0 +1,119 @@
+// Tiered pricing structure for solar systems
+// Pricing based on system size (kW) with cost per watt
+
+/**
+ * Tiered pricing table for solar systems
+ * Prices are in $/watt and decrease as system size increases
+ */
+const PRICING_TIERS = [
+  { sizeKw: 4, pricePerWatt: 4.73 },
+  { sizeKw: 4.5, pricePerWatt: 4.16 },
+  { sizeKw: 5, pricePerWatt: 3.74 },
+  { sizeKw: 5.5, pricePerWatt: 3.58 },
+  { sizeKw: 6, pricePerWatt: 3.45 },
+  { sizeKw: 6.5, pricePerWatt: 3.32 },
+  { sizeKw: 7, pricePerWatt: 3.21 },
+  { sizeKw: 7.5, pricePerWatt: 3.07 },
+  { sizeKw: 8, pricePerWatt: 2.96 },
+  { sizeKw: 8.5, pricePerWatt: 2.88 },
+  { sizeKw: 9, pricePerWatt: 2.79 },
+  { sizeKw: 10, pricePerWatt: 2.71 },
+  { sizeKw: 11, pricePerWatt: 2.69 },
+  { sizeKw: 12, pricePerWatt: 2.67 },
+  { sizeKw: 13, pricePerWatt: 2.67 },
+  { sizeKw: 14, pricePerWatt: 2.67 },
+  { sizeKw: 15, pricePerWatt: 2.62 },
+  { sizeKw: 16, pricePerWatt: 2.62 },
+  { sizeKw: 17, pricePerWatt: 2.61 },
+  { sizeKw: 18, pricePerWatt: 2.58 },
+  { sizeKw: 19, pricePerWatt: 2.55 },
+  { sizeKw: 20, pricePerWatt: 2.54 },
+  { sizeKw: 21, pricePerWatt: 2.53 },
+  { sizeKw: 22, pricePerWatt: 2.52 },
+  { sizeKw: 23, pricePerWatt: 2.51 },
+  { sizeKw: 24, pricePerWatt: 2.50 },
+  { sizeKw: 25, pricePerWatt: 2.49 },
+] as const
+
+/**
+ * Calculate the price per watt for a given system size
+ * Uses tiered pricing with interpolation for sizes between tiers
+ */
+export function getPricePerWatt(systemSizeKw: number): number {
+  // Handle edge cases
+  if (systemSizeKw < PRICING_TIERS[0].sizeKw) {
+    // Below minimum tier - use first tier price
+    return PRICING_TIERS[0].pricePerWatt
+  }
+  
+  if (systemSizeKw >= PRICING_TIERS[PRICING_TIERS.length - 1].sizeKw) {
+    // Above maximum tier - use last tier price
+    return PRICING_TIERS[PRICING_TIERS.length - 1].pricePerWatt
+  }
+  
+  // Find the two pricing tiers that bracket this system size
+  for (let i = 0; i < PRICING_TIERS.length - 1; i++) {
+    const lowerTier = PRICING_TIERS[i]
+    const upperTier = PRICING_TIERS[i + 1]
+    
+    if (systemSizeKw >= lowerTier.sizeKw && systemSizeKw <= upperTier.sizeKw) {
+      // Check for exact match first
+      if (systemSizeKw === lowerTier.sizeKw) {
+        return lowerTier.pricePerWatt
+      }
+      if (systemSizeKw === upperTier.sizeKw) {
+        return upperTier.pricePerWatt
+      }
+      
+      // Linear interpolation between tiers for in-between sizes
+      const sizeDiff = upperTier.sizeKw - lowerTier.sizeKw
+      const priceDiff = upperTier.pricePerWatt - lowerTier.pricePerWatt
+      const ratio = (systemSizeKw - lowerTier.sizeKw) / sizeDiff
+      
+      return lowerTier.pricePerWatt + (priceDiff * ratio)
+    }
+  }
+  
+  // Fallback (should not reach here)
+  return PRICING_TIERS[PRICING_TIERS.length - 1].pricePerWatt
+}
+
+/**
+ * Calculate the total system cost based on system size
+ * Converts price per watt to total cost for the system
+ */
+export function calculateSystemCost(systemSizeKw: number): number {
+  const pricePerWatt = getPricePerWatt(systemSizeKw)
+  // Convert kW to watts, then multiply by price per watt
+  const systemCost = systemSizeKw * 1000 * pricePerWatt
+  
+  return Math.round(systemCost)
+}
+
+/**
+ * Get the price per kW for a given system size
+ * This is a convenience function that returns $/kW instead of $/watt
+ */
+export function getPricePerKw(systemSizeKw: number): number {
+  return getPricePerWatt(systemSizeKw) * 1000
+}
+
+/**
+ * Get pricing tier information for display
+ */
+export function getPricingTierInfo(systemSizeKw: number): {
+  pricePerWatt: number
+  pricePerKw: number
+  totalSystemCost: number
+} {
+  const pricePerWatt = getPricePerWatt(systemSizeKw)
+  const pricePerKw = pricePerWatt * 1000
+  const totalSystemCost = calculateSystemCost(systemSizeKw)
+  
+  return {
+    pricePerWatt: Math.round(pricePerWatt * 100) / 100,
+    pricePerKw: Math.round(pricePerKw),
+    totalSystemCost
+  }
+}
+

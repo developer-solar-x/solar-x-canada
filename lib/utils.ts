@@ -39,8 +39,8 @@ export function calculateQuickEstimate(monthlyBill: number) {
   const avgElectricityRate = 0.134; // $/kWh
   // Solar production in Ontario
   const avgSolarProduction = 1200; // kWh per kW per year
-  // System cost per kW
-  const avgSystemCost = 2500; // $ per kW
+  // Import tiered pricing
+  const { calculateSystemCost } = require('@/config/pricing');
   
   // Calculate annual consumption
   const annualConsumption = (monthlyBill / avgElectricityRate) * 12;
@@ -48,8 +48,8 @@ export function calculateQuickEstimate(monthlyBill: number) {
   // Calculate system size needed
   const systemSize = annualConsumption / avgSolarProduction;
   
-  // Calculate costs
-  const systemCost = systemSize * avgSystemCost;
+  // Calculate costs using tiered pricing
+  const systemCost = calculateSystemCost(systemSize);
   
   // Calculate savings
   const annualSavings = monthlyBill * 12;

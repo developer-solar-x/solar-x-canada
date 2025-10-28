@@ -44,8 +44,21 @@ export function calculateRoofAzimuth(polygon: any): number {
   let azimuth = bearing >= 0 ? bearing : 360 + bearing
   
   // Solar panels face perpendicular to the ridge line
-  // Add 90 degrees to get the direction panels actually face
-  azimuth = (azimuth + 90) % 360
+  // There are two perpendicular directions: +90° and -90° (or +270°)
+  const perpendicular1 = (azimuth + 90) % 360
+  const perpendicular2 = (azimuth + 270) % 360
+  
+  // Choose the perpendicular that faces closer to south (180°)
+  // In Northern Hemisphere, roofs typically face south for optimal solar
+  const diff1 = Math.abs(180 - perpendicular1)
+  const diff2 = Math.abs(180 - perpendicular2)
+  
+  // Handle wrap-around (e.g., 350° is closer to 0° than to 180°)
+  const adjustedDiff1 = Math.min(diff1, 360 - diff1)
+  const adjustedDiff2 = Math.min(diff2, 360 - diff2)
+  
+  // Choose the perpendicular closer to south
+  azimuth = adjustedDiff1 < adjustedDiff2 ? perpendicular1 : perpendicular2
   
   // Round to nearest 5 degrees for cleaner values
   azimuth = Math.round(azimuth / 5) * 5

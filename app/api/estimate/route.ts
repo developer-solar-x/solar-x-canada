@@ -152,7 +152,9 @@ export async function POST(request: Request) {
       system: {
         sizeKw: systemSizeKw,
         numPanels: numPanels,
-        panelWattage: 300,
+        panelWattage: 500, // TS-BGT54(500)-G11, N-type bifacial
+        panelEfficiency: 22.5, // %
+        panelType: 'N-type monocrystalline bifacial',
         roofType: roofType || 'asphalt_shingle',
         roofPitch: roofPitch || 'medium',
         shadingLevel: shadingLevel || 'minimal',

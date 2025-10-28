@@ -1,5 +1,7 @@
 // SolarX Logo component with brand styling
-// Displays the company name with proper color scheme
+// Displays the company logo image
+
+import Image from 'next/image'
 
 interface LogoProps {
   variant?: 'default' | 'white' | 'dark';
@@ -10,49 +12,38 @@ interface LogoProps {
 export function Logo({ 
   variant = 'default', 
   size = 'md',
-  showTagline = true 
+  showTagline = false 
 }: LogoProps) {
-  // Size classes for the main logo text
-  const sizeClasses = {
-    sm: 'text-xl',
-    md: 'text-2xl',
-    lg: 'text-3xl'
+  // Size dimensions for the logo image (maintaining aspect ratio ~3:1)
+  const sizeDimensions = {
+    sm: { width: 120, height: 40 },
+    md: { width: 180, height: 60 },
+    lg: { width: 240, height: 80 }
   };
   
-  // Size classes for the tagline
-  const subtitleSizes = {
-    sm: 'text-[0.45rem]',
-    md: 'text-[0.55rem]',
-    lg: 'text-[0.65rem]'
-  };
+  const dimensions = sizeDimensions[size];
   
   return (
-    <div className="flex flex-col">
-      {/* Main logo with SOLAR in navy and X in red */}
-      <div className={`flex items-center font-bold tracking-tight ${sizeClasses[size]}`}>
-        <span className={
-          variant === 'white' ? 'text-white' : 
-          variant === 'dark' ? 'text-gray-900' : 
-          'text-navy-500'
-        }>
-          SOLAR
-        </span>
-        <span className={
-          variant === 'white' ? 'text-white' : 
-          'text-red-500'
-        }>
-          X
-        </span>
+    <div className="flex items-center">
+      {/* Logo image - works best on dark backgrounds as designed */}
+      <div className={`relative ${
+        variant === 'white' || variant === 'dark' 
+          ? 'bg-transparent' 
+          : 'bg-transparent'
+      }`}>
+        <Image 
+          src="/SolarXLogo cropped.png"
+          alt="SolarX - Modern Solar Solutions"
+          width={dimensions.width}
+          height={dimensions.height}
+          priority
+          className="object-contain"
+          style={{ 
+            maxWidth: '100%',
+            height: 'auto'
+          }}
+        />
       </div>
-      
-      {/* Tagline text */}
-      {showTagline && (
-        <p className={`${subtitleSizes[size]} tracking-widest font-medium ${
-          variant === 'white' ? 'text-white/80' : 'text-gray-500'
-        }`}>
-          MODERN SOLAR SOLUTIONS
-        </p>
-      )}
     </div>
   );
 }

@@ -1,6 +1,9 @@
 // Province-specific configuration for solar calculations
 // Includes electricity rates, incentives, and solar potential data
 
+import { getPanelAreaSqFt, getPanelWattage } from './panel-specs'
+import { calculateSystemCost } from './pricing'
+
 export interface ProvinceConfig {
   code: string
   name: string
@@ -96,14 +99,17 @@ export function calculateCosts(systemSizeKw: number, province: string = 'ON') {
   // Fallback to Ontario config if province not found (for international demo)
   const config = PROVINCE_CONFIG[province] || PROVINCE_CONFIG['ON'];
   
-  // Base system cost calculation
-  const systemCost = systemSizeKw * config.avgSystemCostPerKw;
-  const installationCost = config.avgInstallationCost;
-  const subtotal = systemCost + installationCost;
+  // Base system cost calculation using tiered pricing
+  // Pricing includes everything: equipment, installation, labor, etc.
+  const systemCost = calculateSystemCost(systemSizeKw);
+  const installationCost = 0; // Included in tiered pricing
+  const subtotal = systemCost; // No additional costs
   
-  // Add HST/GST
-  const hst = subtotal * (config.hst / 100);
-  const totalCost = subtotal + hst;
+  // Add HST/GST - TEMPORARILY DISABLED
+  // const hst = subtotal * (config.hst / 100);
+  // const totalCost = subtotal + hst;
+  const hst = 0; // Tax removed from calculations
+  const totalCost = subtotal; // Total without tax
   
   // Apply incentives
   let netCost = totalCost;
@@ -187,8 +193,8 @@ export function roofPitchToDegrees(pitch: string): number {
 
 // Calculate recommended system size based on roof area and shading
 export function calculateSystemSize(roofAreaSqFt: number, shadingLevel: string = 'minimal') {
-  // Average panel size in square feet
-  const panelAreaSqFt = 17.5;
+  // Use centralized panel specifications
+  const panelAreaSqFt = getPanelAreaSqFt();
   
   // Usable roof percentage based on shading
   const usableRoofPercent: Record<string, number> = {
@@ -204,8 +210,9 @@ export function calculateSystemSize(roofAreaSqFt: number, shadingLevel: string =
   // Calculate number of panels that fit
   const numPanels = Math.floor(usableArea / panelAreaSqFt);
   
-  // Calculate system size (assuming 300W panels = 0.3 kW per panel)
-  const systemSizeKw = numPanels * 0.3;
+  // Calculate system size using actual panel wattage
+  const panelWatts = getPanelWattage()
+  const systemSizeKw = (numPanels * panelWatts) / 1000;
   
   return {
     systemSizeKw: Math.round(systemSizeKw * 10) / 10,

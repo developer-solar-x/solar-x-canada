@@ -229,7 +229,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
         {data.selectedAddOns && data.selectedAddOns.length > 0 && (
           <div className="card bg-blue-50 border border-blue-200 p-4">
             <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-              <span>Selected Add-ons</span>
+              <span>Interested Add-ons</span>
               <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full">
                 {data.selectedAddOns.length}
               </span>
@@ -238,12 +238,12 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
               {data.selectedAddOns.map((addOnId: string) => (
                 <li key={addOnId} className="flex items-center gap-2">
                   <span className="text-blue-500">•</span>
-                  <span className="capitalize">{addOnId.replace('_', ' ')}</span>
+                  <span className="capitalize">{addOnId.replace(/_/g, ' ')}</span>
                 </li>
               ))}
             </ul>
             <p className="text-xs text-blue-600 mt-2">
-              +${data.addOnsCost?.toLocaleString()} estimated additional cost
+              We'll include pricing for these in your custom quote
             </p>
           </div>
         )}
@@ -316,7 +316,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
           
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
             {FINANCING_OPTIONS.map((option) => {
-              const totalCost = (estimate.costs.netCost || 0) + (data.addOnsCost || 0)
+              const totalCost = estimate.costs.netCost || 0
               const financing = calculateFinancing(
                 totalCost,
                 option.interestRate,
@@ -372,7 +372,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             const selectedOption = FINANCING_OPTIONS.find(opt => opt.id === selectedFinancing)
             if (!selectedOption) return null
             
-            const totalCost = (estimate.costs.netCost || 0) + (data.addOnsCost || 0)
+            const totalCost = estimate.costs.netCost || 0
             const financing = calculateFinancing(
               totalCost,
               selectedOption.interestRate,

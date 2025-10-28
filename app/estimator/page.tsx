@@ -61,7 +61,6 @@ export interface EstimatorData {
   
   // Step 5: Add-ons
   selectedAddOns?: string[]
-  addOnsCost?: number
   
   // Step 6: Property details
   roofType?: string

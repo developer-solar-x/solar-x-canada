@@ -57,7 +57,9 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
     if (snapshot) {
       setMapSnapshot(snapshot)
     }
-    setEstimatedPanels(Math.floor(areaSqFt / 17.5)) // Assuming 17.5 sq ft per panel
+    // Calculate panel count using actual panel dimensions
+    const PANEL_AREA_SQFT = 23.9 // TS-BGT54(500)-G11: 1961 x 1134 mm
+    setEstimatedPanels(Math.floor(areaSqFt / PANEL_AREA_SQFT))
     
     // Calculate individual section areas and orientations
     if (polygonData.features && polygonData.features.length > 0) {
@@ -65,11 +67,12 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
       let maxArea = 0
       
       // Calculate area, panels, and orientation for each section
+      const PANEL_AREA_SQFT = 23.9 // TS-BGT54(500)-G11: 1961 x 1134 mm
       const sections = polygonData.features.map((feature: any, index: number) => {
         if (feature.geometry.type === 'Polygon') {
           const areaMeters = turf.area(feature)
           const areaSqFt = Math.round(areaMeters * 10.764)
-          const panels = Math.floor(areaSqFt / 17.5)
+          const panels = Math.floor(areaSqFt / PANEL_AREA_SQFT)
           
           // Calculate orientation for this specific section
           const azimuth = calculateRoofAzimuth(feature)
