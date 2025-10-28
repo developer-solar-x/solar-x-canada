@@ -6,10 +6,13 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { RotateCcw, X } from 'lucide-react'
 import { getSavedProgressSummary, clearEstimatorProgress } from '@/lib/estimator-storage'
+import { Modal } from '@/components/ui/Modal'
 
 export function ResumeEstimateBanner() {
   const [progressInfo, setProgressInfo] = useState<ReturnType<typeof getSavedProgressSummary>>(null)
   const [showBanner, setShowBanner] = useState(false)
+  const [showDismissModal, setShowDismissModal] = useState(false)
+  const [showClearModal, setShowClearModal] = useState(false)
 
   // Check for saved progress on mount
   useEffect(() => {
@@ -21,17 +24,23 @@ export function ResumeEstimateBanner() {
   }, [])
 
   const handleDismiss = () => {
-    if (confirm('This will only hide the banner. Your progress will still be saved. To start fresh, click "Clear & Start Over" in the banner.')) {
-      setShowBanner(false)
-    }
+    setShowDismissModal(true)
+  }
+
+  const confirmDismiss = () => {
+    setShowBanner(false)
+    setShowDismissModal(false)
   }
 
   const handleClearProgress = () => {
-    if (confirm('Are you sure you want to delete your saved progress? This cannot be undone.')) {
-      clearEstimatorProgress()
-      setShowBanner(false)
-      setProgressInfo(null)
-    }
+    setShowClearModal(true)
+  }
+
+  const confirmClearProgress = () => {
+    clearEstimatorProgress()
+    setShowBanner(false)
+    setProgressInfo(null)
+    setShowClearModal(false)
   }
 
   // Don't render if no saved progress or banner dismissed
@@ -40,7 +49,8 @@ export function ResumeEstimateBanner() {
   }
 
   return (
-    <div className="bg-gradient-to-r from-blue-500 to-teal-500 text-white py-4 px-4 sticky top-0 z-50 shadow-lg">
+    <>
+      <div className="bg-gradient-to-r from-blue-500 to-teal-500 text-white py-4 px-4 sticky top-0 z-50 shadow-lg">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           {/* Progress Info */}
@@ -91,6 +101,31 @@ export function ResumeEstimateBanner() {
         </div>
       </div>
     </div>
+
+    {/* Dismiss Banner Modal */}
+    <Modal
+      isOpen={showDismissModal}
+      onClose={() => setShowDismissModal(false)}
+      onConfirm={confirmDismiss}
+      title="Dismiss Banner?"
+      message="This will only hide the banner. Your progress will still be saved. To start fresh, click 'Clear & Start Over' in the banner."
+      confirmText="Dismiss Banner"
+      cancelText="Keep Banner"
+      variant="info"
+    />
+
+    {/* Clear Progress Modal */}
+    <Modal
+      isOpen={showClearModal}
+      onClose={() => setShowClearModal(false)}
+      onConfirm={confirmClearProgress}
+      title="Clear Saved Progress?"
+      message="Are you sure you want to delete your saved progress? This cannot be undone and you will need to start your estimate from the beginning."
+      confirmText="Clear Progress"
+      cancelText="Keep Progress"
+      variant="danger"
+    />
+    </>
   )
 }
 

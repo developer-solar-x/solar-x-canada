@@ -119,9 +119,8 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
                   onChange={(e) => setFormData({ ...formData, roofType: e.target.value })}
                   className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none"
                 >
-                  <option value="asphalt_shingle">Asphalt Shingle</option>
+                  <option value="asphalt_shingle">Shingles</option>
                   <option value="metal">Metal</option>
-                  <option value="tile">Tile</option>
                   <option value="flat">Flat</option>
                   <option value="other">Other</option>
                 </select>

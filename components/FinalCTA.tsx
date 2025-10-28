@@ -9,7 +9,7 @@ export function FinalCTA() {
     'No Credit Card',
     '100% Free',
     'Secure & Private',
-    'Takes 60 Seconds',
+    'Quick & Easy',
   ]
 
   return (
@@ -39,7 +39,7 @@ export function FinalCTA() {
 
         {/* Subheadline */}
         <p className="text-xl md:text-2xl text-white/90 mb-12 max-w-2xl mx-auto">
-          Get your free, no-obligation estimate in 60 seconds
+          Get your free, no-obligation estimate in just a few minutes
         </p>
 
         {/* CTA button */}

@@ -5,6 +5,7 @@
 import { useState, useRef } from 'react'
 import { Camera, Upload, X, CheckCircle, ArrowRight } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
+import { ImageModal } from '@/components/ui/ImageModal'
 
 interface StepPhotosSimpleProps {
   data: any
@@ -24,6 +25,10 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
   const [photos, setPhotos] = useState<Photo[]>(data.photos || [])
   const [showSkipModal, setShowSkipModal] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // State for image modal
+  const [imageModalOpen, setImageModalOpen] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string; title: string } | null>(null)
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
@@ -127,17 +132,33 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
               )}
             </div>
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-              {photos.map((photo) => (
+              {photos.map((photo, index) => (
                 <div key={photo.id} className="relative group">
-                  <div className="aspect-square relative rounded-lg overflow-hidden border-2 border-gray-200">
+                  <div 
+                    className="aspect-square relative rounded-lg overflow-hidden border-2 border-gray-200 cursor-pointer hover:border-blue-500 transition-colors"
+                    onClick={() => {
+                      // Open image in modal when thumbnail is clicked
+                      setSelectedImage({ 
+                        src: photo.preview, 
+                        alt: `Property photo ${index + 1}`, 
+                        title: `Property Photo ${index + 1} - ${photo.file.name}` 
+                      })
+                      setImageModalOpen(true)
+                    }}
+                    title="Click to view full size"
+                  >
                     <img
                       src={photo.preview}
                       alt="Property photo"
                       className="w-full h-full object-cover"
                     />
                     <button
-                      onClick={() => removePhoto(photo.id)}
-                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        // Stop propagation to prevent opening modal when deleting
+                        e.stopPropagation()
+                        removePhoto(photo.id)
+                      }}
+                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
                     >
                       <X size={14} />
                     </button>
@@ -225,6 +246,17 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
         cancelText="No, Add Photos"
         variant="warning"
       />
+
+      {/* Image Modal for viewing photos in full size */}
+      {selectedImage && (
+        <ImageModal
+          isOpen={imageModalOpen}
+          onClose={() => setImageModalOpen(false)}
+          imageSrc={selectedImage.src}
+          imageAlt={selectedImage.alt}
+          title={selectedImage.title}
+        />
+      )}
     </div>
   )
 }

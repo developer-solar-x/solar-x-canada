@@ -1,9 +1,30 @@
 // How It Works section with step-by-step process
 
+'use client'
+
 import Link from 'next/link'
+import Image from 'next/image'
 import { Zap, LineChart, Handshake } from 'lucide-react'
+import { useState } from 'react'
+import { ImageModal } from './ui/ImageModal'
 
 export function HowItWorks() {
+  // State to control image modal visibility
+  const [imageModalOpen, setImageModalOpen] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string; title: string } | null>(null)
+
+  // Function to open image in modal
+  const openImageModal = (src: string, alt: string, title: string) => {
+    setSelectedImage({ src, alt, title })
+    setImageModalOpen(true)
+  }
+
+  // Function to close image modal
+  const closeImageModal = () => {
+    setImageModalOpen(false)
+    setSelectedImage(null)
+  }
+
   // Process steps data
   const steps = [
     {
@@ -79,9 +100,34 @@ export function HowItWorks() {
                   {step.description}
                 </p>
 
-                {/* Visual mockup placeholder */}
-                <div className="mt-6 h-40 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <p className="text-gray-400 text-sm">Screenshot placeholder</p>
+                {/* Visual mockup/screenshot */}
+                <div 
+                  className={`mt-6 h-40 bg-gray-100 rounded-lg overflow-hidden relative ${
+                    index === 0 ? 'cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all' : ''
+                  }`}
+                  onClick={() => {
+                    // Only make first image clickable since others are placeholders
+                    if (index === 0) {
+                      openImageModal('/step1.png', 'Choose your estimate path - Quick or Detailed mode selector', 'Step 1: Choose Your Path')
+                    }
+                  }}
+                  title={index === 0 ? 'Click to view full size' : ''}
+                >
+                  {index === 0 ? (
+                    // First step - Show actual screenshot
+                    <Image
+                      src="/step1.png"
+                      alt="Choose your estimate path - Quick or Detailed mode selector"
+                      fill
+                      className="object-contain"
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                    />
+                  ) : (
+                    // Other steps - Placeholder
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-gray-400 text-sm">Screenshot placeholder</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -98,6 +144,17 @@ export function HowItWorks() {
           </Link>
         </div>
       </div>
+
+      {/* Image modal for viewing screenshots */}
+      {selectedImage && (
+        <ImageModal
+          isOpen={imageModalOpen}
+          onClose={closeImageModal}
+          imageSrc={selectedImage.src}
+          imageAlt={selectedImage.alt}
+          title={selectedImage.title}
+        />
+      )}
     </section>
   )
 }

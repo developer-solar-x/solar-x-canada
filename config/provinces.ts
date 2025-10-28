@@ -57,7 +57,9 @@ export const PROVINCE_CONFIG: Record<string, ProvinceConfig> = {
     enabled: true,
     
     // Average electricity rate in Ontario ($/kWh)
-    avgElectricityRate: 0.134,
+    // Includes commodity charges, delivery, regulatory fees, and other proportional charges
+    // Updated to reflect 2025 rates with total effective cost to customer
+    avgElectricityRate: 0.140,
     rateStructure: 'time-of-use',
     
     // Zero-export system incentives (Ontario-specific rebates)

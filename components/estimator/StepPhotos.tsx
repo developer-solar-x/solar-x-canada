@@ -5,6 +5,7 @@
 import { useState, useRef } from 'react'
 import { Upload, X, Camera, CheckCircle, AlertCircle } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
+import { ImageModal } from '@/components/ui/ImageModal'
 
 interface StepPhotosProps {
   data: any
@@ -80,6 +81,10 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
   const [dragActive, setDragActive] = useState(false)
   const [showSkipModal, setShowSkipModal] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // State for image modal
+  const [imageModalOpen, setImageModalOpen] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string; title: string } | null>(null)
 
   // Check if required categories have photos
   const hasRequiredPhotos = () => {
@@ -302,15 +307,32 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
                 <div className="grid grid-cols-3 gap-3 mt-4">
                   {getPhotosForCategory(activeCategory).map(photo => (
                     <div key={photo.id} className="relative group">
-                      <div className="aspect-square relative rounded-lg overflow-hidden border-2 border-gray-200">
+                      <div 
+                        className="aspect-square relative rounded-lg overflow-hidden border-2 border-gray-200 cursor-pointer hover:border-blue-500 transition-colors"
+                        onClick={() => {
+                          // Open image in modal when thumbnail is clicked
+                          const categoryName = PHOTO_CATEGORIES.find(c => c.id === activeCategory)?.name || activeCategory
+                          setSelectedImage({ 
+                            src: photo.preview, 
+                            alt: `${categoryName} photo`, 
+                            title: `${categoryName} - ${photo.file.name}` 
+                          })
+                          setImageModalOpen(true)
+                        }}
+                        title="Click to view full size"
+                      >
                         <img
                           src={photo.preview}
                           alt={`${activeCategory} photo`}
                           className="w-full h-full object-cover"
                         />
                         <button
-                          onClick={() => removePhoto(photo.id)}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            // Stop propagation to prevent opening modal when deleting
+                            e.stopPropagation()
+                            removePhoto(photo.id)
+                          }}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
                         >
                           <X size={16} />
                         </button>
@@ -452,6 +474,17 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
           </p>
         </div>
       </Modal>
+
+      {/* Image Modal for viewing photos in full size */}
+      {selectedImage && (
+        <ImageModal
+          isOpen={imageModalOpen}
+          onClose={() => setImageModalOpen(false)}
+          imageSrc={selectedImage.src}
+          imageAlt={selectedImage.alt}
+          title={selectedImage.title}
+        />
+      )}
     </div>
   )
 }

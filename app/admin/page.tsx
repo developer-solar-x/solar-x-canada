@@ -7,6 +7,7 @@ import { Logo } from '@/components/Logo'
 import { Users, DollarSign, Zap, TrendingUp, LogOut, Search, Download } from 'lucide-react'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 interface Lead {
   id: string
@@ -28,6 +29,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const router = useRouter()
 
   // Fetch leads from API
   useEffect(() => {
@@ -64,6 +66,17 @@ export default function AdminPage() {
     lead.address.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/admin/logout', { method: 'POST' })
+      router.push('/admin/login')
+      router.refresh()
+    } catch (error) {
+      console.error('Logout failed:', error)
+    }
+  }
+
   // Status badge colors
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -79,8 +92,8 @@ export default function AdminPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Sidebar */}
       <aside className="fixed left-0 top-0 bottom-0 w-64 bg-navy-500 text-white p-6">
-        <div className="mb-8">
-          <Logo variant="white" size="md" />
+        <div className="mb-8 bg-white p-4 rounded-lg">
+          <Logo size="md" />
         </div>
 
         <nav className="space-y-2">
@@ -92,9 +105,16 @@ export default function AdminPage() {
             <TrendingUp size={20} />
             Analytics
           </a>
+          <button 
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-navy-600 rounded-lg transition-colors text-left"
+          >
+            <LogOut size={20} />
+            Logout
+          </button>
           <a href="/" className="flex items-center gap-3 px-4 py-3 hover:bg-navy-600 rounded-lg transition-colors">
             <LogOut size={20} />
-            Exit
+            Exit to Site
           </a>
         </nav>
       </aside>

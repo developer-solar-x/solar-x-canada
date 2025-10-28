@@ -4,7 +4,7 @@ import './globals.css'
 // Metadata for SEO optimization
 export const metadata: Metadata = {
   title: 'SolarX - Modern Solar Solutions | Get Your Free Solar Estimate',
-  description: 'Get your personalized solar estimate in 60 seconds. Join thousands of Ontario homeowners saving money and the planet with SolarX.',
+  description: 'Get your personalized solar estimate in minutes. Join thousands of Ontario homeowners saving money and the planet with SolarX.',
   keywords: ['solar panels', 'solar energy', 'Ontario solar', 'solar installation', 'solar estimate', 'renewable energy'],
   authors: [{ name: 'SolarX' }],
   openGraph: {
@@ -13,12 +13,12 @@ export const metadata: Metadata = {
     url: 'https://solarx.ca',
     siteName: 'SolarX',
     title: 'SolarX - Modern Solar Solutions',
-    description: 'Get your personalized solar estimate in 60 seconds',
+    description: 'Get your personalized solar estimate in minutes',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'SolarX - Modern Solar Solutions',
-    description: 'Get your personalized solar estimate in 60 seconds',
+    description: 'Get your personalized solar estimate in minutes',
   },
   robots: {
     index: true,

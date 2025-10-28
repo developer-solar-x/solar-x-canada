@@ -2,7 +2,7 @@
 
 ![SolarX Logo](https://via.placeholder.com/400x100/1B4E7C/FFFFFF?text=SOLARX+Modern+Solar+Solutions)
 
-Modern solar estimation platform for Ontario homeowners. Get accurate solar estimates in 60 seconds with our interactive rooftop drawing tool and AI-powered calculations.
+Modern solar estimation platform for Ontario homeowners. Get accurate solar estimates in minutes with our interactive rooftop drawing tool and AI-powered calculations.
 
 ## Overview
 
@@ -38,6 +38,7 @@ SolarX is a production-ready MVP solar rooftop estimator built with Next.js 15, 
 - 📱 **Fully Responsive** - Works perfectly on all devices
 
 ### For Administrators
+- 🔐 **Secure Login** - Session-based authentication with mock credentials
 - 📋 **Lead Management** - View and manage all submissions
 - 🔄 **HubSpot Sync** - Automatic CRM integration
 - 📈 **Analytics Dashboard** - Track conversion metrics
@@ -108,6 +109,20 @@ SolarX is a production-ready MVP solar rooftop estimator built with Next.js 15, 
 
 6. **Open your browser**
    Navigate to [http://localhost:3000](http://localhost:3000)
+
+## Admin Access
+
+The admin dashboard is protected by authentication. To access:
+
+1. Navigate to [http://localhost:3000/admin](http://localhost:3000/admin)
+2. You'll be redirected to the login page
+3. Use these mock credentials:
+   ```
+   Email: admin@solarx.ca
+   Password: admin123
+   ```
+
+**Note**: These are hardcoded mock credentials for development only. See `docs/ADMIN_AUTH.md` for details on implementing proper authentication for production.
 
 ## API Keys Setup
 

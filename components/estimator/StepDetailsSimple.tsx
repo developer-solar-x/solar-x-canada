@@ -14,9 +14,9 @@ interface StepDetailsSimpleProps {
 }
 
 const ROOF_TYPES = [
-  { id: 'asphalt_shingle', label: 'Asphalt Shingle', description: 'Most common' },
+  { id: 'asphalt_shingle', label: 'Shingles', description: 'Most common' },
   { id: 'metal', label: 'Metal', description: 'Long-lasting' },
-  { id: 'tile', label: 'Tile', description: 'Clay or concrete' },
+  { id: 'flat', label: 'Flat', description: 'Flat or low slope' },
   { id: 'other', label: 'Other', description: 'Not sure' },
 ]
 

@@ -9,6 +9,7 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { FINANCING_OPTIONS, calculateFinancing } from '@/config/provinces'
 import { calculateRoofAzimuth, getDirectionLabel, getOrientationEfficiency } from '@/lib/roof-calculations'
 import * as turf from '@turf/turf'
+import { ImageModal } from '@/components/ui/ImageModal'
 
 interface StepReviewProps {
   data: any
@@ -21,6 +22,10 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'savings' | 'production' | 'environmental'>('savings')
   const [selectedFinancing, setSelectedFinancing] = useState<string>(data.financingOption || 'cash')
+  
+  // State for image modal
+  const [imageModalOpen, setImageModalOpen] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string; title: string } | null>(null)
 
   // Fetch estimate from API
   useEffect(() => {
@@ -295,7 +300,21 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             </div>
             <div className="grid grid-cols-3 gap-1 mt-2">
               {data.photos.slice(0, 6).map((photo: any, idx: number) => (
-                <div key={idx} className="aspect-square relative rounded overflow-hidden border border-gray-200">
+                <div 
+                  key={idx} 
+                  className="aspect-square relative rounded overflow-hidden border border-gray-200 cursor-pointer hover:border-blue-500 transition-colors"
+                  onClick={() => {
+                    // Open image in modal when thumbnail is clicked
+                    const categoryLabel = photo.category ? ` (${photo.category})` : ''
+                    setSelectedImage({ 
+                      src: photo.preview, 
+                      alt: `Property photo ${idx + 1}`, 
+                      title: `Property Photo ${idx + 1}${categoryLabel}` 
+                    })
+                    setImageModalOpen(true)
+                  }}
+                  title="Click to view full size"
+                >
                   <img 
                     src={photo.preview} 
                     alt={`Property ${idx + 1}`}
@@ -769,6 +788,17 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
           </button>
         </div>
       </div>
+
+      {/* Image Modal for viewing photos in full size */}
+      {selectedImage && (
+        <ImageModal
+          isOpen={imageModalOpen}
+          onClose={() => setImageModalOpen(false)}
+          imageSrc={selectedImage.src}
+          imageAlt={selectedImage.alt}
+          title={selectedImage.title}
+        />
+      )}
     </div>
   )
 }

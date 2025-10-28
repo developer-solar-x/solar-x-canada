@@ -114,6 +114,10 @@ export default function EstimatorPage() {
   const [showSaveModal, setShowSaveModal] = useState(false)
   // Clear progress modal
   const [showClearModal, setShowClearModal] = useState(false)
+  // Resume progress modal
+  const [showResumeModal, setShowResumeModal] = useState(false)
+  // Saved progress data for resume modal
+  const [savedProgressData, setSavedProgressData] = useState<any>(null)
   // Track if email was already captured
   const [emailCaptured, setEmailCaptured] = useState(false)
 
@@ -125,22 +129,29 @@ export default function EstimatorPage() {
     const saved = loadEstimatorProgress()
     
     if (saved) {
-      // Ask user if they want to resume
-      const shouldResume = confirm(
-        `You have a saved estimate in progress (${saved.data.address || 'started ' + getTimeSinceLastSave()}).\n\nWould you like to resume where you left off?`
-      )
-      
-      if (shouldResume) {
-        setData(saved.data)
-        setCurrentStep(saved.currentStep)
-        setLastSaved(getTimeSinceLastSave())
-        console.log('✅ Resumed from step', saved.currentStep)
-      } else {
-        // User wants to start fresh
-        clearEstimatorProgress()
-      }
+      // Show modal to ask user if they want to resume
+      setSavedProgressData(saved)
+      setShowResumeModal(true)
     }
   }, [])
+
+  // Handle resume confirmation
+  const handleResumeProgress = () => {
+    if (savedProgressData) {
+      setData(savedProgressData.data)
+      setCurrentStep(savedProgressData.currentStep)
+      setLastSaved(getTimeSinceLastSave())
+      console.log('✅ Resumed from step', savedProgressData.currentStep)
+    }
+    setShowResumeModal(false)
+  }
+
+  // Handle start fresh
+  const handleStartFresh = () => {
+    clearEstimatorProgress()
+    setShowResumeModal(false)
+    setSavedProgressData(null)
+  }
 
   // Auto-save progress after each data update
   useEffect(() => {
@@ -411,6 +422,29 @@ export default function EstimatorPage() {
         onSave={handleSaveWithEmail}
         currentStep={currentStep}
       />
+
+      {/* Resume Progress Modal */}
+      <Modal
+        isOpen={showResumeModal}
+        onClose={handleStartFresh}
+        onConfirm={handleResumeProgress}
+        title="Resume Your Estimate?"
+        message={`You have a saved estimate in progress${savedProgressData?.data.address ? ` for ${savedProgressData.data.address}` : ''} (saved ${getTimeSinceLastSave()}).\n\nWould you like to resume where you left off?`}
+        confirmText="Resume"
+        cancelText="Start Fresh"
+        variant="info"
+      >
+        {savedProgressData && (
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <p className="text-sm font-semibold text-blue-800 mb-1">
+              {savedProgressData.data.estimatorMode === 'easy' ? 'Quick Estimate' : 'Detailed Analysis'}
+            </p>
+            <p className="text-sm text-blue-600">
+              Step {savedProgressData.currentStep} of {savedProgressData.data.estimatorMode === 'easy' ? easySteps.length - 1 : detailedSteps.length - 1}
+            </p>
+          </div>
+        )}
+      </Modal>
 
       {/* Clear Progress Modal */}
       <Modal

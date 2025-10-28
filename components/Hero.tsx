@@ -3,6 +3,7 @@
 // Hero section with gradient background and call-to-action
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { ArrowRight, Play, CheckCircle, Star, Shield, Award } from 'lucide-react'
 import { useState } from 'react'
 
@@ -57,7 +58,7 @@ export function Hero() {
 
             {/* Subheadline */}
             <p className="text-lg sm:text-xl text-white/85 max-w-xl leading-relaxed">
-              Get your personalized solar estimate in 60 seconds. Join thousands of Ontario homeowners saving money and the planet with SolarX.
+              Get your personalized solar estimate in minutes. Join thousands of Ontario homeowners saving money and the planet with SolarX.
             </p>
 
             {/* CTA buttons */}
@@ -97,15 +98,18 @@ export function Hero() {
 
           {/* Right column - Visual with floating cards */}
           <div className="relative hidden lg:block">
-            {/* Placeholder for hero image or 3D visual */}
+            {/* Solar installation hero image */}
             <div className="relative w-full h-[500px] rounded-2xl overflow-hidden shadow-2xl">
-              {/* This would be replaced with actual image or 3D visual */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-navy-600 flex items-center justify-center">
-                <div className="text-white/20 text-center">
-                  <p className="text-sm">Hero Image Placeholder</p>
-                  <p className="text-xs">(Solar panel installation photo)</p>
-                </div>
-              </div>
+              <Image
+                src="https://images.unsplash.com/photo-1624397640148-949b1732bb0a?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=1974"
+                alt="Professional solar panel installation on residential roof"
+                fill
+                className="object-cover"
+                priority
+                sizes="(max-width: 1024px) 0vw, 50vw"
+              />
+              {/* Overlay gradient for better card visibility */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
             </div>
 
             {/* Floating statistic cards */}
