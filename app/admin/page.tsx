@@ -4,10 +4,16 @@
 
 import { useState, useEffect } from 'react'
 import { Logo } from '@/components/Logo'
-import { Users, DollarSign, Zap, TrendingUp, LogOut, Search, Download } from 'lucide-react'
+import { Users, DollarSign, Zap, TrendingUp, LogOut, Search, Download, Calculator } from 'lucide-react'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { 
+  analyzeZeroExportSystem, 
+  calculatePeakShaving,
+  recommendBatterySize,
+  TOU_RATES 
+} from '@/lib/peak-shaving'
 
 interface Lead {
   id: string
@@ -29,7 +35,20 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [activeSection, setActiveSection] = useState('leads') // State to track active section (leads or calculator)
   const router = useRouter()
+  
+  // Peak Shaving Calculator inputs state
+  const [calculatorInputs, setCalculatorInputs] = useState({
+    annualConsumption: 10000, // Default value in kWh
+    systemSizeKw: 11.5, // Default value in kW
+    annualSolarProduction: 14375, // Default value in kWh (11.5 kW * 1250 hours)
+    batteryKwh: 13.5, // Default value in kWh
+    systemCost: 30820, // Default value in dollars
+  })
+  
+  // Peak Shaving Calculator results state
+  const [calculatorResults, setCalculatorResults] = useState<ReturnType<typeof analyzeZeroExportSystem> | null>(null)
 
   // Fetch leads from API
   useEffect(() => {
@@ -76,6 +95,30 @@ export default function AdminPage() {
       console.error('Logout failed:', error)
     }
   }
+  
+  // Calculate peak shaving results
+  const handleCalculate = () => {
+    try {
+      const results = analyzeZeroExportSystem(
+        calculatorInputs.annualConsumption,
+        calculatorInputs.systemSizeKw,
+        calculatorInputs.annualSolarProduction,
+        calculatorInputs.batteryKwh,
+        calculatorInputs.systemCost
+      )
+      setCalculatorResults(results)
+    } catch (error) {
+      console.error('Calculation failed:', error)
+    }
+  }
+  
+  // Update calculator input handler
+  const updateCalculatorInput = (field: string, value: number) => {
+    setCalculatorInputs(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
 
   // Status badge colors
   const getStatusColor = (status: string) => {
@@ -97,10 +140,24 @@ export default function AdminPage() {
         </div>
 
         <nav className="space-y-2">
-          <a href="#" className="flex items-center gap-3 px-4 py-3 bg-red-500 rounded-lg font-medium">
+          <button 
+            onClick={() => setActiveSection('leads')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+              activeSection === 'leads' ? 'bg-red-500' : 'hover:bg-navy-600'
+            }`}
+          >
             <Users size={20} />
             Leads
-          </a>
+          </button>
+          <button 
+            onClick={() => setActiveSection('calculator')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+              activeSection === 'calculator' ? 'bg-red-500' : 'hover:bg-navy-600'
+            }`}
+          >
+            <Calculator size={20} />
+            Peak Shaving
+          </button>
           <a href="#" className="flex items-center gap-3 px-4 py-3 hover:bg-navy-600 rounded-lg transition-colors">
             <TrendingUp size={20} />
             Analytics
@@ -121,11 +178,14 @@ export default function AdminPage() {
 
       {/* Main content */}
       <main className="ml-64 p-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-navy-500 mb-2">Leads Dashboard</h1>
-          <p className="text-gray-600">Manage and track all solar estimate submissions</p>
-        </div>
+        {/* Conditionally render content based on active section */}
+        {activeSection === 'leads' ? (
+          <>
+            {/* Header */}
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-navy-500 mb-2">Leads Dashboard</h1>
+              <p className="text-gray-600">Manage and track all solar estimate submissions</p>
+            </div>
 
         {/* Stats cards */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">
@@ -282,6 +342,281 @@ export default function AdminPage() {
               </button>
             </div>
           </div>
+        )}
+          </>
+        ) : (
+          <>
+            {/* Peak Shaving Calculator Section */}
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-navy-500 mb-2">Peak Shaving Calculator</h1>
+              <p className="text-gray-600">Test zero-export system calculations with battery optimization</p>
+            </div>
+
+            {/* Input Form */}
+            <div className="card p-6 mb-6">
+              <h2 className="text-xl font-bold text-navy-500 mb-4">System Parameters</h2>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Annual Consumption */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Annual Consumption (kWh)
+                  </label>
+                  <input
+                    type="number"
+                    value={calculatorInputs.annualConsumption}
+                    onChange={(e) => updateCalculatorInput('annualConsumption', Number(e.target.value))}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 outline-none"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Total yearly electricity usage</p>
+                </div>
+
+                {/* System Size */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    System Size (kW)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={calculatorInputs.systemSizeKw}
+                    onChange={(e) => updateCalculatorInput('systemSizeKw', Number(e.target.value))}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 outline-none"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Solar panel system capacity</p>
+                </div>
+
+                {/* Annual Solar Production */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Annual Solar Production (kWh)
+                  </label>
+                  <input
+                    type="number"
+                    value={calculatorInputs.annualSolarProduction}
+                    onChange={(e) => updateCalculatorInput('annualSolarProduction', Number(e.target.value))}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 outline-none"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Expected yearly solar generation</p>
+                </div>
+
+                {/* Battery Size */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Battery Capacity (kWh)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={calculatorInputs.batteryKwh}
+                    onChange={(e) => updateCalculatorInput('batteryKwh', Number(e.target.value))}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 outline-none"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Battery storage capacity</p>
+                </div>
+
+                {/* System Cost */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    System Cost ($)
+                  </label>
+                  <input
+                    type="number"
+                    value={calculatorInputs.systemCost}
+                    onChange={(e) => updateCalculatorInput('systemCost', Number(e.target.value))}
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 outline-none"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Total system installation cost</p>
+                </div>
+              </div>
+
+              {/* Calculate Button */}
+              <div className="mt-6">
+                <button
+                  onClick={handleCalculate}
+                  className="btn-primary px-8 py-3 text-lg font-semibold"
+                >
+                  Calculate Peak Shaving
+                </button>
+              </div>
+            </div>
+
+            {/* Results Display */}
+            {calculatorResults && (
+              <>
+                {/* Economics Overview */}
+                <div className="grid md:grid-cols-4 gap-6 mb-6">
+                  <div className="card p-6">
+                    <div className="text-sm text-gray-600 mb-2">Annual Savings</div>
+                    <div className="text-3xl font-bold text-green-600">
+                      {formatCurrency(calculatorResults.economics.annualSavings)}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {calculatorResults.peakShaving.savings.percentSaved.toFixed(1)}% reduction
+                    </div>
+                  </div>
+
+                  <div className="card p-6">
+                    <div className="text-sm text-gray-600 mb-2">Payback Period</div>
+                    <div className="text-3xl font-bold text-navy-500">
+                      {calculatorResults.economics.paybackYears} years
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Net cost: {formatCurrency(calculatorResults.economics.netCost)}
+                    </div>
+                  </div>
+
+                  <div className="card p-6">
+                    <div className="text-sm text-gray-600 mb-2">Total Incentives</div>
+                    <div className="text-3xl font-bold text-blue-600">
+                      {formatCurrency(calculatorResults.economics.incentives)}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Solar + Battery rebates
+                    </div>
+                  </div>
+
+                  <div className="card p-6">
+                    <div className="text-sm text-gray-600 mb-2">25-Year ROI</div>
+                    <div className="text-3xl font-bold text-purple-600">
+                      {calculatorResults.economics.roi25Year}%
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Lifetime: {formatCurrency(calculatorResults.economics.lifetimeSavings)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Peak Shaving Details */}
+                <div className="grid lg:grid-cols-2 gap-6 mb-6">
+                  {/* Pre-Solar Usage */}
+                  <div className="card p-6">
+                    <h3 className="text-lg font-bold text-navy-500 mb-4">Pre-Solar Usage & Costs</h3>
+                    <div className="space-y-3">
+                      {Object.entries(TOU_RATES).map(([key, rate]) => {
+                        const usage = calculatorResults.peakShaving.preSolar[key as keyof typeof calculatorResults.peakShaving.preSolar]
+                        const cost = calculatorResults.peakShaving.preSolarCosts[key as keyof typeof calculatorResults.peakShaving.preSolarCosts]
+                        return (
+                          <div key={key} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                            <div>
+                              <div className="font-semibold text-sm" style={{ color: rate.color }}>
+                                {rate.name}
+                              </div>
+                              <div className="text-xs text-gray-500">${rate.pricePerKwh}/kWh</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-semibold">{Math.round(usage).toLocaleString()} kWh</div>
+                              <div className="text-sm text-gray-600">{formatCurrency(cost)}</div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                      <div className="flex justify-between items-center p-3 bg-navy-500 text-white rounded-lg font-bold">
+                        <div>Total</div>
+                        <div className="text-right">
+                          <div>{Math.round(calculatorResults.peakShaving.preSolar.total).toLocaleString()} kWh</div>
+                          <div>{formatCurrency(calculatorResults.peakShaving.preSolarCosts.total)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Post-Solar Usage */}
+                  <div className="card p-6">
+                    <h3 className="text-lg font-bold text-navy-500 mb-4">Post-Solar Usage & Costs</h3>
+                    <div className="space-y-3">
+                      {Object.entries(TOU_RATES).map(([key, rate]) => {
+                        const usage = calculatorResults.peakShaving.postSolar[key as keyof typeof calculatorResults.peakShaving.postSolar]
+                        const cost = calculatorResults.peakShaving.postSolarCosts[key as keyof typeof calculatorResults.peakShaving.postSolarCosts]
+                        const reduction = calculatorResults.peakShaving.peakShavingEffect[
+                          `${key}Reduction` as keyof typeof calculatorResults.peakShaving.peakShavingEffect
+                        ] || 0
+                        return (
+                          <div key={key} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                            <div>
+                              <div className="font-semibold text-sm" style={{ color: rate.color }}>
+                                {rate.name}
+                              </div>
+                              <div className="text-xs text-green-600">
+                                {reduction > 0 ? `↓ ${reduction.toFixed(0)}%` : '-'}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-semibold">{Math.round(usage).toLocaleString()} kWh</div>
+                              <div className="text-sm text-gray-600">{formatCurrency(cost)}</div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                      <div className="flex justify-between items-center p-3 bg-green-600 text-white rounded-lg font-bold">
+                        <div>Total</div>
+                        <div className="text-right">
+                          <div>{Math.round(calculatorResults.peakShaving.postSolar.total).toLocaleString()} kWh</div>
+                          <div>{formatCurrency(calculatorResults.peakShaving.postSolarCosts.total)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Battery and Energy Flow */}
+                <div className="grid lg:grid-cols-3 gap-6 mb-6">
+                  <div className="card p-6">
+                    <h3 className="text-lg font-bold text-navy-500 mb-4">Battery Capacity</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Nominal</span>
+                        <span className="font-semibold">{calculatorResults.batteryInfo.nominalCapacity} kWh</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Usable (90% DoD)</span>
+                        <span className="font-semibold">{calculatorResults.batteryInfo.usableCapacity.toFixed(1)} kWh</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Annual Capacity</span>
+                        <span className="font-semibold">{Math.round(calculatorResults.batteryInfo.annualCapacity).toLocaleString()} kWh</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="card p-6">
+                    <h3 className="text-lg font-bold text-navy-500 mb-4">Energy Sources</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Direct Solar</span>
+                        <span className="font-semibold">{Math.round(calculatorResults.peakShaving.solarUsed).toLocaleString()} kWh</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">From Battery</span>
+                        <span className="font-semibold">{Math.round(calculatorResults.peakShaving.batteryUsed).toLocaleString()} kWh</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Grid Usage</span>
+                        <span className="font-semibold">{Math.round(calculatorResults.peakShaving.postSolar.total).toLocaleString()} kWh</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="card p-6">
+                    <h3 className="text-lg font-bold text-navy-500 mb-4">Incentive Breakdown</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Solar Rebate</span>
+                        <span className="font-semibold">{formatCurrency(calculatorResults.incentives.solarIncentive)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Battery Rebate</span>
+                        <span className="font-semibold">{formatCurrency(calculatorResults.incentives.batteryIncentive)}</span>
+                      </div>
+                      <div className="flex justify-between text-green-600">
+                        <span className="font-semibold">Total</span>
+                        <span className="font-bold">{formatCurrency(calculatorResults.incentives.totalIncentive)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </>
         )}
       </main>
     </div>

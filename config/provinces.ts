@@ -130,17 +130,20 @@ export function calculateCosts(systemSizeKw: number, province: string = 'ON', ba
   const totalCost = subtotal; // Total without tax
   
   // Calculate Zero-Export System Incentives
+  // Incentives ONLY apply to Zero-Export Systems (with battery)
+  // Net Metering systems (without battery) receive NO incentives
   let incentivesApplied = 0;
   
-  // Solar incentive: $100 per kW, max $5,000
-  const solarIncentivePerKw = 100;
-  const solarMaxIncentive = 5000;
-  const solarIncentiveCalculated = systemSizeKw * solarIncentivePerKw;
-  const solarIncentive = Math.min(solarIncentiveCalculated, solarMaxIncentive);
-  incentivesApplied += solarIncentive;
-  
-  // Battery incentive: $300 per kWh, max $5,000 (if battery is included)
+  // Only apply incentives if battery is included (Zero-Export System)
   if (batteryKwh > 0) {
+    // Solar incentive: $100 per kW, max $5,000
+    const solarIncentivePerKw = 100;
+    const solarMaxIncentive = 5000;
+    const solarIncentiveCalculated = systemSizeKw * solarIncentivePerKw;
+    const solarIncentive = Math.min(solarIncentiveCalculated, solarMaxIncentive);
+    incentivesApplied += solarIncentive;
+    
+    // Battery incentive: $300 per kWh, max $5,000
     const batteryIncentivePerKwh = 300;
     const batteryMaxIncentive = 5000;
     const batteryIncentiveCalculated = batteryKwh * batteryIncentivePerKwh;
