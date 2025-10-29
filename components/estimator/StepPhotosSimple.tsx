@@ -2,10 +2,11 @@
 
 // Easy Mode: Simple Photo Upload
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Camera, Upload, X, CheckCircle, ArrowRight } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { ImageModal } from '@/components/ui/ImageModal'
+import { savePhoto, deletePhoto, loadAllPhotos, storedPhotoToFile } from '@/lib/photo-storage'
 
 interface StepPhotosSimpleProps {
   data: any
@@ -22,15 +23,52 @@ interface Photo {
 }
 
 export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: StepPhotosSimpleProps) {
-  const [photos, setPhotos] = useState<Photo[]>(data.photos || [])
+  const [photos, setPhotos] = useState<Photo[]>([])
   const [showSkipModal, setShowSkipModal] = useState(false)
+  const [loading, setLoading] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   // State for image modal
   const [imageModalOpen, setImageModalOpen] = useState(false)
   const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string; title: string } | null>(null)
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Load photos from IndexedDB on mount
+  useEffect(() => {
+    const loadSavedPhotos = async () => {
+      try {
+        setLoading(true)
+        const storedPhotos = await loadAllPhotos()
+        
+        // Convert stored photos to Photo format
+        const loadedPhotos: Photo[] = storedPhotos.map(stored => ({
+          id: stored.id,
+          category: stored.category,
+          file: storedPhotoToFile(stored),
+          preview: URL.createObjectURL(stored.blob),
+        }))
+        
+        setPhotos(loadedPhotos)
+        console.log(`Loaded ${loadedPhotos.length} photos from IndexedDB`)
+      } catch (error) {
+        console.error('Failed to load photos:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    loadSavedPhotos()
+    
+    // Cleanup: Revoke all object URLs when component unmounts
+    return () => {
+      photos.forEach(photo => {
+        if (photo.preview) {
+          URL.revokeObjectURL(photo.preview)
+        }
+      })
+    }
+  }, []) // Empty dependency array - run only on mount
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
     if (files) {
       const newPhotos: Photo[] = Array.from(files).slice(0, 5 - photos.length).map(file => ({
@@ -39,13 +77,36 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
         preview: URL.createObjectURL(file),
         category: 'general',
       }))
+      
+      // Update UI immediately
       setPhotos([...photos, ...newPhotos])
+      
+      // Save each photo to IndexedDB in the background
+      for (const photo of newPhotos) {
+        try {
+          await savePhoto(photo.id, photo.file, photo.category)
+        } catch (error) {
+          console.error(`Failed to save photo ${photo.id}:`, error)
+        }
+      }
     }
   }
 
-  const removePhoto = (photoId: string) => {
+  const removePhoto = async (photoId: string) => {
     const photo = photos.find(p => p.id === photoId)
-    if (photo) URL.revokeObjectURL(photo.preview)
+    if (photo) {
+      // Revoke the object URL to free memory
+      URL.revokeObjectURL(photo.preview)
+      
+      // Delete from IndexedDB
+      try {
+        await deletePhoto(photoId)
+      } catch (error) {
+        console.error(`Failed to delete photo ${photoId}:`, error)
+      }
+    }
+    
+    // Update UI
     setPhotos(photos.filter(p => p.id !== photoId))
   }
 
@@ -65,6 +126,20 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
 
   const confirmSkip = () => {
     onComplete({ photos: [], photoSummary: { total: 0, byCategory: [] } })
+  }
+
+  // Show loading state while loading photos from IndexedDB
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading your photos...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

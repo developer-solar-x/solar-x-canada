@@ -147,8 +147,8 @@ export default function EstimatorPage() {
   }
 
   // Handle start fresh
-  const handleStartFresh = () => {
-    clearEstimatorProgress()
+  const handleStartFresh = async () => {
+    await clearEstimatorProgress()
     setShowResumeModal(false)
     setSavedProgressData(null)
   }
@@ -261,11 +261,12 @@ export default function EstimatorPage() {
   }
 
   // Confirm clearing progress
-  const confirmClearProgress = () => {
-    clearEstimatorProgress()
+  const confirmClearProgress = async () => {
+    await clearEstimatorProgress()
     setData({})
     setCurrentStep(0)
     setLastSaved(null)
+    setShowClearModal(false)
   }
 
   // Get current step component

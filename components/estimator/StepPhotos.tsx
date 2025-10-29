@@ -2,10 +2,11 @@
 
 // Step: Property Photos Upload
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Upload, X, Camera, CheckCircle, AlertCircle } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { ImageModal } from '@/components/ui/ImageModal'
+import { savePhoto, deletePhoto, loadAllPhotos, storedPhotoToFile, storedPhotoToMetadata } from '@/lib/photo-storage'
 
 interface StepPhotosProps {
   data: any
@@ -75,16 +76,54 @@ const PHOTO_CATEGORIES: PhotoCategory[] = [
 ]
 
 export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
-  const [photos, setPhotos] = useState<UploadedPhoto[]>(data.photos || [])
+  const [photos, setPhotos] = useState<UploadedPhoto[]>([])
   const [activeCategory, setActiveCategory] = useState<string>('roof')
   const [uploading, setUploading] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const [showSkipModal, setShowSkipModal] = useState(false)
+  const [loading, setLoading] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   // State for image modal
   const [imageModalOpen, setImageModalOpen] = useState(false)
   const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string; title: string } | null>(null)
+
+  // Load photos from IndexedDB on mount
+  useEffect(() => {
+    const loadSavedPhotos = async () => {
+      try {
+        setLoading(true)
+        const storedPhotos = await loadAllPhotos()
+        
+        // Convert stored photos to UploadedPhoto format
+        const loadedPhotos: UploadedPhoto[] = storedPhotos.map(stored => ({
+          id: stored.id,
+          category: stored.category,
+          file: storedPhotoToFile(stored),
+          preview: URL.createObjectURL(stored.blob),
+          uploaded: true,
+        }))
+        
+        setPhotos(loadedPhotos)
+        console.log(`Loaded ${loadedPhotos.length} photos from IndexedDB`)
+      } catch (error) {
+        console.error('Failed to load photos:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    loadSavedPhotos()
+    
+    // Cleanup: Revoke all object URLs when component unmounts
+    return () => {
+      photos.forEach(photo => {
+        if (photo.preview) {
+          URL.revokeObjectURL(photo.preview)
+        }
+      })
+    }
+  }, []) // Empty dependency array - run only on mount
 
   // Check if required categories have photos
   const hasRequiredPhotos = () => {
@@ -129,7 +168,7 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
   }
 
   // Process selected files
-  const handleFiles = (files: File[]) => {
+  const handleFiles = async (files: File[]) => {
     const activePhotos = getPhotosForCategory(activeCategory)
     const category = PHOTO_CATEGORIES.find(cat => cat.id === activeCategory)
     
@@ -147,15 +186,35 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
       uploaded: false,
     }))
 
+    // Update UI immediately
     setPhotos([...photos, ...newPhotos])
+
+    // Save each photo to IndexedDB in the background
+    for (const photo of newPhotos) {
+      try {
+        await savePhoto(photo.id, photo.file, photo.category)
+      } catch (error) {
+        console.error(`Failed to save photo ${photo.id}:`, error)
+      }
+    }
   }
 
   // Remove photo
-  const removePhoto = (photoId: string) => {
+  const removePhoto = async (photoId: string) => {
     const photo = photos.find(p => p.id === photoId)
     if (photo) {
+      // Revoke the object URL to free memory
       URL.revokeObjectURL(photo.preview)
+      
+      // Delete from IndexedDB
+      try {
+        await deletePhoto(photoId)
+      } catch (error) {
+        console.error(`Failed to delete photo ${photoId}:`, error)
+      }
     }
+    
+    // Update UI
     setPhotos(photos.filter(p => p.id !== photoId))
   }
 
@@ -181,6 +240,20 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
   // Confirm skip
   const confirmSkip = () => {
     onComplete({ photos: [], photoSummary: { total: 0, byCategory: [] } })
+  }
+
+  // Show loading state while loading photos from IndexedDB
+  if (loading) {
+    return (
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading your photos...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
