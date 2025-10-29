@@ -9,18 +9,21 @@ import { getSavedProgressSummary, clearEstimatorProgress } from '@/lib/estimator
 import { Modal } from '@/components/ui/Modal'
 
 export function ResumeEstimateBanner() {
-  const [progressInfo, setProgressInfo] = useState<ReturnType<typeof getSavedProgressSummary>>(null)
+  const [progressInfo, setProgressInfo] = useState<Awaited<ReturnType<typeof getSavedProgressSummary>>>(null)
   const [showBanner, setShowBanner] = useState(false)
   const [showDismissModal, setShowDismissModal] = useState(false)
   const [showClearModal, setShowClearModal] = useState(false)
 
   // Check for saved progress on mount
   useEffect(() => {
-    const info = getSavedProgressSummary()
-    if (info) {
-      setProgressInfo(info)
-      setShowBanner(true)
+    const loadProgressInfo = async () => {
+      const info = await getSavedProgressSummary()
+      if (info) {
+        setProgressInfo(info)
+        setShowBanner(true)
+      }
     }
+    loadProgressInfo()
   }, [])
 
   const handleDismiss = () => {
@@ -36,8 +39,8 @@ export function ResumeEstimateBanner() {
     setShowClearModal(true)
   }
 
-  const confirmClearProgress = () => {
-    clearEstimatorProgress()
+  const confirmClearProgress = async () => {
+    await clearEstimatorProgress()
     setShowBanner(false)
     setProgressInfo(null)
     setShowClearModal(false)

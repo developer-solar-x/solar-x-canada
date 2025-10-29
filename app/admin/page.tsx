@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react'
 import { Logo } from '@/components/Logo'
-import { Users, DollarSign, Zap, TrendingUp, LogOut, Search, Download, Calculator } from 'lucide-react'
+import { Users, DollarSign, Zap, TrendingUp, LogOut, Search, Download, Calculator, Clock, AlertCircle, Mail } from 'lucide-react'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -14,28 +14,23 @@ import {
   recommendBatterySize,
   TOU_RATES 
 } from '@/lib/peak-shaving'
+import { getMockLeads, getMockLeadStats, type MockLead } from '@/lib/mock-leads'
+import { getMockPartialLeads, getMockPartialLeadStats, type MockPartialLead } from '@/lib/mock-partial-leads'
+import { LeadDetailView } from '@/components/admin/LeadDetailView'
+import { PartialLeadDetailView } from '@/components/admin/PartialLeadDetailView'
 
-interface Lead {
-  id: string
-  created_at: string
-  full_name: string
-  email: string
-  phone: string
-  address: string
-  city?: string
-  province: string
-  system_size_kw?: number
-  annual_savings?: number
-  status: string
-  hubspot_synced: boolean
-}
+// Use MockLead type from mock-leads
+interface Lead extends MockLead {}
 
 export default function AdminPage() {
   const [leads, setLeads] = useState<Lead[]>([])
+  const [partialLeads, setPartialLeads] = useState<MockPartialLead[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
-  const [activeSection, setActiveSection] = useState('leads') // State to track active section (leads or calculator)
+  const [activeSection, setActiveSection] = useState('leads') // State to track active section (leads, partial-leads, or calculator)
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null) // State for detailed lead view
+  const [selectedPartialLead, setSelectedPartialLead] = useState<MockPartialLead | null>(null) // State for partial lead detail view
   const router = useRouter()
   
   // Peak Shaving Calculator inputs state
@@ -50,40 +45,45 @@ export default function AdminPage() {
   // Peak Shaving Calculator results state
   const [calculatorResults, setCalculatorResults] = useState<ReturnType<typeof analyzeZeroExportSystem> | null>(null)
 
-  // Fetch leads from API
+  // Load mock leads (not connected to database)
   useEffect(() => {
-    async function fetchLeads() {
-      try {
-        const response = await fetch(`/api/leads?status=${statusFilter}`)
-        const data = await response.json()
-        
-        if (data.success) {
-          setLeads(data.data.leads)
-        }
-      } catch (error) {
-        console.error('Failed to fetch leads:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
+    // Simulate API delay for realistic UX
+    setTimeout(() => {
+      const { leads: mockData } = getMockLeads({ 
+        status: statusFilter,
+        search: searchTerm 
+      })
+      setLeads(mockData)
+      setLoading(false)
+    }, 300)
+  }, [statusFilter, searchTerm])
 
-    fetchLeads()
-  }, [statusFilter])
+  // Load mock partial leads
+  useEffect(() => {
+    setTimeout(() => {
+      const { partialLeads: mockPartialData } = getMockPartialLeads({
+        search: searchTerm
+      })
+      setPartialLeads(mockPartialData)
+    }, 300)
+  }, [searchTerm])
 
-  // Calculate stats
+  // Calculate stats from all mock data (not just filtered)
+  const allStats = getMockLeadStats()
+  const partialStats = getMockPartialLeadStats()
+  
+  // Display stats for filtered view
   const stats = {
     totalLeads: leads.length,
-    avgSystemSize: leads.reduce((sum, l) => sum + (l.system_size_kw || 0), 0) / (leads.length || 1),
+    avgSystemSize: leads.length > 0 
+      ? leads.reduce((sum, l) => sum + (l.system_size_kw || 0), 0) / leads.length
+      : 0,
     totalSavings: leads.reduce((sum, l) => sum + (l.annual_savings || 0), 0),
     newLeads: leads.filter(l => l.status === 'new').length,
   }
 
-  // Filter leads by search term
-  const filteredLeads = leads.filter(lead =>
-    lead.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lead.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lead.address.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Leads are already filtered by getMockLeads function
+  const filteredLeads = leads
 
   // Handle logout
   const handleLogout = async () => {
@@ -119,6 +119,51 @@ export default function AdminPage() {
       [field]: value
     }))
   }
+  
+  // Handle lead row click to open detail view
+  const handleLeadClick = (lead: Lead) => {
+    setSelectedLead(lead)
+  }
+  
+  // Handle closing detail view
+  const handleCloseDetailView = () => {
+    setSelectedLead(null)
+  }
+  
+  // Handle status change from detail view
+  const handleStatusChange = (leadId: string, newStatus: string) => {
+    setLeads(prevLeads =>
+      prevLeads.map(lead =>
+        lead.id === leadId ? { ...lead, status: newStatus as any } : lead
+      )
+    )
+    if (selectedLead && selectedLead.id === leadId) {
+      setSelectedLead({ ...selectedLead, status: newStatus as any })
+    }
+  }
+
+  // Handle partial lead row click
+  const handlePartialLeadClick = (partialLead: MockPartialLead) => {
+    setSelectedPartialLead(partialLead)
+  }
+
+  // Handle closing partial lead detail view
+  const handleClosePartialLeadView = () => {
+    setSelectedPartialLead(null)
+  }
+
+  // Handle sending follow-up email
+  const handleSendReminder = (email: string) => {
+    alert(`Follow-up email would be sent to: ${email}\n\nIn production, this would trigger an automated email campaign.`)
+  }
+
+  // Handle deleting partial lead
+  const handleDeletePartialLead = (id: string) => {
+    if (confirm('Are you sure you want to delete this partial lead?')) {
+      setPartialLeads(prevLeads => prevLeads.filter(lead => lead.id !== id))
+      setSelectedPartialLead(null)
+    }
+  }
 
   // Status badge colors
   const getStatusColor = (status: string) => {
@@ -147,7 +192,18 @@ export default function AdminPage() {
             }`}
           >
             <Users size={20} />
-            Leads
+            <span className="flex-1 text-left">Leads</span>
+            <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{allStats.totalLeads}</span>
+          </button>
+          <button 
+            onClick={() => setActiveSection('partial-leads')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+              activeSection === 'partial-leads' ? 'bg-red-500' : 'hover:bg-navy-600'
+            }`}
+          >
+            <Clock size={20} />
+            <span className="flex-1 text-left">Partial Leads</span>
+            <span className="bg-yellow-400 text-navy-500 px-2 py-0.5 rounded-full text-xs font-bold">{partialStats.total}</span>
           </button>
           <button 
             onClick={() => setActiveSection('calculator')}
@@ -178,6 +234,22 @@ export default function AdminPage() {
 
       {/* Main content */}
       <main className="ml-64 p-8">
+        {/* Mock Data Indicator Banner */}
+        <div className="mb-6 bg-blue-50 border-2 border-blue-300 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <div className="bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-bold">DEMO MODE</div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-blue-900">
+                Using Mock Data - Not Connected to Database
+              </p>
+              <p className="text-xs text-blue-700 mt-1">
+                This admin panel is displaying {allStats.totalLeads} sample leads with realistic data from the new estimator features. 
+                {allStats.easyModeCount} easy mode, {allStats.detailedModeCount} detailed mode, {allStats.withAddOnsCount} with add-ons.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Conditionally render content based on active section */}
         {activeSection === 'leads' ? (
           <>
@@ -272,22 +344,32 @@ export default function AdminPage() {
           ) : filteredLeads.length === 0 ? (
             <div className="p-8 text-center text-gray-500">No leads found</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-navy-500 text-white">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Name</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Location</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">System Size</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Savings/Year</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Created</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">HubSpot</th>
-                  </tr>
-                </thead>
+            <>
+              <div className="bg-blue-50 border-b border-blue-200 px-4 py-2">
+                <p className="text-xs text-blue-700">
+                  💡 <strong>Tip:</strong> Click on any row to view complete lead details including roof visualization, photos, and full estimate breakdown
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-navy-500 text-white">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Name</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Location</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">System Size</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Savings/Year</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Created</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">HubSpot</th>
+                    </tr>
+                  </thead>
                 <tbody className="divide-y divide-gray-200">
                   {filteredLeads.map((lead) => (
-                    <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
+                    <tr 
+                      key={lead.id} 
+                      onClick={() => handleLeadClick(lead)}
+                      className="hover:bg-blue-50 transition-colors cursor-pointer"
+                    >
                       <td className="px-4 py-3">
                         <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(lead.status)}`}>
                           {lead.status}
@@ -321,6 +403,7 @@ export default function AdminPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
 
@@ -343,6 +426,216 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+          </>
+        ) : activeSection === 'partial-leads' ? (
+          <>
+            {/* Partial Leads Section */}
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-navy-500 mb-2">Partial Leads Dashboard</h1>
+              <p className="text-gray-600">Users who started but haven't completed their solar estimate</p>
+            </div>
+
+            {/* Partial Leads Stats */}
+            <div className="grid md:grid-cols-4 gap-6 mb-8">
+              <div className="card p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <Clock className="text-yellow-500" size={32} />
+                  <span className="text-3xl font-bold text-navy-500">{partialStats.total}</span>
+                </div>
+                <div className="text-sm text-gray-600">Total Partial Leads</div>
+                <div className="text-xs text-yellow-600 mt-1">In-progress estimates</div>
+              </div>
+
+              <div className="card p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <AlertCircle className="text-red-500" size={32} />
+                  <span className="text-3xl font-bold text-navy-500">{partialStats.recentCount}</span>
+                </div>
+                <div className="text-sm text-gray-600">Recent (24h)</div>
+                <div className="text-xs text-red-600 mt-1">Hot leads to follow up</div>
+              </div>
+
+              <div className="card p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <TrendingUp className="text-green-500" size={32} />
+                  <span className="text-3xl font-bold text-navy-500">{partialStats.highCompletionCount}</span>
+                </div>
+                <div className="text-sm text-gray-600">High Completion</div>
+                <div className="text-xs text-green-600 mt-1">70%+ complete</div>
+              </div>
+
+              <div className="card p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <Zap className="text-blue-500" size={32} />
+                  <span className="text-3xl font-bold text-navy-500">{partialStats.avgCompletion.toFixed(0)}%</span>
+                </div>
+                <div className="text-sm text-gray-600">Avg Completion</div>
+                <div className="text-xs text-blue-600 mt-1">Average progress</div>
+              </div>
+            </div>
+
+            {/* Search bar */}
+            <div className="card p-6 mb-6">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  type="text"
+                  placeholder="Search by email or address..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Partial Leads Table */}
+            <div className="card overflow-hidden">
+              {partialLeads.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">No partial leads found</div>
+              ) : (
+                <>
+                  <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
+                    <p className="text-xs text-yellow-700">
+                      💡 <strong>Tip:</strong> Click any row to view complete details and send follow-up emails. 
+                      Focus on HOT and High Priority leads first - they have the highest conversion potential.
+                    </p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-navy-500 text-white">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">Email</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">Address</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">Mode</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">Progress</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">Data Captured</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">Last Updated</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {partialLeads.map((partialLead) => {
+                          const totalSteps = partialLead.estimator_data.estimatorMode === 'easy' ? 8 : 7
+                          const completion = Math.round((partialLead.current_step / totalSteps) * 100)
+                          const isRecent = (Date.now() - new Date(partialLead.created_at).getTime()) / (1000 * 60 * 60) <= 24
+                          const isHot = completion >= 70
+                          
+                          return (
+                            <tr 
+                              key={partialLead.id} 
+                              onClick={() => handlePartialLeadClick(partialLead)}
+                              className="hover:bg-yellow-50 transition-colors cursor-pointer"
+                            >
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <Mail size={14} className="text-gray-400" />
+                                  <span className="text-sm font-medium text-navy-500">{partialLead.email}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-700">
+                                {partialLead.estimator_data.address || '-'}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
+                                  partialLead.estimator_data.estimatorMode === 'easy' 
+                                    ? 'bg-red-100 text-red-600' 
+                                    : 'bg-navy-100 text-navy-600'
+                                }`}>
+                                  {partialLead.estimator_data.estimatorMode === 'easy' ? 'Easy' : 'Detailed'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 bg-gray-200 rounded-full h-2 w-24">
+                                    <div 
+                                      className={`h-2 rounded-full ${
+                                        completion >= 70 ? 'bg-green-500' : 
+                                        completion >= 40 ? 'bg-yellow-500' : 
+                                        'bg-red-500'
+                                      }`}
+                                      style={{ width: `${completion}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs font-semibold text-gray-600">{completion}%</span>
+                                </div>
+                                <div className="text-xs text-gray-500 mt-1">
+                                  Step {partialLead.current_step} of {totalSteps}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-wrap gap-1">
+                                  {partialLead.estimator_data.roofAreaSqft && (
+                                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs">Roof</span>
+                                  )}
+                                  {partialLead.estimator_data.monthlyBill && (
+                                    <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs">Bill</span>
+                                  )}
+                                  {partialLead.estimator_data.selectedAddOns && partialLead.estimator_data.selectedAddOns.length > 0 && (
+                                    <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs">Add-ons</span>
+                                  )}
+                                  {partialLead.estimator_data.photoCount && partialLead.estimator_data.photoCount > 0 && (
+                                    <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-xs">Photos</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-500">
+                                {formatRelativeTime(new Date(partialLead.updated_at))}
+                                {partialLead.resumed_at && (
+                                  <div className="text-xs text-green-600 mt-1">Resumed</div>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                {isRecent && isHot ? (
+                                  <span className="inline-block px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">
+                                    HOT
+                                  </span>
+                                ) : isHot ? (
+                                  <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                                    High Priority
+                                  </span>
+                                ) : isRecent ? (
+                                  <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700">
+                                    Recent
+                                  </span>
+                                ) : (
+                                  <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
+                                    Cold
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Info Box */}
+            <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-6">
+              <h3 className="font-bold text-navy-500 mb-3">What are Partial Leads?</h3>
+              <div className="text-sm text-gray-700 space-y-2">
+                <p>
+                  <strong>Partial leads are users who started the solar estimator but didn't complete the submission.</strong> 
+                  They saved their progress by entering their email during the estimate process.
+                </p>
+                <p className="mt-3">
+                  <strong>How to identify them:</strong>
+                </p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li><strong className="text-red-600">HOT leads:</strong> Recent (last 24h) + High completion (70%+) - Highest conversion potential</li>
+                  <li><strong className="text-green-600">High Priority:</strong> 70%+ complete - Very close to finishing</li>
+                  <li><strong className="text-yellow-600">Recent:</strong> Last 24 hours - Good engagement timing</li>
+                  <li><strong className="text-gray-600">Cold:</strong> Older leads with lower completion</li>
+                </ul>
+                <p className="mt-3">
+                  <strong>Follow-up strategy:</strong> Focus on HOT and High Priority leads first. 
+                  They have invested significant time and are most likely to convert with a gentle nudge.
+                </p>
+              </div>
+            </div>
           </>
         ) : (
           <>
@@ -619,6 +912,25 @@ export default function AdminPage() {
           </>
         )}
       </main>
+
+      {/* Lead Detail View Modal */}
+      {selectedLead && (
+        <LeadDetailView 
+          lead={selectedLead} 
+          onClose={handleCloseDetailView}
+          onStatusChange={handleStatusChange}
+        />
+      )}
+
+      {/* Partial Lead Detail View Modal */}
+      {selectedPartialLead && (
+        <PartialLeadDetailView 
+          partialLead={selectedPartialLead} 
+          onClose={handleClosePartialLeadView}
+          onDelete={handleDeletePartialLead}
+          onSendReminder={handleSendReminder}
+        />
+      )}
     </div>
   )
 }

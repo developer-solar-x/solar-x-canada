@@ -19,6 +19,7 @@ import { StepPhotosSimple } from '@/components/estimator/StepPhotosSimple'
 // import { StepAppliances } from '@/components/estimator/StepAppliances' // Temporarily disabled - solar only
 import { StepEnergySimple } from '@/components/estimator/StepEnergySimple'
 import { StepAddOns } from '@/components/estimator/StepAddOns'
+import { StepBatteryPeakShaving } from '@/components/estimator/StepBatteryPeakShaving'
 import { StepDetails } from '@/components/estimator/StepDetails'
 import { StepDetailsSimple } from '@/components/estimator/StepDetailsSimple'
 import { StepReview } from '@/components/estimator/StepReview'
@@ -59,8 +60,20 @@ export interface EstimatorData {
     annualKwh: number
   }
   
-  // Step 5: Add-ons
+  // Step 5: System type and add-ons
+  systemType?: 'grid_tied' | 'battery_system'
+  hasBattery?: boolean
   selectedAddOns?: string[]
+  
+  // Step 5.5: Peak shaving and battery selection (only if battery system selected)
+  selectedBattery?: string
+  batteryDetails?: any
+  peakShaving?: {
+    ratePlan: string
+    annualUsageKwh: number
+    selectedBattery: string
+    comparisons: any[]
+  }
   
   // Step 6: Property details
   roofType?: string
@@ -82,11 +95,12 @@ const easySteps = [
   { id: 1, name: 'Location', component: StepLocation },
   { id: 2, name: 'Roof Size', component: StepRoofSimple },
   { id: 3, name: 'Energy', component: StepEnergySimple }, // Moved up - capture consumption early
-  { id: 4, name: 'Add-ons', component: StepAddOns },
-  { id: 5, name: 'Photos', component: StepPhotosSimple },
-  { id: 6, name: 'Details', component: StepDetailsSimple },
-  { id: 7, name: 'Review', component: StepReview },
-  { id: 8, name: 'Submit', component: StepContact },
+  { id: 4, name: 'System Type', component: StepAddOns },
+  { id: 5, name: 'Battery Savings', component: StepBatteryPeakShaving, optional: true }, // Only shows if battery selected
+  { id: 6, name: 'Photos', component: StepPhotosSimple },
+  { id: 7, name: 'Details', component: StepDetailsSimple },
+  { id: 8, name: 'Review', component: StepReview },
+  { id: 9, name: 'Submit', component: StepContact },
 ]
 
 // Step definitions for Detailed Mode (Solar-only focused)
@@ -95,10 +109,11 @@ const detailedSteps = [
   { id: 1, name: 'Location', component: StepLocation },
   { id: 2, name: 'Draw Roof', component: StepDrawRoof },
   { id: 3, name: 'Details', component: StepDetails }, // Moved up - capture consumption early
-  { id: 4, name: 'Add-ons', component: StepAddOns },
-  { id: 5, name: 'Photos', component: StepPhotos },
-  { id: 6, name: 'Review', component: StepReview },
-  { id: 7, name: 'Submit', component: StepContact },
+  { id: 4, name: 'System Type', component: StepAddOns },
+  { id: 5, name: 'Battery Savings', component: StepBatteryPeakShaving, optional: true }, // Only shows if battery selected
+  { id: 6, name: 'Photos', component: StepPhotos },
+  { id: 7, name: 'Review', component: StepReview },
+  { id: 8, name: 'Submit', component: StepContact },
 ]
 
 export default function EstimatorPage() {
@@ -123,6 +138,15 @@ export default function EstimatorPage() {
 
   // Get active step array based on mode
   const steps = data.estimatorMode === 'easy' ? easySteps : data.estimatorMode === 'detailed' ? detailedSteps : [easySteps[0]]
+  
+  // Filter out Battery Savings step if grid-tied system is selected
+  const displaySteps = steps.filter(step => {
+    // Always show Battery Savings step if battery system is selected or not yet decided
+    if (step.name === 'Battery Savings') {
+      return data.systemType === 'battery_system' || data.hasBattery || !data.systemType
+    }
+    return true
+  })
 
   // Load saved progress on mount
   useEffect(() => {
@@ -147,8 +171,8 @@ export default function EstimatorPage() {
   }
 
   // Handle start fresh
-  const handleStartFresh = () => {
-    clearEstimatorProgress()
+  const handleStartFresh = async () => {
+    await clearEstimatorProgress()
     setShowResumeModal(false)
     setSavedProgressData(null)
   }
@@ -184,7 +208,23 @@ export default function EstimatorPage() {
       const nextSteps = newMode === 'easy' ? easySteps : newMode === 'detailed' ? detailedSteps : [easySteps[0]]
       
       if (currentStep < nextSteps.length - 1) {
-        setCurrentStep(prev => prev + 1)
+        let nextStep = currentStep + 1
+        
+        // Skip peak-shaving step if grid-tied system (no battery) was selected
+        // Easy mode: Step 4 is Add-ons/System Type, Step 5 is Battery Savings
+        // Detailed mode: Step 4 is Add-ons/System Type, Step 5 is Battery Savings
+        const isAddOnsStep = (data.estimatorMode === 'easy' && currentStep === 4) || 
+                             (data.estimatorMode === 'detailed' && currentStep === 4)
+        
+        // Check if battery system was selected (either from new systemType or hasBattery flag)
+        const hasBattery = stepData.hasBattery || data.hasBattery || stepData.systemType === 'battery_system' || data.systemType === 'battery_system'
+        
+        // If completing Add-ons step and grid-tied system (no battery), skip Battery Savings step
+        if (isAddOnsStep && !hasBattery) {
+          nextStep = currentStep + 2 // Skip the Battery Savings step
+        }
+        
+        setCurrentStep(nextStep)
         
         // Show save modal after energy/consumption step if email not captured yet
         // This ensures we capture consumption/bill data which is critical for peak shaving
@@ -233,7 +273,23 @@ export default function EstimatorPage() {
   // Go back to previous step
   const handleBack = () => {
     if (currentStep > 0) {
-      setCurrentStep(prev => prev - 1)
+      let prevStep = currentStep - 1
+      
+      // Skip peak-shaving step when going back if grid-tied system (no battery)
+      // Easy mode: Step 5 is Battery Savings, Step 4 is System Type/Add-ons
+      // Detailed mode: Step 5 is Battery Savings, Step 4 is System Type/Add-ons
+      const isPeakShavingStep = (data.estimatorMode === 'easy' && currentStep === 6) || 
+                                 (data.estimatorMode === 'detailed' && currentStep === 6)
+      
+      // Check if battery system was selected
+      const hasBattery = data.hasBattery || data.systemType === 'battery_system'
+      
+      // If on Photos/Details step and grid-tied system, skip Battery Savings step when going back
+      if (isPeakShavingStep && !hasBattery) {
+        prevStep = currentStep - 2 // Skip the Battery Savings step
+      }
+      
+      setCurrentStep(prevStep)
     }
   }
 
@@ -261,11 +317,12 @@ export default function EstimatorPage() {
   }
 
   // Confirm clearing progress
-  const confirmClearProgress = () => {
-    clearEstimatorProgress()
+  const confirmClearProgress = async () => {
+    await clearEstimatorProgress()
     setData({})
     setCurrentStep(0)
     setLastSaved(null)
+    setShowClearModal(false)
   }
 
   // Get current step component
@@ -343,7 +400,7 @@ export default function EstimatorPage() {
 
             {/* Progress stepper - desktop */}
             <div className="hidden md:flex items-center justify-center gap-2">
-              {steps.slice(1).map((step, index) => (
+              {displaySteps.slice(1).map((step, index) => (
                 <div key={step.id} className="flex items-center">
                   {/* Step circle */}
                   <div
@@ -370,7 +427,7 @@ export default function EstimatorPage() {
                   </span>
 
                   {/* Connecting line */}
-                  {index < steps.length - 2 && (
+                  {index < displaySteps.length - 2 && (
                     <div className={`w-8 h-0.5 mx-3 ${
                       currentStep > step.id ? 'bg-navy-500' : 'bg-gray-200'
                     }`} />
@@ -383,7 +440,7 @@ export default function EstimatorPage() {
             <div className="md:hidden">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-semibold text-navy-500">
-                  Step {currentStep} of {steps.length - 1}
+                  Step {currentStep} of {displaySteps.length - 1}
                 </span>
                 <span className="text-sm text-gray-600">
                   {steps[currentStep]?.name}
@@ -393,7 +450,7 @@ export default function EstimatorPage() {
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
                   className="bg-red-500 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}
+                  style={{ width: `${(currentStep / (displaySteps.length - 1)) * 100}%` }}
                 />
               </div>
             </div>
@@ -440,7 +497,7 @@ export default function EstimatorPage() {
               {savedProgressData.data.estimatorMode === 'easy' ? 'Quick Estimate' : 'Detailed Analysis'}
             </p>
             <p className="text-sm text-blue-600">
-              Step {savedProgressData.currentStep} of {savedProgressData.data.estimatorMode === 'easy' ? easySteps.length - 1 : detailedSteps.length - 1}
+              Step {savedProgressData.currentStep}
             </p>
           </div>
         )}

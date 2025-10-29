@@ -129,21 +129,19 @@ export function calculateCosts(systemSizeKw: number, province: string = 'ON', ba
   const hst = 0; // Tax removed from calculations
   const totalCost = subtotal; // Total without tax
   
-  // Calculate Zero-Export System Incentives
-  // Incentives ONLY apply to Zero-Export Systems (with battery)
-  // Net Metering systems (without battery) receive NO incentives
+  // Calculate Solar System Incentives
+  // Solar rebate applies to all systems
   let incentivesApplied = 0;
   
-  // Only apply incentives if battery is included (Zero-Export System)
+  // Solar incentive: $500 per kW, max $5,000 - applies to all systems
+  const solarIncentivePerKw = 500;
+  const solarMaxIncentive = 5000;
+  const solarIncentiveCalculated = systemSizeKw * solarIncentivePerKw;
+  const solarIncentive = Math.min(solarIncentiveCalculated, solarMaxIncentive);
+  incentivesApplied += solarIncentive;
+  
+  // Battery incentive: $300 per kWh, max $5,000 - only applies if battery is included
   if (batteryKwh > 0) {
-    // Solar incentive: $100 per kW, max $5,000
-    const solarIncentivePerKw = 100;
-    const solarMaxIncentive = 5000;
-    const solarIncentiveCalculated = systemSizeKw * solarIncentivePerKw;
-    const solarIncentive = Math.min(solarIncentiveCalculated, solarMaxIncentive);
-    incentivesApplied += solarIncentive;
-    
-    // Battery incentive: $300 per kWh, max $5,000
     const batteryIncentivePerKwh = 300;
     const batteryMaxIncentive = 5000;
     const batteryIncentiveCalculated = batteryKwh * batteryIncentivePerKwh;
@@ -268,11 +266,11 @@ export const FINANCING_OPTIONS: FinancingOption[] = [
     description: 'Pay in full upfront - best long-term value'
   },
   {
-    id: 'loan_20',
-    name: '20-Year Loan',
-    interestRate: 5.0,
-    termYears: 20,
-    description: 'Lowest monthly payments with excellent rate'
+    id: 'loan_25',
+    name: '25-Year Loan',
+    interestRate: 5.5,
+    termYears: 25,
+    description: 'Extended term with competitive rate'
   }
 ]
 

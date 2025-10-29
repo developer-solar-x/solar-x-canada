@@ -3,7 +3,7 @@
 // Step 4: Review estimate and results
 
 import { useState, useEffect } from 'react'
-import { Zap, DollarSign, TrendingUp, TrendingDown, PiggyBank, Loader2, Leaf, CreditCard, MapPin, Home, Compass, Building, Gauge, Sun, Calendar, Droplets, Bolt } from 'lucide-react'
+import { Zap, DollarSign, TrendingUp, TrendingDown, PiggyBank, Loader2, Leaf, CreditCard, MapPin, Home, Compass, Building, Gauge, Sun, Calendar, Droplets, Bolt, Battery, ChevronDown, ChevronUp } from 'lucide-react'
 import { formatCurrency, formatKw, formatNumber } from '@/lib/utils'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { FINANCING_OPTIONS, calculateFinancing } from '@/config/provinces'
@@ -22,6 +22,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'savings' | 'production' | 'environmental'>('savings')
   const [selectedFinancing, setSelectedFinancing] = useState<string>(data.financingOption || 'cash')
+  const [showYearByYear, setShowYearByYear] = useState(false)
   
   // State for image modal
   const [imageModalOpen, setImageModalOpen] = useState(false)
@@ -72,15 +73,46 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
   }
 
   // Prepare chart data
-  const savingsChartData = Array.from({ length: 25 }, (_, i) => ({
-    year: i + 1,
-    savings: Math.round(estimate.savings.annualSavings * (i + 1) * 1.03),
-  }))
+  const hasBattery = !!(data.selectedBattery && data.batteryDetails && data.batteryDetails.firstYearAnalysis)
+  const RATE_ESCALATION = 1.05 // 5% annual rate increase (matches battery calculation)
+  
+  
+  // Calculate year-by-year savings with battery
+  const yearlyProjection = Array.from({ length: 25 }, (_, i) => {
+    const year = i + 1
+    const solarSavings = estimate.savings.annualSavings * Math.pow(RATE_ESCALATION, i)
+    const batteryFirstYearSavings = hasBattery 
+      ? (data.batteryDetails?.firstYearAnalysis?.totalSavings || 0)
+      : 0
+    const batterySavings = batteryFirstYearSavings * Math.pow(RATE_ESCALATION, i)
+    
+    const cumulativeSolar = Array.from({ length: year }, (_, j) => 
+      estimate.savings.annualSavings * Math.pow(RATE_ESCALATION, j)
+    ).reduce((sum, val) => sum + val, 0)
+    const cumulativeBattery = hasBattery
+      ? Array.from({ length: year }, (_, j) => 
+          batteryFirstYearSavings * Math.pow(RATE_ESCALATION, j)
+        ).reduce((sum, val) => sum + val, 0)
+      : 0
+    
+    return {
+      year,
+      solarSavings: Math.round(solarSavings),
+      batterySavings: Math.round(batterySavings),
+      totalSavings: Math.round(solarSavings + batterySavings),
+      cumulativeSolar: Math.round(cumulativeSolar),
+      cumulativeBattery: Math.round(cumulativeBattery),
+      cumulativeTotal: Math.round(cumulativeSolar + cumulativeBattery),
+    }
+  })
 
   const productionChartData = estimate.production.monthlyKwh.map((kwh: number, i: number) => ({
     month: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][i],
     production: kwh,
   }))
+
+  // Prepare chart data (first 10 years)
+  const chartData = yearlyProjection.slice(0, 10)
 
   return (
     <div className="grid lg:grid-cols-[400px_1fr] gap-6">
@@ -433,6 +465,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
           <p className="text-white/90">{data.address}</p>
         </div>
 
+
         {/* Add-ons summary (if any selected) */}
         {data.selectedAddOns && data.selectedAddOns.length > 0 && (
           <div className="card bg-blue-50 border border-blue-200 p-4">
@@ -465,39 +498,153 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
               {formatKw(estimate.system.sizeKw)}
             </div>
             <div className="text-sm text-gray-600">Recommended System</div>
-            <div className="text-xs text-gray-500 mt-1">~{estimate.system.numPanels} panels</div>
+            <div className="text-xs text-gray-500 mt-1">~{estimate.system.numPanels} solar panels</div>
+            {data.selectedBattery && data.batteryDetails && (
+              <div className="text-xs text-navy-500 font-semibold mt-2 flex items-center gap-1">
+                <Zap size={12} />
+                + {data.batteryDetails.battery.brand} {data.batteryDetails.battery.usableKwh} kWh
+              </div>
+            )}
           </div>
 
           {/* Total Cost */}
           <div className="card p-6">
             <DollarSign className="text-navy-500 mb-3" size={32} />
             <div className="text-3xl font-bold text-navy-500 mb-1">
-              {formatCurrency(estimate.costs.totalCost)}
+              {formatCurrency(estimate.costs.totalCost + (data.batteryDetails?.battery.price || 0))}
             </div>
-            <div className="text-sm text-gray-600">Estimated Cost</div>
-            <div className="text-xs text-gray-500 mt-1">Before incentives</div>
+            <div className="text-sm text-gray-600">Total System Cost</div>
+            <div className="text-xs text-gray-500 mt-1">
+              {data.selectedBattery ? (
+                <>Solar {formatCurrency(estimate.costs.totalCost)} + Battery {formatCurrency(data.batteryDetails?.battery.price || 0)}</>
+              ) : (
+                'Before incentives'
+              )}
+            </div>
           </div>
 
           {/* Net Cost */}
           <div className="card p-6">
             <TrendingDown className="text-green-600 mb-3" size={32} />
             <div className="text-3xl font-bold text-green-600 mb-1">
-              {formatCurrency(estimate.costs.netCost)}
+              {formatCurrency(estimate.costs.netCost + (data.batteryDetails?.multiYearProjection.netCost || 0))}
             </div>
-            <div className="text-sm text-gray-600">Your Net Cost</div>
-            <div className="text-xs text-gray-500 mt-1">With {formatCurrency(estimate.costs.incentives)} incentives</div>
+            <div className="text-sm text-gray-600">Your Net Investment</div>
+            <div className="text-xs text-gray-500 mt-1">
+              After {formatCurrency(estimate.costs.incentives + (data.batteryDetails ? (data.batteryDetails.battery.price - data.batteryDetails.multiYearProjection.netCost) : 0))} in rebates
+            </div>
           </div>
 
           {/* Monthly Savings */}
           <div className="card p-6">
             <PiggyBank className="text-blue-600 mb-3" size={32} />
             <div className="text-3xl font-bold text-blue-600 mb-1">
-              {formatCurrency(estimate.savings.monthlySavings)}
+              {formatCurrency(estimate.savings.monthlySavings + (data.batteryDetails ? (data.batteryDetails.firstYearAnalysis.totalSavings / 12) : 0))}
             </div>
             <div className="text-sm text-gray-600">Monthly Savings</div>
-            <div className="text-xs text-gray-500 mt-1">Based on current rates</div>
+            <div className="text-xs text-gray-500 mt-1">
+              {data.selectedBattery ? (
+                <>Solar + Battery combined</>
+              ) : (
+                'Solar only'
+              )}
+            </div>
           </div>
         </div>
+
+        {/* Battery Details Card (if battery selected) */}
+        {data.selectedBattery && data.batteryDetails && (
+          <div className="card p-6 bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 bg-navy-500 rounded-lg">
+                  <Zap className="text-white" size={22} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-navy-500 mb-0.5 flex items-center gap-2">
+                    Battery Energy Storage
+                    {data.batteryDetails.firstYearAnalysis.totalSavings >= 0 ? (
+                      <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full font-semibold">
+                        ✓ Profitable
+                      </span>
+                    ) : (
+                      <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full font-semibold">
+                        ⚠ Review Needed
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-gray-600">
+                    {data.batteryDetails.battery.brand} {data.batteryDetails.battery.model} • {data.batteryDetails.battery.usableKwh} kWh usable
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-gray-500 mb-1">25-Year Profit</div>
+                <div className={`text-2xl font-bold ${data.batteryDetails.multiYearProjection.netProfit25Year >= 0 ? 'text-navy-500' : 'text-gray-500'}`}>
+                  {data.batteryDetails.multiYearProjection.netProfit25Year >= 0 ? '+' : ''}
+                  {formatCurrency(data.batteryDetails.multiYearProjection.netProfit25Year)}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {/* Battery Cost */}
+              <div className="bg-white border border-gray-200 rounded-lg p-3">
+                <div className="text-xs text-gray-600 mb-1">Battery Cost</div>
+                <div className="text-lg font-bold text-navy-500">
+                  {formatCurrency(data.batteryDetails.battery.price)}
+                </div>
+              </div>
+
+              {/* Rebate */}
+              <div className="bg-white border border-gray-200 rounded-lg p-3">
+                <div className="text-xs text-gray-600 mb-1">Rebate</div>
+                <div className="text-lg font-bold text-green-600">
+                  -{formatCurrency(data.batteryDetails.battery.price - data.batteryDetails.multiYearProjection.netCost)}
+                </div>
+              </div>
+
+              {/* Net Cost */}
+              <div className="bg-white border border-gray-200 rounded-lg p-3">
+                <div className="text-xs text-gray-600 mb-1">Net Cost</div>
+                <div className="text-lg font-bold text-navy-500">
+                  {formatCurrency(data.batteryDetails.multiYearProjection.netCost)}
+                </div>
+              </div>
+
+              {/* Year 1 Savings */}
+              <div className="bg-white border border-gray-200 rounded-lg p-3">
+                <div className="text-xs text-gray-600 mb-1">Year 1 Savings</div>
+                <div className={`text-lg font-bold ${data.batteryDetails.firstYearAnalysis.totalSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {data.batteryDetails.firstYearAnalysis.totalSavings >= 0 ? '+' : ''}
+                  {formatCurrency(Math.round(data.batteryDetails.firstYearAnalysis.totalSavings))}
+                </div>
+              </div>
+
+              {/* Payback */}
+              <div className="bg-white border border-gray-200 rounded-lg p-3">
+                <div className="text-xs text-gray-600 mb-1">Payback Period</div>
+                <div className="text-lg font-bold text-navy-500">
+                  {data.batteryDetails.metrics.paybackYears > 0 && data.batteryDetails.metrics.paybackYears < 100 
+                    ? `${data.batteryDetails.metrics.paybackYears.toFixed(1)} yrs`
+                    : 'N/A'}
+                </div>
+              </div>
+            </div>
+
+            {/* How it works explanation */}
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <p className="text-sm text-gray-700">
+                <span className="font-semibold text-navy-500">Peak Shaving:</span> Battery charges during cheap hours 
+                ({data.peakShaving?.ratePlan === 'ulo' ? '3.9¢/kWh overnight' : 'off-peak rates'}), 
+                discharges during expensive peak hours 
+                ({data.peakShaving?.ratePlan === 'ulo' ? '39.1¢/kWh evenings' : 'on-peak rates'}). 
+                Shifts {Math.round(data.batteryDetails.firstYearAnalysis.totalKwhShifted).toLocaleString()} kWh annually 
+                with {data.batteryDetails.firstYearAnalysis.cyclesPerYear} cycles/year.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Financing Options */}
         <div className="card p-6">
@@ -508,23 +655,16 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                 Financing Options
               </h3>
               <p className="text-sm text-gray-600 mt-2">
-                Choose how you'd like to pay for your solar system
+                Choose how you'd like to pay for your {hasBattery ? 'solar + battery system' : 'solar system'}
               </p>
             </div>
-            <div className="bg-blue-100 text-blue-800 text-xs font-semibold px-3 py-1 rounded-full whitespace-nowrap">
-              EXAMPLE RATES
-            </div>
-          </div>
-          
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-            <p className="text-xs text-yellow-800">
-              <span className="font-semibold">Note:</span> These are example financing rates for illustration purposes only.
-            </p>
           </div>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
             {FINANCING_OPTIONS.map((option) => {
-              const totalCost = estimate.costs.netCost || 0
+              const solarCost = estimate.costs.netCost || 0
+              const batteryCost = hasBattery ? data.batteryDetails.multiYearProjection.netCost : 0
+              const totalCost = solarCost + batteryCost
               const financing = calculateFinancing(
                 totalCost,
                 option.interestRate,
@@ -580,7 +720,9 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             const selectedOption = FINANCING_OPTIONS.find(opt => opt.id === selectedFinancing)
             if (!selectedOption) return null
             
-            const totalCost = estimate.costs.netCost || 0
+            const solarCost = estimate.costs.netCost || 0
+            const batteryCost = hasBattery ? data.batteryDetails.multiYearProjection.netCost : 0
+            const totalCost = solarCost + batteryCost
             const financing = calculateFinancing(
               totalCost,
               selectedOption.interestRate,
@@ -592,6 +734,22 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                 <p className="text-sm font-semibold text-gray-700 mb-2">
                   {selectedOption.name} Breakdown
                 </p>
+                {hasBattery && (
+                  <div className="mb-3 pb-3 border-b border-gray-300 text-xs text-gray-600">
+                    <div className="flex justify-between">
+                      <span>Solar System:</span>
+                      <span className="font-semibold">${solarCost.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between mt-1">
+                      <span>Battery Storage:</span>
+                      <span className="font-semibold">${batteryCost.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between mt-2 font-bold">
+                      <span>Total Financed:</span>
+                      <span>${totalCost.toLocaleString()}</span>
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div>
                     <p className="text-gray-600">Monthly Payment</p>
@@ -615,9 +773,25 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                 <p className="text-xs text-gray-500 mt-3">
                   {selectedOption.description}
                 </p>
+                <div className="mt-3 pt-3 border-t border-gray-300">
+                  <p className="text-xs text-gray-600">
+                    <span className="font-semibold">Note:</span> Financing calculations are based on your actual system cost. Final rates and terms will be confirmed during the application process.
+                  </p>
+                </div>
               </div>
             )
           })()}
+          
+          {selectedFinancing === 'cash' && (
+            <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+              <p className="text-sm font-semibold text-green-800 mb-1">
+                Great choice! Cash payment offers the best long-term value.
+              </p>
+              <p className="text-xs text-green-700">
+                You'll save on interest charges and maximize your return on investment. Your total investment of {formatCurrency(estimate.costs.netCost + (hasBattery ? data.batteryDetails.multiYearProjection.netCost : 0))} includes all rebates and incentives.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Tabs for detailed results */}
@@ -659,44 +833,179 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
           {/* Tab content */}
           {activeTab === 'savings' && (
             <div className="space-y-6">
+              {/* Summary Metrics */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <div className="text-sm text-gray-600 mb-1">Annual Savings</div>
-                  <div className="text-xl font-bold text-navy-500">
-                    {formatCurrency(estimate.savings.annualSavings)}
+                <div className="bg-gradient-to-br from-navy-50 to-navy-100 rounded-xl p-4 border border-navy-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Calendar className="text-navy-500" size={14} />
+                    <div className="text-xs font-semibold text-navy-600 uppercase">Year 1 Savings</div>
                   </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-600 mb-1">25-Year Savings</div>
-                  <div className="text-xl font-bold text-navy-500">
-                    {formatCurrency(estimate.savings.annualSavings * 25)}
+                  <div className="text-2xl font-bold text-navy-600">
+                    {formatCurrency(yearlyProjection[0].totalSavings)}
                   </div>
+                  {hasBattery && yearlyProjection[0] && (
+                    <div className="text-xs text-gray-600 mt-1">
+                      Solar ${yearlyProjection[0].solarSavings.toLocaleString()} + Battery ${yearlyProjection[0].batterySavings.toLocaleString()}
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <div className="text-sm text-gray-600 mb-1">Payback Period</div>
-                  <div className="text-xl font-bold text-navy-500">
-                    {estimate.savings.paybackYears} years
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingUp className="text-blue-600" size={14} />
+                    <div className="text-xs font-semibold text-blue-600 uppercase">25-Year Total</div>
                   </div>
+                  <div className="text-2xl font-bold text-blue-600">
+                    {formatCurrency(yearlyProjection[24].cumulativeTotal)}
+                  </div>
+                  {hasBattery && yearlyProjection[24] && (
+                    <div className="text-xs text-gray-600 mt-1">
+                      Solar ${yearlyProjection[24].cumulativeSolar.toLocaleString()} + Battery ${yearlyProjection[24].cumulativeBattery.toLocaleString()}
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <div className="text-sm text-gray-600 mb-1">ROI</div>
-                  <div className="text-xl font-bold text-navy-500">
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <PiggyBank className="text-gray-600" size={14} />
+                    <div className="text-xs font-semibold text-gray-600 uppercase">Payback Period</div>
+                  </div>
+                  <div className="text-2xl font-bold text-gray-700">
+                    {estimate.savings.paybackYears} yrs
+                  </div>
+                  <div className="text-xs text-gray-600 mt-1">Solar system</div>
+                </div>
+                <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingUp className="text-red-600" size={14} />
+                    <div className="text-xs font-semibold text-red-600 uppercase">ROI</div>
+                  </div>
+                  <div className="text-2xl font-bold text-red-600">
                     {estimate.savings.roi}%
                   </div>
+                  <div className="text-xs text-gray-600 mt-1">Over 25 years</div>
                 </div>
               </div>
 
-              {/* Savings chart */}
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%" children={
-                  <BarChart data={savingsChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="year" />
-                    <YAxis />
-                    <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                    <Bar dataKey="savings" fill="#DC143C" />
-                  </BarChart>
-                } />
+               {/* Annual Savings Bar Chart */}
+               <div>
+                 <h4 className="text-sm font-bold text-navy-500 mb-3">Annual Savings Breakdown</h4>
+                 {chartData && chartData.length > 0 ? (
+                   <>
+                     <div className="bg-white border border-gray-300 rounded p-4 overflow-x-auto">
+                       <BarChart 
+                         width={800}
+                         height={280}
+                         data={chartData}
+                         margin={{ top: 20, right: 30, left: 50, bottom: 20 }}
+                         barSize={50}
+                       >
+                           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                           <XAxis 
+                             dataKey="year" 
+                             label={{ value: 'Year', position: 'insideBottom', offset: -10 }}
+                             stroke="#666"
+                           />
+                           <YAxis 
+                             label={{ value: 'Annual Savings ($)', angle: -90, position: 'insideLeft', offset: 10 }}
+                             tickFormatter={(value) => `$${Math.round(value / 1000)}k`}
+                             stroke="#666"
+                             domain={[0, 'auto']}
+                           />
+                           <Tooltip 
+                             formatter={(value: any, name: string) => {
+                               const formattedValue = formatCurrency(Number(value))
+                               const label = name === 'solarSavings' ? 'Solar' : name === 'batterySavings' ? 'Battery' : name
+                               return [formattedValue, label]
+                             }}
+                             labelFormatter={(label) => `Year ${label}`}
+                           />
+                           <Bar 
+                             dataKey="solarSavings" 
+                             stackId="savings" 
+                             fill="#1B4E7C" 
+                             name="Solar Savings"
+                             isAnimationActive={false}
+                           />
+                           {hasBattery && (
+                             <Bar 
+                               dataKey="batterySavings" 
+                               stackId="savings" 
+                               fill="#4A90E2" 
+                               name="Battery Savings"
+                               isAnimationActive={false}
+                             />
+                           )}
+                       </BarChart>
+                     </div>
+                     <p className="text-xs text-gray-600 mt-2 text-center">
+                       Showing first 10 years (includes 5% annual rate escalation)
+                       {hasBattery && (
+                         <span className="ml-2">
+                           • <span className="inline-block w-3 h-3 bg-navy-500 rounded-sm align-middle"></span> Solar 
+                           <span className="inline-block w-3 h-3 bg-blue-500 rounded-sm ml-2 align-middle"></span> Battery
+                         </span>
+                       )}
+                     </p>
+                   </>
+                 ) : (
+                   <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
+                     <div className="text-center">
+                       <p className="text-gray-500 mb-2">Chart data is loading...</p>
+                       <p className="text-xs text-gray-400">Data points: {chartData?.length || 0}</p>
+                     </div>
+                   </div>
+                 )}
+               </div>
+
+              {/* Year-by-Year Table */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-bold text-navy-500">Detailed Year-by-Year Projection</h4>
+                  <button
+                    onClick={() => setShowYearByYear(!showYearByYear)}
+                    className="flex items-center gap-1 text-sm font-semibold text-red-500 hover:text-red-600"
+                  >
+                    {showYearByYear ? 'Hide' : 'Show'} Table
+                    {showYearByYear ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </button>
+                </div>
+                
+                {showYearByYear && (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-navy-500 text-white">
+                          <tr>
+                            <th className="px-4 py-2 text-left">Year</th>
+                            <th className="px-4 py-2 text-right">Solar Savings</th>
+                            {hasBattery && <th className="px-4 py-2 text-right">Battery Savings</th>}
+                            <th className="px-4 py-2 text-right">Annual Total</th>
+                            <th className="px-4 py-2 text-right">Cumulative Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {yearlyProjection.map((row, idx) => (
+                            <tr key={row.year} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                              <td className="px-4 py-2 font-semibold text-navy-600">{row.year}</td>
+                              <td className="px-4 py-2 text-right text-navy-600">${row.solarSavings.toLocaleString()}</td>
+                              {hasBattery && <td className="px-4 py-2 text-right text-blue-600">${row.batterySavings.toLocaleString()}</td>}
+                              <td className="px-4 py-2 text-right font-semibold text-navy-600">${row.totalSavings.toLocaleString()}</td>
+                              <td className="px-4 py-2 text-right font-bold text-red-600">${row.cumulativeTotal.toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="bg-navy-50 font-bold">
+                          <tr>
+                            <td className="px-4 py-3 text-navy-700">25-Year Total</td>
+                            <td className="px-4 py-3 text-right text-navy-700">${(yearlyProjection[24]?.cumulativeSolar || 0).toLocaleString()}</td>
+                            {hasBattery && <td className="px-4 py-3 text-right text-blue-700">${(yearlyProjection[24]?.cumulativeBattery || 0).toLocaleString()}</td>}
+                            <td className="px-4 py-3 text-right"></td>
+                            <td className="px-4 py-3 text-right text-red-700 text-lg">${(yearlyProjection[24]?.cumulativeTotal || 0).toLocaleString()}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -720,7 +1029,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
 
               {/* Production chart */}
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%" children={
+                <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={productionChartData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
@@ -728,7 +1037,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                     <Tooltip />
                     <Line type="monotone" dataKey="production" stroke="#1B4E7C" strokeWidth={2} />
                   </LineChart>
-                } />
+                </ResponsiveContainer>
               </div>
             </div>
           )}

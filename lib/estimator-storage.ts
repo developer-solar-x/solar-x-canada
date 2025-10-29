@@ -1,18 +1,35 @@
 // Estimator Progress Storage - Auto-save and Resume functionality
 
 import { EstimatorData } from '@/app/estimator/page'
+import { clearAllPhotos, getPhotoCount } from './photo-storage'
 
 const STORAGE_KEY = 'solarx_estimator_draft'
 const TIMESTAMP_KEY = 'solarx_estimator_timestamp'
+const PHOTO_IDS_KEY = 'solarx_estimator_photo_ids'
 
 /**
  * Save estimator progress to localStorage
+ * Photos are stored separately in IndexedDB (handled by photo components)
  */
 export function saveEstimatorProgress(data: EstimatorData, currentStep: number): void {
   try {
+    // Create a copy of data without the File objects (photos)
+    // Photo metadata is kept but the actual File objects are in IndexedDB
+    const dataToSave = {
+      ...data,
+      // If photos exist, only save metadata (id, category) not the File objects
+      photos: data.photos?.map(photo => ({
+        id: photo.id,
+        category: photo.category,
+        fileName: photo.file?.name || '',
+        fileType: photo.file?.type || '',
+        fileSize: photo.file?.size || 0,
+      })) || undefined,
+    }
+    
     // Create save object with metadata
     const saveData = {
-      data,
+      data: dataToSave,
       currentStep,
       timestamp: new Date().toISOString(),
       version: '1.0', // For future migrations if data structure changes
@@ -64,12 +81,19 @@ export function loadEstimatorProgress(): {
 
 /**
  * Clear saved estimator progress
+ * Also clears photos from IndexedDB
  */
-export function clearEstimatorProgress(): void {
+export async function clearEstimatorProgress(): Promise<void> {
   try {
+    // Clear localStorage data
     localStorage.removeItem(STORAGE_KEY)
     localStorage.removeItem(TIMESTAMP_KEY)
-    console.log('🗑️ Progress cleared')
+    localStorage.removeItem(PHOTO_IDS_KEY)
+    
+    // Clear photos from IndexedDB
+    await clearAllPhotos()
+    
+    console.log('🗑️ Progress cleared (including photos)')
   } catch (error) {
     console.error('❌ Failed to clear progress:', error)
   }
@@ -121,14 +145,15 @@ export function getTimeSinceLastSave(): string | null {
 /**
  * Get saved progress summary for display
  */
-export function getSavedProgressSummary(): {
+export async function getSavedProgressSummary(): Promise<{
   hasProgress: boolean
   step: number
   stepName: string
   timeSince: string
   address?: string
   mode?: 'easy' | 'detailed'
-} | null {
+  photoCount?: number
+} | null> {
   const saved = loadEstimatorProgress()
   
   if (!saved) {
@@ -149,6 +174,9 @@ export function getSavedProgressSummary(): {
     }
   }
   
+  // Get photo count from IndexedDB
+  const photoCount = await getPhotoCount()
+  
   return {
     hasProgress: true,
     step: saved.currentStep,
@@ -156,6 +184,7 @@ export function getSavedProgressSummary(): {
     timeSince: getTimeSinceLastSave() || 'recently',
     address: saved.data.address,
     mode: saved.data.estimatorMode,
+    photoCount,
   }
 }
 
