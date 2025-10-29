@@ -246,13 +246,13 @@ export function calculateZeroExportIncentives(
     batteryCalculated: number
   }
 } {
-  // Solar incentive: $100 per kW, max $5,000
-  const solarRatePerKw = 100
+  // Solar incentive: $500 per kW, max $5,000 - applies to all systems
+  const solarRatePerKw = 500
   const solarMaxIncentive = 5000
   const solarCalculated = systemSizeKw * solarRatePerKw
   const solarIncentive = Math.min(solarCalculated, solarMaxIncentive)
   
-  // Battery incentive: $300 per kWh, max $5,000
+  // Battery incentive: $300 per kWh, max $5,000 - only applies if battery is included
   const batteryRatePerKwh = 300
   const batteryMaxIncentive = 5000
   const batteryCalculated = batteryKwh * batteryRatePerKwh
