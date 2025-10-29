@@ -80,28 +80,28 @@ export const PROVINCE_CONFIG: Record<string, ProvinceConfig> = {
     // Base installation cost
     avgInstallationCost: 3000,
     
-    // Available incentive programs
+    // Available incentive programs (Zero-Export Systems Only)
     incentives: [
       {
-        name: 'Canada Greener Homes Grant',
-        type: 'grant',
-        amount: 5000,
-        description: 'Federal grant for energy-efficient home upgrades including solar PV systems',
-        eligibility: 'Homeowners with pre- and post-upgrade EnerGuide evaluations',
-        link: 'https://natural-resources.canada.ca/energy-efficiency/homes/canada-greener-homes-grant/23441'
+        name: 'Ontario Zero-Export Solar Incentive',
+        type: 'rebate',
+        amount: 'Variable',
+        description: '$100 per kW of solar capacity, up to maximum of $5,000',
+        eligibility: 'Zero-export solar systems (not net metering)',
+        link: ''
       },
       {
-        name: 'Net Metering Program',
-        type: 'net_metering',
+        name: 'Ontario Zero-Export Battery Incentive',
+        type: 'rebate',
         amount: 'Variable',
-        description: 'Credit for excess solar energy sent to the grid',
-        eligibility: 'All residential solar systems up to 500 kW',
-        link: 'https://www.oeb.ca/consumer-information-and-protection/electricity-rates/net-metering'
+        description: '$300 per kWh of battery storage, up to maximum of $5,000',
+        eligibility: 'Zero-export systems with battery storage',
+        link: ''
       }
     ],
     
-    // Net metering is available in Ontario
-    netMeteringAvailable: true,
+    // Net metering NOT used - Zero-Export System Only
+    netMeteringAvailable: false,
     // Building permit required
     permitRequired: true,
     // Interconnection process description
@@ -112,8 +112,8 @@ export const PROVINCE_CONFIG: Record<string, ProvinceConfig> = {
   }
 };
 
-// Calculate total system cost with taxes and incentives
-export function calculateCosts(systemSizeKw: number, province: string = 'ON') {
+// Calculate total system cost with taxes and zero-export incentives
+export function calculateCosts(systemSizeKw: number, province: string = 'ON', batteryKwh: number = 0) {
   // Fallback to Ontario config if province not found (for international demo)
   const config = PROVINCE_CONFIG[province] || PROVINCE_CONFIG['ON'];
   
@@ -129,16 +129,27 @@ export function calculateCosts(systemSizeKw: number, province: string = 'ON') {
   const hst = 0; // Tax removed from calculations
   const totalCost = subtotal; // Total without tax
   
-  // Apply incentives
-  let netCost = totalCost;
+  // Calculate Zero-Export System Incentives
   let incentivesApplied = 0;
   
-  config.incentives.forEach(incentive => {
-    if (incentive.type === 'grant' && typeof incentive.amount === 'number') {
-      incentivesApplied += incentive.amount;
-      netCost -= incentive.amount;
-    }
-  });
+  // Solar incentive: $100 per kW, max $5,000
+  const solarIncentivePerKw = 100;
+  const solarMaxIncentive = 5000;
+  const solarIncentiveCalculated = systemSizeKw * solarIncentivePerKw;
+  const solarIncentive = Math.min(solarIncentiveCalculated, solarMaxIncentive);
+  incentivesApplied += solarIncentive;
+  
+  // Battery incentive: $300 per kWh, max $5,000 (if battery is included)
+  if (batteryKwh > 0) {
+    const batteryIncentivePerKwh = 300;
+    const batteryMaxIncentive = 5000;
+    const batteryIncentiveCalculated = batteryKwh * batteryIncentivePerKwh;
+    const batteryIncentive = Math.min(batteryIncentiveCalculated, batteryMaxIncentive);
+    incentivesApplied += batteryIncentive;
+  }
+  
+  // Calculate net cost after incentives
+  const netCost = totalCost - incentivesApplied;
   
   return {
     systemCost: Math.round(systemCost),
@@ -151,7 +162,7 @@ export function calculateCosts(systemSizeKw: number, province: string = 'ON') {
   };
 }
 
-// Calculate annual savings from solar system
+// Calculate annual savings from zero-export solar system
 export function calculateSavings(
   annualProductionKwh: number,
   monthlyBill: number,
@@ -164,26 +175,22 @@ export function calculateSavings(
   // Average electricity rate
   const avgRate = config.avgElectricityRate;
   
-  // Calculate self-consumption based on actual usage if provided
+  // Zero-Export System: All energy is self-consumed, nothing exported to grid
   let selfConsumedKwh: number;
-  let exportedKwh: number;
+  let exportedKwh: number = 0; // Zero-export means no energy to grid
   
   if (actualAnnualUsageKwh) {
-    // If we have actual usage data, calculate self-consumption more accurately
     // User consumes what they produce, up to their actual usage
+    // Any excess is curtailed (not used) since it cannot be exported
     selfConsumedKwh = Math.min(annualProductionKwh, actualAnnualUsageKwh);
-    exportedKwh = Math.max(0, annualProductionKwh - actualAnnualUsageKwh);
   } else {
-    // Assume 80% self-consumption, 20% exported to grid (default estimate)
-    selfConsumedKwh = annualProductionKwh * 0.8;
-    exportedKwh = annualProductionKwh * 0.2;
+    // Default assumption: 100% self-consumption for zero-export system
+    // System is sized to not exceed usage
+    selfConsumedKwh = annualProductionKwh;
   }
   
-  // Net metering rate (typically same as retail rate in Ontario)
-  const netMeteringRate = config.netMeteringAvailable ? avgRate : avgRate * 0.5;
-  
-  // Calculate total savings
-  const annualSavings = (selfConsumedKwh * avgRate) + (exportedKwh * netMeteringRate);
+  // Calculate total savings (only from self-consumed energy)
+  const annualSavings = selfConsumedKwh * avgRate;
   const monthlySavings = annualSavings / 12;
   
   // Calculate long-term savings with 3% electricity rate increase per year
@@ -194,7 +201,7 @@ export function calculateSavings(
     monthlySavings: Math.round(monthlySavings),
     twentyFiveYearSavings: Math.round(twentyFiveYearSavings),
     selfConsumedKwh: Math.round(selfConsumedKwh),
-    exportedKwh: Math.round(exportedKwh)
+    exportedKwh: Math.round(exportedKwh) // Always 0 for zero-export
   };
 }
 

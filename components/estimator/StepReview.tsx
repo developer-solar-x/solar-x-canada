@@ -117,7 +117,18 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
         {data.mapSnapshot && (
           <div className="card p-4">
             <h3 className="font-semibold text-gray-700 mb-3">Your Roof</h3>
-            <div className="relative rounded-lg overflow-hidden border border-gray-200">
+            <div 
+              className="relative rounded-lg overflow-hidden border border-gray-200 cursor-pointer hover:border-blue-500 transition-colors"
+              onClick={() => {
+                setSelectedImage({ 
+                  src: data.mapSnapshot, 
+                  alt: 'Roof drawing on satellite map', 
+                  title: 'Your Traced Roof Outline' 
+                })
+                setImageModalOpen(true)
+              }}
+              title="Click to view full size"
+            >
               <img 
                 src={data.mapSnapshot} 
                 alt="Roof drawing on satellite map" 
@@ -128,7 +139,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
               </div>
             </div>
             <p className="text-xs text-gray-500 mt-2 text-center">
-              Your traced roof outline
+              Click to view full size
             </p>
           </div>
         )}

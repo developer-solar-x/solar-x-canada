@@ -400,13 +400,45 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated }: Mapbox
         // Add angle labels
         addAngleLabels()
         
-        // Capture map snapshot for review
+        // Capture map snapshot for review - zoom to fit all drawn polygons
         setTimeout(() => {
-          if (map.current) {
-            const canvas = map.current.getCanvas()
-            const mapSnapshot = canvas.toDataURL('image/png')
-            // Pass all features (multiple polygons) with angle data
-            onAreaCalculatedRef.current(totalAreaSqFt, data, mapSnapshot)
+          if (map.current && data.features.length > 0) {
+            // Calculate bounding box of all polygons
+            const allCoordinates: number[][] = []
+            data.features.forEach(feature => {
+              if (feature.geometry.type === 'Polygon') {
+                feature.geometry.coordinates[0].forEach(coord => {
+                  allCoordinates.push(coord)
+                })
+              }
+            })
+            
+            if (allCoordinates.length > 0) {
+              // Calculate bounds with padding
+              const lngs = allCoordinates.map(coord => coord[0])
+              const lats = allCoordinates.map(coord => coord[1])
+              const bounds = new mapboxgl.LngLatBounds(
+                [Math.min(...lngs), Math.min(...lats)],
+                [Math.max(...lngs), Math.max(...lats)]
+              )
+              
+              // Fit map to bounds with padding for better view
+              map.current.fitBounds(bounds, {
+                padding: 80, // Padding around the polygons
+                maxZoom: 20, // Don't zoom in too much
+                duration: 0 // Instant, no animation
+              })
+              
+              // Wait for map to finish repositioning before capturing
+              setTimeout(() => {
+                if (map.current) {
+                  const canvas = map.current.getCanvas()
+                  const mapSnapshot = canvas.toDataURL('image/png')
+                  // Pass all features (multiple polygons) with angle data
+                  onAreaCalculatedRef.current(totalAreaSqFt, data, mapSnapshot)
+                }
+              }, 300)
+            }
           }
         }, 500) // Wait for drawing to complete
       } else {

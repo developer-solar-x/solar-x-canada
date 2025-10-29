@@ -16,8 +16,8 @@ export function FAQ() {
       answer: 'Our estimates are highly accurate, typically within 5-10% of final installation costs. We use advanced satellite imagery, local weather data, and real-time equipment pricing to provide you with reliable projections. However, a final quote from an installer will account for specific factors like roof condition and electrical panel requirements.',
     },
     {
-      question: 'What incentives are available in Ontario?',
-      answer: 'Ontario homeowners can access several incentives including the federal Greener Homes Grant (up to $5,000), net metering credits, and accelerated capital cost allowance for businesses. Additionally, some municipalities offer property tax exemptions for solar installations. We\'ll help you identify all applicable programs during your consultation.',
+      question: 'What incentives are available for zero-export systems in Ontario?',
+      answer: 'Ontario offers specific incentives for zero-export solar systems: $100 per kW of solar capacity (up to $5,000 maximum) and $300 per kWh of battery storage (up to $5,000 maximum). Zero-export systems keep all generated power on-site, reducing your grid consumption without sending excess energy back to the utility. We\'ll help you maximize these incentives during your consultation.',
     },
     {
       question: 'Do I need to own my home to go solar?',
@@ -33,15 +33,15 @@ export function FAQ() {
     },
     {
       question: 'Is solar worth it in Ontario\'s climate?',
-      answer: 'Absolutely! While Ontario experiences cold winters, solar panels actually perform better in cooler temperatures. We receive ample sunlight throughout the year, and snow typically slides off angled panels. Ontario\'s solar production is comparable to major solar markets like Germany. Plus, net metering ensures you get credit for excess summer production.',
+      answer: 'Absolutely! While Ontario experiences cold winters, solar panels actually perform better in cooler temperatures. We receive ample sunlight throughout the year, and snow typically slides off angled panels. Ontario\'s solar production is comparable to major solar markets like Germany. With zero-export systems, all your generated power directly reduces your electricity bill.',
     },
     {
       question: 'What\'s the typical payback period?',
       answer: 'Most Ontario homeowners see a return on investment in 6-10 years, depending on system size, electricity usage, and available incentives. After that, you\'ll enjoy decades of virtually free electricity. With rising utility rates, solar becomes more valuable every year.',
     },
     {
-      question: 'How does net metering work in Ontario?',
-      answer: 'Net metering allows you to send excess solar energy to the grid in exchange for credits. During sunny months, you\'ll likely produce more than you use, building up credits. In winter, when production is lower, those credits offset your electricity costs. It\'s essentially using the grid as a battery.',
+      question: 'What is a zero-export solar system?',
+      answer: 'A zero-export system is designed to keep all generated solar power on your property without sending excess energy back to the utility grid. These systems use smart inverters to limit production to match your consumption in real-time, or store excess energy in batteries. This approach qualifies for specific Ontario incentives and eliminates utility interconnection complexities.',
     },
   ]
 
