@@ -1,8 +1,6 @@
 // Mock leads data for admin panel (not connected to database)
 // This data represents various lead scenarios with complete estimator information
 
-import type { Lead } from '@/types/lead'
-
 // Define comprehensive lead type with all estimator fields
 export interface MockLead {
   // Database fields
