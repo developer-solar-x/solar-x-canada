@@ -268,25 +268,11 @@ export const FINANCING_OPTIONS: FinancingOption[] = [
     description: 'Pay in full upfront - best long-term value'
   },
   {
-    id: 'loan_10',
-    name: '10-Year Loan',
-    interestRate: 6.99,
-    termYears: 10,
-    description: 'Lower monthly payments with moderate interest'
-  },
-  {
-    id: 'loan_15',
-    name: '15-Year Loan',
-    interestRate: 7.49,
-    termYears: 15,
-    description: 'Lowest monthly payments with higher total interest'
-  },
-  {
-    id: 'loan_5',
-    name: '5-Year Loan',
-    interestRate: 5.99,
-    termYears: 5,
-    description: 'Pay off quickly with lower total interest'
+    id: 'loan_20',
+    name: '20-Year Loan',
+    interestRate: 5.0,
+    termYears: 20,
+    description: 'Lowest monthly payments with excellent rate'
   }
 ]
 
