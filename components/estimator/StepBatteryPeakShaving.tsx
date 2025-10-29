@@ -16,15 +16,15 @@ import {
 } from '../../config/rate-plans'
 import {
   generateAnnualUsagePattern,
-  aggregateToMonthly,
-  UsageDataPoint
+  aggregateToMonthly
 } from '../../lib/usage-parser'
 import {
   analyzeAnnualDispatch,
   calculateMultiYearProjection,
   compareBatteryOptions,
   BatteryComparison,
-  AnnualDispatchAnalysis
+  AnnualDispatchAnalysis,
+  UsageDataPoint
 } from '../../lib/battery-dispatch'
 
 // Props interface for the component
