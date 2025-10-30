@@ -165,10 +165,12 @@ export function optimizeDailyDispatch(
   const targetDischargeKwh = Math.min(battery.usableKwh, totalOnPeakUsage)
   const targetChargeKwh = targetDischargeKwh / battery.roundTripEfficiency
   
-  // Find ultra-low hours for charging (hours 23, 0-6 for ULO)
-  const ultraLowHours = usageData
+  // Find cheapest hours for charging (ultra-low for ULO, off-peak for TOU)
+  // Look for the cheapest rate period available in this rate plan
+  const chargingPeriods = ratePlan.id === 'ulo' ? ['ultra-low'] : ['off-peak']
+  const cheapestChargingHours = usageData
     .map((data, index) => ({ data, index }))
-    .filter(({ data }) => data.period === 'ultra-low')
+    .filter(({ data }) => chargingPeriods.includes(data.period))
     .sort((a, b) => a.data.rate - b.data.rate) // Sort by rate (cheapest first)
   
   // Find on-peak hours for discharging (sort by rate, most expensive first)
@@ -190,13 +192,13 @@ export function optimizeDailyDispatch(
     gridUsageKwh: number
   }> = []
   
-  // PASS 1: Charge the battery during ultra-low hours
+  // PASS 1: Charge the battery during cheapest hours (ultra-low for ULO, off-peak for TOU)
   usageData.forEach((data, index) => {
     let charging = false
     let chargeKw = 0
     let gridUsageKwh = data.kwh
     
-    if (totalCharged < targetChargeKwh && ultraLowHours.some(h => h.index === index)) {
+    if (totalCharged < targetChargeKwh && cheapestChargingHours.some(h => h.index === index)) {
       charging = true
       const canCharge = Math.min(
         targetChargeKwh - totalCharged,

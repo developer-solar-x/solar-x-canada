@@ -217,21 +217,45 @@ export function roofPitchToDegrees(pitch: string): number {
   return pitchMap[pitch.toLowerCase()] || 30;
 }
 
-// Calculate recommended system size based on roof area and shading
+/**
+ * Calculate recommended system size based on roof area and shading
+ * 
+ * Two-stage reduction process:
+ * 1. Obstruction Allowance (10%): Accounts for physical roof obstructions
+ *    - Vents, chimneys, skylights
+ *    - Roof access requirements and walkways
+ *    - Edge setbacks for safety and maintenance
+ *    - HVAC equipment and other permanent fixtures
+ * 
+ * 2. Shading Factor (varies by level): Accounts for environmental shading
+ *    - Tree shadows, building shadows, seasonal variations
+ * 
+ * Example for 1000 sqft roof with minimal shading:
+ *   - After obstructions: 1000 × 0.90 = 900 sqft
+ *   - After shading: 900 × 0.80 = 720 sqft usable
+ *   - Effective utilization: 72% of drawn roof area
+ */
 export function calculateSystemSize(roofAreaSqFt: number, shadingLevel: string = 'minimal') {
   // Use centralized panel specifications
   const panelAreaSqFt = getPanelAreaSqFt();
   
-  // Usable roof percentage based on shading
+  // Obstruction allowance factor (accounts for vents, chimneys, skylights, roof access, edges, etc.)
+  // This is applied BEFORE shading calculations to account for physical roof obstructions
+  const OBSTRUCTION_ALLOWANCE = 0.90; // 10% reduction for typical roof obstructions
+  
+  // Apply obstruction allowance first
+  const roofAreaAfterObstructions = roofAreaSqFt * OBSTRUCTION_ALLOWANCE;
+  
+  // Usable roof percentage based on shading (applied after obstruction allowance)
   const usableRoofPercent: Record<string, number> = {
-    'none': 0.85, // No shade - maximum usable area (allowing for roof access, vents, etc)
-    'minimal': 0.75, // Mostly sunny
-    'partial': 0.60, // Some shade from trees/buildings
-    'significant': 0.45 // Heavy shade
+    'none': 0.90, // No shade - near maximum usable area
+    'minimal': 0.80, // Mostly sunny - slight reduction
+    'partial': 0.65, // Some shade from trees/buildings - moderate reduction
+    'significant': 0.50 // Heavy shade - significant reduction
   };
   
-  // Calculate usable roof area
-  const usableArea = roofAreaSqFt * (usableRoofPercent[shadingLevel.toLowerCase()] || 0.75);
+  // Calculate final usable roof area (obstruction allowance + shading factor)
+  const usableArea = roofAreaAfterObstructions * (usableRoofPercent[shadingLevel.toLowerCase()] || 0.80);
   
   // Calculate number of panels that fit
   const numPanels = Math.floor(usableArea / panelAreaSqFt);
@@ -243,7 +267,9 @@ export function calculateSystemSize(roofAreaSqFt: number, shadingLevel: string =
   return {
     systemSizeKw: Math.round(systemSizeKw * 10) / 10,
     numPanels,
-    usableAreaSqFt: Math.round(usableArea)
+    usableAreaSqFt: Math.round(usableArea),
+    obstructionAllowance: OBSTRUCTION_ALLOWANCE,
+    effectiveUsablePercent: usableRoofPercent[shadingLevel.toLowerCase()] || 0.80
   };
 }
 

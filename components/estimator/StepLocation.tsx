@@ -14,6 +14,9 @@ interface StepLocationProps {
 
 export function StepLocation({ data, onComplete }: StepLocationProps) {
   const [address, setAddress] = useState(data.address || '')
+  const [useCoords, setUseCoords] = useState(false)
+  const [lat, setLat] = useState<string>(data.coordinates?.lat ? String(data.coordinates.lat) : '')
+  const [lng, setLng] = useState<string>(data.coordinates?.lng ? String(data.coordinates.lng) : '')
   const [loading, setLoading] = useState(false)
   const [loadingLocation, setLoadingLocation] = useState(false)
   const [error, setError] = useState('')
@@ -335,6 +338,7 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Address input with autocomplete */}
+          {!useCoords && (
           <div className="text-left relative" ref={autocompleteRef}>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Property Address
@@ -386,7 +390,50 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
                 <Loader2 className="animate-spin" size={20} />
               </div>
             )}
+            {/* Toggle to coordinates */}
+            <div className="mt-3 text-xs text-gray-600">
+              Prefer to enter latitude/longitude?{' '}
+              <button type="button" onClick={() => { setUseCoords(true); setError(''); }} className="text-red-600 font-semibold hover:underline">
+                Use coordinates
+              </button>
+            </div>
           </div>
+          )}
+
+          {/* Manual coordinates input */}
+          {useCoords && (
+            <div className="text-left">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Enter Coordinates (Decimal Degrees)
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="Latitude e.g. 43.6532"
+                  value={lat}
+                  onChange={(e)=>setLat(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none"
+                  disabled={loading}
+                />
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="Longitude e.g. -79.3832"
+                  value={lng}
+                  onChange={(e)=>setLng(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none"
+                  disabled={loading}
+                />
+              </div>
+              <div className="mt-3 text-xs text-gray-600">
+                Want to search by street address instead?{' '}
+                <button type="button" onClick={() => { setUseCoords(false); setError(''); }} className="text-red-600 font-semibold hover:underline">
+                  Use address
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Error message */}
           {error && (
@@ -460,20 +507,70 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
           </div>
 
           {/* Submit button */}
-          <button
-            type="submit"
-            disabled={loading || loadingLocation || !address.trim()}
-            className="btn-primary w-full h-12 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="animate-spin" size={20} />
-                Finding address...
-              </>
-            ) : (
-              'Continue to Map'
-            )}
-          </button>
+          {!useCoords ? (
+            <button
+              type="submit"
+              disabled={loading || loadingLocation || !address.trim()}
+              className="btn-primary w-full h-12 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="animate-spin" size={20} />
+                  Finding address...
+                </>
+              ) : (
+                'Continue to Map'
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={loading || loadingLocation || !lat || !lng}
+              onClick={async ()=>{
+                setError('')
+                setLoading(true)
+                const parsedLat = Number(lat)
+                const parsedLng = Number(lng)
+                if (isNaN(parsedLat) || isNaN(parsedLng) || parsedLat<-90 || parsedLat>90 || parsedLng<-180 || parsedLng>180){
+                  setError('Please enter valid decimal degree coordinates (lat between -90 and 90, lng between -180 and 180).')
+                  setLoading(false)
+                  return
+                }
+                try {
+                  const resp = await fetch('/api/reverse-geocode', {
+                    method: 'POST', headers: { 'Content-Type':'application/json' },
+                    body: JSON.stringify({ lat: parsedLat, lng: parsedLng })
+                  })
+                  if (resp.ok){
+                    const result = await resp.json()
+                    const dataOut = result.success && result.data ? {
+                      address: result.data.address,
+                      coordinates: { lat: parsedLat, lng: parsedLng },
+                      city: result.data.city,
+                      province: result.data.province,
+                    } : { coordinates: { lat: parsedLat, lng: parsedLng } }
+                    onComplete(dataOut)
+                  } else {
+                    onComplete({ coordinates: { lat: parsedLat, lng: parsedLng } })
+                  }
+                } catch (e){
+                  onComplete({ coordinates: { lat: parsedLat, lng: parsedLng } })
+                } finally {
+                  setLoading(false)
+                }
+              }}
+              className="btn-primary w-full h-12 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="animate-spin" size={20} />
+                  Validating coordinates...
+                </>
+              ) : (
+                'Use Coordinates'
+              )}
+            </button>
+          )}
 
           {/* Privacy note */}
           <p className="text-xs text-gray-500 text-center border-t border-gray-200 pt-4 mt-4">

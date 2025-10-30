@@ -164,23 +164,27 @@ export function generateHourlyFromMonthly(
 export function generateAnnualUsagePattern(
   annualKwh: number,
   ratePlan: RatePlan,
-  year: number = new Date().getFullYear()
+  year: number = new Date().getFullYear(),
+  useSeasonalAdjustment: boolean = true
 ): UsageDataPoint[] {
   // Monthly distribution (percentage of annual usage)
-  // Higher in winter (heating) and summer (cooling)
-  const monthlyDistribution = [
-    10.5, // January - high (winter heating)
-    9.5,  // February
-    8.5,  // March
-    7.5,  // April
-    7.0,  // May
-    7.5,  // June - starting to rise (cooling)
-    9.0,  // July - high (summer cooling)
-    9.0,  // August - high
-    7.5,  // September
-    7.0,  // October
-    8.0,  // November
-    9.0   // December - high (winter heating)
+  // Higher in winter (heating) and summer (cooling) - Ontario climate
+  const monthlyDistribution = useSeasonalAdjustment ? [
+    11.0, // January - high (winter heating, cold temps)
+    10.0, // February - high (winter heating)
+    8.5,  // March - moderate (transitional)
+    7.0,  // April - lower (mild spring)
+    6.5,  // May - lower (mild spring)
+    7.5,  // June - rising (AC starts, longer days)
+    9.5,  // July - high (peak summer AC)
+    9.5,  // August - high (peak summer AC)
+    7.5,  // September - moderate (AC tapers off)
+    7.0,  // October - lower (mild fall)
+    8.0,  // November - rising (heating starts)
+    9.5   // December - high (winter heating, holidays)
+  ] : [
+    8.33, 8.33, 8.33, 8.33, 8.33, 8.33, // Uniform distribution
+    8.33, 8.33, 8.33, 8.33, 8.33, 8.33  // if seasonal adjustment is off
   ]
   
   // Create monthly entries

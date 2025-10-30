@@ -19,7 +19,7 @@ import { StepPhotosSimple } from '@/components/estimator/StepPhotosSimple'
 // import { StepAppliances } from '@/components/estimator/StepAppliances' // Temporarily disabled - solar only
 import { StepEnergySimple } from '@/components/estimator/StepEnergySimple'
 import { StepAddOns } from '@/components/estimator/StepAddOns'
-import { StepBatteryPeakShaving } from '@/components/estimator/StepBatteryPeakShaving'
+import { StepBatteryPeakShavingSimple as StepBatteryPeakShaving } from '@/components/estimator/StepBatteryPeakShavingSimple'
 import { StepDetails } from '@/components/estimator/StepDetails'
 import { StepDetailsSimple } from '@/components/estimator/StepDetailsSimple'
 import { StepReview } from '@/components/estimator/StepReview'
@@ -196,8 +196,9 @@ export default function EstimatorPage() {
   }, [data, currentStep])
 
   // Update data and move to next step
-  const handleStepComplete = (stepData: Partial<EstimatorData>) => {
-    setData(prev => ({ ...prev, ...stepData }))
+  const handleStepComplete = async (stepData: Partial<EstimatorData>) => {
+    const updatedData = { ...data, ...stepData }
+    setData(updatedData)
     
     // Special handling for mode selection (step 0)
     if (currentStep === 0 && stepData.estimatorMode) {
@@ -222,6 +223,31 @@ export default function EstimatorPage() {
         // If completing Add-ons step and grid-tied system (no battery), skip Battery Savings step
         if (isAddOnsStep && !hasBattery) {
           nextStep = currentStep + 2 // Skip the Battery Savings step
+        }
+        
+        // Generate solar estimate before Battery Savings step (for solar rebate calculation)
+        // This needs to run after Add-ons step if battery system was selected
+        if (isAddOnsStep && hasBattery && updatedData.coordinates && updatedData.roofPolygon) {
+          try {
+            console.log('Generating solar estimate for battery rebate calculation...')
+            const response = await fetch('/api/estimate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(updatedData),
+            })
+            
+            if (response.ok) {
+              const result = await response.json()
+              // Store the estimate in data for use in Battery Savings step
+              setData(prev => ({ ...prev, estimate: result.data }))
+              console.log('Solar estimate generated:', result.data.system)
+            } else {
+              console.warn('Failed to generate estimate, will retry in Review step')
+            }
+          } catch (error) {
+            console.error('Error generating estimate:', error)
+            // Continue anyway - estimate will be generated in Review step as fallback
+          }
         }
         
         setCurrentStep(nextStep)

@@ -97,7 +97,10 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated }: Mapbox
       controls: {
         polygon: true,
         trash: true,
+        combine_features: false,
+        uncombine_features: false,
       },
+      defaultMode: 'simple_select',
       styles: [
         // Polygon fill - multiple colors
         {

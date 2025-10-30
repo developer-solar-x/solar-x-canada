@@ -26,6 +26,12 @@ import {
   AnnualDispatchAnalysis,
   UsageDataPoint
 } from '../../lib/battery-dispatch'
+import { 
+  calculateMonthlySavings, 
+  calculateMonthlySavingsStats,
+  MonthlySavings 
+} from '../../lib/monthly-savings-calculator'
+import { UsageInputSelector } from './UsageInputSelector'
 
 // Props interface for the component
 interface StepBatteryPeakShavingProps {
@@ -38,9 +44,13 @@ export function StepBatteryPeakShaving({ data, onComplete, onBack }: StepBattery
   // Calculate default annual usage from previous steps
   // Priority: energyUsage > monthlyBill calculation > fallback
   const calculateUsageFromBill = (monthlyBill: number) => {
-    // Average blended rate in Ontario is ~$0.15/kWh
-    // For TOU/ULO users, use slightly higher rate assumption (~$0.16/kWh) due to peak usage
-    const avgRate = 0.16
+    // All-in blended rate for Ontario (includes energy + delivery + regulatory + HST)
+    // Energy charges: 9.8-39.1¢/kWh (varies by TOU/ULO)
+    // Delivery charges: ~$50-70/month fixed + variable
+    // Regulatory charges: ~$5-15/month
+    // HST: 13% on top
+    // Typical all-in rate: 22-24¢/kWh for residential customers
+    const avgRate = 0.223 // 22.3¢/kWh blended rate (includes all charges)
     const monthlyKwh = monthlyBill / avgRate
     return Math.round(monthlyKwh * 12)
   }
@@ -59,15 +69,28 @@ export function StepBatteryPeakShaving({ data, onComplete, onBack }: StepBattery
   const [usageData, setUsageData] = useState<UsageDataPoint[]>([])
   const [batteryComparisons, setBatteryComparisons] = useState<BatteryComparison[]>([])
   const [loading, setLoading] = useState(false)
+  const [usageDataSource, setUsageDataSource] = useState<'csv' | 'monthly' | 'annual'>('annual')
+  const [monthlySavingsData, setMonthlySavingsData] = useState<Map<string, MonthlySavings[]>>(new Map())
 
-  // Calculate usage data when inputs change
+  // Calculate usage data when inputs change (only for annual input mode)
   useEffect(() => {
-    const newUsageData = generateAnnualUsagePattern(
-      annualUsageKwh,
-      selectedRatePlan
-    )
-    setUsageData(newUsageData)
-  }, [annualUsageKwh, selectedRatePlan])
+    // Only auto-generate if using annual input mode
+    if (usageDataSource === 'annual') {
+      const newUsageData = generateAnnualUsagePattern(
+        annualUsageKwh,
+        selectedRatePlan,
+        new Date().getFullYear(),
+        true // Use seasonal adjustment
+      )
+      setUsageData(newUsageData)
+    }
+  }, [annualUsageKwh, selectedRatePlan, usageDataSource])
+  
+  // Handle usage data change from UsageInputSelector
+  const handleUsageDataChange = (data: UsageDataPoint[], source: 'csv' | 'monthly' | 'annual') => {
+    setUsageData(data)
+    setUsageDataSource(source)
+  }
 
   // Calculate battery comparisons when usage data or selected battery changes
   useEffect(() => {
@@ -100,7 +123,15 @@ export function StepBatteryPeakShaving({ data, onComplete, onBack }: StepBattery
       0.05 // 5% rate escalation
     )
 
+      // Calculate monthly savings for each battery
+      const newMonthlySavingsMap = new Map<string, MonthlySavings[]>()
+      batteries.forEach(battery => {
+        const monthlySavings = calculateMonthlySavings(usageData, battery, selectedRatePlan)
+        newMonthlySavingsMap.set(battery.id, monthlySavings)
+      })
+
     setBatteryComparisons(comparisons)
+      setMonthlySavingsData(newMonthlySavingsMap)
     setLoading(false)
     }
     
@@ -154,54 +185,32 @@ export function StepBatteryPeakShaving({ data, onComplete, onBack }: StepBattery
       <div className="card p-6 space-y-4">
         <h3 className="text-xl font-semibold text-navy-500 mb-4">Your Details</h3>
         
-        {/* Annual Usage Input */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Annual Energy Usage (kWh)
-          </label>
-          
-          {/* Show where the value came from */}
-          {data.monthlyBill && (
-            <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-xs text-blue-700">
-                ✓ Calculated from your monthly bill of <strong>${typeof data.monthlyBill === 'number' ? data.monthlyBill.toFixed(2) : data.monthlyBill}</strong> (≈ {Math.round(data.monthlyBill / 0.16).toLocaleString()} kWh/month)
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Annual estimate: {Math.round(data.monthlyBill / 0.16).toLocaleString()} kWh/month × 12 = {calculateUsageFromBill(data.monthlyBill).toLocaleString()} kWh/year
-              </p>
-            </div>
-          )}
-          
-          <input
-            type="number"
-            value={annualUsageKwh}
-            onChange={(e) => setAnnualUsageKwh(Number(e.target.value))}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-            min="1000"
-            max="50000"
-            step="100"
-          />
-          <p className="text-sm text-gray-500 mt-1">
-            You can adjust this if your actual usage is different. Average Ontario household uses 10,000-15,000 kWh per year.
+        {/* Show estimated monthly bill from annual usage */}
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-800 font-medium">
+            Estimated monthly bill: <strong>${Math.round((annualUsageKwh * 0.223) / 12).toLocaleString()}/month</strong>
           </p>
-          {annualUsageKwh < 15000 && (
-            <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-sm text-yellow-800">
-                ⚠️ <strong>Note:</strong> Battery systems are most cost-effective for homes with higher usage (15,000+ kWh/year) and time-of-use rates. Lower usage may result in longer payback periods.
-              </p>
-            </div>
-          )}
-          {annualUsageKwh > 30000 && (
-            <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-800">
-                🚨 <strong>Warning:</strong> Your calculated usage of {annualUsageKwh.toLocaleString()} kWh/year is extremely high for a residential property (average is 10,000-15,000 kWh/year).
-              </p>
-              <p className="text-xs text-red-700 mt-1">
-                This may indicate your monthly bill was entered incorrectly. Please verify and adjust above if needed. A typical $200/month bill = ~15,000 kWh/year.
-              </p>
-            </div>
-          )}
         </div>
+        
+        {/* Usage Input Selector - NEW COMPONENT */}
+        <UsageInputSelector
+          ratePlan={selectedRatePlan}
+          annualUsageKwh={annualUsageKwh}
+          onUsageDataChange={handleUsageDataChange}
+          onAnnualUsageChange={setAnnualUsageKwh}
+        />
+        
+        {/* Usage Warnings */}
+        {annualUsageKwh > 30000 && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-800">
+              🚨 <strong>Warning:</strong> Your calculated usage of {annualUsageKwh.toLocaleString()} kWh/year is extremely high for a residential property (average is 10,000-15,000 kWh/year).
+            </p>
+            <p className="text-xs text-red-700 mt-1">
+              This may indicate incorrect data. Please verify. A typical $200/month bill = ~10,700 kWh/year, $260/month = ~14,000 kWh/year.
+            </p>
+          </div>
+        )}
 
         {/* Rate Plan Selection */}
         <div>
@@ -859,11 +868,29 @@ export function StepBatteryPeakShaving({ data, onComplete, onBack }: StepBattery
                   <div className="bg-gradient-to-br from-navy-50 to-navy-100 rounded-xl p-4 border border-navy-200">
                     <div className="flex items-center gap-2 mb-2">
                       <Calendar size={14} className="text-navy-500" />
-                      <div className="text-xs font-semibold text-navy-600 uppercase tracking-wide">Avg Monthly</div>
+                      <div className="text-xs font-semibold text-navy-600 uppercase tracking-wide">Monthly Range</div>
                     </div>
-                    <div className="text-2xl font-bold text-navy-600">
-                      ${(comparison.firstYearAnalysis.totalSavings / 12).toFixed(0)}
-                    </div>
+                    {(() => {
+                      const batterySavings = monthlySavingsData.get(comparison.battery.id) || []
+                      if (batterySavings.length > 0) {
+                        const stats = calculateMonthlySavingsStats(batterySavings)
+                        return (
+                          <>
+                            <div className="text-2xl font-bold text-navy-600">
+                              ${stats.minMonthlySavings.toFixed(0)}-${stats.maxMonthlySavings.toFixed(0)}
+                            </div>
+                            <div className="text-xs text-gray-600">
+                              {stats.minMonth.slice(0, 3)} to {stats.maxMonth.slice(0, 3)}
+                            </div>
+                          </>
+                        )
+                      }
+                      return (
+                        <div className="text-2xl font-bold text-navy-600">
+                          ${(comparison.firstYearAnalysis.totalSavings / 12).toFixed(0)}
+                        </div>
+                      )
+                    })()}
                   </div>
                   <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
                     <div className="flex items-center gap-2 mb-2">
@@ -897,25 +924,53 @@ export function StepBatteryPeakShaving({ data, onComplete, onBack }: StepBattery
                   </div>
                 </div>
 
-                {/* Simple bar chart */}
+                {/* Variable monthly savings bar chart */}
                 <div className="space-y-2">
-                  {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month, idx) => {
-                    const monthlySavings = comparison.firstYearAnalysis.totalSavings / 12
-                    const width = (monthlySavings / (comparison.firstYearAnalysis.totalSavings / 12)) * 100
-                    return (
-                      <div key={month} className="flex items-center gap-2">
-                        <div className="w-12 text-xs text-gray-600">{month}</div>
-                        <div className="flex-1 bg-gray-200 rounded-full h-6 overflow-hidden">
-                          <div 
-                            className="bg-gradient-to-r from-blue-500 to-navy-500 h-full flex items-center justify-end pr-2 text-xs text-white font-semibold"
-                            style={{width: '100%'}}
-                          >
-                            ${monthlySavings.toFixed(0)}
+                  {(() => {
+                    // Get monthly savings data for this battery
+                    const batterySavings = monthlySavingsData.get(comparison.battery.id) || []
+                    
+                    // If no data, fall back to equal distribution
+                    if (batterySavings.length === 0) {
+                      return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month) => {
+                        const monthlySavings = comparison.firstYearAnalysis.totalSavings / 12
+                        return (
+                          <div key={month} className="flex items-center gap-2">
+                            <div className="w-12 text-xs text-gray-600">{month}</div>
+                            <div className="flex-1 bg-gray-200 rounded-full h-6 overflow-hidden">
+                              <div 
+                                className="bg-gradient-to-r from-blue-500 to-navy-500 h-full flex items-center justify-end pr-2 text-xs text-white font-semibold"
+                                style={{width: '100%'}}
+                              >
+                                ${monthlySavings.toFixed(0)}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })
+                    }
+                    
+                    // Calculate max for scaling
+                    const maxSavings = Math.max(...batterySavings.map(m => m.savings), 1)
+                    const monthAbbreviations = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                    
+                    return batterySavings.map((monthData, idx) => {
+                      const width = (monthData.savings / maxSavings) * 100
+                      return (
+                        <div key={monthData.monthName} className="flex items-center gap-2">
+                          <div className="w-12 text-xs text-gray-600">{monthAbbreviations[idx]}</div>
+                          <div className="flex-1 bg-gray-200 rounded-full h-6 overflow-hidden">
+                            <div 
+                              className="bg-gradient-to-r from-blue-500 to-navy-500 h-full flex items-center justify-end pr-2 text-xs text-white font-semibold"
+                              style={{width: `${Math.max(width, 15)}%`}}
+                            >
+                              ${monthData.savings.toFixed(0)}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })
+                  })()}
                 </div>
 
                 <div className="mt-4 p-3 bg-navy-500 text-white rounded-lg">
