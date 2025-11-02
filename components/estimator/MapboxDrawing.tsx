@@ -13,9 +13,10 @@ interface MapboxDrawingProps {
   coordinates: { lat: number; lng: number }
   address: string
   onAreaCalculated: (areaSqFt: number, polygon: any, mapSnapshot?: string) => void
+  initialData?: any // Optional: preload existing polygons
 }
 
-export function MapboxDrawing({ coordinates, address, onAreaCalculated }: MapboxDrawingProps) {
+export function MapboxDrawing({ coordinates, address, onAreaCalculated, initialData }: MapboxDrawingProps) {
   // Map container reference
   const mapContainer = useRef<HTMLDivElement>(null)
   // Map instance
@@ -174,6 +175,42 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated }: Mapbox
     })
 
     map.current.addControl(draw.current, 'top-left')
+
+    // If we have previously drawn polygons, preload them
+    if (initialData && initialData.features && initialData.features.length > 0) {
+      try {
+        draw.current!.set(initialData)
+        // Compute area and update state/callback
+        const data = draw.current!.getAll()
+        let totalAreaSqMeters = 0
+        data.features.forEach((feature) => {
+          if (feature.geometry.type === 'Polygon') {
+            totalAreaSqMeters += turf.area(feature as any)
+          }
+        })
+        const totalAreaSqFt = totalAreaSqMeters * 10.764
+        setCurrentArea(totalAreaSqFt)
+        onAreaCalculatedRef.current(totalAreaSqFt, data)
+        // Fit bounds to existing polygons
+        const allCoordinates: number[][] = []
+        data.features.forEach(feature => {
+          if (feature.geometry.type === 'Polygon') {
+            feature.geometry.coordinates[0].forEach(coord => allCoordinates.push(coord))
+          }
+        })
+        if (allCoordinates.length > 0) {
+          const lngs = allCoordinates.map(c => c[0])
+          const lats = allCoordinates.map(c => c[1])
+          const bounds = new mapboxgl.LngLatBounds(
+            [Math.min(...lngs), Math.min(...lats)],
+            [Math.max(...lngs), Math.max(...lats)]
+          )
+          map.current.fitBounds(bounds, { padding: 80, maxZoom: 20, duration: 0 })
+        }
+      } catch (e) {
+        console.warn('Failed to preload drawing data:', e)
+      }
+    }
 
     // Listen for drawing events
     map.current.on('draw.create', updateArea)
@@ -489,6 +526,8 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated }: Mapbox
           filter: 'contrast(1.1) saturate(1.15) brightness(1.05)',
         }}
       />
+
+      
 
       {/* Mapbox token missing warning */}
       {!process.env.NEXT_PUBLIC_MAPBOX_TOKEN && (

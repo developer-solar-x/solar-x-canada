@@ -21,98 +21,89 @@ export async function POST(request: Request) {
       appliances,
       energyUsage,
       province = 'ON',
-      roofAzimuth = 180 // Default to south-facing if not provided
+      roofAzimuth = 180, // Default to south-facing if not provided
+      roofAreaSqft,
+      overrideSystemSizeKw
     } = body
 
-    // Validate required fields
-    if (!coordinates || !roofPolygon) {
+    // Validate required fields (polygon optional for Easy mode)
+    if (!coordinates) {
       return NextResponse.json(
-        { error: 'Missing required fields: coordinates and roofPolygon' },
+        { error: 'Missing required field: coordinates' },
         { status: 400 }
       )
     }
 
-    // Calculate roof area using Turf.js
-    // Handle both single polygon and FeatureCollection (multiple polygons)
+    // Calculate area if polygon provided; otherwise leave 0 (easy mode may not send polygon)
     let areaSquareMeters = 0
-    
-    if (roofPolygon.type === 'FeatureCollection' && roofPolygon.features) {
-      // Multiple polygons - sum all areas
-      roofPolygon.features.forEach((feature: any) => {
-        if (feature.geometry.type === 'Polygon') {
-          areaSquareMeters += turf.area(feature)
+    let areaSquareFeet = 0
+    if (roofPolygon) {
+      // Handle both single polygon and FeatureCollection (multiple polygons)
+      if (roofPolygon.type === 'FeatureCollection' && roofPolygon.features) {
+        roofPolygon.features.forEach((feature: any) => {
+          if (feature.geometry.type === 'Polygon') {
+            areaSquareMeters += turf.area(feature)
+          }
+        })
+      } else {
+        const polygonCoordinates = roofPolygon.geometry?.coordinates || roofPolygon.coordinates
+        if (polygonCoordinates) {
+          const polygon = turf.polygon(polygonCoordinates)
+          areaSquareMeters = turf.area(polygon)
         }
-      })
-    } else {
-      // Single polygon (legacy format)
-      const polygonCoordinates = roofPolygon.geometry?.coordinates || roofPolygon.coordinates
-      
-      if (!polygonCoordinates) {
-        return NextResponse.json(
-          { error: 'Invalid roof polygon data' },
-          { status: 400 }
-        )
       }
-      
-      const polygon = turf.polygon(polygonCoordinates)
-      areaSquareMeters = turf.area(polygon)
+      areaSquareFeet = areaSquareMeters * 10.764
     }
-    
-    if (areaSquareMeters === 0) {
-      return NextResponse.json(
-        { error: 'Invalid roof polygon data - no area calculated' },
-        { status: 400 }
-      )
-    }
-    
-    const areaSquareFeet = areaSquareMeters * 10.764
 
     // Calculate recommended system size
-    const systemCalc = calculateSystemSize(areaSquareFeet, shadingLevel || 'minimal')
-    const systemSizeKw = systemCalc.systemSizeKw
-    const numPanels = systemCalc.numPanels
+    let systemSizeKw = 0
+    let numPanels = 0
+    let usableAreaSqFt = 0
+    if (areaSquareFeet > 0) {
+      const systemCalc = calculateSystemSize(areaSquareFeet, shadingLevel || 'minimal')
+      systemSizeKw = systemCalc.systemSizeKw
+      numPanels = systemCalc.numPanels
+      usableAreaSqFt = systemCalc.usableAreaSqFt
+    } else {
+      // Fallback sizing without polygon: derive from annual usage or monthly bill
+      const derivedAnnual = energyUsage?.annualKwh || annualUsageKwh || (monthlyBill ? (monthlyBill / 0.13) * 12 : 9000)
+      systemSizeKw = Math.round((derivedAnnual / 1200) * 10) / 10
+      numPanels = Math.round((systemSizeKw * 1000) / 500)
+    }
 
-    // Get solar production data from PVWatts
+    // Apply explicit override from client when provided (e.g., user adjusted panels)
+    if (overrideSystemSizeKw && overrideSystemSizeKw > 0) {
+      systemSizeKw = overrideSystemSizeKw
+      numPanels = Math.round((systemSizeKw * 1000) / 500)
+    }
+
+    // Get solar production data. Use PVWatts only when polygon exists; otherwise use seasonal estimate.
     let productionData
-    try {
-      productionData = await calculateSolarEstimate(
-        coordinates.lat,
-        coordinates.lng,
-        systemSizeKw,
-        roofPitch || 'medium',
-        province,
-        roofAzimuth // Use actual roof orientation
-      )
-    } catch (error) {
-      // Fallback to estimation if PVWatts fails
-      console.warn('PVWatts API failed, using estimation:', error)
-      
-      // Realistic seasonal distribution for Canada (percentages of annual production)
-      // Based on typical solar patterns accounting for snow, sun angle, and day length
-      // Summer months (Jun-Aug) produce more, winter months (Nov-Feb) produce less
+    if (roofPolygon) {
+      try {
+        productionData = await calculateSolarEstimate(
+          coordinates.lat,
+          coordinates.lng,
+          systemSizeKw,
+          roofPitch || 'medium',
+          province,
+          roofAzimuth // Use actual roof orientation
+        )
+      } catch (error) {
+        console.warn('PVWatts API failed, using estimation:', error)
+      }
+    }
+    if (!productionData) {
       const seasonalDistribution = [
-        0.051, // Jan - 5.1% (lowest - short days, low sun angle, snow)
-        0.067, // Feb - 6.7% (increasing daylight)
-        0.087, // Mar - 8.7% (spring equinox, snow melting)
-        0.099, // Apr - 9.9% (longer days, better sun angle)
-        0.116, // May - 11.6% (near-peak conditions)
-        0.122, // Jun - 12.2% (peak - summer solstice, longest days)
-        0.127, // Jul - 12.7% (highest - best sun angle + long days)
-        0.118, // Aug - 11.8% (still excellent)
-        0.103, // Sep - 10.3% (fall equinox, declining)
-        0.084, // Oct - 8.4% (shorter days)
-        0.057, // Nov - 5.7% (approaching winter)
-        0.049  // Dec - 4.9% (lowest - winter solstice, shortest days)
-      ] // Total = 100%
-      
-      // Ontario average: 1,200 kWh/kW/year with modern systems
+        0.051, 0.067, 0.087, 0.099, 0.116, 0.122,
+        0.127, 0.118, 0.103, 0.084, 0.057, 0.049
+      ]
       const annualProduction = systemSizeKw * 1200
       const monthlyProductionKwh = seasonalDistribution.map(pct => annualProduction * pct)
-      
       productionData = {
         annualProductionKwh: annualProduction,
-        monthlyProductionKwh: monthlyProductionKwh,
-        capacityFactor: 0.137, // Updated to match PVWatts typical values
+        monthlyProductionKwh,
+        capacityFactor: 0.137,
         solarRadiation: 1250,
         pvWattsData: null
       }
@@ -145,7 +136,7 @@ export async function POST(request: Request) {
       roofArea: {
         squareFeet: Math.round(areaSquareFeet),
         squareMeters: Math.round(areaSquareMeters),
-        usableSquareFeet: systemCalc.usableAreaSqFt,
+        usableSquareFeet: Math.round(usableAreaSqFt),
       },
 
       // System specifications

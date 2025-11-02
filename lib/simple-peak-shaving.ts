@@ -68,14 +68,25 @@ export interface SimplePeakShavingResult {
   annualSavings: number
   savingsPercent: number
   monthlySavings: number
+  
+  // Leftover energy (not offset by battery)
+  leftoverEnergy: {
+    totalKwh: number  // Total leftover energy in kWh
+    consumptionPercent: number  // % of total consumption (e.g., 17.15%)
+    costAtOffPeak: number  // Cost of leftover at off-peak rates
+    costPercent: number  // % of original cost (e.g., 4.2875%)
+    ratePerKwh: number  // Rate per kWh charged for leftover energy (ultra-low or off-peak)
+  }
 }
 
 // Calculate simple peak-shaving savings
+// Optional solarProductionKwh: if provided, solar only offsets ~50% (daytime usage)
 export function calculateSimplePeakShaving(
   annualUsageKwh: number,
   battery: BatterySpec,
   ratePlan: RatePlan,
-  distribution?: UsageDistribution
+  distribution?: UsageDistribution,
+  solarProductionKwh?: number
 ): SimplePeakShavingResult {
   
   // Use default distribution if not provided
@@ -195,6 +206,35 @@ export function calculateSimplePeakShaving(
   const savingsPercent = (annualSavings / originalCost.total) * 100
   const monthlySavings = annualSavings / 12
   
+  // Calculate solar offset (if solar production is provided)
+  // Solar only works during daytime, so it offsets approximately 50% of usage
+  // Maximum solar offset is 50% of total annual usage
+  const solarOffsetKwh = solarProductionKwh 
+    ? Math.min(solarProductionKwh, annualUsageKwh * 0.5) // Solar max ~50% offset
+    : 0
+  
+  // Calculate leftover energy (energy not offset by solar + battery)
+  // Total energy offset by battery
+  const totalBatteryOffset = batteryOffsets.onPeak + batteryOffsets.midPeak + batteryOffsets.offPeak + (batteryOffsets.ultraLow || 0)
+  // Total offset = solar offset + battery offset
+  const totalOffset = solarOffsetKwh + totalBatteryOffset
+  // Leftover energy = total usage - total offset
+  const leftoverEnergyKwh = Math.max(0, annualUsageKwh - totalOffset)
+  const leftoverConsumptionPercent = (leftoverEnergyKwh / annualUsageKwh) * 100
+  
+  // Calculate cost of leftover energy at off-peak rates
+  // Leftover energy will be consumed during off-peak hours when rates are lowest
+  // This is because solar+battery have already offset the expensive periods
+  // Use off-peak rate, not ultra-low, since leftover energy is from periods not offset by battery
+  const leftoverRatePerKwh = rates.offPeak
+  const leftoverCostAtOffPeak = leftoverEnergyKwh * leftoverRatePerKwh
+  // Calculate percentage compared to worst-case scenario (all consumption at on-peak rate)
+  // This shows: even though leftover is 17.15% of usage, it only costs 4.29% vs worst-case
+  // Use the higher on-peak rate (ULO 39.1¢ or TOU 20.3¢) for worst-case comparison
+  const worstCaseOnPeakRate = rates.onPeak > 0 ? rates.onPeak : 0.391 // Default to ULO on-peak if not found
+  const worstCaseTotalCost = annualUsageKwh * worstCaseOnPeakRate
+  const leftoverCostPercent = worstCaseTotalCost > 0 ? (leftoverCostAtOffPeak / worstCaseTotalCost) * 100 : 0
+  
   return {
     totalUsageKwh: annualUsageKwh,
     usageByPeriod,
@@ -204,7 +244,14 @@ export function calculateSimplePeakShaving(
     newCost,
     annualSavings,
     savingsPercent,
-    monthlySavings
+    monthlySavings,
+    leftoverEnergy: {
+      totalKwh: leftoverEnergyKwh,
+      consumptionPercent: leftoverConsumptionPercent,
+      costAtOffPeak: leftoverCostAtOffPeak,
+      costPercent: leftoverCostPercent,
+      ratePerKwh: leftoverRatePerKwh
+    }
   }
 }
 

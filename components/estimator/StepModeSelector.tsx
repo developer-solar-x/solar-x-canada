@@ -1,16 +1,26 @@
 'use client'
 
-// Step 0: Mode Selection - Easy vs Detailed
+// Step 0: Program Selection - Three entry options
 
-import { Zap, BarChart3, ArrowRight } from 'lucide-react'
+import { Zap, BatteryCharging, ArrowRight, Sun } from 'lucide-react'
 
 interface StepModeSelectorProps {
   onComplete: (data: any) => void
 }
 
 export function StepModeSelector({ onComplete }: StepModeSelectorProps) {
-  const handleModeSelect = (mode: 'easy' | 'detailed') => {
-    onComplete({ estimatorMode: mode })
+  const selectQuickEstimate = () => {
+    onComplete({ estimatorMode: 'easy', programType: 'quick' })
+  }
+
+  const selectHrsResidential = () => {
+    // Use detailed flow for HRS Residential (most accurate and includes roof drawing)
+    onComplete({ estimatorMode: 'detailed', programType: 'hrs_residential' })
+  }
+
+  const selectNetMetering = () => {
+    // Default to detailed flow for Net Metering as well
+    onComplete({ estimatorMode: 'detailed', programType: 'net_metering' })
   }
 
   return (
@@ -24,10 +34,48 @@ export function StepModeSelector({ onComplete }: StepModeSelectorProps) {
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-8">
-        {/* Quick Estimate - Easy Mode */}
+      <div className="grid md:grid-cols-3 gap-8">
+        {/* Solar Net Metering (Coming Soon) - placed first */}
         <div 
-          onClick={() => handleModeSelect('easy')}
+          aria-disabled
+          className="card p-8 opacity-60 border-2 border-dashed border-emerald-300 cursor-not-allowed"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-green-500 rounded-full flex items-center justify-center">
+              <Sun className="text-white" size={32} />
+            </div>
+            <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">
+              COMING SOON
+            </span>
+          </div>
+
+          <h2 className="text-2xl font-bold text-navy-500 mb-3">
+            Solar Net Metering
+          </h2>
+          
+          <p className="text-gray-600 mb-6">
+            Traditional grid-tied solar with bill credits for exports
+          </p>
+
+          <div className="space-y-3 mb-8">
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <span className="text-sm text-gray-700">No battery required</span>
+            </div>
+          </div>
+
+          <button className="bg-emerald-600/60 text-white font-semibold py-3 px-6 rounded-lg w-full" disabled>
+            Coming Soon
+          </button>
+        </div>
+
+        {/* Quick Estimate */}
+        <div 
+          onClick={selectQuickEstimate}
           className="card p-8 hover:shadow-xl transition-all cursor-pointer border-2 border-transparent hover:border-red-500 group"
         >
           <div className="flex items-center justify-between mb-6">
@@ -92,27 +140,25 @@ export function StepModeSelector({ onComplete }: StepModeSelectorProps) {
           </p>
         </div>
 
-        {/* Detailed Analysis - Hard Mode */}
+        {/* Solar + Battery HRS Program (Residential focus) */}
         <div 
-          onClick={() => handleModeSelect('detailed')}
+          onClick={selectHrsResidential}
           className="card p-8 hover:shadow-xl transition-all cursor-pointer border-2 border-transparent hover:border-navy-500 group"
         >
           <div className="flex items-center justify-between mb-6">
             <div className="w-16 h-16 bg-gradient-to-br from-navy-500 to-blue-500 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-              <BarChart3 className="text-white" size={32} />
+              <BatteryCharging className="text-white" size={32} />
             </div>
             <span className="px-3 py-1 bg-navy-100 text-navy-600 text-xs font-bold rounded-full">
-              MOST ACCURATE
+              HRS PROGRAM
             </span>
           </div>
 
-          <h2 className="text-2xl font-bold text-navy-500 mb-3">
-            Detailed Analysis
+          <h2 className="text-2xl font-bold text-navy-500 mb-1">
+            Solar + Battery HRS Program
           </h2>
-          
-          <p className="text-gray-600 mb-6">
-            Get a comprehensive, accurate quote with custom specifications
-          </p>
+          <p className="text-sm text-gray-600 mb-4 font-semibold">Residential: Up to $10,000 rebate</p>
+          <p className="text-sm text-gray-600 mb-6">Commercial: Up to $860,000</p>
 
           <div className="space-y-3 mb-8">
             <div className="flex items-center gap-3">
@@ -121,7 +167,7 @@ export function StepModeSelector({ onComplete }: StepModeSelectorProps) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <span className="text-sm text-gray-700">10-15 minutes to complete</span>
+              <span className="text-sm text-gray-700">Includes battery peak-shaving savings</span>
             </div>
             <div className="flex items-center gap-3">
               <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
@@ -129,35 +175,21 @@ export function StepModeSelector({ onComplete }: StepModeSelectorProps) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <span className="text-sm text-gray-700">Roof drawing & measurements</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <span className="text-sm text-gray-700">Custom appliance analysis</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <span className="text-sm text-gray-700">Professional quote ready</span>
+              <span className="text-sm text-gray-700">Most accurate system design</span>
             </div>
           </div>
 
           <button className="bg-navy-500 hover:bg-navy-600 text-white font-semibold py-3 px-6 rounded-lg transition-all w-full group-hover:shadow-lg flex items-center justify-center gap-2">
-            Start Detailed Analysis
+            Start HRS Program (Residential)
             <ArrowRight size={20} />
           </button>
 
           <p className="text-xs text-gray-500 mt-4 text-center">
-            Best for serious buyers
+            We’ll confirm eligibility during review
           </p>
         </div>
+
+        
       </div>
 
       {/* Comparison table */}

@@ -29,6 +29,8 @@ import { StepContact } from '@/components/estimator/StepContact'
 export interface EstimatorData {
   // Step 0: Mode selection
   estimatorMode?: 'easy' | 'detailed'
+  // Program selection
+  programType?: 'quick' | 'hrs_residential' | 'net_metering'
   
   // Step 1: Location
   address?: string
@@ -91,12 +93,12 @@ export interface EstimatorData {
 
 // Step definitions for Easy Mode (Solar-only focused)
 const easySteps = [
-  { id: 0, name: 'Mode', component: StepModeSelector },
+  { id: 0, name: 'Program', component: StepModeSelector },
   { id: 1, name: 'Location', component: StepLocation },
   { id: 2, name: 'Roof Size', component: StepRoofSimple },
   { id: 3, name: 'Energy', component: StepEnergySimple }, // Moved up - capture consumption early
-  { id: 4, name: 'System Type', component: StepAddOns },
-  { id: 5, name: 'Battery Savings', component: StepBatteryPeakShaving, optional: true }, // Only shows if battery selected
+  { id: 4, name: 'Battery Savings', component: StepBatteryPeakShaving, optional: true },
+  { id: 5, name: 'Add-ons', component: StepAddOns },
   { id: 6, name: 'Photos', component: StepPhotosSimple },
   { id: 7, name: 'Details', component: StepDetailsSimple },
   { id: 8, name: 'Review', component: StepReview },
@@ -105,12 +107,12 @@ const easySteps = [
 
 // Step definitions for Detailed Mode (Solar-only focused)
 const detailedSteps = [
-  { id: 0, name: 'Mode', component: StepModeSelector },
+  { id: 0, name: 'Program', component: StepModeSelector },
   { id: 1, name: 'Location', component: StepLocation },
   { id: 2, name: 'Draw Roof', component: StepDrawRoof },
   { id: 3, name: 'Details', component: StepDetails }, // Moved up - capture consumption early
-  { id: 4, name: 'System Type', component: StepAddOns },
-  { id: 5, name: 'Battery Savings', component: StepBatteryPeakShaving, optional: true }, // Only shows if battery selected
+  { id: 4, name: 'Battery Savings', component: StepBatteryPeakShaving, optional: true },
+  { id: 5, name: 'Add-ons', component: StepAddOns },
   { id: 6, name: 'Photos', component: StepPhotos },
   { id: 7, name: 'Review', component: StepReview },
   { id: 8, name: 'Submit', component: StepContact },
@@ -139,11 +141,10 @@ export default function EstimatorPage() {
   // Get active step array based on mode
   const steps = data.estimatorMode === 'easy' ? easySteps : data.estimatorMode === 'detailed' ? detailedSteps : [easySteps[0]]
   
-  // Filter out Battery Savings step if grid-tied system is selected
+  // Show Battery Savings step only for HRS program
   const displaySteps = steps.filter(step => {
-    // Always show Battery Savings step if battery system is selected or not yet decided
     if (step.name === 'Battery Savings') {
-      return data.systemType === 'battery_system' || data.hasBattery || !data.systemType
+      return data.programType === 'hrs_residential'
     }
     return true
   })
@@ -211,23 +212,9 @@ export default function EstimatorPage() {
       if (currentStep < nextSteps.length - 1) {
         let nextStep = currentStep + 1
         
-        // Skip peak-shaving step if grid-tied system (no battery) was selected
-        // Easy mode: Step 4 is Add-ons/System Type, Step 5 is Battery Savings
-        // Detailed mode: Step 4 is Add-ons/System Type, Step 5 is Battery Savings
-        const isAddOnsStep = (data.estimatorMode === 'easy' && currentStep === 4) || 
-                             (data.estimatorMode === 'detailed' && currentStep === 4)
-        
-        // Check if battery system was selected (either from new systemType or hasBattery flag)
-        const hasBattery = stepData.hasBattery || data.hasBattery || stepData.systemType === 'battery_system' || data.systemType === 'battery_system'
-        
-        // If completing Add-ons step and grid-tied system (no battery), skip Battery Savings step
-        if (isAddOnsStep && !hasBattery) {
-          nextStep = currentStep + 2 // Skip the Battery Savings step
-        }
-        
-        // Generate solar estimate before Battery Savings step (for solar rebate calculation)
-        // This needs to run after Add-ons step if battery system was selected
-        if (isAddOnsStep && hasBattery && updatedData.coordinates && updatedData.roofPolygon) {
+        // Prepare data before Battery Savings (step 4) when program is HRS Residential
+        const willEnterBatterySavings = currentStep === 3 && updatedData.programType === 'hrs_residential'
+        if (willEnterBatterySavings && updatedData.coordinates && (updatedData.roofPolygon || updatedData.roofAreaSqft)) {
           try {
             console.log('Generating solar estimate for battery rebate calculation...')
             const response = await fetch('/api/estimate', {

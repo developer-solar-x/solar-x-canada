@@ -3,10 +3,11 @@
 // Step 4: Review estimate and results
 
 import { useState, useEffect } from 'react'
-import { Zap, DollarSign, TrendingUp, TrendingDown, PiggyBank, Loader2, Leaf, CreditCard, MapPin, Home, Compass, Building, Gauge, Sun, Calendar, Droplets, Bolt, Battery, ChevronDown, ChevronUp } from 'lucide-react'
+import { Zap, DollarSign, TrendingUp, TrendingDown, Loader2, Leaf, CreditCard, MapPin, Home, Compass, Building, Gauge, Sun, Calendar, Droplets, Bolt, Battery, Moon } from 'lucide-react'
 import { formatCurrency, formatKw, formatNumber } from '@/lib/utils'
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { FINANCING_OPTIONS, calculateFinancing } from '@/config/provinces'
+import { BATTERY_SPECS } from '@/config/battery-specs'
 import { calculateRoofAzimuth, getDirectionLabel, getOrientationEfficiency } from '@/lib/roof-calculations'
 import * as turf from '@turf/turf'
 import { ImageModal } from '@/components/ui/ImageModal'
@@ -22,7 +23,6 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'savings' | 'production' | 'environmental'>('savings')
   const [selectedFinancing, setSelectedFinancing] = useState<string>(data.financingOption || 'cash')
-  const [showYearByYear, setShowYearByYear] = useState(false)
   
   // State for image modal
   const [imageModalOpen, setImageModalOpen] = useState(false)
@@ -35,7 +35,11 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
         const response = await fetch('/api/estimate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
+          body: JSON.stringify({
+            ...data,
+            overrideSystemSizeKw: data.solarOverride?.sizeKw,
+            roofAreaSqft: data.roofAreaSqft
+          }),
         })
 
         if (!response.ok) {
@@ -74,45 +78,50 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
 
   // Prepare chart data
   const hasBattery = !!(data.selectedBattery && data.batteryDetails && data.batteryDetails.firstYearAnalysis)
-  const RATE_ESCALATION = 1.05 // 5% annual rate increase (matches battery calculation)
-  
-  
-  // Calculate year-by-year savings with battery
-  const yearlyProjection = Array.from({ length: 25 }, (_, i) => {
-    const year = i + 1
-    const solarSavings = estimate.savings.annualSavings * Math.pow(RATE_ESCALATION, i)
-    const batteryFirstYearSavings = hasBattery 
-      ? (data.batteryDetails?.firstYearAnalysis?.totalSavings || 0)
-      : 0
-    const batterySavings = batteryFirstYearSavings * Math.pow(RATE_ESCALATION, i)
-    
-    const cumulativeSolar = Array.from({ length: year }, (_, j) => 
-      estimate.savings.annualSavings * Math.pow(RATE_ESCALATION, j)
-    ).reduce((sum, val) => sum + val, 0)
-    const cumulativeBattery = hasBattery
-      ? Array.from({ length: year }, (_, j) => 
-          batteryFirstYearSavings * Math.pow(RATE_ESCALATION, j)
-        ).reduce((sum, val) => sum + val, 0)
-      : 0
-    
-    return {
-      year,
-      solarSavings: Math.round(solarSavings),
-      batterySavings: Math.round(batterySavings),
-      totalSavings: Math.round(solarSavings + batterySavings),
-      cumulativeSolar: Math.round(cumulativeSolar),
-      cumulativeBattery: Math.round(cumulativeBattery),
-      cumulativeTotal: Math.round(cumulativeSolar + cumulativeBattery),
-    }
-  })
 
   const productionChartData = estimate.production.monthlyKwh.map((kwh: number, i: number) => ({
     month: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][i],
     production: kwh,
   }))
 
-  // Prepare chart data (first 10 years)
-  const chartData = yearlyProjection.slice(0, 10)
+  // Combined solar + battery figures (choose plan with best annual savings)
+  const solarTotalCost = estimate.costs?.totalCost || 0
+  const solarNetCost = estimate.costs?.netCost || 0
+  const solarIncentives = estimate.costs?.incentives || 0
+  const solarMonthlySavings = estimate.savings?.monthlySavings || 0
+
+  const hasBatteryDetails = !!(data.batteryDetails && (data.peakShaving?.tou || data.peakShaving?.ulo))
+  // Selected battery (if any)
+  const selectedBatterySpec = data.selectedBattery ? BATTERY_SPECS.find(b => b.id === data.selectedBattery) : null
+  // Include battery for HRS Residential even if details weren't computed on this pass
+  const includeBattery = (data.programType === 'hrs_residential' && !!selectedBatterySpec) || hasBatteryDetails
+  const tou = (data.peakShaving as any)?.tou
+  const ulo = (data.peakShaving as any)?.ulo
+  const selectedPlan: 'tou' | 'ulo' | undefined = (data.peakShaving as any)?.ratePlan
+  const betterPlan = (() => {
+    const touAnnual = tou?.result?.annualSavings || 0
+    const uloAnnual = ulo?.result?.annualSavings || 0
+    return touAnnual >= uloAnnual ? 'tou' : 'ulo'
+  })()
+  const planData: any = (betterPlan === 'tou' ? tou : ulo) || tou || ulo
+  const displayPlan = selectedPlan || betterPlan
+
+  const batteryPrice = hasBatteryDetails ? (data.batteryDetails?.battery?.price || 0) : (selectedBatterySpec?.price || 0)
+  const batteryNetCost = hasBatteryDetails ? (data.batteryDetails?.multiYearProjection?.netCost || 0) : Math.max(0, batteryPrice - Math.min((selectedBatterySpec?.nominalKwh || 0) * 300, 5000))
+  const batteryRebate = batteryPrice > 0 ? Math.max(0, batteryPrice - batteryNetCost) : 0
+  const batteryAnnualSavings = planData?.result?.annualSavings || 0
+  const batteryMonthlySavings = batteryAnnualSavings > 0 ? Math.round(batteryAnnualSavings / 12) : 0
+
+  // selectedBatterySpec already defined above
+
+  // Program battery rebate (explicit) for clear breakdown
+  const batteryProgramRebate = selectedBatterySpec ? Math.min((selectedBatterySpec.nominalKwh || 0) * 300, 5000) : 0
+  const batteryProgramNet = includeBattery ? Math.max(0, batteryPrice - batteryProgramRebate) : 0
+
+  const combinedTotalCost = solarTotalCost + (includeBattery ? batteryPrice : 0)
+  // Use program-based battery net for transparency in Review
+  const combinedNetCost = solarNetCost + (includeBattery ? batteryProgramNet : 0)
+  const combinedMonthlySavings = solarMonthlySavings + (includeBattery ? batteryMonthlySavings : 0)
 
   return (
     <div className="grid lg:grid-cols-[400px_1fr] gap-6">
@@ -465,6 +474,26 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
           <p className="text-white/90">{data.address}</p>
         </div>
 
+        {/* Selected Battery (always show if chosen) */}
+        {selectedBatterySpec && (
+          <div className="card p-4 bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-navy-500 rounded-lg">
+                  <Battery className="text-white" size={20} />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-navy-600">Selected Battery</div>
+                  <div className="text-sm text-gray-700 font-semibold">{selectedBatterySpec?.brand} {selectedBatterySpec?.model} • {selectedBatterySpec?.usableKwh} kWh usable</div>
+                </div>
+              </div>
+              {selectedPlan && (
+                <div className="text-xs text-gray-600">Plan: {selectedPlan.toUpperCase()}</div>
+              )}
+            </div>
+          </div>
+        )}
+
 
         {/* Add-ons summary (if any selected) */}
         {data.selectedAddOns && data.selectedAddOns.length > 0 && (
@@ -495,10 +524,10 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
           <div className="card p-6">
             <Zap className="text-red-500 mb-3" size={32} />
             <div className="text-3xl font-bold text-navy-500 mb-1">
-              {formatKw(estimate.system.sizeKw)}
+              {formatKw(data.solarOverride?.sizeKw ?? estimate.system.sizeKw)}
             </div>
             <div className="text-sm text-gray-600">Recommended System</div>
-            <div className="text-xs text-gray-500 mt-1">~{estimate.system.numPanels} solar panels</div>
+            <div className="text-xs text-gray-500 mt-1">~{(data.solarOverride?.numPanels ?? estimate.system.numPanels)} solar panels</div>
             {data.selectedBattery && data.batteryDetails && (
               <div className="text-xs text-navy-500 font-semibold mt-2 flex items-center gap-1">
                 <Zap size={12} />
@@ -511,46 +540,135 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
           <div className="card p-6">
             <DollarSign className="text-navy-500 mb-3" size={32} />
             <div className="text-3xl font-bold text-navy-500 mb-1">
-              {formatCurrency(estimate.costs.totalCost + (data.batteryDetails?.battery.price || 0))}
+              {formatCurrency(combinedTotalCost)}
             </div>
             <div className="text-sm text-gray-600">Total System Cost</div>
             <div className="text-xs text-gray-500 mt-1">
-              {data.selectedBattery ? (
-                <>Solar {formatCurrency(estimate.costs.totalCost)} + Battery {formatCurrency(data.batteryDetails?.battery.price || 0)}</>
-              ) : (
-                'Before incentives'
-              )}
+              {includeBattery
+                ? <>Solar {formatCurrency(solarTotalCost)} + Battery {formatCurrency(batteryPrice)}</>
+                : 'Before incentives'}
             </div>
           </div>
 
-          {/* Net Cost */}
-          <div className="card p-6">
-            <TrendingDown className="text-green-600 mb-3" size={32} />
-            <div className="text-3xl font-bold text-green-600 mb-1">
-              {formatCurrency(estimate.costs.netCost + (data.batteryDetails?.multiYearProjection.netCost || 0))}
+          {/* Net Cost - Emphasized */}
+          <div className="p-6 rounded-xl border-2 border-green-400 bg-gradient-to-br from-green-50 to-white shadow-sm">
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingDown className="text-green-600" size={28} />
+              <div className="text-sm font-semibold text-green-800">Your Net Investment</div>
             </div>
-            <div className="text-sm text-gray-600">Your Net Investment</div>
-            <div className="text-xs text-gray-500 mt-1">
-              After {formatCurrency(estimate.costs.incentives + (data.batteryDetails ? (data.batteryDetails.battery.price - data.batteryDetails.multiYearProjection.netCost) : 0))} in rebates
+            <div className="text-4xl font-extrabold text-green-600 leading-tight">
+              {formatCurrency(combinedNetCost)}
+            </div>
+            <div className="text-xs text-gray-600 mt-1">
+              After {formatCurrency(solarIncentives + (includeBattery ? batteryProgramRebate : 0))} in rebates
+              {includeBattery && (
+                <>
+                  <div className="text-[11px] text-gray-500 mt-1">
+                    Solar rebate: {formatCurrency(solarIncentives)} • Battery rebate: {formatCurrency(batteryProgramRebate)}
+                  </div>
+                  <div className="text-[11px] text-gray-500">Battery: {data.batteryDetails?.battery?.brand || selectedBatterySpec?.brand} {data.batteryDetails?.battery?.model || selectedBatterySpec?.model} ({data.batteryDetails?.battery?.usableKwh || selectedBatterySpec?.usableKwh} kWh)</div>
+                </>
+              )}
             </div>
           </div>
 
           {/* Monthly Savings */}
-          <div className="card p-6">
-            <PiggyBank className="text-blue-600 mb-3" size={32} />
-            <div className="text-3xl font-bold text-blue-600 mb-1">
-              {formatCurrency(estimate.savings.monthlySavings + (data.batteryDetails ? (data.batteryDetails.firstYearAnalysis.totalSavings / 12) : 0))}
+          {(() => {
+            // Calculate TOU and ULO monthly savings if both plans exist
+            let touMonthly = combinedMonthlySavings
+            let uloMonthly = combinedMonthlySavings
+            if (tou && ulo && includeBattery) {
+              const touAnnual = (tou?.result?.annualSavings || 0) + (estimate.savings?.annualSavings || 0)
+              const uloAnnual = (ulo?.result?.annualSavings || 0) + (estimate.savings?.annualSavings || 0)
+              touMonthly = Math.round(touAnnual / 12)
+              uloMonthly = Math.round(uloAnnual / 12)
+            }
+            
+            return (
+              <div className="p-6 rounded-xl border-2 border-red-400 bg-gradient-to-br from-red-50 to-white shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp className="text-red-600" size={28} />
+                  <div className="text-sm font-semibold text-red-800">Monthly Savings</div>
+                </div>
+                {tou && ulo && includeBattery ? (
+                  <>
+                    <div className="space-y-2 mb-3">
+                      <div>
+                        <div className="flex items-center gap-1 mb-1">
+                          <Sun size={14} className="text-navy-400" />
+                          <div className="text-xs text-gray-600 font-medium">TOU Plan</div>
+                        </div>
+                        <div className="text-2xl font-bold text-red-600">
+                          {formatCurrency(touMonthly)}
+                        </div>
+                      </div>
+                      <div className="border-t border-gray-200 pt-2">
+                        <div className="flex items-center gap-1 mb-1">
+                          <Moon size={14} className="text-navy-400" />
+                          <div className="text-xs text-gray-600 font-medium">ULO Plan</div>
+                        </div>
+                        <div className="text-2xl font-bold text-red-600">
+                          {formatCurrency(uloMonthly)}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-4xl font-extrabold text-red-600 leading-tight">
+                      {formatCurrency(combinedMonthlySavings)}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      {displayPlan && (
+                        <>
+                          Based on {displayPlan.toUpperCase()} rate plan
+                          {includeBattery && (
+                            <div className="text-[11px] text-gray-500 mt-1">
+                              Solar ${solarMonthlySavings.toLocaleString()}/mo + Battery ${batteryMonthlySavings.toLocaleString()}/mo
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {!displayPlan && (
+                        <>
+                          {includeBattery ? 'Solar + Battery savings' : 'Estimated monthly savings'}
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )
+          })()}
+        </div>
+
+        {/* Clear Cost Breakdown (shown before totals to avoid confusion) */}
+        <div className="card p-6 bg-white border border-gray-200">
+          <h3 className="text-lg font-bold text-navy-600 mb-3">Cost Breakdown</h3>
+          <div className="grid md:grid-cols-2 gap-4 text-sm">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <div className="font-semibold text-gray-700 mb-2">Solar</div>
+              <div className="flex justify-between"><span>Total (before rebates)</span><span className="font-bold text-navy-600">{formatCurrency(solarTotalCost)}</span></div>
+              <div className="flex justify-between"><span>Solar rebate</span><span className="font-bold text-green-600">-{formatCurrency(solarIncentives)}</span></div>
+              <div className="flex justify-between border-t border-gray-200 mt-2 pt-2"><span>Solar net</span><span className="font-bold text-navy-600">{formatCurrency(solarNetCost)}</span></div>
             </div>
-            <div className="text-sm text-gray-600">Monthly Savings</div>
-            <div className="text-xs text-gray-500 mt-1">
-              {data.selectedBattery ? (
-                <>Solar + Battery combined</>
-              ) : (
-                'Solar only'
+            {includeBattery && (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <div className="font-semibold text-gray-700 mb-2">Battery ({selectedBatterySpec?.brand} {selectedBatterySpec?.model})</div>
+                <div className="flex justify-between"><span>Battery price</span><span className="font-bold text-navy-600">{formatCurrency(batteryPrice)}</span></div>
+                <div className="flex justify-between"><span>Battery rebate</span><span className="font-bold text-green-600">-{formatCurrency(batteryProgramRebate)}</span></div>
+                <div className="flex justify-between border-t border-gray-200 mt-2 pt-2"><span>Battery net</span><span className="font-bold text-navy-600">{formatCurrency(batteryProgramNet)}</span></div>
+              </div>
               )}
             </div>
+          {hasBatteryDetails && (
+            <div className="mt-3 text-xs text-gray-600">
+              Combined Net = Solar net {formatCurrency(solarNetCost)} + Battery net {formatCurrency(batteryProgramNet)} = <span className="font-semibold text-navy-600">{formatCurrency(combinedNetCost)}</span>
           </div>
+          )}
         </div>
+
+        {/* Battery Scenario Comparison removed by request */}
 
         {/* Battery Details Card (if battery selected) */}
         {data.selectedBattery && data.batteryDetails && (
@@ -646,6 +764,143 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
           </div>
         )}
 
+        {/* TOU vs ULO Comparison Card - Simple Peak Shaving */}
+        {tou && ulo && (() => {
+          const touData = tou
+          const uloData = ulo
+          const battery = selectedBatterySpec
+          
+          if (!battery) return null
+          
+          // Calculate combined figures for both plans
+          const solarAnnual = estimate.savings?.annualSavings || 0
+          const solarNet = estimate.costs?.netCost || 0
+          
+          // TOU combined figures
+          const touCombinedAnnual = (touData.result?.annualSavings || 0) + solarAnnual
+          const touBatteryNet = touData.projection?.netCost || 0
+          const touCombinedNet = solarNet + touBatteryNet
+          const touCombinedProfit = (touData.combined?.projection?.netProfit25Year ?? 
+            (touData.projection?.netProfit25Year || 0) + (estimate.savings?.roi || 0))
+          
+          // ULO combined figures
+          const uloCombinedAnnual = (uloData.result?.annualSavings || 0) + solarAnnual
+          const uloBatteryNet = uloData.projection?.netCost || 0
+          const uloCombinedNet = solarNet + uloBatteryNet
+          const uloCombinedProfit = (uloData.combined?.projection?.netProfit25Year ?? 
+            (uloData.projection?.netProfit25Year || 0) + (estimate.savings?.roi || 0))
+          
+          // Calculate payback periods
+          const touPayback = touCombinedNet <= 0 ? 0 : (touCombinedAnnual > 0 ? touCombinedNet / touCombinedAnnual : Infinity)
+          const uloPayback = uloCombinedNet <= 0 ? 0 : (uloCombinedAnnual > 0 ? uloCombinedNet / uloCombinedAnnual : Infinity)
+          
+          return (
+            <div className="card p-6 bg-gradient-to-br from-white to-gray-50 border-2 border-navy-300 shadow-lg">
+              <div className="flex items-center justify-center gap-2 mb-6">
+                <div className="p-2 bg-gradient-to-br from-navy-500 to-navy-600 rounded-lg shadow-md">
+                  <TrendingUp className="text-white" size={24} />
+                </div>
+                <h3 className="text-2xl font-bold text-navy-500">
+                  Rate Plan Comparison
+                </h3>
+              </div>
+              
+              {/* Compact Comparison - 3 Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Annual Savings */}
+                <div className="bg-white rounded-xl p-5 shadow-md border-2 border-gray-200 hover:border-red-300 transition-all">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="p-1.5 bg-red-100 rounded-lg">
+                      <DollarSign className="text-red-500" size={18} />
+                    </div>
+                    <div className="text-sm font-bold text-gray-600 uppercase tracking-wide">Annual Savings</div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex items-center gap-1 mb-1">
+                        <Sun size={12} className="text-navy-400" />
+                        <div className="text-xs text-gray-600 font-medium">TOU Plan</div>
+                      </div>
+                      <div className="text-xl font-bold text-red-600">
+                        ${Math.round(touCombinedAnnual).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="border-t border-gray-200 pt-2">
+                      <div className="flex items-center gap-1 mb-1">
+                        <Moon size={12} className="text-navy-400" />
+                        <div className="text-xs text-gray-600 font-medium">ULO Plan</div>
+                      </div>
+                      <div className="text-xl font-bold text-red-600">
+                        ${Math.round(uloCombinedAnnual).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payback Period */}
+                <div className="bg-white rounded-xl p-5 shadow-md border-2 border-gray-200 hover:border-navy-300 transition-all">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="p-1.5 bg-navy-100 rounded-lg">
+                      <Calendar className="text-navy-500" size={18} />
+                    </div>
+                    <div className="text-sm font-bold text-gray-600 uppercase tracking-wide">Payback Period</div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex items-center gap-1 mb-1">
+                        <Sun size={12} className="text-navy-400" />
+                        <div className="text-xs text-gray-600 font-medium">TOU Plan</div>
+                      </div>
+                      <div className="text-xl font-bold text-navy-600">
+                        {touPayback === Infinity ? 'N/A' : `${touPayback.toFixed(1)} years`}
+                      </div>
+                    </div>
+                    <div className="border-t border-gray-200 pt-2">
+                      <div className="flex items-center gap-1 mb-1">
+                        <Moon size={12} className="text-navy-400" />
+                        <div className="text-xs text-gray-600 font-medium">ULO Plan</div>
+                      </div>
+                      <div className="text-xl font-bold text-navy-600">
+                        {uloPayback === Infinity ? 'N/A' : `${uloPayback.toFixed(1)} years`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 25-Year Profit */}
+                <div className="bg-white rounded-xl p-5 shadow-md border-2 border-gray-200 hover:border-green-300 transition-all">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="p-1.5 bg-green-100 rounded-lg">
+                      <TrendingUp className="text-green-600" size={18} />
+                    </div>
+                    <div className="text-sm font-bold text-gray-600 uppercase tracking-wide">25-Year Profit</div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex items-center gap-1 mb-1">
+                        <Sun size={12} className="text-navy-400" />
+                        <div className="text-xs text-gray-600 font-medium">TOU Plan</div>
+                      </div>
+                      <div className="text-xl font-bold text-green-600">
+                        ${Math.round(touCombinedProfit).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="border-t border-gray-200 pt-2">
+                      <div className="flex items-center gap-1 mb-1">
+                        <Moon size={12} className="text-navy-400" />
+                        <div className="text-xs text-gray-600 font-medium">ULO Plan</div>
+                      </div>
+                      <div className="text-xl font-bold text-green-600">
+                        ${Math.round(uloCombinedProfit).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+
         {/* Financing Options */}
         <div className="card p-6">
           <div className="flex items-start justify-between mb-4">
@@ -662,9 +917,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
           
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
             {FINANCING_OPTIONS.map((option) => {
-              const solarCost = estimate.costs.netCost || 0
-              const batteryCost = hasBattery ? data.batteryDetails.multiYearProjection.netCost : 0
-              const totalCost = solarCost + batteryCost
+              const totalCost = combinedNetCost
               const financing = calculateFinancing(
                 totalCost,
                 option.interestRate,
@@ -690,11 +943,8 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                       <div className="text-2xl font-bold text-red-500 mb-1">
                         ${financing.monthlyPayment}/mo
                       </div>
-                      <div className="text-xs text-gray-600 mb-2">
+                      <div className="text-xs text-gray-600">
                         {option.interestRate}% APR • {option.termYears} years
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Total: ${financing.totalPaid.toLocaleString()}
                       </div>
                     </>
                   ) : (
@@ -715,72 +965,6 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             })}
           </div>
           
-          {/* Selected financing details */}
-          {selectedFinancing !== 'cash' && (() => {
-            const selectedOption = FINANCING_OPTIONS.find(opt => opt.id === selectedFinancing)
-            if (!selectedOption) return null
-            
-            const solarCost = estimate.costs.netCost || 0
-            const batteryCost = hasBattery ? data.batteryDetails.multiYearProjection.netCost : 0
-            const totalCost = solarCost + batteryCost
-            const financing = calculateFinancing(
-              totalCost,
-              selectedOption.interestRate,
-              selectedOption.termYears
-            )
-            
-            return (
-              <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <p className="text-sm font-semibold text-gray-700 mb-2">
-                  {selectedOption.name} Breakdown
-                </p>
-                {hasBattery && (
-                  <div className="mb-3 pb-3 border-b border-gray-300 text-xs text-gray-600">
-                    <div className="flex justify-between">
-                      <span>Solar System:</span>
-                      <span className="font-semibold">${solarCost.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between mt-1">
-                      <span>Battery Storage:</span>
-                      <span className="font-semibold">${batteryCost.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between mt-2 font-bold">
-                      <span>Total Financed:</span>
-                      <span>${totalCost.toLocaleString()}</span>
-                    </div>
-                  </div>
-                )}
-                <div className="grid grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-600">Monthly Payment</p>
-                    <p className="font-bold text-navy-500">
-                      ${financing.monthlyPayment.toLocaleString()}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Total Interest</p>
-                    <p className="font-bold text-orange-600">
-                      ${financing.totalInterest.toLocaleString()}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Total Cost</p>
-                    <p className="font-bold text-navy-500">
-                      ${financing.totalPaid.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500 mt-3">
-                  {selectedOption.description}
-                </p>
-                <div className="mt-3 pt-3 border-t border-gray-300">
-                  <p className="text-xs text-gray-600">
-                    <span className="font-semibold">Note:</span> Financing calculations are based on your actual system cost. Final rates and terms will be confirmed during the application process.
-                  </p>
-                </div>
-              </div>
-            )
-          })()}
           
           {selectedFinancing === 'cash' && (
             <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
@@ -788,7 +972,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                 Great choice! Cash payment offers the best long-term value.
               </p>
               <p className="text-xs text-green-700">
-                You'll save on interest charges and maximize your return on investment. Your total investment of {formatCurrency(estimate.costs.netCost + (hasBattery ? data.batteryDetails.multiYearProjection.netCost : 0))} includes all rebates and incentives.
+                You'll save on interest charges and maximize your return on investment. Your total investment of {formatCurrency(combinedNetCost)} includes all rebates and incentives.
               </p>
             </div>
           )}
@@ -833,179 +1017,8 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
           {/* Tab content */}
           {activeTab === 'savings' && (
             <div className="space-y-6">
-              {/* Summary Metrics */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-gradient-to-br from-navy-50 to-navy-100 rounded-xl p-4 border border-navy-200">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Calendar className="text-navy-500" size={14} />
-                    <div className="text-xs font-semibold text-navy-600 uppercase">Year 1 Savings</div>
-                  </div>
-                  <div className="text-2xl font-bold text-navy-600">
-                    {formatCurrency(yearlyProjection[0].totalSavings)}
-                  </div>
-                  {hasBattery && yearlyProjection[0] && (
-                    <div className="text-xs text-gray-600 mt-1">
-                      Solar ${yearlyProjection[0].solarSavings.toLocaleString()} + Battery ${yearlyProjection[0].batterySavings.toLocaleString()}
-                    </div>
-                  )}
-                </div>
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
-                  <div className="flex items-center gap-2 mb-1">
-                    <TrendingUp className="text-blue-600" size={14} />
-                    <div className="text-xs font-semibold text-blue-600 uppercase">25-Year Total</div>
-                  </div>
-                  <div className="text-2xl font-bold text-blue-600">
-                    {formatCurrency(yearlyProjection[24].cumulativeTotal)}
-                  </div>
-                  {hasBattery && yearlyProjection[24] && (
-                    <div className="text-xs text-gray-600 mt-1">
-                      Solar ${yearlyProjection[24].cumulativeSolar.toLocaleString()} + Battery ${yearlyProjection[24].cumulativeBattery.toLocaleString()}
-                    </div>
-                  )}
-                </div>
-                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
-                  <div className="flex items-center gap-2 mb-1">
-                    <PiggyBank className="text-gray-600" size={14} />
-                    <div className="text-xs font-semibold text-gray-600 uppercase">Payback Period</div>
-                  </div>
-                  <div className="text-2xl font-bold text-gray-700">
-                    {estimate.savings.paybackYears} yrs
-                  </div>
-                  <div className="text-xs text-gray-600 mt-1">Solar system</div>
-                </div>
-                <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200">
-                  <div className="flex items-center gap-2 mb-1">
-                    <TrendingUp className="text-red-600" size={14} />
-                    <div className="text-xs font-semibold text-red-600 uppercase">ROI</div>
-                  </div>
-                  <div className="text-2xl font-bold text-red-600">
-                    {estimate.savings.roi}%
-                  </div>
-                  <div className="text-xs text-gray-600 mt-1">Over 25 years</div>
-                </div>
-              </div>
-
-               {/* Annual Savings Bar Chart */}
-               <div>
-                 <h4 className="text-sm font-bold text-navy-500 mb-3">Annual Savings Breakdown</h4>
-                 {chartData && chartData.length > 0 ? (
-                   <>
-                     <div className="bg-white border border-gray-300 rounded p-4 overflow-x-auto">
-                       <BarChart 
-                         width={800}
-                         height={280}
-                         data={chartData}
-                         margin={{ top: 20, right: 30, left: 50, bottom: 20 }}
-                         barSize={50}
-                       >
-                           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                           <XAxis 
-                             dataKey="year" 
-                             label={{ value: 'Year', position: 'insideBottom', offset: -10 }}
-                             stroke="#666"
-                           />
-                           <YAxis 
-                             label={{ value: 'Annual Savings ($)', angle: -90, position: 'insideLeft', offset: 10 }}
-                             tickFormatter={(value) => `$${Math.round(value / 1000)}k`}
-                             stroke="#666"
-                             domain={[0, 'auto']}
-                           />
-                           <Tooltip 
-                             formatter={(value: any, name: string) => {
-                               const formattedValue = formatCurrency(Number(value))
-                               const label = name === 'solarSavings' ? 'Solar' : name === 'batterySavings' ? 'Battery' : name
-                               return [formattedValue, label]
-                             }}
-                             labelFormatter={(label) => `Year ${label}`}
-                           />
-                           <Bar 
-                             dataKey="solarSavings" 
-                             stackId="savings" 
-                             fill="#1B4E7C" 
-                             name="Solar Savings"
-                             isAnimationActive={false}
-                           />
-                           {hasBattery && (
-                             <Bar 
-                               dataKey="batterySavings" 
-                               stackId="savings" 
-                               fill="#4A90E2" 
-                               name="Battery Savings"
-                               isAnimationActive={false}
-                             />
-                           )}
-                       </BarChart>
-                     </div>
-                     <p className="text-xs text-gray-600 mt-2 text-center">
-                       Showing first 10 years (includes 5% annual rate escalation)
-                       {hasBattery && (
-                         <span className="ml-2">
-                           • <span className="inline-block w-3 h-3 bg-navy-500 rounded-sm align-middle"></span> Solar 
-                           <span className="inline-block w-3 h-3 bg-blue-500 rounded-sm ml-2 align-middle"></span> Battery
-                         </span>
-                       )}
-                     </p>
-                   </>
-                 ) : (
-                   <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
-                     <div className="text-center">
-                       <p className="text-gray-500 mb-2">Chart data is loading...</p>
-                       <p className="text-xs text-gray-400">Data points: {chartData?.length || 0}</p>
-                     </div>
-                   </div>
-                 )}
-               </div>
-
-              {/* Year-by-Year Table */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-bold text-navy-500">Detailed Year-by-Year Projection</h4>
-                  <button
-                    onClick={() => setShowYearByYear(!showYearByYear)}
-                    className="flex items-center gap-1 text-sm font-semibold text-red-500 hover:text-red-600"
-                  >
-                    {showYearByYear ? 'Hide' : 'Show'} Table
-                    {showYearByYear ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                  </button>
-                </div>
-                
-                {showYearByYear && (
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-navy-500 text-white">
-                          <tr>
-                            <th className="px-4 py-2 text-left">Year</th>
-                            <th className="px-4 py-2 text-right">Solar Savings</th>
-                            {hasBattery && <th className="px-4 py-2 text-right">Battery Savings</th>}
-                            <th className="px-4 py-2 text-right">Annual Total</th>
-                            <th className="px-4 py-2 text-right">Cumulative Total</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {yearlyProjection.map((row, idx) => (
-                            <tr key={row.year} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                              <td className="px-4 py-2 font-semibold text-navy-600">{row.year}</td>
-                              <td className="px-4 py-2 text-right text-navy-600">${row.solarSavings.toLocaleString()}</td>
-                              {hasBattery && <td className="px-4 py-2 text-right text-blue-600">${row.batterySavings.toLocaleString()}</td>}
-                              <td className="px-4 py-2 text-right font-semibold text-navy-600">${row.totalSavings.toLocaleString()}</td>
-                              <td className="px-4 py-2 text-right font-bold text-red-600">${row.cumulativeTotal.toLocaleString()}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot className="bg-navy-50 font-bold">
-                          <tr>
-                            <td className="px-4 py-3 text-navy-700">25-Year Total</td>
-                            <td className="px-4 py-3 text-right text-navy-700">${(yearlyProjection[24]?.cumulativeSolar || 0).toLocaleString()}</td>
-                            {hasBattery && <td className="px-4 py-3 text-right text-blue-700">${(yearlyProjection[24]?.cumulativeBattery || 0).toLocaleString()}</td>}
-                            <td className="px-4 py-3 text-right"></td>
-                            <td className="px-4 py-3 text-right text-red-700 text-lg">${(yearlyProjection[24]?.cumulativeTotal || 0).toLocaleString()}</td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  </div>
-                )}
+              <div className="text-center py-8 text-gray-500">
+                <p>Savings information is shown in the main estimate above.</p>
               </div>
             </div>
           )}

@@ -163,9 +163,8 @@ export async function calculateSolarEstimate(
   const capacityFactor = pvData.outputs.capacity_factor
 
   // Apply bifacial gain for rear-side energy capture
-  // Panel spec: 80% bifaciality, conservative 8% gain for typical roof installations
-  // (Ground-mounted with white rocks can achieve 15-20% gain, but roof-mounted is more conservative)
-  const bifacialGain = 1.08 // 8% additional production from rear side
+  // Use more conservative 4% gain for roof-mounted systems
+  const bifacialGain = 1.04 // 4% additional production from rear side
   annualProductionKwh = Math.round(annualProductionKwh * bifacialGain)
   monthlyProductionKwh = monthlyProductionKwh.map(kwh => Math.round(kwh * bifacialGain))
 

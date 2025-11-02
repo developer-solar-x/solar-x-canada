@@ -53,7 +53,7 @@ export function ResumeEstimateBanner() {
 
   return (
     <>
-      <div className="bg-gradient-to-r from-blue-500 to-teal-500 text-white py-4 px-4 sticky top-0 z-50 shadow-lg">
+      <div className="bg-gradient-to-r from-red-600 to-navy-600 text-white py-4 px-4 sticky top-0 z-50 shadow-lg">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           {/* Progress Info */}
@@ -65,7 +65,7 @@ export function ResumeEstimateBanner() {
               <h3 className="font-bold text-lg mb-1">
                 Resume Your Solar Estimate
               </h3>
-              <p className="text-sm text-blue-50">
+              <p className="text-sm text-white/80">
                 {progressInfo.mode === 'easy' ? 'Quick Estimate' : 'Detailed Analysis'} 
                 {' • '}
                 Step {progressInfo.step} of 7 
@@ -73,7 +73,7 @@ export function ResumeEstimateBanner() {
                 {progressInfo.stepName}
                 {progressInfo.address && ` • ${progressInfo.address}`}
               </p>
-              <p className="text-xs text-blue-100 mt-1">
+              <p className="text-xs text-white/70 mt-1">
                 Saved {progressInfo.timeSince}
               </p>
             </div>
@@ -83,13 +83,13 @@ export function ResumeEstimateBanner() {
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <Link
               href="/estimator"
-              className="flex-1 sm:flex-initial bg-white text-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors text-center"
+              className="flex-1 sm:flex-initial bg-white text-red-600 px-6 py-2 rounded-lg font-semibold hover:bg-red-50 transition-colors text-center border-2 border-white/20"
             >
               Continue
             </Link>
             <button
               onClick={handleClearProgress}
-              className="flex-1 sm:flex-initial bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm"
+              className="flex-1 sm:flex-initial bg-transparent hover:bg-white/10 text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm border-2 border-white/30"
             >
               Clear & Start Over
             </button>

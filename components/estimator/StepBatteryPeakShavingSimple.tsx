@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Battery, DollarSign, TrendingUp, Calendar, ArrowRight, Check, ChevronDown, Percent, Zap, Clock, Info, TrendingDown, BarChart3, Lightbulb, Home, Moon, Sun, Award } from 'lucide-react'
+import { Battery, DollarSign, TrendingUp, Calendar, ArrowRight, Check, ChevronDown, Percent, Zap, Clock, Info, TrendingDown, BarChart3, Lightbulb, Home, Moon, Sun, Award, AlertTriangle, Plus, X } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { 
   BATTERY_SPECS, 
@@ -57,15 +57,51 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                        14000
   
   // State
-  const [annualUsageKwh, setAnnualUsageKwh] = useState<number>(defaultUsage)
-  const [selectedBattery, setSelectedBattery] = useState<string>(data.selectedBattery || 'renon-16')
-  const [comparisonBatteries, setComparisonBatteries] = useState<string[]>([])
-  const [showComparison, setShowComparison] = useState(false)
+  // Allow blank input by storing as string; derive numeric where needed
+  const [annualUsageInput, setAnnualUsageInput] = useState<string>(defaultUsage ? String(defaultUsage) : '')
+  const annualUsageKwh = Math.max(0, Number(annualUsageInput) || 0)
+  const [selectedBatteries, setSelectedBatteries] = useState<string[]>([data.selectedBattery || 'renon-16'])
   const [touDistribution, setTouDistribution] = useState<UsageDistribution>(DEFAULT_TOU_DISTRIBUTION)
   const [uloDistribution, setUloDistribution] = useState<UsageDistribution>(DEFAULT_ULO_DISTRIBUTION)
-  const [touResults, setTouResults] = useState<Map<string, {result: SimplePeakShavingResult, projection: any}>>(new Map())
-  const [uloResults, setUloResults] = useState<Map<string, {result: SimplePeakShavingResult, projection: any}>>(new Map())
+  const [touResults, setTouResults] = useState<Map<string, {result: SimplePeakShavingResult, projection: any, combined?: { annual: number, monthly: number, projection: any, netCost: number } }>>(new Map())
+  const [uloResults, setUloResults] = useState<Map<string, {result: SimplePeakShavingResult, projection: any, combined?: { annual: number, monthly: number, projection: any, netCost: number } }>>(new Map())
   const [showCustomRates, setShowCustomRates] = useState(false)
+  const [showSavingsInfo, setShowSavingsInfo] = useState(false)
+
+  // Allow overriding solar panel count/system size for rebate and display
+  const initialPanels = data.estimate?.system?.numPanels || 0
+  const panelWattage = data.estimate?.system?.panelWattage || 500
+  const [solarPanels, setSolarPanels] = useState<number>(initialPanels)
+  const systemSizeKwOverride = Math.round(((solarPanels * panelWattage) / 1000) * 10) / 10
+
+  // Override estimate (updated production when panels change)
+  const [overrideEstimate, setOverrideEstimate] = useState<any>(null)
+
+  // When panel count changes, re-run estimate with override size to refresh annual kWh
+  useEffect(() => {
+    const run = async () => {
+      if (!data?.coordinates) return
+      if (!solarPanels || solarPanels <= 0) { setOverrideEstimate(null); return }
+      try {
+        const resp = await fetch('/api/estimate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...data,
+            roofAreaSqft: data.roofAreaSqft,
+            overrideSystemSizeKw: systemSizeKwOverride,
+          }),
+        })
+        if (resp.ok) {
+          const json = await resp.json()
+          setOverrideEstimate(json.data)
+        }
+      } catch (e) {
+        console.warn('Override estimate failed', e)
+      }
+    }
+    run()
+  }, [solarPanels])
   
   // Custom editable rates (initialize with defaults)
   const [customRates, setCustomRates] = useState({
@@ -109,93 +145,127 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
     }
   }
 
-  // Calculate TOU results for all batteries
+  // Calculate TOU results for selected batteries
   useEffect(() => {
-    const batteriesToCalculate = [selectedBattery, ...comparisonBatteries]
-    const newResults = new Map<string, {result: SimplePeakShavingResult, projection: any}>()
+    const newResults = new Map<string, {result: SimplePeakShavingResult, projection: any, combined?: { annual: number, monthly: number, projection: any, netCost: number } }>()
     const touRatePlan = getCustomTouRatePlan()
 
     // Get solar rebate if solar system exists
-    const systemSizeKw = data.estimate?.system?.sizeKw || 0
+    const systemSizeKw = (systemSizeKwOverride || data.estimate?.system?.sizeKw || 0)
     const solarRebatePerKw = 500
     const solarMaxRebate = 5000
     const solarRebate = systemSizeKw > 0 ? Math.min(systemSizeKw * solarRebatePerKw, solarMaxRebate) : 0
 
-    batteriesToCalculate.forEach(batteryId => {
-      const battery = BATTERY_SPECS.find(b => b.id === batteryId)
-      if (!battery) return
+    // Find all selected batteries
+    const batteries = selectedBatteries.map(id => BATTERY_SPECS.find(b => b.id === id)).filter(Boolean) as BatterySpec[]
+    
+    // Create combined battery spec from all selected batteries
+    const battery = batteries.length > 0 ? batteries.reduce((combined, current, idx) => {
+      if (idx === 0) return { ...current }
+      return {
+        ...combined,
+        nominalKwh: combined.nominalKwh + current.nominalKwh,
+        usableKwh: combined.usableKwh + current.usableKwh,
+        price: combined.price + current.price
+      }
+    }, batteries[0]) : null
+
+    if (battery) {
+      // Get solar production (use override if available)
+      const solarProductionKwh = overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0
 
       const calcResult = calculateSimplePeakShaving(
         annualUsageKwh,
         battery,
         touRatePlan,
-        touDistribution
+        touDistribution,
+        solarProductionKwh > 0 ? solarProductionKwh : undefined
       )
 
-      // Calculate battery rebate
+      // Calculate battery rebate (combined for all batteries)
       const batteryRebate = Math.min(battery.nominalKwh * 300, 5000)
       // Calculate net cost including both battery and solar rebates
       const netCost = battery.price - batteryRebate - solarRebate
       const multiYear = calculateSimpleMultiYear(calcResult, netCost, 0.05, 25)
 
-      newResults.set(batteryId, { result: calcResult, projection: multiYear })
-    })
+      // Combined (Solar + Battery) figures
+      const solarAnnual = data.estimate?.savings?.annualSavings || 0
+      const combinedAnnual = calcResult.annualSavings + solarAnnual
+      const combinedMonthly = Math.round(combinedAnnual / 12)
+      const solarNet = data.estimate?.costs?.netCost || 0
+      const combinedNet = Math.max(0, solarNet + netCost)
+      const combinedProjection = calculateSimpleMultiYear({ annualSavings: combinedAnnual } as any, combinedNet, 0.05, 25)
+
+      newResults.set('combined', { result: calcResult, projection: multiYear, combined: { annual: combinedAnnual, monthly: combinedMonthly, projection: combinedProjection, netCost: combinedNet } })
+    }
 
     setTouResults(newResults)
-  }, [annualUsageKwh, selectedBattery, comparisonBatteries, touDistribution, customRates.tou, data.estimate])
+  }, [annualUsageInput, selectedBatteries, touDistribution, customRates.tou, data.estimate, systemSizeKwOverride, overrideEstimate])
 
-  // Calculate ULO results for all batteries
+  // Calculate ULO results for selected batteries
   useEffect(() => {
-    const batteriesToCalculate = [selectedBattery, ...comparisonBatteries]
-    const newResults = new Map<string, {result: SimplePeakShavingResult, projection: any}>()
+    const newResults = new Map<string, {result: SimplePeakShavingResult, projection: any, combined?: { annual: number, monthly: number, projection: any, netCost: number } }>()
     const uloRatePlan = getCustomUloRatePlan()
 
     // Get solar rebate if solar system exists
-    const systemSizeKw = data.estimate?.system?.sizeKw || 0
+    const systemSizeKw = (systemSizeKwOverride || data.estimate?.system?.sizeKw || 0)
     const solarRebatePerKw = 500
     const solarMaxRebate = 5000
     const solarRebate = systemSizeKw > 0 ? Math.min(systemSizeKw * solarRebatePerKw, solarMaxRebate) : 0
 
-    batteriesToCalculate.forEach(batteryId => {
-      const battery = BATTERY_SPECS.find(b => b.id === batteryId)
-      if (!battery) return
+    // Find all selected batteries
+    const batteries = selectedBatteries.map(id => BATTERY_SPECS.find(b => b.id === id)).filter(Boolean) as BatterySpec[]
+    
+    // Create combined battery spec from all selected batteries
+    const battery = batteries.length > 0 ? batteries.reduce((combined, current, idx) => {
+      if (idx === 0) return { ...current }
+      return {
+        ...combined,
+        nominalKwh: combined.nominalKwh + current.nominalKwh,
+        usableKwh: combined.usableKwh + current.usableKwh,
+        price: combined.price + current.price
+      }
+    }, batteries[0]) : null
+
+    if (battery) {
+      // Get solar production (use override if available)
+      const solarProductionKwh = overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0
 
       const calcResult = calculateSimplePeakShaving(
         annualUsageKwh,
         battery,
         uloRatePlan,
-        uloDistribution
+        uloDistribution,
+        solarProductionKwh > 0 ? solarProductionKwh : undefined
       )
 
-      // Calculate battery rebate
+      // Calculate battery rebate (combined for all batteries)
       const batteryRebate = Math.min(battery.nominalKwh * 300, 5000)
       // Calculate net cost including both battery and solar rebates
       const netCost = battery.price - batteryRebate - solarRebate
       const multiYear = calculateSimpleMultiYear(calcResult, netCost, 0.05, 25)
 
-      newResults.set(batteryId, { result: calcResult, projection: multiYear })
-    })
+      // Combined (Solar + Battery) figures
+      const solarAnnual = data.estimate?.savings?.annualSavings || 0
+      const combinedAnnual = calcResult.annualSavings + solarAnnual
+      const combinedMonthly = Math.round(combinedAnnual / 12)
+      const solarNet = data.estimate?.costs?.netCost || 0
+      const combinedNet = Math.max(0, solarNet + netCost)
+      const combinedProjection = calculateSimpleMultiYear({ annualSavings: combinedAnnual } as any, combinedNet, 0.05, 25)
+
+      newResults.set('combined', { result: calcResult, projection: multiYear, combined: { annual: combinedAnnual, monthly: combinedMonthly, projection: combinedProjection, netCost: combinedNet } })
+    }
 
     setUloResults(newResults)
-  }, [annualUsageKwh, selectedBattery, comparisonBatteries, uloDistribution, customRates.ulo, data.estimate])
-
-  // Toggle comparison battery
-  const toggleComparisonBattery = (batteryId: string) => {
-    if (batteryId === selectedBattery) return
-    
-    if (comparisonBatteries.includes(batteryId)) {
-      setComparisonBatteries(comparisonBatteries.filter(id => id !== batteryId))
-    } else {
-      setComparisonBatteries([...comparisonBatteries, batteryId])
-    }
-  }
+  }, [annualUsageInput, selectedBatteries, uloDistribution, customRates.ulo, data.estimate, systemSizeKwOverride, overrideEstimate])
 
   const handleComplete = () => {
-    const selectedTouResult = touResults.get(selectedBattery)
-    const selectedUloResult = uloResults.get(selectedBattery)
+    const selectedTouResult = touResults.get('combined')
+    const selectedUloResult = uloResults.get('combined')
     onComplete({
       ...data,
-      selectedBattery,
+      solarOverride: { numPanels: solarPanels, sizeKw: systemSizeKwOverride },
+      selectedBatteries,
       peakShaving: {
         annualUsageKwh,
         tou: {
@@ -209,8 +279,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
           result: selectedUloResult?.result,
           projection: selectedUloResult?.projection,
           allResults: Object.fromEntries(uloResults)
-        },
-        comparisonBatteries
+        }
       }
     })
   }
@@ -266,32 +335,41 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
             </div>
             <h3 className="text-lg font-bold text-navy-500">Your Solar System</h3>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <p className="text-xs text-gray-600 font-medium">System Size</p>
-              <p className="text-xl font-bold text-green-600">{data.estimate.system.sizeKw} kW</p>
+              <p className="text-xl font-bold text-green-600">{(systemSizeKwOverride || data.estimate.system.sizeKw).toFixed(1)} kW</p>
             </div>
             <div>
               <p className="text-xs text-gray-600 font-medium">Solar Panels</p>
-              <p className="text-xl font-bold text-green-600">{data.estimate.system.numPanels}</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={solarPanels}
+                  min={0}
+                  onChange={(e) => setSolarPanels(Math.max(0, Number(e.target.value)))}
+                  className="w-24 px-2 py-1 border-2 border-green-300 rounded-md text-green-700 font-bold focus:ring-2 focus:ring-green-400 focus:border-green-400"
+                />
+              </div>
             </div>
             <div>
               <p className="text-xs text-gray-600 font-medium">Annual Production</p>
-              <p className="text-xl font-bold text-green-600">{Math.round(data.estimate.production.annualKwh).toLocaleString()} kWh</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-600 font-medium">Solar Offset</p>
-              <p className="text-xl font-bold text-green-600">
-                {Math.min(100, Math.round((data.estimate.production.annualKwh / (annualUsageKwh || 1)) * 100))}%
-              </p>
+              <p className="text-xl font-bold text-green-600">{Math.round((overrideEstimate?.production?.annualKwh ?? data.estimate.production.annualKwh)).toLocaleString()} kWh</p>
             </div>
             <div>
               <p className="text-xs text-gray-600 font-medium">Solar Rebate Available</p>
               <p className="text-xl font-bold text-green-600">
-                ${Math.min(data.estimate.system.sizeKw * 500, 5000).toLocaleString()}
+                ${Math.min((systemSizeKwOverride || data.estimate.system.sizeKw) * 500, 5000).toLocaleString()}
               </p>
             </div>
           </div>
+        </div>
+      )}
+      
+      {/* Note about override */}
+      {data.estimate?.system && (
+        <div className="text-xs text-gray-600 px-1">
+          Adjust the panel count to model a different array size for incentives and combined payback. Solar production remains from the current estimate in this step.
         </div>
       )}
 
@@ -372,14 +450,45 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
         cancelText="Close"
       >
         {(() => {
-          const solarNet = data.estimate?.costs?.netCost || 0
-          const solarAnnual = data.estimate?.savings?.annualSavings || 0
-          const tou = touResults.get(selectedBattery)
-          const ulo = uloResults.get(selectedBattery)
-          const batteryTouNet = tou?.projection?.netCost || 0
-          const batteryUloNet = ulo?.projection?.netCost || 0
+          // Use override estimate if available
+          const currentEstimate = overrideEstimate || data.estimate
+          const solarNet = currentEstimate?.costs?.netCost || 0
+          const solarAnnual = currentEstimate?.savings?.annualSavings || 0
+          const solarTotal = currentEstimate?.costs?.totalCost || 0
+          const solarRebate = currentEstimate?.costs?.incentives || 0
+          const tou = touResults.get('combined')
+          const ulo = uloResults.get('combined')
+          
+          // Calculate combined battery specs
+          const batteries = selectedBatteries.map(id => BATTERY_SPECS.find(b => b.id === id)).filter(Boolean) as BatterySpec[]
+          const combinedBattery = batteries.length > 0 ? batteries.reduce((combined, current) => ({
+            ...combined,
+            nominalKwh: combined.nominalKwh + current.nominalKwh,
+            usableKwh: combined.usableKwh + current.usableKwh,
+            price: combined.price + current.price
+          })) : null
+          
+          // IMPORTANT: projection.netCost includes solar rebate; for payback math we want battery-only net
+          const batteryProgramRebate = Math.min((combinedBattery?.nominalKwh || 0) * 300, 5000)
+          const batteryBasePrice = combinedBattery?.price || 0
+          const remainingAfterProgram = Math.max(0, batteryBasePrice - batteryProgramRebate)
+
+          // PRIORITIZE REBATE TO BATTERY (DISPLAY ONLY):
+          // Use solar rebate to cover remaining battery cost so battery appears $0 net.
+          const solarRebateToBattery = Math.min(solarRebate, remainingAfterProgram)
+          const displayBatteryNet = Math.max(0, remainingAfterProgram - solarRebateToBattery) // should be 0 when enough rebate
+          const displaySolarNet = solarNet + solarRebateToBattery // reallocating rebate increases solar net in display
+
+          const batteryTouNet = displayBatteryNet
+          const batteryUloNet = displayBatteryNet
           const batteryTouAnnual = tou?.result?.annualSavings || 0
           const batteryUloAnnual = ulo?.result?.annualSavings || 0
+
+          // Battery price from spec to show rebate breakdown
+          const batteryPrice = batteryBasePrice
+          // Display battery rebate as PROGRAM rebate only (do not include solar allocation)
+          const batteryTouRebate = batteryProgramRebate
+          const batteryUloRebate = batteryProgramRebate
 
           const fullTouNet = solarNet + batteryTouNet
           const fullUloNet = solarNet + batteryUloNet
@@ -400,7 +509,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
               <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
                 <div className="text-xs font-semibold text-navy-600 mb-1">TOU Sample</div>
                 <div className="text-xs text-gray-700">
-                  Net Cost = ${solarNet.toLocaleString()} + ${batteryTouNet.toLocaleString()} = <span className="font-semibold">${fullTouNet.toLocaleString()}</span>
+                  Net Cost = ${displaySolarNet.toLocaleString()} + ${batteryTouNet.toLocaleString()} = <span className="font-semibold">${(displaySolarNet + batteryTouNet).toLocaleString()}</span>
+                </div>
+                <div className="text-[11px] text-gray-600">
+                  Rebates: Solar ${solarRebate.toLocaleString()} + Battery ${batteryTouRebate.toLocaleString()} (Battery price ${batteryPrice.toLocaleString()} − Rebate ${batteryTouRebate.toLocaleString()})
                 </div>
                 <div className="text-xs text-gray-700">
                   Annual Savings = ${solarAnnual.toLocaleString()} + ${batteryTouAnnual.toLocaleString()} = <span className="font-semibold">${fullTouAnnual.toLocaleString()}</span>
@@ -414,7 +526,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
               <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
                 <div className="text-xs font-semibold text-navy-600 mb-1">ULO Sample</div>
                 <div className="text-xs text-gray-700">
-                  Net Cost = ${solarNet.toLocaleString()} + ${batteryUloNet.toLocaleString()} = <span className="font-semibold">${fullUloNet.toLocaleString()}</span>
+                  Net Cost = ${displaySolarNet.toLocaleString()} + ${batteryUloNet.toLocaleString()} = <span className="font-semibold">${(displaySolarNet + batteryUloNet).toLocaleString()}</span>
+                </div>
+                <div className="text-[11px] text-gray-600">
+                  Rebates: Solar ${solarRebate.toLocaleString()} + Battery ${batteryUloRebate.toLocaleString()} (Battery price ${batteryPrice.toLocaleString()} − Rebate ${batteryUloRebate.toLocaleString()})
                 </div>
                 <div className="text-xs text-gray-700">
                   Annual Savings = ${solarAnnual.toLocaleString()} + ${batteryUloAnnual.toLocaleString()} = <span className="font-semibold">${fullUloAnnual.toLocaleString()}</span>
@@ -434,6 +549,73 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
         })()}
       </Modal>
 
+      {/* Savings & 25-Year Profit Info Modal */}
+      <Modal
+        isOpen={showSavingsInfo}
+        onClose={() => setShowSavingsInfo(false)}
+        title="How Annual Savings & 25‑Year Profit Are Calculated"
+        message="We calculate annual savings and 25‑year profit by combining your solar system with the battery savings from each rate plan."
+        variant="info"
+        cancelText="Close"
+      >
+        {(() => {
+          const currentEstimate = overrideEstimate || data.estimate
+          const solarNet = currentEstimate?.costs?.netCost || 0
+          const solarAnnual = currentEstimate?.savings?.annualSavings || 0
+          const tou = touResults.get('combined')
+          const ulo = uloResults.get('combined')
+          const batteryTouAnnual = tou?.result?.annualSavings || 0
+          const batteryUloAnnual = ulo?.result?.annualSavings || 0
+          const fullTouAnnual = solarAnnual + batteryTouAnnual
+          const fullUloAnnual = solarAnnual + batteryUloAnnual
+
+          const touProfit = tou?.combined?.projection?.netProfit25Year || 0
+          const uloProfit = ulo?.combined?.projection?.netProfit25Year || 0
+
+          return (
+            <div className="space-y-4 text-sm text-gray-700">
+              <div>
+                <span className="font-semibold">Formulas</span>
+                <div className="mt-1 text-xs text-gray-600 ml-1">Combined Annual Savings = Solar Annual Savings + Battery Annual Savings (from rate plan)</div>
+                <div className="mt-1 text-xs text-gray-600 ml-1">25‑Year Profit = (Sum of Combined Annual Savings with 5%/year escalation over 25 years) − Combined Net Investment</div>
+              </div>
+
+              {/* TOU Sample */}
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <div className="text-xs font-semibold text-navy-600 mb-1">TOU Sample</div>
+                <div className="text-xs text-gray-700">
+                  Combined Annual Savings = ${solarAnnual.toLocaleString()} (Solar) + ${batteryTouAnnual.toLocaleString()} (Battery) = <span className="font-semibold">${fullTouAnnual.toLocaleString()}</span>
+                </div>
+                <div className="text-xs text-gray-700 mt-1">
+                  25‑Year Profit = <span className="font-bold text-green-600">${touProfit.toLocaleString()}</span>
+                </div>
+                <div className="text-[11px] text-gray-600 mt-1">
+                  (Sum of annual savings with 5% escalation over 25 years minus combined net investment)
+                </div>
+              </div>
+
+              {/* ULO Sample */}
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <div className="text-xs font-semibold text-navy-600 mb-1">ULO Sample</div>
+                <div className="text-xs text-gray-700">
+                  Combined Annual Savings = ${solarAnnual.toLocaleString()} (Solar) + ${batteryUloAnnual.toLocaleString()} (Battery) = <span className="font-semibold">${fullUloAnnual.toLocaleString()}</span>
+                </div>
+                <div className="text-xs text-gray-700 mt-1">
+                  25‑Year Profit = <span className="font-bold text-green-600">${uloProfit.toLocaleString()}</span>
+                </div>
+                <div className="text-[11px] text-gray-600 mt-1">
+                  (Sum of annual savings with 5% escalation over 25 years minus combined net investment)
+                </div>
+              </div>
+
+              <div className="text-xs text-gray-600 italic mt-2">
+                <span className="font-semibold">Why TOU and ULO differ:</span> Each rate plan has different time‑of‑use prices and charging rates. Battery charges at cheap hours (ultra‑low overnight for ULO, off‑peak for TOU) and discharges during expensive peak hours, so the savings depend on the rate structure.
+              </div>
+            </div>
+          )
+        })()}
+      </Modal>
+
       {/* Input Section */}
       <div className="card p-6 space-y-6 shadow-md">
         {/* Annual Usage */}
@@ -445,11 +627,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
           <div className="relative">
             <input
               type="number"
-              value={annualUsageKwh}
-              onChange={(e) => setAnnualUsageKwh(Number(e.target.value))}
+              value={annualUsageInput}
+              onChange={(e) => setAnnualUsageInput(e.target.value)}
               className="w-full px-4 py-4 pr-16 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 text-lg font-bold text-navy-600 shadow-sm transition-all"
-              min="1000"
-              max="50000"
+              min="0"
               step="100"
             />
             <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
@@ -812,54 +993,102 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
          </div>
       </div>
 
-      {/* Battery Selection - Dropdown */}
+      {/* Battery Selection - Multiple Batteries */}
       <div className="card p-6 shadow-md">
         <div className="flex items-center gap-3 mb-5">
           <div className="p-2 bg-red-100 rounded-lg">
             <Battery className="text-red-500" size={24} />
           </div>
-          <h3 className="text-2xl font-bold text-navy-500">Choose Your Battery</h3>
+          <h3 className="text-2xl font-bold text-navy-500">Choose Your Batteries</h3>
         </div>
         
         <div className="space-y-5">
-          {/* Dropdown for main battery selection */}
-          <div>
-            <label className="flex items-center gap-2 text-sm font-semibold text-navy-600 mb-2">
-              <Award className="text-red-500" size={16} />
-              Select Battery Model
-            </label>
-             <div className="relative">
-               <select
-                 value={selectedBattery}
-                 onChange={(e) => setSelectedBattery(e.target.value)}
-                 className="w-full px-4 py-4 pr-10 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 text-lg font-bold text-navy-600 bg-white shadow-sm appearance-none cursor-pointer transition-all"
-               >
-                 {BATTERY_SPECS.map(battery => (
-                   <option key={battery.id} value={battery.id}>
-                     {battery.brand} {battery.model}
-                   </option>
-                 ))}
-               </select>
-               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={24} />
-             </div>
-          </div>
-
-          {/* Selected Battery Info Card */}
-          {(() => {
-            const battery = BATTERY_SPECS.find(b => b.id === selectedBattery)
+          {/* Battery Selection List */}
+          {selectedBatteries.map((batteryId, index) => {
+            const battery = BATTERY_SPECS.find(b => b.id === batteryId)
             if (!battery) return null
+            
+            return (
+              <div key={`${batteryId}-${index}`} className="p-4 bg-gradient-to-br from-red-50 to-white border-2 border-red-300 rounded-xl shadow-md">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
+                      <Battery size={20} className="text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-bold text-navy-600 text-sm mb-2">
+                        Battery {index + 1}
+                      </div>
+                      <div className="relative">
+                        <select
+                          value={batteryId}
+                          onChange={(e) => {
+                            const newBatteries = [...selectedBatteries]
+                            newBatteries[index] = e.target.value
+                            setSelectedBatteries(newBatteries)
+                          }}
+                          className="w-full px-3 py-2 pr-8 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-base font-bold text-navy-600 bg-white shadow-sm appearance-none cursor-pointer transition-all"
+                        >
+                          {BATTERY_SPECS.map(b => (
+                            <option key={b.id} value={b.id}>
+                              {b.brand} {b.model}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={18} />
+                      </div>
+                    </div>
+                  </div>
+                  {selectedBatteries.length > 1 && (
+                    <button
+                      onClick={() => setSelectedBatteries(selectedBatteries.filter((_, i) => i !== index))}
+                      className="p-2 hover:bg-red-100 rounded-lg transition-colors flex-shrink-0"
+                    >
+                      <X className="text-red-500" size={20} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+
+          {/* Add Battery Button */}
+          {selectedBatteries.length < 3 && (
+            <button
+              onClick={() => setSelectedBatteries([...selectedBatteries, BATTERY_SPECS[0].id])}
+              className="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-red-500 hover:bg-red-50 hover:text-navy-600 transition-all flex items-center justify-center gap-2"
+            >
+              <Plus className="text-red-500" size={20} />
+              <span className="font-semibold">Add Another Battery</span>
+            </button>
+          )}
+
+          {/* Combined Battery Summary */}
+          {(() => {
+            const batteries = selectedBatteries.map(id => BATTERY_SPECS.find(b => b.id === id)).filter(Boolean) as BatterySpec[]
+            if (batteries.length === 0) return null
+            
+            // Create combined battery spec
+            const battery = batteries.reduce((combined, current, idx) => {
+              if (idx === 0) return { ...current }
+              return {
+                ...combined,
+                nominalKwh: combined.nominalKwh + current.nominalKwh,
+                usableKwh: combined.usableKwh + current.usableKwh,
+                price: combined.price + current.price
+              }
+            }, batteries[0])
+            
             const financials = calculateBatteryFinancials(battery)
             
             // Calculate solar rebate if solar system exists
-            const systemSizeKw = data.estimate?.system?.sizeKw || 0
+            const systemSizeKw = (systemSizeKwOverride || data.estimate?.system?.sizeKw || 0)
             const solarRebatePerKw = 500
             const solarMaxRebate = 5000
             const solarRebate = systemSizeKw > 0 ? Math.min(systemSizeKw * solarRebatePerKw, solarMaxRebate) : 0
             
-            // Calculate total rebates (battery + solar)
+            // Calculate total rebates
             const totalRebates = financials.rebate + solarRebate
-            
-            // Calculate net cost with solar rebate
             const netCostWithSolarRebate = battery.price - totalRebates
             
             return (
@@ -870,7 +1099,9 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <div className="font-bold text-navy-500 text-xl">{battery.brand} {battery.model}</div>
+                      <div className="font-bold text-navy-500 text-xl">
+                        {batteries.map(b => `${b.brand} ${b.model}`).join(' + ')}
+                      </div>
                       <div className="px-2 py-1 bg-red-500 text-white text-xs rounded-full font-semibold">
                         SELECTED
                       </div>
@@ -879,7 +1110,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                       <div className="flex items-center gap-2">
                         <DollarSign size={18} className="text-gray-500" />
                         <div>
-                          <div className="text-xs text-gray-600 font-medium">Price</div>
+                          <div className="text-xs text-gray-600 font-medium">Total Price</div>
                           <div className="font-bold text-navy-600">${battery.price.toLocaleString()}</div>
                         </div>
                       </div>
@@ -915,58 +1146,14 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
               </div>
             )
           })()}
-
-          {/* Compare with other batteries */}
-          <div className="pt-4 border-t border-gray-200">
-            <button
-              onClick={() => setShowComparison(!showComparison)}
-              className="text-sm text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-2 transition-colors"
-            >
-              {showComparison ? (
-                <>
-                  <ChevronDown size={16} className="transform rotate-180 transition-transform" />
-                  Hide Comparison
-                </>
-              ) : (
-                <>
-                  <ChevronDown size={16} />
-                  Compare with Other Batteries
-                </>
-              )}
-            </button>
-            
-            {showComparison && (
-              <div className="mt-4 space-y-3">
-                <p className="text-sm text-gray-600 font-medium">
-                  Select additional batteries to compare:
-                </p>
-                 <div className="flex flex-wrap gap-2">
-                   {BATTERY_SPECS.filter(b => b.id !== selectedBattery).map(battery => (
-                     <button
-                       key={battery.id}
-                       onClick={() => toggleComparisonBattery(battery.id)}
-                       className={`px-3 py-2 rounded-lg text-sm border-2 transition-all flex items-center gap-1 ${
-                         comparisonBatteries.includes(battery.id)
-                           ? 'border-blue-500 bg-blue-50 text-blue-700 font-semibold shadow-sm'
-                           : 'border-gray-300 text-gray-700 hover:border-blue-400 hover:bg-blue-50'
-                       }`}
-                     >
-                       {comparisonBatteries.includes(battery.id) && <Check size={14} />}
-                       {battery.brand} {battery.model}
-                     </button>
-                   ))}
-                 </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
-       {/* Results - Selected Battery - Both TOU and ULO */}
-       {touResults.get(selectedBattery) && uloResults.get(selectedBattery) && (() => {
-         const touData = touResults.get(selectedBattery)!
-         const uloData = uloResults.get(selectedBattery)!
-         const battery = BATTERY_SPECS.find(b => b.id === selectedBattery)!
+       {/* Results - Both TOU and ULO */}
+       {touResults.get('combined') && uloResults.get('combined') && (() => {
+         const touData = touResults.get('combined')!
+         const uloData = uloResults.get('combined')!
+         const batteries = selectedBatteries.map(id => BATTERY_SPECS.find(b => b.id === id)!).filter(Boolean)
          
          return (
          <div className="card p-8 bg-gradient-to-br from-white to-gray-50 border-2 border-navy-300 shadow-xl">
@@ -974,38 +1161,46 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
              <div className="p-3 bg-gradient-to-br from-navy-500 to-navy-600 rounded-xl shadow-lg">
                <TrendingUp className="text-white" size={32} />
              </div>
-             <h3 className="text-3xl font-bold text-navy-500">
-               {battery.brand} {battery.model} - Savings Comparison
-             </h3>
+            <h3 className="text-3xl font-bold text-navy-500">
+              {batteries.map(b => `${b.brand} ${b.model}`).join(' + ')} - Savings Comparison
+            </h3>
            </div>
            
            {/* Big Numbers - Both Plans */}
            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-             <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-200 hover:border-red-300 transition-all">
-               <div className="flex items-center gap-2 mb-3">
-                 <div className="p-2 bg-red-100 rounded-lg">
-                   <DollarSign className="text-red-500" size={22} />
-                 </div>
-                 <div className="text-sm font-bold text-gray-600 uppercase tracking-wide">Annual Savings</div>
-               </div>
+            <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-200 hover:border-red-300 transition-all">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-red-100 rounded-lg">
+                    <DollarSign className="text-red-500" size={22} />
+                  </div>
+                  <div className="text-sm font-bold text-gray-600 uppercase tracking-wide">Annual Savings</div>
+                </div>
+                <button
+                  onClick={() => setShowSavingsInfo(true)}
+                  className="inline-flex items-center gap-1 text-navy-600 hover:text-navy-700 text-xs font-semibold"
+                >
+                  <Info size={16} /> Info
+                </button>
+              </div>
                <div className="space-y-2">
                  <div>
-                   <div className="text-xs text-gray-500">TOU Plan</div>
-                   <div className="text-2xl font-bold text-red-600">
-                     ${touData.result.annualSavings.toFixed(0)}
-                   </div>
-                   <div className="text-xs text-gray-600">
-                     ${touData.result.monthlySavings.toFixed(0)}/month
-                   </div>
+                  <div className="text-xs text-gray-500">TOU Plan (Solar + Battery)</div>
+                  <div className="text-2xl font-bold text-red-600">
+                    ${Math.round((touData.combined?.annual || 0)).toLocaleString()}
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    ${Math.round((touData.combined?.monthly || 0)).toLocaleString()}/month
+                  </div>
                  </div>
                  <div className="border-t border-gray-200 pt-2">
-                   <div className="text-xs text-gray-500">ULO Plan</div>
-                   <div className="text-2xl font-bold text-red-600">
-                     ${uloData.result.annualSavings.toFixed(0)}
-                   </div>
-                   <div className="text-xs text-gray-600">
-                     ${uloData.result.monthlySavings.toFixed(0)}/month
-                   </div>
+                  <div className="text-xs text-gray-500">ULO Plan (Solar + Battery)</div>
+                  <div className="text-2xl font-bold text-red-600">
+                    ${Math.round((uloData.combined?.annual || 0)).toLocaleString()}
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    ${Math.round((uloData.combined?.monthly || 0)).toLocaleString()}/month
+                  </div>
                  </div>
                </div>
              </div>
@@ -1026,10 +1221,13 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                 </button>
               </div>
                {(() => {
-                 const solarNetCost = data.estimate?.costs?.netCost || 0
-                 const solarAnnualSavings = data.estimate?.savings?.annualSavings || 0
-                 const batteryTouNet = touData.projection.netCost || 0
-                 const batteryUloNet = uloData.projection.netCost || 0
+                 // Use override estimate if available, otherwise fallback to original
+                 const currentEstimate = overrideEstimate || data.estimate
+                 const solarNetCost = currentEstimate?.costs?.netCost || 0
+                 const solarAnnualSavings = currentEstimate?.savings?.annualSavings || 0
+                 // Use combined net from precomputed maps when available; fallback to plan projection
+                 const batteryTouNet = touData.combined ? (touData.combined.netCost - solarNetCost) : (touData.projection.netCost || 0)
+                 const batteryUloNet = uloData.combined ? (uloData.combined.netCost - solarNetCost) : (uloData.projection.netCost || 0)
                  const batteryTouAnnual = touData.result.annualSavings || 0
                  const batteryUloAnnual = uloData.result.annualSavings || 0
 
@@ -1066,25 +1264,33 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                })()}
              </div>
 
-             <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-200 hover:border-green-300 transition-all">
-               <div className="flex items-center gap-2 mb-3">
-                 <div className="p-2 bg-green-100 rounded-lg">
-                   <TrendingUp className="text-green-600" size={22} />
-                 </div>
-                 <div className="text-sm font-bold text-gray-600 uppercase tracking-wide">25-Year Profit</div>
-               </div>
+            <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-200 hover:border-green-300 transition-all">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <TrendingUp className="text-green-600" size={22} />
+                  </div>
+                  <div className="text-sm font-bold text-gray-600 uppercase tracking-wide">25-Year Profit</div>
+                </div>
+                <button
+                  onClick={() => setShowSavingsInfo(true)}
+                  className="inline-flex items-center gap-1 text-navy-600 hover:text-navy-700 text-xs font-semibold"
+                >
+                  <Info size={16} /> Info
+                </button>
+              </div>
                <div className="space-y-2">
                  <div>
-                   <div className="text-xs text-gray-500">TOU Plan</div>
-                   <div className="text-2xl font-bold text-green-600">
-                     ${touData.projection.netProfit25Year.toLocaleString()}
-                   </div>
+                   <div className="text-xs text-gray-500">TOU Plan (Solar + Battery)</div>
+                  <div className="text-2xl font-bold text-green-600">
+                    ${(touData.combined?.projection?.netProfit25Year ?? touData.projection.netProfit25Year).toLocaleString()}
+                  </div>
                  </div>
                  <div className="border-t border-gray-200 pt-2">
-                   <div className="text-xs text-gray-500">ULO Plan</div>
-                   <div className="text-2xl font-bold text-green-600">
-                     ${uloData.projection.netProfit25Year.toLocaleString()}
-                   </div>
+                   <div className="text-xs text-gray-500">ULO Plan (Solar + Battery)</div>
+                  <div className="text-2xl font-bold text-green-600">
+                    ${(uloData.combined?.projection?.netProfit25Year ?? uloData.projection.netProfit25Year).toLocaleString()}
+                  </div>
                  </div>
                </div>
              </div>
@@ -1142,24 +1348,25 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                    </div>
                  </div>
                </div>
-               <div className="mt-5 p-4 bg-gradient-to-r from-green-50 via-white to-navy-50 rounded-xl border-2 border-green-400 shadow-sm">
-                 <div className="flex items-center justify-between">
-                   <div className="flex items-center gap-2">
-                     <div className="p-1.5 bg-green-500 rounded-lg">
-                       <TrendingUp size={18} className="text-white" />
-                     </div>
-                     <span className="font-bold text-navy-600">Annual Savings:</span>
-                   </div>
-                   <div className="text-right">
-                     <div className="text-xl font-bold text-green-600">
-                       ${touData.result.annualSavings.toFixed(2)}
-                     </div>
-                     <div className="text-xs text-gray-600 font-medium">
-                       {touData.result.savingsPercent.toFixed(1)}% reduction
-                     </div>
-                   </div>
-                 </div>
-               </div>
+              <div className="mt-5 p-4 bg-gradient-to-r from-green-50 via-white to-navy-50 rounded-xl border-2 border-green-400 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-green-500 rounded-lg">
+                      <TrendingUp size={18} className="text-white" />
+                    </div>
+                    <span className="font-bold text-navy-600">Annual Savings:</span>
+                    <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-300">Battery only</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xl font-bold text-green-600">
+                      ${touData.result.annualSavings.toFixed(2)}
+                    </div>
+                    <div className="text-xs text-gray-600 font-medium">
+                      {touData.result.savingsPercent.toFixed(1)}% reduction
+                    </div>
+                  </div>
+                </div>
+              </div>
              </div>
 
              {/* ULO Cost Breakdown */}
@@ -1224,165 +1431,315 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                    </div>
                  </div>
                </div>
-               <div className="mt-5 p-4 bg-gradient-to-r from-green-50 via-white to-navy-50 rounded-xl border-2 border-green-400 shadow-sm">
-                 <div className="flex items-center justify-between">
-                   <div className="flex items-center gap-2">
-                     <div className="p-1.5 bg-green-500 rounded-lg">
-                       <TrendingUp size={18} className="text-white" />
-                     </div>
-                     <span className="font-bold text-navy-600">Annual Savings:</span>
-                   </div>
-                   <div className="text-right">
-                     <div className="text-xl font-bold text-green-600">
-                       ${uloData.result.annualSavings.toFixed(2)}
-                     </div>
-                     <div className="text-xs text-gray-600 font-medium">
-                       {uloData.result.savingsPercent.toFixed(1)}% reduction
-                     </div>
-                   </div>
-                 </div>
-               </div>
+              <div className="mt-5 p-4 bg-gradient-to-r from-green-50 via-white to-navy-50 rounded-xl border-2 border-green-400 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-green-500 rounded-lg">
+                      <TrendingUp size={18} className="text-white" />
+                    </div>
+                    <span className="font-bold text-navy-600">Annual Savings:</span>
+                    <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-300">Battery only</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xl font-bold text-green-600">
+                      ${uloData.result.annualSavings.toFixed(2)}
+                    </div>
+                    <div className="text-xs text-gray-600 font-medium">
+                      {uloData.result.savingsPercent.toFixed(1)}% reduction
+                    </div>
+                  </div>
+                </div>
+              </div>
              </div>
            </div>
+
+           {/* Full Calculation Breakdown - Card Layout */}
+           {(touData.result || uloData.result) && (
+             <div className="mt-6">
+               <div className="flex items-center gap-3 mb-4">
+                 <div className="p-2 bg-navy-500 rounded-lg">
+                   <BarChart3 className="text-white" size={24} />
+                 </div>
+                 <h4 className="text-2xl font-bold text-navy-600">Full Offset Calculation Breakdown</h4>
+               </div>
+               
+               <div className="grid md:grid-cols-2 gap-6">
+                 {/* TOU Calculation Card */}
+                 {(() => {
+                   // Get solar production
+                   const solarProductionKwh = overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0
+                   
+                   // Calculate solar offset (50% max - daytime only)
+                   const solarOffsetKwh = solarProductionKwh > 0 
+                     ? Math.min(solarProductionKwh, annualUsageKwh * 0.5)
+                     : 0
+                   const solarOffsetPercent = annualUsageKwh > 0 ? (solarOffsetKwh / annualUsageKwh) * 100 : 0
+                   
+                   // Calculate TOU battery offset
+                   const touBatteryOffsetKwh = touData.result.batteryOffsets.onPeak + 
+                                              touData.result.batteryOffsets.midPeak + 
+                                              touData.result.batteryOffsets.offPeak + 
+                                              (touData.result.batteryOffsets.ultraLow || 0)
+                   
+                   // Calculate combined offset
+                   const touCombinedOffset = solarOffsetKwh + touBatteryOffsetKwh
+                   const touCombinedOffsetPercent = annualUsageKwh > 0 ? (touCombinedOffset / annualUsageKwh) * 100 : 0
+                   
+                   // TOU Leftover calculations
+                   const touLeftoverKwh = touData.result.leftoverEnergy.totalKwh
+                   const touLeftoverPercent = touData.result.leftoverEnergy.consumptionPercent
+                   const touLeftoverCostPercent = touData.result.leftoverEnergy.costPercent
+                   const touLeftoverRate = touData.result.leftoverEnergy.ratePerKwh
+                   
+                   // Get TOU on-peak rate for comparison
+                   const touRatePlan = getCustomTouRatePlan()
+                   const touOnPeakRate = touRatePlan.periods.find(p => p.period === 'on-peak')?.rate || 20.3
+                   
+                   return (
+                     <div className="bg-gradient-to-br from-navy-50 to-white rounded-2xl border-2 border-navy-300 shadow-lg p-6">
+                       {/* TOU Header */}
+                       <div className="flex items-center gap-3 mb-6 pb-4 border-b-2 border-navy-200">
+                         <div className="p-2 bg-navy-500 rounded-xl">
+                           <Sun className="text-white" size={24} />
+                         </div>
+                         <div>
+                           <h5 className="text-xl font-bold text-navy-600">Time-of-Use (TOU)</h5>
+                           <p className="text-sm text-gray-600">Standard rate plan</p>
+                         </div>
+                       </div>
+                       
+                       {/* TOU Metrics */}
+                       <div className="space-y-4">
+                         <div className="grid grid-cols-2 gap-4">
+                           <div className="bg-white rounded-xl p-4 border-2 border-gray-200">
+                             <div className="text-xs font-semibold text-gray-600 mb-1">Total Consumption</div>
+                             <div className="text-2xl font-bold text-gray-800">{annualUsageKwh.toLocaleString()}</div>
+                             <div className="text-xs text-gray-500">kWh/year</div>
+                           </div>
+                           <div className="bg-white rounded-xl p-4 border-2 border-gray-200">
+                             <div className="text-xs font-semibold text-gray-600 mb-1">Solar Production</div>
+                             <div className="text-2xl font-bold text-green-600">{solarProductionKwh > 0 ? solarProductionKwh.toLocaleString() : '0'}</div>
+                             <div className="text-xs text-gray-500">kWh/year</div>
+                           </div>
+                         </div>
+                         
+                         <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-200">
+                           <div className="flex items-center justify-between mb-2">
+                             <div className="flex items-center gap-2">
+                               <Sun className="text-green-600" size={20} />
+                               <span className="font-bold text-gray-700">Day Time Offset</span>
+                             </div>
+                             <div className="text-right">
+                               <div className="text-2xl font-bold text-green-600">{solarOffsetKwh.toFixed(0)}</div>
+                               <div className="text-xs text-gray-600">({solarOffsetPercent.toFixed(1)}%)</div>
+                             </div>
+                           </div>
+                           <div className="text-xs text-gray-600 pl-7">Solar offset during daylight hours</div>
+                         </div>
+                         
+                         <div className="bg-gradient-to-r from-navy-50 to-blue-50 rounded-xl p-4 border-2 border-navy-200">
+                           <div className="flex items-center justify-between mb-2">
+                             <div className="flex items-center gap-2">
+                               <Moon className="text-navy-600" size={20} />
+                               <span className="font-bold text-gray-700">Night Time Offset</span>
+                             </div>
+                             <div className="text-right">
+                               <div className="text-2xl font-bold text-navy-600">{touBatteryOffsetKwh.toFixed(0)}</div>
+                               <div className="text-xs text-gray-600">kWh/year</div>
+                             </div>
+                           </div>
+                           <div className="text-xs text-gray-600 pl-7">Battery offset during nighttime</div>
+                         </div>
+                         
+                         <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-300">
+                           <div className="flex items-center justify-between mb-2">
+                             <div className="flex items-center gap-2">
+                               <BarChart3 className="text-green-600" size={20} />
+                               <span className="font-bold text-gray-700">Combined Offset</span>
+                             </div>
+                             <div className="text-right">
+                               <div className="text-2xl font-bold text-green-600">{touCombinedOffset.toFixed(0)}</div>
+                               <div className="text-xs text-gray-600">({touCombinedOffsetPercent.toFixed(2)}%)</div>
+                             </div>
+                           </div>
+                           <div className="text-xs text-gray-600 pl-7">Total solar + battery offset</div>
+                         </div>
+                         
+                         <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border-2 border-red-200">
+                           <div className="flex items-center justify-between mb-2">
+                             <div className="flex items-center gap-2">
+                               <AlertTriangle className="text-red-600" size={20} />
+                               <span className="font-bold text-gray-700">Left Over Energy</span>
+                             </div>
+                             <div className="text-right">
+                               <div className="text-2xl font-bold text-red-600">{touLeftoverKwh.toFixed(0)}</div>
+                               <div className="text-xs text-gray-600">({touLeftoverPercent.toFixed(2)}%)</div>
+                             </div>
+                           </div>
+                           <div className="text-xs text-gray-600 pl-7">Not offset by solar or battery</div>
+                         </div>
+                         
+                         <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-4 border-2 border-gray-300">
+                           <div className="flex items-center justify-between mb-2">
+                             <span className="font-bold text-gray-700">Cost of Leftover</span>
+                             <div className="text-right">
+                               <div className="text-2xl font-bold text-green-600">{touLeftoverCostPercent.toFixed(2)}%</div>
+                               <div className="text-xs text-gray-600">of total bill</div>
+                             </div>
+                           </div>
+                           <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                             <Info size={14} className="text-navy-500 flex-shrink-0" />
+                             <span className="text-xs text-gray-600">
+                               Leftover energy consumed at {(touLeftoverRate * 100).toFixed(1)}¢/kWh (off-peak) vs {touOnPeakRate.toFixed(1)}¢/kWh (on-peak worst-case)
+                             </span>
+                           </div>
+                         </div>
+                       </div>
+                     </div>
+                   )
+                 })()}
+                 
+                 {/* ULO Calculation Card */}
+                 {(() => {
+                   // Get solar production
+                   const solarProductionKwh = overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0
+                   
+                   // Calculate solar offset (50% max - daytime only)
+                   const solarOffsetKwh = solarProductionKwh > 0 
+                     ? Math.min(solarProductionKwh, annualUsageKwh * 0.5)
+                     : 0
+                   const solarOffsetPercent = annualUsageKwh > 0 ? (solarOffsetKwh / annualUsageKwh) * 100 : 0
+                   
+                   // Calculate ULO battery offset
+                   const uloBatteryOffsetKwh = uloData.result.batteryOffsets.onPeak + 
+                                              uloData.result.batteryOffsets.midPeak + 
+                                              uloData.result.batteryOffsets.offPeak + 
+                                              (uloData.result.batteryOffsets.ultraLow || 0)
+                   
+                   // Calculate combined offset
+                   const uloCombinedOffset = solarOffsetKwh + uloBatteryOffsetKwh
+                   const uloCombinedOffsetPercent = annualUsageKwh > 0 ? (uloCombinedOffset / annualUsageKwh) * 100 : 0
+                   
+                   // ULO Leftover calculations
+                   const uloLeftoverKwh = uloData.result.leftoverEnergy.totalKwh
+                   const uloLeftoverPercent = uloData.result.leftoverEnergy.consumptionPercent
+                   const uloLeftoverCostPercent = uloData.result.leftoverEnergy.costPercent
+                   const uloLeftoverRate = uloData.result.leftoverEnergy.ratePerKwh
+                   
+                   // Get ULO on-peak rate for comparison
+                   const uloRatePlan = getCustomUloRatePlan()
+                   const uloOnPeakRate = uloRatePlan.periods.find(p => p.period === 'on-peak')?.rate || 39.1
+                   
+                   return (
+                     <div className="bg-gradient-to-br from-red-50 to-white rounded-2xl border-2 border-red-300 shadow-lg p-6">
+                       {/* ULO Header */}
+                       <div className="flex items-center gap-3 mb-6 pb-4 border-b-2 border-red-200">
+                         <div className="p-2 bg-red-500 rounded-xl">
+                           <Moon className="text-white" size={24} />
+                         </div>
+                         <div>
+                           <h5 className="text-xl font-bold text-navy-600">Ultra-Low Overnight (ULO)</h5>
+                           <p className="text-sm text-gray-600">Best for overnight usage</p>
+                         </div>
+                       </div>
+                       
+                       {/* ULO Metrics */}
+                       <div className="space-y-4">
+                         <div className="grid grid-cols-2 gap-4">
+                           <div className="bg-white rounded-xl p-4 border-2 border-gray-200">
+                             <div className="text-xs font-semibold text-gray-600 mb-1">Total Consumption</div>
+                             <div className="text-2xl font-bold text-gray-800">{annualUsageKwh.toLocaleString()}</div>
+                             <div className="text-xs text-gray-500">kWh/year</div>
+                           </div>
+                           <div className="bg-white rounded-xl p-4 border-2 border-gray-200">
+                             <div className="text-xs font-semibold text-gray-600 mb-1">Solar Production</div>
+                             <div className="text-2xl font-bold text-green-600">{solarProductionKwh > 0 ? solarProductionKwh.toLocaleString() : '0'}</div>
+                             <div className="text-xs text-gray-500">kWh/year</div>
+                           </div>
+                         </div>
+                         
+                         <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-200">
+                           <div className="flex items-center justify-between mb-2">
+                             <div className="flex items-center gap-2">
+                               <Sun className="text-green-600" size={20} />
+                               <span className="font-bold text-gray-700">Day Time Offset</span>
+                             </div>
+                             <div className="text-right">
+                               <div className="text-2xl font-bold text-green-600">{solarOffsetKwh.toFixed(0)}</div>
+                               <div className="text-xs text-gray-600">({solarOffsetPercent.toFixed(1)}%)</div>
+                             </div>
+                           </div>
+                           <div className="text-xs text-gray-600 pl-7">Solar offset during daylight hours</div>
+                         </div>
+                         
+                         <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border-2 border-red-200">
+                           <div className="flex items-center justify-between mb-2">
+                             <div className="flex items-center gap-2">
+                               <Moon className="text-red-600" size={20} />
+                               <span className="font-bold text-gray-700">Night Time Offset</span>
+                             </div>
+                             <div className="text-right">
+                               <div className="text-2xl font-bold text-red-600">{uloBatteryOffsetKwh.toFixed(0)}</div>
+                               <div className="text-xs text-gray-600">kWh/year</div>
+                             </div>
+                           </div>
+                           <div className="text-xs text-gray-600 pl-7">Battery offset during nighttime</div>
+                         </div>
+                         
+                         <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-300">
+                           <div className="flex items-center justify-between mb-2">
+                             <div className="flex items-center gap-2">
+                               <BarChart3 className="text-green-600" size={20} />
+                               <span className="font-bold text-gray-700">Combined Offset</span>
+                             </div>
+                             <div className="text-right">
+                               <div className="text-2xl font-bold text-green-600">{uloCombinedOffset.toFixed(0)}</div>
+                               <div className="text-xs text-gray-600">({uloCombinedOffsetPercent.toFixed(2)}%)</div>
+                             </div>
+                           </div>
+                           <div className="text-xs text-gray-600 pl-7">Total solar + battery offset</div>
+                         </div>
+                         
+                         <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border-2 border-red-200">
+                           <div className="flex items-center justify-between mb-2">
+                             <div className="flex items-center gap-2">
+                               <AlertTriangle className="text-red-600" size={20} />
+                               <span className="font-bold text-gray-700">Left Over Energy</span>
+                             </div>
+                             <div className="text-right">
+                               <div className="text-2xl font-bold text-red-600">{uloLeftoverKwh.toFixed(0)}</div>
+                               <div className="text-xs text-gray-600">({uloLeftoverPercent.toFixed(2)}%)</div>
+                             </div>
+                           </div>
+                           <div className="text-xs text-gray-600 pl-7">Not offset by solar or battery</div>
+                         </div>
+                         
+                         <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-4 border-2 border-gray-300">
+                           <div className="flex items-center justify-between mb-2">
+                             <span className="font-bold text-gray-700">Cost of Leftover</span>
+                             <div className="text-right">
+                               <div className="text-2xl font-bold text-green-600">{uloLeftoverCostPercent.toFixed(2)}%</div>
+                               <div className="text-xs text-gray-600">of total bill</div>
+                             </div>
+                           </div>
+                           <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                             <Info size={14} className="text-red-500 flex-shrink-0" />
+                             <span className="text-xs text-gray-600">
+                               Leftover energy consumed at {(uloLeftoverRate * 100).toFixed(1)}¢/kWh (off-peak) vs {uloOnPeakRate.toFixed(1)}¢/kWh (on-peak worst-case)
+                             </span>
+                           </div>
+                         </div>
+                       </div>
+                     </div>
+                   )
+                 })()}
+               </div>
+             </div>
+           )}
 
          </div>
          )
        })()}
-
-      {/* Battery Comparison Table */}
-      {comparisonBatteries.length > 0 && (
-        <div className="card p-8 shadow-xl bg-gradient-to-br from-white to-gray-50 border-2 border-gray-300">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-navy-100 rounded-lg">
-              <BarChart3 className="text-navy-500" size={24} />
-            </div>
-            <h3 className="text-2xl font-bold text-navy-500">Battery Comparison - TOU vs ULO</h3>
-          </div>
-          
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* TOU Comparison */}
-            <div className="border-2 border-gray-300 rounded-xl p-5 bg-white shadow-md">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-1.5 bg-navy-500 rounded-lg">
-                  <Sun className="text-white" size={16} />
-                </div>
-                <h4 className="font-bold text-navy-500 text-lg">Time-of-Use Results</h4>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-100 border-b-2 border-gray-300">
-                    <tr>
-                      <th className="px-2 py-2 text-left text-xs font-semibold text-navy-600">Battery</th>
-                      <th className="px-2 py-2 text-right text-xs font-semibold text-navy-600">Savings</th>
-                      <th className="px-2 py-2 text-right text-xs font-semibold text-navy-600">Payback</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 bg-white">
-                    {touResults.get(selectedBattery) && (() => {
-                      const battery = BATTERY_SPECS.find(b => b.id === selectedBattery)!
-                      const { result, projection } = touResults.get(selectedBattery)!
-                      return (
-                        <tr key={selectedBattery} className="bg-red-50 font-semibold">
-                          <td className="px-2 py-2">
-                            <div className="flex items-center gap-1">
-                              <Battery size={12} className="text-red-500" />
-                              <span className="text-xs text-navy-600">{battery.brand} {battery.model}</span>
-                            </div>
-                          </td>
-                          <td className="px-2 py-2 text-right text-green-600 text-xs">${result.annualSavings.toFixed(0)}/yr</td>
-                          <td className="px-2 py-2 text-right text-xs">{projection.paybackYears.toFixed(1)}y</td>
-                        </tr>
-                      )
-                    })()}
-                    {comparisonBatteries.map(batteryId => {
-                      const battery = BATTERY_SPECS.find(b => b.id === batteryId)
-                      if (!battery || !touResults.get(batteryId)) return null
-                      const { result, projection } = touResults.get(batteryId)!
-                      return (
-                        <tr key={batteryId} className="hover:bg-gray-50">
-                          <td className="px-2 py-2 text-xs text-navy-600">{battery.brand} {battery.model}</td>
-                          <td className="px-2 py-2 text-right text-green-600 text-xs">${result.annualSavings.toFixed(0)}/yr</td>
-                          <td className="px-2 py-2 text-right text-xs">{projection.paybackYears.toFixed(1)}y</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* ULO Comparison */}
-            <div className="border-2 border-gray-300 rounded-xl p-5 bg-white shadow-md">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-1.5 bg-red-500 rounded-lg">
-                  <Moon className="text-white" size={16} />
-                </div>
-                <h4 className="font-bold text-navy-500 text-lg">Ultra-Low Overnight Results</h4>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-100 border-b-2 border-gray-300">
-                    <tr>
-                      <th className="px-2 py-2 text-left text-xs font-semibold text-navy-600">Battery</th>
-                      <th className="px-2 py-2 text-right text-xs font-semibold text-navy-600">Savings</th>
-                      <th className="px-2 py-2 text-right text-xs font-semibold text-navy-600">Payback</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 bg-white">
-                    {uloResults.get(selectedBattery) && (() => {
-                      const battery = BATTERY_SPECS.find(b => b.id === selectedBattery)!
-                      const { result, projection } = uloResults.get(selectedBattery)!
-                      return (
-                        <tr key={selectedBattery} className="bg-red-50 font-semibold">
-                          <td className="px-2 py-2">
-                            <div className="flex items-center gap-1">
-                              <Battery size={12} className="text-red-500" />
-                              <span className="text-xs text-navy-600">{battery.brand} {battery.model}</span>
-                            </div>
-                          </td>
-                          <td className="px-2 py-2 text-right text-green-600 text-xs">${result.annualSavings.toFixed(0)}/yr</td>
-                          <td className="px-2 py-2 text-right text-xs">{projection.paybackYears.toFixed(1)}y</td>
-                        </tr>
-                      )
-                    })()}
-                    {comparisonBatteries.map(batteryId => {
-                      const battery = BATTERY_SPECS.find(b => b.id === batteryId)
-                      if (!battery || !uloResults.get(batteryId)) return null
-                      const { result, projection } = uloResults.get(batteryId)!
-                      return (
-                        <tr key={batteryId} className="hover:bg-gray-50">
-                          <td className="px-2 py-2 text-xs text-navy-600">{battery.brand} {battery.model}</td>
-                          <td className="px-2 py-2 text-right text-green-600 text-xs">${result.annualSavings.toFixed(0)}/yr</td>
-                          <td className="px-2 py-2 text-right text-xs">{projection.paybackYears.toFixed(1)}y</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {/* Comparison Summary */}
-          <div className="mt-6 p-5 bg-gradient-to-r from-navy-50 to-gray-50 rounded-xl border-2 border-navy-300 shadow-sm">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-navy-500 rounded-lg flex-shrink-0">
-                <Lightbulb className="text-white" size={20} />
-              </div>
-              <div>
-                <p className="text-base font-bold text-navy-600 mb-2 flex items-center gap-2">
-                  <Info size={18} className="text-navy-500" />
-                  Comparison Tip
-                </p>
-                <p className="text-sm text-gray-700 leading-relaxed">
-                  Compare the annual savings and payback periods for each rate plan. 
-                  The best choice depends on your energy usage patterns and whether you can shift consumption to overnight hours.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Navigation */}
       <div className="flex justify-between pt-8 gap-4">

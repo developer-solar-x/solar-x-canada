@@ -33,10 +33,11 @@ export function PartialLeadDetailView({
   
   // Get step names for easy and detailed modes
   const easyStepNames = [
-    'Mode Selection',
+    'Program Selection',
     'Location',
     'Roof Size',
     'Energy Usage',
+    'Battery Savings',
     'Add-ons',
     'Photos',
     'Details',
@@ -45,10 +46,11 @@ export function PartialLeadDetailView({
   ]
   
   const detailedStepNames = [
-    'Mode Selection',
+    'Program Selection',
     'Location',
     'Draw Roof',
     'Property Details',
+    'Battery Savings',
     'Add-ons',
     'Photos',
     'Review',

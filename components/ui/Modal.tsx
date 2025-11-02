@@ -77,6 +77,14 @@ export function Modal({
 
   const styles = variantStyles[variant]
 
+  // Variant-specific cancel button styling (brand palette)
+  const cancelBtnByVariant: Record<string, string> = {
+    info: 'text-navy-600 bg-white border border-navy-200 hover:bg-navy-50',
+    warning: 'text-yellow-700 bg-white border border-yellow-300 hover:bg-yellow-50',
+    danger: 'text-navy-600 bg-white border border-red-300 hover:bg-red-50',
+    success: 'text-green-700 bg-white border border-green-300 hover:bg-green-50',
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
@@ -115,7 +123,7 @@ export function Modal({
         <div className="flex items-center justify-end gap-3 p-4 bg-gray-50 rounded-b-lg">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${cancelBtnByVariant[variant]}`}
           >
             {cancelText}
           </button>
