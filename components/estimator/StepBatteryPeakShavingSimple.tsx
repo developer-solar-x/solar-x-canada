@@ -27,22 +27,26 @@ interface StepBatteryPeakShavingSimpleProps {
   data: any
   onComplete: (data: any) => void
   onBack: () => void
+  // Optional flag to run this calculator as a standalone page without solar estimate dependencies
+  standalone?: boolean
 }
 
-export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepBatteryPeakShavingSimpleProps) {
+export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standalone }: StepBatteryPeakShavingSimpleProps) {
   // Info modals for rate plans
   const [showTouInfo, setShowTouInfo] = useState(false)
   const [showUloInfo, setShowUloInfo] = useState(false)
   const [showPaybackInfo, setShowPaybackInfo] = useState(false)
   // Check if estimate is being loaded (solar system size needed for rebate calculation)
-  const [estimateLoading, setEstimateLoading] = useState(!data.estimate?.system?.sizeKw)
+  // Disable loading state entirely when used standalone (no solar estimate required)
+  const [estimateLoading, setEstimateLoading] = useState(standalone ? false : !data.estimate?.system?.sizeKw)
   
   // Wait for estimate to be available
   useEffect(() => {
+    if (standalone) return
     if (data.estimate?.system?.sizeKw) {
       setEstimateLoading(false)
     }
-  }, [data.estimate])
+  }, [data.estimate, standalone])
   
   // Calculate default usage from monthly bill
   const calculateUsageFromBill = (monthlyBill: number) => {
@@ -77,8 +81,32 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
   // Override estimate (updated production when panels change)
   const [overrideEstimate, setOverrideEstimate] = useState<any>(null)
 
+  // In standalone mode, let the user enter annual solar production directly (no roof/NREL)
+  const [manualSolarProductionInput, setManualSolarProductionInput] = useState<string>('')
+  const manualSolarProductionKwh = Math.max(0, Number(manualSolarProductionInput) || 0)
+  const effectiveSolarProductionKwh = standalone
+    ? manualSolarProductionKwh
+    : (overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0)
+
+  // In standalone mode, allow optional solar system size (kW) to compute rebate display and net costs
+  const [manualSystemSizeInput, setManualSystemSizeInput] = useState<string>('')
+  const manualSystemSizeKw = Math.max(0, Number(manualSystemSizeInput) || 0)
+  const effectiveSystemSizeKw = standalone
+    ? manualSystemSizeKw
+    : (systemSizeKwOverride || data.estimate?.system?.sizeKw || 0)
+
+  // Validation: in standalone mode, require solar production entry
+  const canContinue = (() => {
+    // require positive annual usage
+    if (!(annualUsageKwh && annualUsageKwh > 0)) return false
+    // require positive solar production when standalone
+    if (standalone && !(manualSolarProductionKwh && manualSolarProductionKwh > 0)) return false
+    return true
+  })()
+
   // When panel count changes, re-run estimate with override size to refresh annual kWh
   useEffect(() => {
+    if (standalone) return
     const run = async () => {
       if (!data?.coordinates) return
       if (!solarPanels || solarPanels <= 0) { setOverrideEstimate(null); return }
@@ -151,7 +179,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
     const touRatePlan = getCustomTouRatePlan()
 
     // Get solar rebate if solar system exists
-    const systemSizeKw = (systemSizeKwOverride || data.estimate?.system?.sizeKw || 0)
+    const systemSizeKw = effectiveSystemSizeKw
     const solarRebatePerKw = 1000
     const solarMaxRebate = 5000
     const solarRebate = systemSizeKw > 0 ? Math.min(systemSizeKw * solarRebatePerKw, solarMaxRebate) : 0
@@ -171,8 +199,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
     }, batteries[0]) : null
 
     if (battery) {
-      // Get solar production (use override if available)
-      const solarProductionKwh = overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0
+      // Use manual solar production in standalone mode
+      const solarProductionKwh = effectiveSolarProductionKwh
 
       const calcResult = calculateSimplePeakShaving(
         annualUsageKwh,
@@ -200,7 +228,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
     }
 
     setTouResults(newResults)
-  }, [annualUsageInput, selectedBatteries, touDistribution, customRates.tou, data.estimate, systemSizeKwOverride, overrideEstimate])
+  }, [annualUsageInput, selectedBatteries, touDistribution, customRates.tou, data.estimate, systemSizeKwOverride, overrideEstimate, manualSolarProductionInput, standalone])
 
   // Calculate ULO results for selected batteries
   useEffect(() => {
@@ -208,7 +236,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
     const uloRatePlan = getCustomUloRatePlan()
 
     // Get solar rebate if solar system exists
-    const systemSizeKw = (systemSizeKwOverride || data.estimate?.system?.sizeKw || 0)
+    const systemSizeKw = effectiveSystemSizeKw
     const solarRebatePerKw = 1000
     const solarMaxRebate = 5000
     const solarRebate = systemSizeKw > 0 ? Math.min(systemSizeKw * solarRebatePerKw, solarMaxRebate) : 0
@@ -228,8 +256,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
     }, batteries[0]) : null
 
     if (battery) {
-      // Get solar production (use override if available)
-      const solarProductionKwh = overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0
+      // Use manual solar production in standalone mode
+      const solarProductionKwh = effectiveSolarProductionKwh
 
       const calcResult = calculateSimplePeakShaving(
         annualUsageKwh,
@@ -257,7 +285,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
     }
 
     setUloResults(newResults)
-  }, [annualUsageInput, selectedBatteries, uloDistribution, customRates.ulo, data.estimate, systemSizeKwOverride, overrideEstimate])
+  }, [annualUsageInput, selectedBatteries, uloDistribution, customRates.ulo, data.estimate, systemSizeKwOverride, overrideEstimate, manualSolarProductionInput, standalone])
 
   const handleComplete = () => {
     const selectedTouResult = touResults.get('combined')
@@ -326,8 +354,58 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
         </p>
       </div>
 
-      {/* Solar System Information */}
-      {data.estimate?.system && (
+      {/* Solar Inputs / Information */}
+      {standalone ? (
+        <div className="card p-5 bg-gradient-to-br from-green-50 to-white border-2 border-green-300 shadow-md">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 bg-green-500 rounded-lg">
+              <Sun className="text-white" size={24} />
+            </div>
+            <h3 className="text-lg font-bold text-navy-500">Solar</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+            <div>
+              <p className="text-xs text-gray-600 font-medium">Annual Solar Production (required)</p>
+              <div className="flex items-center gap-3 mt-1">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  placeholder="e.g. 8,000"
+                  value={manualSolarProductionInput}
+                  onChange={(e) => setManualSolarProductionInput(e.target.value)}
+                  className={`w-full sm:w-40 px-3 py-2 border-2 rounded-md text-green-700 font-bold focus:ring-2 focus:ring-green-400 focus:border-green-400 ${standalone && manualSolarProductionKwh <= 0 ? 'border-red-300' : 'border-green-300'}`}
+                />
+                <span className="text-sm text-gray-700 font-semibold">kWh / year</span>
+              </div>
+              {standalone && manualSolarProductionKwh <= 0 && (
+                <p className="mt-1 text-xs text-red-600">This field is required.</p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs text-gray-600 font-medium">Solar System Size</p>
+              <div className="flex items-center gap-3 mt-1">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="e.g. 5.0"
+                  value={manualSystemSizeInput}
+                  onChange={(e) => setManualSystemSizeInput(e.target.value)}
+                  className="w-full sm:w-40 px-3 py-2 border-2 border-green-300 rounded-md text-green-700 font-bold focus:ring-2 focus:ring-green-400 focus:border-green-400"
+                />
+                <span className="text-sm text-gray-700 font-semibold">kW</span>
+              </div>
+              <p className="mt-1 text-xs text-gray-600">Used to show solar rebate (optional).</p>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-gray-600 font-medium">Solar Rebate Available</p>
+              <p className="text-xl font-bold text-green-600">${Math.min(effectiveSystemSizeKw * 1000, 5000).toLocaleString()}</p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        data.estimate?.system && (
         <div className="card p-5 bg-gradient-to-br from-green-50 to-white border-2 border-green-300 shadow-md">
           <div className="flex items-center gap-3 mb-3">
             <div className="p-2 bg-green-500 rounded-lg">
@@ -354,7 +432,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
             </div>
             <div>
               <p className="text-xs text-gray-600 font-medium">Annual Production</p>
-              <p className="text-xl font-bold text-green-600">{Math.round((overrideEstimate?.production?.annualKwh ?? data.estimate.production.annualKwh)).toLocaleString()} kWh</p>
+              <p className="text-xl font-bold text-green-600">{Math.round((effectiveSolarProductionKwh)).toLocaleString()} kWh</p>
             </div>
             <div>
               <p className="text-xs text-gray-600 font-medium">Solar Rebate Available</p>
@@ -364,7 +442,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
             </div>
           </div>
         </div>
-      )}
+      ))}
       
       {/* Note about override */}
       {data.estimate?.system && (
@@ -398,6 +476,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
       </div>
 
       {/* Info Modals */}
+      
       <Modal
         isOpen={showTouInfo}
         onClose={() => setShowTouInfo(false)}
@@ -1466,8 +1545,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                <div className="grid md:grid-cols-2 gap-6">
                  {/* TOU Calculation Card */}
                  {(() => {
-                   // Get solar production
-                   const solarProductionKwh = overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0
+                   // Get solar production (manual in standalone)
+                   const solarProductionKwh = effectiveSolarProductionKwh
                    
                   // Daytime offset = 50% of total annual consumption
                   const solarOffsetKwh = annualUsageKwh * 0.5
@@ -1481,6 +1560,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                   // Night time offset = leftover solar limited by battery capability
                   const touSolarLeftover = Math.max(0, solarProductionKwh - solarOffsetKwh)
                   const nightTimeOffsetTou = Math.min(touSolarLeftover, touBatteryOffsetKwh)
+                  const nightTimeOffsetTouPercent = annualUsageKwh > 0 ? (nightTimeOffsetTou / annualUsageKwh) * 100 : 0
                   const touBatteryUsedBySolar = nightTimeOffsetTou
                   const touGridChargeAvail = Math.max(0, touBatteryOffsetKwh - touSolarLeftover)
                   const touRemainingAfterSolar = Math.max(0, annualUsageKwh - solarProductionKwh)
@@ -1491,9 +1571,9 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                   const touActualLeftoverPercent = annualUsageKwh > 0 ? (touActualLeftoverAfterFullBattery / annualUsageKwh) * 100 : 0
                   const touRemainderPercent = touActualLeftoverPercent
                    
-                   // Calculate combined offset
-                  const touCombinedOffset = solarOffsetKwh + nightTimeOffsetTou + touGridChargeUsed
-                   const touCombinedOffsetPercent = annualUsageKwh > 0 ? (touCombinedOffset / annualUsageKwh) * 100 : 0
+                  // Calculate combined offset (exclude grid-charged battery top-up)
+                  const touCombinedOffset = solarOffsetKwh + nightTimeOffsetTou
+                  const touCombinedOffsetPercent = annualUsageKwh > 0 ? (touCombinedOffset / annualUsageKwh) * 100 : 0
                    
                   // TOU: low-rate energy bucket (battery top-up + still from grid)
                   const touLeftoverKwh = touActualLeftoverAfterFullBattery
@@ -1549,18 +1629,18 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                            <div className="text-xs text-gray-600 pl-7">Energy your panels cover during the day</div>
                          </div>
                          
-                         <div className="bg-gradient-to-r from-navy-50 to-blue-50 rounded-xl p-4 border-2 border-navy-200">
+                          <div className="bg-gradient-to-r from-navy-50 to-blue-50 rounded-xl p-4 border-2 border-navy-200">
                            <div className="flex items-center justify-between mb-2">
                              <div className="flex items-center gap-2">
                                <Moon className="text-navy-600" size={20} />
                                <span className="font-bold text-gray-700">Nighttime covered by battery</span>
                              </div>
-                             <div className="text-right">
-                               <div className="text-2xl font-bold text-navy-600">{nightTimeOffsetTou.toFixed(0)}</div>
-                               <div className="text-xs text-gray-600">kWh/year</div>
-                             </div>
+                            <div className="text-right">
+                              <div className="text-2xl font-bold text-navy-600">{nightTimeOffsetTou.toFixed(0)}</div>
+                              <div className="text-xs text-gray-600">kWh/year ({nightTimeOffsetTouPercent.toFixed(1)}%)</div>
+                            </div>
                            </div>
-                            <div className="text-xs text-gray-600 pl-7">Stored solar (and top‑ups) used at night</div>
+                            <div className="text-xs text-gray-600 pl-7">Stored solar used at night (excludes grid top‑up in total %)</div>
                           <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-gray-600 pl-7">
                             <div>Solar → Battery: <span className="font-semibold text-navy-600">{touBatteryUsedBySolar.toFixed(0)} kWh</span></div>
                             <div>Battery top‑up: <span className="font-semibold text-navy-600">{touGridChargeUsed.toFixed(0)} kWh</span> <span className="text-gray-500">({touTopUpPercent.toFixed(2)}%)</span></div>
@@ -1580,9 +1660,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                              </div>
                            </div>
                            <div className="text-xs text-gray-600 pl-7">Everything you don’t need to buy from the grid</div>
-                            {touGridChargeUsed > 0 && (
-                              <div className="text-[11px] text-gray-600 pl-7 mt-1">Includes grid‑charged battery: <span className="font-semibold text-navy-600">{touGridChargeUsed.toFixed(0)} kWh</span></div>
-                            )}
                          </div>
                          
                         <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border-2 border-red-200">
@@ -1621,8 +1698,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                  
                  {/* ULO Calculation Card */}
                  {(() => {
-                   // Get solar production
-                   const solarProductionKwh = overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0
+                   // Get solar production (manual in standalone)
+                   const solarProductionKwh = effectiveSolarProductionKwh
                    
                   // Daytime offset = 50% of total annual consumption
                   const solarOffsetKwh = annualUsageKwh * 0.5
@@ -1636,6 +1713,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                   // Night time offset = leftover solar limited by battery capability
                   const uloSolarLeftover = Math.max(0, solarProductionKwh - solarOffsetKwh)
                   const nightTimeOffsetUlo = Math.min(uloSolarLeftover, uloBatteryOffsetKwh)
+                  const nightTimeOffsetUloPercent = annualUsageKwh > 0 ? (nightTimeOffsetUlo / annualUsageKwh) * 100 : 0
                   const uloBatteryUsedBySolar = nightTimeOffsetUlo
                   const uloGridChargeAvail = Math.max(0, uloBatteryOffsetKwh - uloSolarLeftover)
                   const uloRemainingAfterSolar = Math.max(0, annualUsageKwh - solarProductionKwh)
@@ -1645,9 +1723,9 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                   const uloActualLeftoverPercent = annualUsageKwh > 0 ? (uloActualLeftoverAfterFullBattery / annualUsageKwh) * 100 : 0
                   const uloRemainderPercent = uloActualLeftoverPercent
                    
-                   // Calculate combined offset
-                  const uloCombinedOffset = solarOffsetKwh + nightTimeOffsetUlo + uloGridChargeUsed
-                   const uloCombinedOffsetPercent = annualUsageKwh > 0 ? (uloCombinedOffset / annualUsageKwh) * 100 : 0
+                  // Calculate combined offset (exclude grid-charged battery top-up)
+                  const uloCombinedOffset = solarOffsetKwh + nightTimeOffsetUlo
+                  const uloCombinedOffsetPercent = annualUsageKwh > 0 ? (uloCombinedOffset / annualUsageKwh) * 100 : 0
                    
                   // ULO: low-rate energy bucket (battery top-up + still from grid)
                   const uloLeftoverKwh = uloActualLeftoverAfterFullBattery
@@ -1709,12 +1787,12 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                                <Moon className="text-red-600" size={20} />
                                <span className="font-bold text-gray-700">Nighttime covered by battery</span>
                              </div>
-                             <div className="text-right">
-                               <div className="text-2xl font-bold text-red-600">{nightTimeOffsetUlo.toFixed(0)}</div>
-                               <div className="text-xs text-gray-600">kWh/year</div>
-                             </div>
+                            <div className="text-right">
+                              <div className="text-2xl font-bold text-red-600">{nightTimeOffsetUlo.toFixed(0)}</div>
+                              <div className="text-xs text-gray-600">kWh/year ({nightTimeOffsetUloPercent.toFixed(1)}%)</div>
+                            </div>
                            </div>
-                            <div className="text-xs text-gray-600 pl-7">Stored solar (and top‑ups) used at night</div>
+                            <div className="text-xs text-gray-600 pl-7">Stored solar used at night (excludes grid top‑up in total %)</div>
                           <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-gray-600 pl-7">
                             <div>Solar → Battery: <span className="font-semibold text-red-600">{uloBatteryUsedBySolar.toFixed(0)} kWh</span></div>
                             <div>Battery top‑up: <span className="font-semibold text-red-600">{uloGridChargeUsed.toFixed(0)} kWh</span> <span className="text-gray-500">({uloTopUpPercent.toFixed(2)}%)</span></div>
@@ -1734,9 +1812,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                              </div>
                            </div>
                            <div className="text-xs text-gray-600 pl-7">Everything you don’t need to buy from the grid</div>
-                            {uloGridChargeUsed > 0 && (
-                              <div className="text-[11px] text-gray-600 pl-7 mt-1">Includes grid‑charged battery: <span className="font-semibold text-red-600">{uloGridChargeUsed.toFixed(0)} kWh</span></div>
-                            )}
                          </div>
                          
                         <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border-2 border-red-200">
@@ -1791,7 +1866,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
         </button>
         <button
           onClick={handleComplete}
-          className="px-8 py-4 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+          disabled={!canContinue}
+          className={`px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition-all flex items-center gap-2 ${canContinue ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white hover:shadow-xl' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
         >
           Continue to Next Step
           <ArrowRight size={20} />
