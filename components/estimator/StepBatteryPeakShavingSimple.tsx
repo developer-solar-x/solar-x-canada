@@ -152,7 +152,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
 
     // Get solar rebate if solar system exists
     const systemSizeKw = (systemSizeKwOverride || data.estimate?.system?.sizeKw || 0)
-    const solarRebatePerKw = 500
+    const solarRebatePerKw = 1000
     const solarMaxRebate = 5000
     const solarRebate = systemSizeKw > 0 ? Math.min(systemSizeKw * solarRebatePerKw, solarMaxRebate) : 0
 
@@ -209,7 +209,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
 
     // Get solar rebate if solar system exists
     const systemSizeKw = (systemSizeKwOverride || data.estimate?.system?.sizeKw || 0)
-    const solarRebatePerKw = 500
+    const solarRebatePerKw = 1000
     const solarMaxRebate = 5000
     const solarRebate = systemSizeKw > 0 ? Math.min(systemSizeKw * solarRebatePerKw, solarMaxRebate) : 0
 
@@ -359,7 +359,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
             <div>
               <p className="text-xs text-gray-600 font-medium">Solar Rebate Available</p>
               <p className="text-xl font-bold text-green-600">
-                ${Math.min((systemSizeKwOverride || data.estimate.system.sizeKw) * 500, 5000).toLocaleString()}
+                ${Math.min((systemSizeKwOverride || data.estimate.system.sizeKw) * 1000, 5000).toLocaleString()}
               </p>
             </div>
           </div>
@@ -1083,7 +1083,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
             
             // Calculate solar rebate if solar system exists
             const systemSizeKw = (systemSizeKwOverride || data.estimate?.system?.sizeKw || 0)
-            const solarRebatePerKw = 500
+            const solarRebatePerKw = 1000
             const solarMaxRebate = 5000
             const solarRebate = systemSizeKw > 0 ? Math.min(systemSizeKw * solarRebatePerKw, solarMaxRebate) : 0
             
@@ -1469,28 +1469,39 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                    // Get solar production
                    const solarProductionKwh = overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0
                    
-                  // Calculate solar offset as 50% of NREL production, capped by consumption
-                  const solarOffsetKwh = solarProductionKwh > 0 
-                    ? Math.min(solarProductionKwh * 0.5, annualUsageKwh)
-                     : 0
-                  // Display a fixed 50.0% to reflect the NREL 50% daytime rule
-                  const solarOffsetPercent = 50.0
+                  // Daytime offset = 50% of total annual consumption
+                  const solarOffsetKwh = annualUsageKwh * 0.5
+                   const solarOffsetPercent = annualUsageKwh > 0 ? (solarOffsetKwh / annualUsageKwh) * 100 : 0
                    
-                   // Calculate TOU battery offset
-                   const touBatteryOffsetKwh = touData.result.batteryOffsets.onPeak + 
-                                              touData.result.batteryOffsets.midPeak + 
-                                              touData.result.batteryOffsets.offPeak + 
-                                              (touData.result.batteryOffsets.ultraLow || 0)
+                  // Calculate TOU battery offset capacity
+                  const touBatteryOffsetKwh = touData.result.batteryOffsets.onPeak + 
+                                             touData.result.batteryOffsets.midPeak + 
+                                             touData.result.batteryOffsets.offPeak + 
+                                             (touData.result.batteryOffsets.ultraLow || 0)
+                  // Night time offset = leftover solar limited by battery capability
+                  const touSolarLeftover = Math.max(0, solarProductionKwh - solarOffsetKwh)
+                  const nightTimeOffsetTou = Math.min(touSolarLeftover, touBatteryOffsetKwh)
+                  const touBatteryUsedBySolar = nightTimeOffsetTou
+                  const touGridChargeAvail = Math.max(0, touBatteryOffsetKwh - touSolarLeftover)
+                  const touRemainingAfterSolar = Math.max(0, annualUsageKwh - solarProductionKwh)
+                  const touGridChargeUsed = Math.min(touGridChargeAvail, touRemainingAfterSolar)
+                  const touTopUpPercent = annualUsageKwh > 0 ? (touGridChargeUsed / annualUsageKwh) * 100 : 0
+                  // True leftover should be what consumption still needs after daytime + night (solar) + grid top‑up
+                  const touActualLeftoverAfterFullBattery = Math.max(0, annualUsageKwh - (solarOffsetKwh + nightTimeOffsetTou + touGridChargeUsed))
+                  const touActualLeftoverPercent = annualUsageKwh > 0 ? (touActualLeftoverAfterFullBattery / annualUsageKwh) * 100 : 0
+                  const touRemainderPercent = touActualLeftoverPercent
                    
                    // Calculate combined offset
-                   const touCombinedOffset = solarOffsetKwh + touBatteryOffsetKwh
+                  const touCombinedOffset = solarOffsetKwh + nightTimeOffsetTou + touGridChargeUsed
                    const touCombinedOffsetPercent = annualUsageKwh > 0 ? (touCombinedOffset / annualUsageKwh) * 100 : 0
                    
-                   // TOU Leftover calculations
-                   const touLeftoverKwh = touData.result.leftoverEnergy.totalKwh
-                   const touLeftoverPercent = touData.result.leftoverEnergy.consumptionPercent
-                   const touLeftoverCostPercent = touData.result.leftoverEnergy.costPercent
-                   const touLeftoverRate = touData.result.leftoverEnergy.ratePerKwh
+                  // TOU: low-rate energy bucket (battery top-up + still from grid)
+                  const touLeftoverKwh = touActualLeftoverAfterFullBattery
+                  const touLeftoverRate = touData.result.leftoverEnergy.ratePerKwh
+                  const touLowRateEnergyKwh = touGridChargeUsed + touLeftoverKwh
+                  const touLowRatePercent = annualUsageKwh > 0 ? (touLowRateEnergyKwh / annualUsageKwh) * 100 : 0
+                  const touOriginalBill = touData.result.originalCost.total || 1
+                  const touLeftoverCostPercent = ((touLowRateEnergyKwh * touLeftoverRate) / touOriginalBill) * 100
                    
                    // Get TOU on-peak rate for comparison
                    const touRatePlan = getCustomTouRatePlan()
@@ -1528,72 +1539,80 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                            <div className="flex items-center justify-between mb-2">
                              <div className="flex items-center gap-2">
                                <Sun className="text-green-600" size={20} />
-                               <span className="font-bold text-gray-700">Day Time Offset</span>
+                               <span className="font-bold text-gray-700">Daytime covered by solar</span>
                              </div>
                              <div className="text-right">
                                <div className="text-2xl font-bold text-green-600">{solarOffsetKwh.toFixed(0)}</div>
                                <div className="text-xs text-gray-600">({solarOffsetPercent.toFixed(1)}%)</div>
                              </div>
                            </div>
-                           <div className="text-xs text-gray-600 pl-7">Solar offset during daylight hours</div>
+                           <div className="text-xs text-gray-600 pl-7">Energy your panels cover during the day</div>
                          </div>
                          
                          <div className="bg-gradient-to-r from-navy-50 to-blue-50 rounded-xl p-4 border-2 border-navy-200">
                            <div className="flex items-center justify-between mb-2">
                              <div className="flex items-center gap-2">
                                <Moon className="text-navy-600" size={20} />
-                               <span className="font-bold text-gray-700">Night Time Offset</span>
+                               <span className="font-bold text-gray-700">Nighttime covered by battery</span>
                              </div>
                              <div className="text-right">
-                               <div className="text-2xl font-bold text-navy-600">{touBatteryOffsetKwh.toFixed(0)}</div>
+                               <div className="text-2xl font-bold text-navy-600">{nightTimeOffsetTou.toFixed(0)}</div>
                                <div className="text-xs text-gray-600">kWh/year</div>
                              </div>
                            </div>
-                           <div className="text-xs text-gray-600 pl-7">Battery offset during nighttime</div>
+                            <div className="text-xs text-gray-600 pl-7">Stored solar (and top‑ups) used at night</div>
+                          <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-gray-600 pl-7">
+                            <div>Solar → Battery: <span className="font-semibold text-navy-600">{touBatteryUsedBySolar.toFixed(0)} kWh</span></div>
+                            <div>Battery top‑up: <span className="font-semibold text-navy-600">{touGridChargeUsed.toFixed(0)} kWh</span> <span className="text-gray-500">({touTopUpPercent.toFixed(2)}%)</span></div>
+                            <div>Small remainder: <span className="font-semibold text-navy-600">{touActualLeftoverAfterFullBattery.toFixed(0)} kWh</span> <span className="text-gray-500">({touRemainderPercent.toFixed(2)}%)</span></div>
+                          </div>
                          </div>
                          
-                         <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-300">
+                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-300">
                            <div className="flex items-center justify-between mb-2">
                              <div className="flex items-center gap-2">
                                <BarChart3 className="text-green-600" size={20} />
-                               <span className="font-bold text-gray-700">Combined Offset</span>
+                               <span className="font-bold text-gray-700">Total covered (solar + battery)</span>
                              </div>
                              <div className="text-right">
                                <div className="text-2xl font-bold text-green-600">{touCombinedOffset.toFixed(0)}</div>
                                <div className="text-xs text-gray-600">({touCombinedOffsetPercent.toFixed(2)}%)</div>
                              </div>
                            </div>
-                           <div className="text-xs text-gray-600 pl-7">Total solar + battery offset</div>
+                           <div className="text-xs text-gray-600 pl-7">Everything you don’t need to buy from the grid</div>
+                            {touGridChargeUsed > 0 && (
+                              <div className="text-[11px] text-gray-600 pl-7 mt-1">Includes grid‑charged battery: <span className="font-semibold text-navy-600">{touGridChargeUsed.toFixed(0)} kWh</span></div>
+                            )}
                          </div>
                          
-                         <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border-2 border-red-200">
+                        <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border-2 border-red-200">
                            <div className="flex items-center justify-between mb-2">
                              <div className="flex items-center gap-2">
                                <AlertTriangle className="text-red-600" size={20} />
-                               <span className="font-bold text-gray-700">Left Over Energy</span>
+                              <span className="font-bold text-gray-700">Bought from the grid (cheap hours)</span>
                              </div>
                              <div className="text-right">
-                               <div className="text-2xl font-bold text-red-600">{touLeftoverKwh.toFixed(0)}</div>
-                               <div className="text-xs text-gray-600">({touLeftoverPercent.toFixed(2)}%)</div>
+                              <div className="text-2xl font-bold text-red-600">{touLowRateEnergyKwh.toFixed(0)}</div>
+                              <div className="text-xs text-gray-600">({touLowRatePercent.toFixed(2)}%)</div>
                              </div>
                            </div>
-                           <div className="text-xs text-gray-600 pl-7">Not offset by solar or battery</div>
+                          <div className="text-xs text-gray-600 pl-7">Battery top‑up {touGridChargeUsed.toFixed(0)} kWh + small remainder {touLeftoverKwh.toFixed(0)} kWh</div>
                          </div>
                          
                          <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-4 border-2 border-gray-300">
                            <div className="flex items-center justify-between mb-2">
-                             <span className="font-bold text-gray-700">Cost of Leftover</span>
+                             <span className="font-bold text-gray-700">Cost of energy bought from grid</span>
                              <div className="text-right">
                                <div className="text-2xl font-bold text-green-600">{touLeftoverCostPercent.toFixed(2)}%</div>
                                <div className="text-xs text-gray-600">of total bill</div>
                              </div>
                            </div>
-                           <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
-                             <Info size={14} className="text-navy-500 flex-shrink-0" />
-                             <span className="text-xs text-gray-600">
-                               Leftover energy consumed at {(touLeftoverRate * 100).toFixed(1)}¢/kWh (off-peak) vs {touOnPeakRate.toFixed(1)}¢/kWh (on-peak worst-case)
-                             </span>
-                           </div>
+                          <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                            <Info size={14} className="text-navy-500 flex-shrink-0" />
+                            <span className="text-xs text-gray-600">
+                              Charged at your cheapest rate {(touLeftoverRate * 100).toFixed(1)}¢/kWh: battery top‑up {touGridChargeUsed.toFixed(0)} kWh + small remainder {touLeftoverKwh.toFixed(0)} kWh • vs on‑peak {touOnPeakRate.toFixed(1)}¢/kWh
+                            </span>
+                          </div>
                          </div>
                        </div>
                      </div>
@@ -1605,28 +1624,38 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                    // Get solar production
                    const solarProductionKwh = overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0
                    
-                  // Calculate solar offset as 50% of NREL production, capped by consumption
-                  const solarOffsetKwh = solarProductionKwh > 0 
-                    ? Math.min(solarProductionKwh * 0.5, annualUsageKwh)
-                     : 0
-                  // Display a fixed 50.0% to reflect the NREL 50% daytime rule
-                  const solarOffsetPercent = 50.0
+                  // Daytime offset = 50% of total annual consumption
+                  const solarOffsetKwh = annualUsageKwh * 0.5
+                   const solarOffsetPercent = annualUsageKwh > 0 ? (solarOffsetKwh / annualUsageKwh) * 100 : 0
                    
-                   // Calculate ULO battery offset
-                   const uloBatteryOffsetKwh = uloData.result.batteryOffsets.onPeak + 
-                                              uloData.result.batteryOffsets.midPeak + 
-                                              uloData.result.batteryOffsets.offPeak + 
-                                              (uloData.result.batteryOffsets.ultraLow || 0)
+                  // Calculate ULO battery offset capacity
+                  const uloBatteryOffsetKwh = uloData.result.batteryOffsets.onPeak + 
+                                             uloData.result.batteryOffsets.midPeak + 
+                                             uloData.result.batteryOffsets.offPeak + 
+                                             (uloData.result.batteryOffsets.ultraLow || 0)
+                  // Night time offset = leftover solar limited by battery capability
+                  const uloSolarLeftover = Math.max(0, solarProductionKwh - solarOffsetKwh)
+                  const nightTimeOffsetUlo = Math.min(uloSolarLeftover, uloBatteryOffsetKwh)
+                  const uloBatteryUsedBySolar = nightTimeOffsetUlo
+                  const uloGridChargeAvail = Math.max(0, uloBatteryOffsetKwh - uloSolarLeftover)
+                  const uloRemainingAfterSolar = Math.max(0, annualUsageKwh - solarProductionKwh)
+                  const uloGridChargeUsed = Math.min(uloGridChargeAvail, uloRemainingAfterSolar)
+                  const uloTopUpPercent = annualUsageKwh > 0 ? (uloGridChargeUsed / annualUsageKwh) * 100 : 0
+                  const uloActualLeftoverAfterFullBattery = Math.max(0, annualUsageKwh - (solarOffsetKwh + nightTimeOffsetUlo + uloGridChargeUsed))
+                  const uloActualLeftoverPercent = annualUsageKwh > 0 ? (uloActualLeftoverAfterFullBattery / annualUsageKwh) * 100 : 0
+                  const uloRemainderPercent = uloActualLeftoverPercent
                    
                    // Calculate combined offset
-                   const uloCombinedOffset = solarOffsetKwh + uloBatteryOffsetKwh
+                  const uloCombinedOffset = solarOffsetKwh + nightTimeOffsetUlo + uloGridChargeUsed
                    const uloCombinedOffsetPercent = annualUsageKwh > 0 ? (uloCombinedOffset / annualUsageKwh) * 100 : 0
                    
-                   // ULO Leftover calculations
-                   const uloLeftoverKwh = uloData.result.leftoverEnergy.totalKwh
-                   const uloLeftoverPercent = uloData.result.leftoverEnergy.consumptionPercent
-                   const uloLeftoverCostPercent = uloData.result.leftoverEnergy.costPercent
-                   const uloLeftoverRate = uloData.result.leftoverEnergy.ratePerKwh
+                  // ULO: low-rate energy bucket (battery top-up + still from grid)
+                  const uloLeftoverKwh = uloActualLeftoverAfterFullBattery
+                  const uloLeftoverRate = uloData.result.leftoverEnergy.ratePerKwh
+                  const uloLowRateEnergyKwh = uloGridChargeUsed + uloLeftoverKwh
+                  const uloLowRatePercent = annualUsageKwh > 0 ? (uloLowRateEnergyKwh / annualUsageKwh) * 100 : 0
+                  const uloOriginalBill = uloData.result.originalCost.total || 1
+                  const uloLeftoverCostPercent = ( (uloLowRateEnergyKwh * uloLeftoverRate) / uloOriginalBill) * 100
                    
                    // Get ULO on-peak rate for comparison
                    const uloRatePlan = getCustomUloRatePlan()
@@ -1664,72 +1693,80 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                            <div className="flex items-center justify-between mb-2">
                              <div className="flex items-center gap-2">
                                <Sun className="text-green-600" size={20} />
-                               <span className="font-bold text-gray-700">Day Time Offset</span>
+                               <span className="font-bold text-gray-700">Daytime covered by solar</span>
                              </div>
                              <div className="text-right">
                                <div className="text-2xl font-bold text-green-600">{solarOffsetKwh.toFixed(0)}</div>
                                <div className="text-xs text-gray-600">({solarOffsetPercent.toFixed(1)}%)</div>
                              </div>
                            </div>
-                           <div className="text-xs text-gray-600 pl-7">Solar offset during daylight hours</div>
+                           <div className="text-xs text-gray-600 pl-7">Energy your panels cover during the day</div>
                          </div>
                          
                          <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border-2 border-red-200">
                            <div className="flex items-center justify-between mb-2">
                              <div className="flex items-center gap-2">
                                <Moon className="text-red-600" size={20} />
-                               <span className="font-bold text-gray-700">Night Time Offset</span>
+                               <span className="font-bold text-gray-700">Nighttime covered by battery</span>
                              </div>
                              <div className="text-right">
-                               <div className="text-2xl font-bold text-red-600">{uloBatteryOffsetKwh.toFixed(0)}</div>
+                               <div className="text-2xl font-bold text-red-600">{nightTimeOffsetUlo.toFixed(0)}</div>
                                <div className="text-xs text-gray-600">kWh/year</div>
                              </div>
                            </div>
-                           <div className="text-xs text-gray-600 pl-7">Battery offset during nighttime</div>
+                            <div className="text-xs text-gray-600 pl-7">Stored solar (and top‑ups) used at night</div>
+                          <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-gray-600 pl-7">
+                            <div>Solar → Battery: <span className="font-semibold text-red-600">{uloBatteryUsedBySolar.toFixed(0)} kWh</span></div>
+                            <div>Battery top‑up: <span className="font-semibold text-red-600">{uloGridChargeUsed.toFixed(0)} kWh</span> <span className="text-gray-500">({uloTopUpPercent.toFixed(2)}%)</span></div>
+                            <div>Small remainder: <span className="font-semibold text-red-600">{uloActualLeftoverAfterFullBattery.toFixed(0)} kWh</span> <span className="text-gray-500">({uloRemainderPercent.toFixed(2)}%)</span></div>
+                          </div>
                          </div>
                          
-                         <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-300">
+                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-300">
                            <div className="flex items-center justify-between mb-2">
                              <div className="flex items-center gap-2">
                                <BarChart3 className="text-green-600" size={20} />
-                               <span className="font-bold text-gray-700">Combined Offset</span>
+                               <span className="font-bold text-gray-700">Total covered (solar + battery)</span>
                              </div>
                              <div className="text-right">
                                <div className="text-2xl font-bold text-green-600">{uloCombinedOffset.toFixed(0)}</div>
                                <div className="text-xs text-gray-600">({uloCombinedOffsetPercent.toFixed(2)}%)</div>
                              </div>
                            </div>
-                           <div className="text-xs text-gray-600 pl-7">Total solar + battery offset</div>
+                           <div className="text-xs text-gray-600 pl-7">Everything you don’t need to buy from the grid</div>
+                            {uloGridChargeUsed > 0 && (
+                              <div className="text-[11px] text-gray-600 pl-7 mt-1">Includes grid‑charged battery: <span className="font-semibold text-red-600">{uloGridChargeUsed.toFixed(0)} kWh</span></div>
+                            )}
                          </div>
                          
-                         <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border-2 border-red-200">
+                        <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border-2 border-red-200">
                            <div className="flex items-center justify-between mb-2">
                              <div className="flex items-center gap-2">
                                <AlertTriangle className="text-red-600" size={20} />
-                               <span className="font-bold text-gray-700">Left Over Energy</span>
+                              <span className="font-bold text-gray-700">Bought from the grid (cheap hours)</span>
                              </div>
                              <div className="text-right">
-                               <div className="text-2xl font-bold text-red-600">{uloLeftoverKwh.toFixed(0)}</div>
-                               <div className="text-xs text-gray-600">({uloLeftoverPercent.toFixed(2)}%)</div>
+                              <div className="text-2xl font-bold text-red-600">{uloLowRateEnergyKwh.toFixed(0)}</div>
+                              <div className="text-xs text-gray-600">({uloLowRatePercent.toFixed(2)}%)</div>
                              </div>
                            </div>
-                           <div className="text-xs text-gray-600 pl-7">Not offset by solar or battery</div>
+                          <div className="text-xs text-gray-600 pl-7">Battery top‑up {uloGridChargeUsed.toFixed(0)} kWh + small remainder {uloLeftoverKwh.toFixed(0)} kWh</div>
                          </div>
                          
                          <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-4 border-2 border-gray-300">
                            <div className="flex items-center justify-between mb-2">
-                             <span className="font-bold text-gray-700">Cost of Leftover</span>
+                             <span className="font-bold text-gray-700">Cost of energy bought from grid</span>
                              <div className="text-right">
                                <div className="text-2xl font-bold text-green-600">{uloLeftoverCostPercent.toFixed(2)}%</div>
                                <div className="text-xs text-gray-600">of total bill</div>
                              </div>
                            </div>
-                           <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
-                             <Info size={14} className="text-red-500 flex-shrink-0" />
-                             <span className="text-xs text-gray-600">
-                               Leftover energy consumed at {(uloLeftoverRate * 100).toFixed(1)}¢/kWh (off-peak) vs {uloOnPeakRate.toFixed(1)}¢/kWh (on-peak worst-case)
-                             </span>
-                           </div>
+                          <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                            <Info size={14} className="text-red-500 flex-shrink-0" />
+                            <span className="text-xs text-gray-600">
+                              Charged at your cheapest rate {(uloLeftoverRate * 100).toFixed(1)}¢/kWh: battery top‑up {uloGridChargeUsed.toFixed(0)} kWh + small remainder {uloLeftoverKwh.toFixed(0)} kWh • vs on‑peak {uloOnPeakRate.toFixed(1)}¢/kWh
+                            </span>
+                          </div>
                          </div>
                        </div>
                      </div>
