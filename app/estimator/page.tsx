@@ -137,6 +137,8 @@ export default function EstimatorPage() {
   const [savedProgressData, setSavedProgressData] = useState<any>(null)
   // Track if email was already captured
   const [emailCaptured, setEmailCaptured] = useState(false)
+  // Loading indicator when moving from Step 3 -> Step 4 (estimate prefetch)
+  const [isLoadingNextStep, setIsLoadingNextStep] = useState(false)
 
   // Get active step array based on mode
   const steps = data.estimatorMode === 'easy' ? easySteps : data.estimatorMode === 'detailed' ? detailedSteps : [easySteps[0]]
@@ -216,6 +218,8 @@ export default function EstimatorPage() {
         const willEnterBatterySavings = currentStep === 3 && updatedData.programType === 'hrs_residential'
         if (willEnterBatterySavings && updatedData.coordinates && (updatedData.roofPolygon || updatedData.roofAreaSqft)) {
           try {
+            // Show loading overlay while preparing the Battery Savings step
+            setIsLoadingNextStep(true)
             console.log('Generating solar estimate for battery rebate calculation...')
             const response = await fetch('/api/estimate', {
               method: 'POST',
@@ -234,7 +238,13 @@ export default function EstimatorPage() {
           } catch (error) {
             console.error('Error generating estimate:', error)
             // Continue anyway - estimate will be generated in Review step as fallback
+          } finally {
+            // Proceed to next step and hide loading overlay
+            setCurrentStep(nextStep)
+            setIsLoadingNextStep(false)
           }
+          // Early return because we advanced step inside finally
+          return
         }
         
         setCurrentStep(nextStep)
@@ -527,6 +537,16 @@ export default function EstimatorPage() {
         cancelText="Keep My Progress"
         variant="danger"
       />
+
+      {/* Fullscreen loading overlay during step 3 -> 4 transition */}
+      {isLoadingNextStep && (
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center">
+          <div className="bg-white rounded-xl shadow-lg p-6 flex items-center gap-4">
+            <div className="h-6 w-6 rounded-full border-2 border-navy-500 border-t-transparent animate-spin" />
+            <div className="text-sm text-navy-600 font-medium">Preparing battery savings…</div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

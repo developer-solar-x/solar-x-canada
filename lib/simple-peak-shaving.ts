@@ -207,33 +207,30 @@ export function calculateSimplePeakShaving(
   const monthlySavings = annualSavings / 12
   
   // Calculate solar offset (if solar production is provided)
-  // Use NREL annual solar production with a 50% self-consumption heuristic
-  // Cap solar offset by total annual usage to avoid over-offsetting
+  // Use 50% of total consumption as the maximum daytime offset, capped by NREL annual production
+  // This models: at most half of consumption occurs during daylight and can be offset by solar
   const solarOffsetKwh = solarProductionKwh
-    ? Math.min(solarProductionKwh * 0.5, annualUsageKwh)
+    ? Math.min(annualUsageKwh * 0.5, solarProductionKwh)
     : 0
   
   // Calculate leftover energy (energy not offset by solar + battery)
   // Total energy offset by battery
   const totalBatteryOffset = batteryOffsets.onPeak + batteryOffsets.midPeak + batteryOffsets.offPeak + (batteryOffsets.ultraLow || 0)
-  // Total offset = solar offset + battery offset
-  const totalOffset = solarOffsetKwh + totalBatteryOffset
-  // Leftover energy = total usage - total offset
-  const leftoverEnergyKwh = Math.max(0, annualUsageKwh - totalOffset)
+  
+  // Combined offset is solar + battery, capped to total annual usage
+  const combinedOffsetKwh = Math.min(annualUsageKwh, solarOffsetKwh + totalBatteryOffset)
+  
+  // Leftover energy = total usage - combined offset
+  const leftoverEnergyKwh = Math.max(0, annualUsageKwh - combinedOffsetKwh)
   const leftoverConsumptionPercent = (leftoverEnergyKwh / annualUsageKwh) * 100
   
-  // Calculate cost of leftover energy at off-peak rates
-  // Leftover energy will be consumed during off-peak hours when rates are lowest
-  // This is because solar+battery have already offset the expensive periods
-  // Use off-peak rate, not ultra-low, since leftover energy is from periods not offset by battery
-  const leftoverRatePerKwh = rates.offPeak
+  // Cost leftover at the cheapest available rate (ultra-low if present, else off-peak)
+  const leftoverRatePerKwh = rates.ultraLow > 0 ? rates.ultraLow : rates.offPeak
   const leftoverCostAtOffPeak = leftoverEnergyKwh * leftoverRatePerKwh
-  // Calculate percentage compared to worst-case scenario (all consumption at on-peak rate)
-  // This shows: even though leftover is 17.15% of usage, it only costs 4.29% vs worst-case
-  // Use the higher on-peak rate (ULO 39.1¢ or TOU 20.3¢) for worst-case comparison
-  const worstCaseOnPeakRate = rates.onPeak > 0 ? rates.onPeak : 0.391 // Default to ULO on-peak if not found
-  const worstCaseTotalCost = annualUsageKwh * worstCaseOnPeakRate
-  const leftoverCostPercent = worstCaseTotalCost > 0 ? (leftoverCostAtOffPeak / worstCaseTotalCost) * 100 : 0
+  
+  // Express leftover cost as a percentage of the original total cost
+  const baseTotalCost = originalCost.total
+  const leftoverCostPercent = baseTotalCost > 0 ? (leftoverCostAtOffPeak / baseTotalCost) * 100 : 0
   
   return {
     totalUsageKwh: annualUsageKwh,
