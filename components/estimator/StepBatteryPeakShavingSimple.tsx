@@ -1469,11 +1469,12 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                    // Get solar production
                    const solarProductionKwh = overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0
                    
-                   // Calculate solar offset (50% max - daytime only)
-                   const solarOffsetKwh = solarProductionKwh > 0 
-                     ? Math.min(solarProductionKwh, annualUsageKwh * 0.5)
+                  // Calculate solar offset as 50% of NREL production, capped by consumption
+                  const solarOffsetKwh = solarProductionKwh > 0 
+                    ? Math.min(solarProductionKwh * 0.5, annualUsageKwh)
                      : 0
-                   const solarOffsetPercent = annualUsageKwh > 0 ? (solarOffsetKwh / annualUsageKwh) * 100 : 0
+                  // Display a fixed 50.0% to reflect the NREL 50% daytime rule
+                  const solarOffsetPercent = 50.0
                    
                    // Calculate TOU battery offset
                    const touBatteryOffsetKwh = touData.result.batteryOffsets.onPeak + 
@@ -1604,11 +1605,12 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepB
                    // Get solar production
                    const solarProductionKwh = overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0
                    
-                   // Calculate solar offset (50% max - daytime only)
-                   const solarOffsetKwh = solarProductionKwh > 0 
-                     ? Math.min(solarProductionKwh, annualUsageKwh * 0.5)
+                  // Calculate solar offset as 50% of NREL production, capped by consumption
+                  const solarOffsetKwh = solarProductionKwh > 0 
+                    ? Math.min(solarProductionKwh * 0.5, annualUsageKwh)
                      : 0
-                   const solarOffsetPercent = annualUsageKwh > 0 ? (solarOffsetKwh / annualUsageKwh) * 100 : 0
+                  // Display a fixed 50.0% to reflect the NREL 50% daytime rule
+                  const solarOffsetPercent = 50.0
                    
                    // Calculate ULO battery offset
                    const uloBatteryOffsetKwh = uloData.result.batteryOffsets.onPeak + 

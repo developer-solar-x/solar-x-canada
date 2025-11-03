@@ -65,9 +65,12 @@ export async function POST(request: Request) {
       numPanels = systemCalc.numPanels
       usableAreaSqFt = systemCalc.usableAreaSqFt
     } else {
-      // Fallback sizing without polygon: derive from annual usage or monthly bill
+      // Fallback sizing without polygon: zero-export target
+      // Target production equals ~50% of annual usage (daytime consumption),
+      // which minimizes export under the NREL 50% daytime rule.
       const derivedAnnual = energyUsage?.annualKwh || annualUsageKwh || (monthlyBill ? (monthlyBill / 0.13) * 12 : 9000)
-      systemSizeKw = Math.round((derivedAnnual / 1200) * 10) / 10
+      const targetAnnualProduction = Math.max(0, derivedAnnual * 0.5)
+      systemSizeKw = Math.round((targetAnnualProduction / 1200) * 10) / 10
       numPanels = Math.round((systemSizeKw * 1000) / 500)
     }
 
