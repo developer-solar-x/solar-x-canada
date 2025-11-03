@@ -133,8 +133,8 @@ export function calculateCosts(systemSizeKw: number, province: string = 'ON', ba
   // Solar rebate applies to all systems
   let incentivesApplied = 0;
   
-  // Solar incentive: $500 per kW, max $5,000 - applies to all systems
-  const solarIncentivePerKw = 500;
+  // Solar incentive: $1,000 per kW, max $5,000 - applies to all systems
+  const solarIncentivePerKw = 1000;
   const solarMaxIncentive = 5000;
   const solarIncentiveCalculated = systemSizeKw * solarIncentivePerKw;
   const solarIncentive = Math.min(solarIncentiveCalculated, solarMaxIncentive);

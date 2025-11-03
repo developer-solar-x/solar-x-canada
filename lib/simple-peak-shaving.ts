@@ -206,19 +206,19 @@ export function calculateSimplePeakShaving(
   const savingsPercent = (annualSavings / originalCost.total) * 100
   const monthlySavings = annualSavings / 12
   
-  // Calculate solar offset (if solar production is provided)
-  // Use 50% of total consumption as the maximum daytime offset, capped by NREL annual production
-  // This models: at most half of consumption occurs during daylight and can be offset by solar
-  const solarOffsetKwh = solarProductionKwh
-    ? Math.min(annualUsageKwh * 0.5, solarProductionKwh)
-    : 0
+  // Daytime offset = 50% of total annual consumption (independent of NREL)
+  const solarOffsetKwh = annualUsageKwh * 0.5
   
   // Calculate leftover energy (energy not offset by solar + battery)
   // Total energy offset by battery
   const totalBatteryOffset = batteryOffsets.onPeak + batteryOffsets.midPeak + batteryOffsets.offPeak + (batteryOffsets.ultraLow || 0)
   
-  // Combined offset is solar + battery, capped to total annual usage
-  const combinedOffsetKwh = Math.min(annualUsageKwh, solarOffsetKwh + totalBatteryOffset)
+  // Night-time offset uses leftover solar (production minus daytime), limited by battery capability
+  const solarLeftoverForNight = Math.max(0, (solarProductionKwh || 0) - solarOffsetKwh)
+  const nightTimeOffsetKwh = Math.min(solarLeftoverForNight, totalBatteryOffset)
+  
+  // Combined offset is daytime solar + night-time offset, capped to total annual usage
+  const combinedOffsetKwh = Math.min(annualUsageKwh, solarOffsetKwh + nightTimeOffsetKwh)
   
   // Leftover energy = total usage - combined offset
   const leftoverEnergyKwh = Math.max(0, annualUsageKwh - combinedOffsetKwh)

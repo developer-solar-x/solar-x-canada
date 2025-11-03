@@ -7,6 +7,7 @@ import { Zap, DollarSign, TrendingUp, TrendingDown, Loader2, Leaf, CreditCard, M
 import { formatCurrency, formatKw, formatNumber } from '@/lib/utils'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { FINANCING_OPTIONS, calculateFinancing } from '@/config/provinces'
+import { calculateSimpleMultiYear } from '@/lib/simple-peak-shaving'
 import { BATTERY_SPECS } from '@/config/battery-specs'
 import { calculateRoofAzimuth, getDirectionLabel, getOrientationEfficiency } from '@/lib/roof-calculations'
 import * as turf from '@turf/turf'
@@ -91,10 +92,15 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
   const solarMonthlySavings = estimate.savings?.monthlySavings || 0
 
   const hasBatteryDetails = !!(data.batteryDetails && (data.peakShaving?.tou || data.peakShaving?.ulo))
-  // Selected battery (if any)
-  const selectedBatterySpec = data.selectedBattery ? BATTERY_SPECS.find(b => b.id === data.selectedBattery) : null
-  // Include battery for HRS Residential even if details weren't computed on this pass
-  const includeBattery = (data.programType === 'hrs_residential' && !!selectedBatterySpec) || hasBatteryDetails
+  // Selected batteries (support multiple) – fallback to single selection
+  const selectedBatteryIds: string[] = Array.isArray(data.selectedBatteries) && data.selectedBatteries.length > 0
+    ? data.selectedBatteries
+    : (data.selectedBattery ? [data.selectedBattery] : [])
+  const selectedBatterySpecs = selectedBatteryIds
+    .map((id: string) => BATTERY_SPECS.find(b => b.id === id))
+    .filter(Boolean) as any[]
+  // Include battery section whenever any battery is selected or details exist
+  const includeBattery = selectedBatterySpecs.length > 0 || hasBatteryDetails
   const tou = (data.peakShaving as any)?.tou
   const ulo = (data.peakShaving as any)?.ulo
   const selectedPlan: 'tou' | 'ulo' | undefined = (data.peakShaving as any)?.ratePlan
@@ -106,16 +112,27 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
   const planData: any = (betterPlan === 'tou' ? tou : ulo) || tou || ulo
   const displayPlan = selectedPlan || betterPlan
 
-  const batteryPrice = hasBatteryDetails ? (data.batteryDetails?.battery?.price || 0) : (selectedBatterySpec?.price || 0)
-  const batteryNetCost = hasBatteryDetails ? (data.batteryDetails?.multiYearProjection?.netCost || 0) : Math.max(0, batteryPrice - Math.min((selectedBatterySpec?.nominalKwh || 0) * 300, 5000))
+  // Aggregate battery pricing and capacity when multiple are selected
+  const aggregatedBattery = selectedBatterySpecs.length > 0
+    ? selectedBatterySpecs.reduce((acc: any, cur: any) => ({
+        price: (acc.price || 0) + (cur.price || 0),
+        nominalKwh: (acc.nominalKwh || 0) + (cur.nominalKwh || 0),
+        usableKwh: (acc.usableKwh || 0) + (cur.usableKwh || 0),
+        labels: [...(acc.labels || []), `${cur.brand} ${cur.model}`]
+      }), { price: 0, nominalKwh: 0, usableKwh: 0, labels: [] })
+    : null
+  const batteryPrice = hasBatteryDetails ? (data.batteryDetails?.battery?.price || 0) : (aggregatedBattery?.price || 0)
+  const batteryNetCost = hasBatteryDetails
+    ? (data.batteryDetails?.multiYearProjection?.netCost || 0)
+    : Math.max(0, batteryPrice - Math.min((aggregatedBattery?.nominalKwh || 0) * 300, 5000))
   const batteryRebate = batteryPrice > 0 ? Math.max(0, batteryPrice - batteryNetCost) : 0
   const batteryAnnualSavings = planData?.result?.annualSavings || 0
   const batteryMonthlySavings = batteryAnnualSavings > 0 ? Math.round(batteryAnnualSavings / 12) : 0
 
   // selectedBatterySpec already defined above
 
-  // Program battery rebate (explicit) for clear breakdown
-  const batteryProgramRebate = selectedBatterySpec ? Math.min((selectedBatterySpec.nominalKwh || 0) * 300, 5000) : 0
+  // Program battery rebate (explicit) for clear breakdown (aggregated across batteries)
+  const batteryProgramRebate = aggregatedBattery ? Math.min((aggregatedBattery.nominalKwh || 0) * 300, 5000) : 0
   const batteryProgramNet = includeBattery ? Math.max(0, batteryPrice - batteryProgramRebate) : 0
 
   const combinedTotalCost = solarTotalCost + (includeBattery ? batteryPrice : 0)
@@ -475,7 +492,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
         </div>
 
         {/* Selected Battery (always show if chosen) */}
-        {selectedBatterySpec && (
+        {selectedBatterySpecs.length > 0 && (
           <div className="card p-4 bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -484,7 +501,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                 </div>
                 <div>
                   <div className="text-sm font-bold text-navy-600">Selected Battery</div>
-                  <div className="text-sm text-gray-700 font-semibold">{selectedBatterySpec?.brand} {selectedBatterySpec?.model} • {selectedBatterySpec?.usableKwh} kWh usable</div>
+                  <div className="text-sm text-gray-700 font-semibold">{aggregatedBattery?.labels?.join(' + ')} • {aggregatedBattery?.usableKwh} kWh usable</div>
                 </div>
               </div>
               {selectedPlan && (
@@ -566,7 +583,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                   <div className="text-[11px] text-gray-500 mt-1">
                     Solar rebate: {formatCurrency(solarIncentives)} • Battery rebate: {formatCurrency(batteryProgramRebate)}
                   </div>
-                  <div className="text-[11px] text-gray-500">Battery: {data.batteryDetails?.battery?.brand || selectedBatterySpec?.brand} {data.batteryDetails?.battery?.model || selectedBatterySpec?.model} ({data.batteryDetails?.battery?.usableKwh || selectedBatterySpec?.usableKwh} kWh)</div>
+                  <div className="text-[11px] text-gray-500">Battery: {data.batteryDetails?.battery?.brand ? `${data.batteryDetails?.battery?.brand} ${data.batteryDetails?.battery?.model}` : aggregatedBattery?.labels?.join(' + ')} ({data.batteryDetails?.battery?.usableKwh || aggregatedBattery?.usableKwh} kWh)</div>
                 </>
               )}
             </div>
@@ -634,6 +651,11 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                           {includeBattery ? 'Solar + Battery savings' : 'Estimated monthly savings'}
                         </>
                       )}
+                      {includeBattery && (
+                        <div className="text-[11px] text-gray-500 mt-2">
+                          Battery-only savings: ${batteryAnnualSavings.toLocaleString()}/yr ({Math.round(batteryAnnualSavings/12).toLocaleString()}/mo)
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
@@ -654,7 +676,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             </div>
             {includeBattery && (
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                <div className="font-semibold text-gray-700 mb-2">Battery ({selectedBatterySpec?.brand} {selectedBatterySpec?.model})</div>
+                <div className="font-semibold text-gray-700 mb-2">Battery ({aggregatedBattery?.labels?.join(' + ')})</div>
                 <div className="flex justify-between"><span>Battery price</span><span className="font-bold text-navy-600">{formatCurrency(batteryPrice)}</span></div>
                 <div className="flex justify-between"><span>Battery rebate</span><span className="font-bold text-green-600">-{formatCurrency(batteryProgramRebate)}</span></div>
                 <div className="flex justify-between border-t border-gray-200 mt-2 pt-2"><span>Battery net</span><span className="font-bold text-navy-600">{formatCurrency(batteryProgramNet)}</span></div>
@@ -768,27 +790,28 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
         {tou && ulo && (() => {
           const touData = tou
           const uloData = ulo
-          const battery = selectedBatterySpec
-          
-          if (!battery) return null
+          if (!includeBattery) return null
           
           // Calculate combined figures for both plans
           const solarAnnual = estimate.savings?.annualSavings || 0
           const solarNet = estimate.costs?.netCost || 0
+          // Mirror Battery Savings: battery net for combined math subtracts BOTH program battery rebate and solar rebate
+          const batteryNetForCombined = (batteryPrice || 0) - (batteryProgramRebate || 0) - (solarIncentives || 0)
           
           // TOU combined figures
           const touCombinedAnnual = (touData.result?.annualSavings || 0) + solarAnnual
-          const touBatteryNet = touData.projection?.netCost || 0
-          const touCombinedNet = solarNet + touBatteryNet
-          const touCombinedProfit = (touData.combined?.projection?.netProfit25Year ?? 
-            (touData.projection?.netProfit25Year || 0) + (estimate.savings?.roi || 0))
+          const touBatteryNet = batteryNetForCombined
+          const touCombinedNet = Math.max(0, solarNet + touBatteryNet)
+          // 25-Year Profit using the same projection method as Battery Savings
+          const touCombinedProjection = calculateSimpleMultiYear({ annualSavings: touCombinedAnnual } as any, touCombinedNet, 0.05, 25)
+          const touCombinedProfit = touCombinedProjection.netProfit25Year
           
           // ULO combined figures
           const uloCombinedAnnual = (uloData.result?.annualSavings || 0) + solarAnnual
-          const uloBatteryNet = uloData.projection?.netCost || 0
-          const uloCombinedNet = solarNet + uloBatteryNet
-          const uloCombinedProfit = (uloData.combined?.projection?.netProfit25Year ?? 
-            (uloData.projection?.netProfit25Year || 0) + (estimate.savings?.roi || 0))
+          const uloBatteryNet = batteryNetForCombined
+          const uloCombinedNet = Math.max(0, solarNet + uloBatteryNet)
+          const uloCombinedProjection = calculateSimpleMultiYear({ annualSavings: uloCombinedAnnual } as any, uloCombinedNet, 0.05, 25)
+          const uloCombinedProfit = uloCombinedProjection.netProfit25Year
           
           // Calculate payback periods
           const touPayback = touCombinedNet <= 0 ? 0 : (touCombinedAnnual > 0 ? touCombinedNet / touCombinedAnnual : Infinity)
@@ -943,9 +966,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                       <div className="text-2xl font-bold text-red-500 mb-1">
                         ${financing.monthlyPayment}/mo
                       </div>
-                      <div className="text-xs text-gray-600">
-                        {option.interestRate}% APR • {option.termYears} years
-                      </div>
+                      <div className="text-xs text-gray-600">Estimated monthly payment</div>
                     </>
                   ) : (
                     <>
