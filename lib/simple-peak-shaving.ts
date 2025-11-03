@@ -207,10 +207,10 @@ export function calculateSimplePeakShaving(
   const monthlySavings = annualSavings / 12
   
   // Calculate solar offset (if solar production is provided)
-  // Solar only works during daytime, so it offsets approximately 50% of usage
-  // Maximum solar offset is 50% of total annual usage
-  const solarOffsetKwh = solarProductionKwh 
-    ? Math.min(solarProductionKwh, annualUsageKwh * 0.5) // Solar max ~50% offset
+  // Use NREL annual solar production with a 50% self-consumption heuristic
+  // Cap solar offset by total annual usage to avoid over-offsetting
+  const solarOffsetKwh = solarProductionKwh
+    ? Math.min(solarProductionKwh * 0.5, annualUsageKwh)
     : 0
   
   // Calculate leftover energy (energy not offset by solar + battery)
