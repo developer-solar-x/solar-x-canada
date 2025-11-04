@@ -14,6 +14,7 @@ import {
   ULO_RATE_PLAN, 
   TOU_RATE_PLAN 
 } from '../../config/rate-plans'
+import { calculateSystemCost } from '../../config/pricing'
 import {
   calculateSimplePeakShaving,
   calculateSimpleMultiYear,
@@ -27,26 +28,22 @@ interface StepBatteryPeakShavingSimpleProps {
   data: any
   onComplete: (data: any) => void
   onBack: () => void
-  // Optional flag to run this calculator as a standalone page without solar estimate dependencies
-  standalone?: boolean
 }
 
-export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standalone }: StepBatteryPeakShavingSimpleProps) {
+export function StepBatteryPeakShavingSimple({ data, onComplete, onBack }: StepBatteryPeakShavingSimpleProps) {
   // Info modals for rate plans
   const [showTouInfo, setShowTouInfo] = useState(false)
   const [showUloInfo, setShowUloInfo] = useState(false)
   const [showPaybackInfo, setShowPaybackInfo] = useState(false)
   // Check if estimate is being loaded (solar system size needed for rebate calculation)
-  // Disable loading state entirely when used standalone (no solar estimate required)
-  const [estimateLoading, setEstimateLoading] = useState(standalone ? false : !data.estimate?.system?.sizeKw)
+  const [estimateLoading, setEstimateLoading] = useState(!data.estimate?.system?.sizeKw)
   
   // Wait for estimate to be available
   useEffect(() => {
-    if (standalone) return
     if (data.estimate?.system?.sizeKw) {
       setEstimateLoading(false)
     }
-  }, [data.estimate, standalone])
+  }, [data.estimate])
   
   // Calculate default usage from monthly bill
   const calculateUsageFromBill = (monthlyBill: number) => {
@@ -81,32 +78,17 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
   // Override estimate (updated production when panels change)
   const [overrideEstimate, setOverrideEstimate] = useState<any>(null)
 
-  // In standalone mode, let the user enter annual solar production directly (no roof/NREL)
-  const [manualSolarProductionInput, setManualSolarProductionInput] = useState<string>('')
-  const manualSolarProductionKwh = Math.max(0, Number(manualSolarProductionInput) || 0)
-  const effectiveSolarProductionKwh = standalone
-    ? manualSolarProductionKwh
-    : (overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0)
+  const effectiveSolarProductionKwh = (overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0)
+  const effectiveSystemSizeKw = (systemSizeKwOverride || data.estimate?.system?.sizeKw || 0)
 
-  // In standalone mode, allow optional solar system size (kW) to compute rebate display and net costs
-  const [manualSystemSizeInput, setManualSystemSizeInput] = useState<string>('')
-  const manualSystemSizeKw = Math.max(0, Number(manualSystemSizeInput) || 0)
-  const effectiveSystemSizeKw = standalone
-    ? manualSystemSizeKw
-    : (systemSizeKwOverride || data.estimate?.system?.sizeKw || 0)
-
-  // Validation: in standalone mode, require solar production entry
   const canContinue = (() => {
     // require positive annual usage
     if (!(annualUsageKwh && annualUsageKwh > 0)) return false
-    // require positive solar production when standalone
-    if (standalone && !(manualSolarProductionKwh && manualSolarProductionKwh > 0)) return false
     return true
   })()
 
   // When panel count changes, re-run estimate with override size to refresh annual kWh
   useEffect(() => {
-    if (standalone) return
     const run = async () => {
       if (!data?.coordinates) return
       if (!solarPanels || solarPanels <= 0) { setOverrideEstimate(null); return }
@@ -199,7 +181,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
     }, batteries[0]) : null
 
     if (battery) {
-      // Use manual solar production in standalone mode
       const solarProductionKwh = effectiveSolarProductionKwh
 
       const calcResult = calculateSimplePeakShaving(
@@ -210,17 +191,18 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
         solarProductionKwh > 0 ? solarProductionKwh : undefined
       )
 
-      // Calculate battery rebate (combined for all batteries)
+      // Calculate battery rebate (program only)
       const batteryRebate = Math.min(battery.nominalKwh * 300, 5000)
-      // Calculate net cost including both battery and solar rebates
-      const netCost = battery.price - batteryRebate - solarRebate
+      // Battery net cost excludes solar rebate (counted in solar side)
+      const netCost = battery.price - batteryRebate
       const multiYear = calculateSimpleMultiYear(calcResult, netCost, 0.05, 25)
 
-      // Combined (Solar + Battery) figures
-      const solarAnnual = data.estimate?.savings?.annualSavings || 0
+      // Combined (Solar + Battery) figures (use override estimate when available)
+      const currentEstimate = overrideEstimate || data.estimate
+      const solarAnnual = currentEstimate?.savings?.annualSavings || 0
       const combinedAnnual = calcResult.annualSavings + solarAnnual
       const combinedMonthly = Math.round(combinedAnnual / 12)
-      const solarNet = data.estimate?.costs?.netCost || 0
+      const solarNet = currentEstimate?.costs?.netCost || 0
       const combinedNet = Math.max(0, solarNet + netCost)
       const combinedProjection = calculateSimpleMultiYear({ annualSavings: combinedAnnual } as any, combinedNet, 0.05, 25)
 
@@ -228,7 +210,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
     }
 
     setTouResults(newResults)
-  }, [annualUsageInput, selectedBatteries, touDistribution, customRates.tou, data.estimate, systemSizeKwOverride, overrideEstimate, manualSolarProductionInput, standalone])
+  }, [annualUsageInput, selectedBatteries, touDistribution, customRates.tou, data.estimate, systemSizeKwOverride, overrideEstimate])
 
   // Calculate ULO results for selected batteries
   useEffect(() => {
@@ -256,7 +238,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
     }, batteries[0]) : null
 
     if (battery) {
-      // Use manual solar production in standalone mode
       const solarProductionKwh = effectiveSolarProductionKwh
 
       const calcResult = calculateSimplePeakShaving(
@@ -267,17 +248,18 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
         solarProductionKwh > 0 ? solarProductionKwh : undefined
       )
 
-      // Calculate battery rebate (combined for all batteries)
+      // Calculate battery rebate (program only)
       const batteryRebate = Math.min(battery.nominalKwh * 300, 5000)
-      // Calculate net cost including both battery and solar rebates
-      const netCost = battery.price - batteryRebate - solarRebate
+      // Battery net cost excludes solar rebate (counted in solar side)
+      const netCost = battery.price - batteryRebate
       const multiYear = calculateSimpleMultiYear(calcResult, netCost, 0.05, 25)
 
-      // Combined (Solar + Battery) figures
-      const solarAnnual = data.estimate?.savings?.annualSavings || 0
+      // Combined (Solar + Battery) figures (use override estimate when available)
+      const currentEstimate = overrideEstimate || data.estimate
+      const solarAnnual = currentEstimate?.savings?.annualSavings || 0
       const combinedAnnual = calcResult.annualSavings + solarAnnual
       const combinedMonthly = Math.round(combinedAnnual / 12)
-      const solarNet = data.estimate?.costs?.netCost || 0
+      const solarNet = currentEstimate?.costs?.netCost || 0
       const combinedNet = Math.max(0, solarNet + netCost)
       const combinedProjection = calculateSimpleMultiYear({ annualSavings: combinedAnnual } as any, combinedNet, 0.05, 25)
 
@@ -285,7 +267,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
     }
 
     setUloResults(newResults)
-  }, [annualUsageInput, selectedBatteries, uloDistribution, customRates.ulo, data.estimate, systemSizeKwOverride, overrideEstimate, manualSolarProductionInput, standalone])
+  }, [annualUsageInput, selectedBatteries, uloDistribution, customRates.ulo, data.estimate, systemSizeKwOverride, overrideEstimate])
 
   const handleComplete = () => {
     const selectedTouResult = touResults.get('combined')
@@ -354,58 +336,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
         </p>
       </div>
 
-      {/* Solar Inputs / Information */}
-      {standalone ? (
-        <div className="card p-5 bg-gradient-to-br from-green-50 to-white border-2 border-green-300 shadow-md">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-green-500 rounded-lg">
-              <Sun className="text-white" size={24} />
-            </div>
-            <h3 className="text-lg font-bold text-navy-500">Solar</h3>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-            <div>
-              <p className="text-xs text-gray-600 font-medium">Annual Solar Production (required)</p>
-              <div className="flex items-center gap-3 mt-1">
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  placeholder="e.g. 8,000"
-                  value={manualSolarProductionInput}
-                  onChange={(e) => setManualSolarProductionInput(e.target.value)}
-                  className={`w-full sm:w-40 px-3 py-2 border-2 rounded-md text-green-700 font-bold focus:ring-2 focus:ring-green-400 focus:border-green-400 ${standalone && manualSolarProductionKwh <= 0 ? 'border-red-300' : 'border-green-300'}`}
-                />
-                <span className="text-sm text-gray-700 font-semibold">kWh / year</span>
-              </div>
-              {standalone && manualSolarProductionKwh <= 0 && (
-                <p className="mt-1 text-xs text-red-600">This field is required.</p>
-              )}
-            </div>
-            <div>
-              <p className="text-xs text-gray-600 font-medium">Solar System Size</p>
-              <div className="flex items-center gap-3 mt-1">
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  placeholder="e.g. 5.0"
-                  value={manualSystemSizeInput}
-                  onChange={(e) => setManualSystemSizeInput(e.target.value)}
-                  className="w-full sm:w-40 px-3 py-2 border-2 border-green-300 rounded-md text-green-700 font-bold focus:ring-2 focus:ring-green-400 focus:border-green-400"
-                />
-                <span className="text-sm text-gray-700 font-semibold">kW</span>
-              </div>
-              <p className="mt-1 text-xs text-gray-600">Used to show solar rebate (optional).</p>
-            </div>
-          </div>
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs text-gray-600 font-medium">Solar Rebate Available</p>
-              <p className="text-xl font-bold text-green-600">${Math.min(effectiveSystemSizeKw * 1000, 5000).toLocaleString()}</p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        data.estimate?.system && (
+      {/* Solar System Information */}
+      {data.estimate?.system && (
         <div className="card p-5 bg-gradient-to-br from-green-50 to-white border-2 border-green-300 shadow-md">
           <div className="flex items-center gap-3 mb-3">
             <div className="p-2 bg-green-500 rounded-lg">
@@ -432,7 +364,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
             </div>
             <div>
               <p className="text-xs text-gray-600 font-medium">Annual Production</p>
-              <p className="text-xl font-bold text-green-600">{Math.round((effectiveSolarProductionKwh)).toLocaleString()} kWh</p>
+              <p className="text-xl font-bold text-green-600">{Math.round((overrideEstimate?.production?.annualKwh ?? data.estimate.production.annualKwh)).toLocaleString()} kWh</p>
             </div>
             <div>
               <p className="text-xs text-gray-600 font-medium">Solar Rebate Available</p>
@@ -442,7 +374,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
             </div>
           </div>
         </div>
-      ))}
+      )}
       
       {/* Note about override */}
       {data.estimate?.system && (
@@ -529,12 +461,9 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
         cancelText="Close"
       >
         {(() => {
-          // Use override estimate if available
-          const currentEstimate = overrideEstimate || data.estimate
-          const solarNet = currentEstimate?.costs?.netCost || 0
-          const solarAnnual = currentEstimate?.savings?.annualSavings || 0
-          const solarTotal = currentEstimate?.costs?.totalCost || 0
-          const solarRebate = currentEstimate?.costs?.incentives || 0
+          const solarNet = (overrideEstimate || data.estimate)?.costs?.netCost || 0
+          const solarAnnual = (overrideEstimate || data.estimate)?.savings?.annualSavings || 0
+          const solarRebate = (overrideEstimate || data.estimate)?.costs?.incentives || 0
           const tou = touResults.get('combined')
           const ulo = uloResults.get('combined')
           
@@ -547,19 +476,12 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
             price: combined.price + current.price
           })) : null
           
-          // IMPORTANT: projection.netCost includes solar rebate; for payback math we want battery-only net
+          // Battery-only net cost (program rebate only; solar rebate accounted in solarNet)
           const batteryProgramRebate = Math.min((combinedBattery?.nominalKwh || 0) * 300, 5000)
           const batteryBasePrice = combinedBattery?.price || 0
-          const remainingAfterProgram = Math.max(0, batteryBasePrice - batteryProgramRebate)
-
-          // PRIORITIZE REBATE TO BATTERY (DISPLAY ONLY):
-          // Use solar rebate to cover remaining battery cost so battery appears $0 net.
-          const solarRebateToBattery = Math.min(solarRebate, remainingAfterProgram)
-          const displayBatteryNet = Math.max(0, remainingAfterProgram - solarRebateToBattery) // should be 0 when enough rebate
-          const displaySolarNet = solarNet + solarRebateToBattery // reallocating rebate increases solar net in display
-
-          const batteryTouNet = displayBatteryNet
-          const batteryUloNet = displayBatteryNet
+          const batteryNet = Math.max(0, batteryBasePrice - batteryProgramRebate)
+          const batteryTouNet = batteryNet
+          const batteryUloNet = batteryNet
           const batteryTouAnnual = tou?.result?.annualSavings || 0
           const batteryUloAnnual = ulo?.result?.annualSavings || 0
 
@@ -588,7 +510,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
               <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
                 <div className="text-xs font-semibold text-navy-600 mb-1">TOU Sample</div>
                 <div className="text-xs text-gray-700">
-                  Net Cost = ${displaySolarNet.toLocaleString()} + ${batteryTouNet.toLocaleString()} = <span className="font-semibold">${(displaySolarNet + batteryTouNet).toLocaleString()}</span>
+                  Net Cost = ${solarNet.toLocaleString()} + ${batteryTouNet.toLocaleString()} = <span className="font-semibold">${(fullTouNet).toLocaleString()}</span>
                 </div>
                 <div className="text-[11px] text-gray-600">
                   Rebates: Solar ${solarRebate.toLocaleString()} + Battery ${batteryTouRebate.toLocaleString()} (Battery price ${batteryPrice.toLocaleString()} − Rebate ${batteryTouRebate.toLocaleString()})
@@ -605,7 +527,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
               <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
                 <div className="text-xs font-semibold text-navy-600 mb-1">ULO Sample</div>
                 <div className="text-xs text-gray-700">
-                  Net Cost = ${displaySolarNet.toLocaleString()} + ${batteryUloNet.toLocaleString()} = <span className="font-semibold">${(displaySolarNet + batteryUloNet).toLocaleString()}</span>
+                  Net Cost = ${solarNet.toLocaleString()} + ${batteryUloNet.toLocaleString()} = <span className="font-semibold">${(fullUloNet).toLocaleString()}</span>
                 </div>
                 <div className="text-[11px] text-gray-600">
                   Rebates: Solar ${solarRebate.toLocaleString()} + Battery ${batteryUloRebate.toLocaleString()} (Battery price ${batteryPrice.toLocaleString()} − Rebate ${batteryUloRebate.toLocaleString()})
@@ -638,9 +560,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
         cancelText="Close"
       >
         {(() => {
-          const currentEstimate = overrideEstimate || data.estimate
-          const solarNet = currentEstimate?.costs?.netCost || 0
-          const solarAnnual = currentEstimate?.savings?.annualSavings || 0
+          const solarNet = (overrideEstimate || data.estimate)?.costs?.netCost || 0
+          const solarAnnual = (overrideEstimate || data.estimate)?.savings?.annualSavings || 0
           const tou = touResults.get('combined')
           const ulo = uloResults.get('combined')
           const batteryTouAnnual = tou?.result?.annualSavings || 0
@@ -1160,8 +1081,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
             
             const financials = calculateBatteryFinancials(battery)
             
-            // Calculate solar rebate if solar system exists
-            const systemSizeKw = (systemSizeKwOverride || data.estimate?.system?.sizeKw || 0)
+            // Calculate solar rebate if solar system exists (use standalone/manual or estimate override)
+            const systemSizeKw = effectiveSystemSizeKw
             const solarRebatePerKw = 1000
             const solarMaxRebate = 5000
             const solarRebate = systemSizeKw > 0 ? Math.min(systemSizeKw * solarRebatePerKw, solarMaxRebate) : 0
@@ -1300,23 +1221,14 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
                 </button>
               </div>
                {(() => {
-                 // Use override estimate if available, otherwise fallback to original
-                 const currentEstimate = overrideEstimate || data.estimate
-                 const solarNetCost = currentEstimate?.costs?.netCost || 0
-                 const solarAnnualSavings = currentEstimate?.savings?.annualSavings || 0
-                 // Use combined net from precomputed maps when available; fallback to plan projection
-                 const batteryTouNet = touData.combined ? (touData.combined.netCost - solarNetCost) : (touData.projection.netCost || 0)
-                 const batteryUloNet = uloData.combined ? (uloData.combined.netCost - solarNetCost) : (uloData.projection.netCost || 0)
-                 const batteryTouAnnual = touData.result.annualSavings || 0
-                 const batteryUloAnnual = uloData.result.annualSavings || 0
+                 // Use the same precomputed combined figures as the modal
+                 const touCombinedAnnual = touData.combined?.annual || 0
+                 const uloCombinedAnnual = uloData.combined?.annual || 0
+                 const touCombinedNet = touData.combined?.netCost || 0
+                 const uloCombinedNet = uloData.combined?.netCost || 0
 
-                 const fullTouDen = solarAnnualSavings + batteryTouAnnual
-                 const fullUloDen = solarAnnualSavings + batteryUloAnnual
-                 const fullTouNet = solarNetCost + batteryTouNet
-                 const fullUloNet = solarNetCost + batteryUloNet
-
-                 const fullTouPayback = fullTouNet <= 0 ? 0 : (fullTouDen > 0 ? fullTouNet / fullTouDen : Infinity)
-                 const fullUloPayback = fullUloNet <= 0 ? 0 : (fullUloDen > 0 ? fullUloNet / fullUloDen : Infinity)
+                 const fullTouPayback = touCombinedNet <= 0 ? 0 : (touCombinedAnnual > 0 ? touCombinedNet / touCombinedAnnual : Infinity)
+                 const fullUloPayback = uloCombinedNet <= 0 ? 0 : (uloCombinedAnnual > 0 ? uloCombinedNet / uloCombinedAnnual : Infinity)
 
                  return (
                    <div className="space-y-4">
@@ -1557,9 +1469,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
                                              touData.result.batteryOffsets.midPeak + 
                                              touData.result.batteryOffsets.offPeak + 
                                              (touData.result.batteryOffsets.ultraLow || 0)
-                  // Night time offset = leftover solar limited by battery capability
+                  // Night time offset = limited by remaining after daytime, leftover solar, and battery capability
                   const touSolarLeftover = Math.max(0, solarProductionKwh - solarOffsetKwh)
-                  const nightTimeOffsetTou = Math.min(touSolarLeftover, touBatteryOffsetKwh)
+                  const touRemainingAfterDay = Math.max(0, annualUsageKwh - solarOffsetKwh)
+                  const nightTimeOffsetTou = Math.min(touRemainingAfterDay, touSolarLeftover, touBatteryOffsetKwh)
                   const nightTimeOffsetTouPercent = annualUsageKwh > 0 ? (nightTimeOffsetTou / annualUsageKwh) * 100 : 0
                   const touBatteryUsedBySolar = nightTimeOffsetTou
                   const touGridChargeAvail = Math.max(0, touBatteryOffsetKwh - touSolarLeftover)
@@ -1571,8 +1484,9 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
                   const touActualLeftoverPercent = annualUsageKwh > 0 ? (touActualLeftoverAfterFullBattery / annualUsageKwh) * 100 : 0
                   const touRemainderPercent = touActualLeftoverPercent
                    
-                  // Calculate combined offset (exclude grid-charged battery top-up)
-                  const touCombinedOffset = solarOffsetKwh + nightTimeOffsetTou
+                  // Calculate combined offset (exclude grid-charged battery top-up), capped at 100%
+                  const touCombinedOffsetRaw = solarOffsetKwh + nightTimeOffsetTou
+                  const touCombinedOffset = Math.min(touCombinedOffsetRaw, annualUsageKwh)
                   const touCombinedOffsetPercent = annualUsageKwh > 0 ? (touCombinedOffset / annualUsageKwh) * 100 : 0
                    
                   // TOU: low-rate energy bucket (battery top-up + still from grid)
@@ -1710,9 +1624,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
                                              uloData.result.batteryOffsets.midPeak + 
                                              uloData.result.batteryOffsets.offPeak + 
                                              (uloData.result.batteryOffsets.ultraLow || 0)
-                  // Night time offset = leftover solar limited by battery capability
+                  // Night time offset = limited by remaining after daytime, leftover solar, and battery capability
                   const uloSolarLeftover = Math.max(0, solarProductionKwh - solarOffsetKwh)
-                  const nightTimeOffsetUlo = Math.min(uloSolarLeftover, uloBatteryOffsetKwh)
+                  const uloRemainingAfterDay = Math.max(0, annualUsageKwh - solarOffsetKwh)
+                  const nightTimeOffsetUlo = Math.min(uloRemainingAfterDay, uloSolarLeftover, uloBatteryOffsetKwh)
                   const nightTimeOffsetUloPercent = annualUsageKwh > 0 ? (nightTimeOffsetUlo / annualUsageKwh) * 100 : 0
                   const uloBatteryUsedBySolar = nightTimeOffsetUlo
                   const uloGridChargeAvail = Math.max(0, uloBatteryOffsetKwh - uloSolarLeftover)
@@ -1723,8 +1638,9 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, standal
                   const uloActualLeftoverPercent = annualUsageKwh > 0 ? (uloActualLeftoverAfterFullBattery / annualUsageKwh) * 100 : 0
                   const uloRemainderPercent = uloActualLeftoverPercent
                    
-                  // Calculate combined offset (exclude grid-charged battery top-up)
-                  const uloCombinedOffset = solarOffsetKwh + nightTimeOffsetUlo
+                  // Calculate combined offset (exclude grid-charged battery top-up), capped at 100%
+                  const uloCombinedOffsetRaw = solarOffsetKwh + nightTimeOffsetUlo
+                  const uloCombinedOffset = Math.min(uloCombinedOffsetRaw, annualUsageKwh)
                   const uloCombinedOffsetPercent = annualUsageKwh > 0 ? (uloCombinedOffset / annualUsageKwh) * 100 : 0
                    
                   // ULO: low-rate energy bucket (battery top-up + still from grid)

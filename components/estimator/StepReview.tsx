@@ -786,34 +786,37 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
           </div>
         )}
 
-        {/* TOU vs ULO Comparison Card - Simple Peak Shaving */}
+        {/* TOU vs ULO Comparison Card - Use final results from StepBatteryPeakShavingSimple */}
         {tou && ulo && (() => {
-          const touData = tou
-          const uloData = ulo
           if (!includeBattery) return null
+          // Prefer the combined results computed in StepBatteryPeakShavingSimple, fallback to re-deriving
+          const touCombined = (data.peakShaving as any)?.tou?.combined
+          const uloCombined = (data.peakShaving as any)?.ulo?.combined
           
-          // Calculate combined figures for both plans
-          const solarAnnual = estimate.savings?.annualSavings || 0
-          const solarNet = estimate.costs?.netCost || 0
-          // Mirror Battery Savings: battery net for combined math subtracts BOTH program battery rebate and solar rebate
-          const batteryNetForCombined = (batteryPrice || 0) - (batteryProgramRebate || 0) - (solarIncentives || 0)
+          let touCombinedAnnual = touCombined?.annual || 0
+          let touCombinedNet = touCombined?.netCost || 0
+          let touCombinedProfit = touCombined?.projection?.netProfit25Year || 0
+          let uloCombinedAnnual = uloCombined?.annual || 0
+          let uloCombinedNet = uloCombined?.netCost || 0
+          let uloCombinedProfit = uloCombined?.projection?.netProfit25Year || 0
           
-          // TOU combined figures
-          const touCombinedAnnual = (touData.result?.annualSavings || 0) + solarAnnual
-          const touBatteryNet = batteryNetForCombined
-          const touCombinedNet = Math.max(0, solarNet + touBatteryNet)
-          // 25-Year Profit using the same projection method as Battery Savings
-          const touCombinedProjection = calculateSimpleMultiYear({ annualSavings: touCombinedAnnual } as any, touCombinedNet, 0.05, 25)
-          const touCombinedProfit = touCombinedProjection.netProfit25Year
+          if (!(touCombined && uloCombined)) {
+            // Fallback: derive from estimate and battery savings if combined missing
+            const solarAnnual = estimate.savings?.annualSavings || 0
+            const solarNet = estimate.costs?.netCost || 0
+            const touAnnual = (tou?.result?.annualSavings || 0) + solarAnnual
+            const uloAnnual = (ulo?.result?.annualSavings || 0) + solarAnnual
+            const batteryNet = Math.max(0, (batteryPrice || 0) - (batteryProgramRebate || 0))
+            const touNet = Math.max(0, solarNet + batteryNet)
+            const uloNet = Math.max(0, solarNet + batteryNet)
+            touCombinedAnnual = touAnnual
+            uloCombinedAnnual = uloAnnual
+            touCombinedNet = touNet
+            uloCombinedNet = uloNet
+            touCombinedProfit = calculateSimpleMultiYear({ annualSavings: touAnnual } as any, touNet, 0.05, 25).netProfit25Year
+            uloCombinedProfit = calculateSimpleMultiYear({ annualSavings: uloAnnual } as any, uloNet, 0.05, 25).netProfit25Year
+          }
           
-          // ULO combined figures
-          const uloCombinedAnnual = (uloData.result?.annualSavings || 0) + solarAnnual
-          const uloBatteryNet = batteryNetForCombined
-          const uloCombinedNet = Math.max(0, solarNet + uloBatteryNet)
-          const uloCombinedProjection = calculateSimpleMultiYear({ annualSavings: uloCombinedAnnual } as any, uloCombinedNet, 0.05, 25)
-          const uloCombinedProfit = uloCombinedProjection.netProfit25Year
-          
-          // Calculate payback periods
           const touPayback = touCombinedNet <= 0 ? 0 : (touCombinedAnnual > 0 ? touCombinedNet / touCombinedAnnual : Infinity)
           const uloPayback = uloCombinedNet <= 0 ? 0 : (uloCombinedAnnual > 0 ? uloCombinedNet / uloCombinedAnnual : Infinity)
           

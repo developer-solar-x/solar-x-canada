@@ -5,17 +5,9 @@
 
 import { useCallback } from 'react'
 import Link from 'next/link'
-import { StepBatteryPeakShavingSimple } from '@/components/estimator/StepBatteryPeakShavingSimple'
+import { StepBatteryPeakShavingStandalone } from '@/components/estimator/StepBatteryPeakShavingStandalone'
 
 export default function PeakShavingCalculatorPage() {
-  // simple, empty data seed — calculator will let the user enter annual usage
-  const data: any = {}
-
-  // no-op complete handler — this standalone page doesn't persist wizard progress
-  const handleComplete = useCallback((updated: any) => {
-    // intentionally blank in standalone mode
-  }, [])
-
   // back handler — sends users to homepage
   const handleBack = useCallback(() => {
     // Next Link preferred in UI; for handler we can rely on browser history
@@ -37,13 +29,8 @@ export default function PeakShavingCalculatorPage() {
         <span className="text-navy-500 font-semibold">Peak-Shaving Calculator</span>
       </div>
 
-      {/* Standalone calculator; standalone flag disables solar/NREL dependencies */}
-      <StepBatteryPeakShavingSimple
-        data={data}
-        onComplete={handleComplete}
-        onBack={handleBack}
-        standalone
-      />
+      {/* Standalone calculator component (isolated from estimator flow) */}
+      <StepBatteryPeakShavingStandalone onBack={handleBack} />
     </main>
   )
 }
