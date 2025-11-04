@@ -257,24 +257,24 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="grid lg:grid-cols-[1fr_320px] gap-6">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-hidden">
+      <div className="grid lg:grid-cols-[1fr_320px] gap-4 lg:gap-6">
         {/* Main content - Photo upload */}
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6 min-w-0">
           <div>
-            <h2 className="text-2xl font-bold text-navy-500 mb-2">
+            <h2 className="text-xl sm:text-2xl font-bold text-navy-500 mb-2">
               Property Photos
             </h2>
-            <p className="text-gray-600">
+            <p className="text-sm sm:text-base text-gray-600">
               Upload photos to help us provide the most accurate estimate
             </p>
           </div>
 
           {/* Info banner */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <Camera className="text-blue-500 flex-shrink-0 mt-0.5" size={20} />
-              <div className="text-sm text-blue-800">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+            <div className="flex items-start gap-2 sm:gap-3">
+              <Camera className="text-blue-500 flex-shrink-0 mt-0.5" size={18} />
+              <div className="text-xs sm:text-sm text-blue-800 min-w-0">
                 <p className="font-semibold mb-1">Why photos matter</p>
                 <ul className="text-xs space-y-1 list-disc list-inside">
                   <li>More accurate system sizing and placement</li>
@@ -287,7 +287,7 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
           </div>
 
           {/* Category tabs */}
-          <div className="flex gap-2 overflow-x-auto pb-2">
+          <div className="flex gap-2 overflow-x-auto pb-2 -mx-2 px-2">
             {PHOTO_CATEGORIES.map(category => {
               const categoryPhotos = getPhotosForCategory(category.id)
               const isComplete = category.required ? categoryPhotos.length > 0 : true
@@ -324,20 +324,20 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
 
           {/* Active category info */}
           {PHOTO_CATEGORIES.find(cat => cat.id === activeCategory) && (
-            <div className="card p-4">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-semibold text-navy-500 flex items-center gap-2">
-                    {PHOTO_CATEGORIES.find(cat => cat.id === activeCategory)?.name}
+            <div className="card p-3 sm:p-4">
+              <div className="flex items-start justify-between mb-3 gap-2">
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-semibold text-sm sm:text-base text-navy-500 flex items-center gap-2 flex-wrap">
+                    <span className="break-words">{PHOTO_CATEGORIES.find(cat => cat.id === activeCategory)?.name}</span>
                     {PHOTO_CATEGORIES.find(cat => cat.id === activeCategory)?.required && (
-                      <span className="text-xs text-red-500 font-normal">Required</span>
+                      <span className="text-xs text-red-500 font-normal whitespace-nowrap">Required</span>
                     )}
                   </h3>
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className="text-xs sm:text-sm text-gray-600 mt-1 break-words">
                     {PHOTO_CATEGORIES.find(cat => cat.id === activeCategory)?.description}
                   </p>
                 </div>
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-gray-500 whitespace-nowrap flex-shrink-0">
                   {getPhotosForCategory(activeCategory).length}/{PHOTO_CATEGORIES.find(cat => cat.id === activeCategory)?.maxPhotos} photos
                 </span>
               </div>
@@ -350,17 +350,17 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
                   onDragOver={handleDrag}
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all ${
+                  className={`border-2 border-dashed rounded-lg p-4 sm:p-6 lg:p-8 text-center cursor-pointer transition-all ${
                     dragActive
                       ? 'border-red-500 bg-red-50'
                       : 'border-gray-300 hover:border-red-500 hover:bg-gray-50'
                   }`}
                 >
-                  <Upload className="mx-auto mb-3 text-gray-400" size={48} />
-                  <p className="text-sm font-semibold text-gray-700 mb-1">
+                  <Upload className="mx-auto mb-2 sm:mb-3 text-gray-400" size={32} />
+                  <p className="text-xs sm:text-sm font-semibold text-gray-700 mb-1 break-words">
                     Click to upload or drag and drop
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 break-words">
                     JPG, PNG, HEIC up to 10MB each
                   </p>
                   <input
@@ -377,9 +377,9 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
 
               {/* Photo thumbnails */}
               {getPhotosForCategory(activeCategory).length > 0 && (
-                <div className="grid grid-cols-3 gap-3 mt-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 mt-4">
                   {getPhotosForCategory(activeCategory).map(photo => (
-                    <div key={photo.id} className="relative group">
+                    <div key={photo.id} className="relative group min-w-0">
                       <div 
                         className="aspect-square relative rounded-lg overflow-hidden border-2 border-gray-200 cursor-pointer hover:border-blue-500 transition-colors"
                         onClick={() => {
@@ -405,9 +405,9 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
                             e.stopPropagation()
                             removePhoto(photo.id)
                           }}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 sm:p-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
                         >
-                          <X size={16} />
+                          <X size={14} />
                         </button>
                       </div>
                       <p className="text-xs text-gray-500 mt-1 truncate">
@@ -421,8 +421,8 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
           )}
 
           {/* Photo tips */}
-          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-            <h4 className="font-semibold text-gray-800 mb-2 text-sm">Photo Tips</h4>
+          <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200">
+            <h4 className="font-semibold text-gray-800 mb-2 text-xs sm:text-sm">Photo Tips</h4>
             <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
               <li>Take photos in good lighting (daytime preferred)</li>
               <li>Include multiple angles for roof and electrical panel</li>
@@ -434,32 +434,32 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
         </div>
 
         {/* Right sidebar - Summary */}
-        <div className="space-y-4">
-          <div className="card p-6 sticky top-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Camera className="text-red-500" size={24} />
-              <h3 className="font-bold text-navy-500">Photo Summary</h3>
+        <div className="space-y-4 lg:space-y-4">
+          <div className="card p-4 sm:p-6 lg:sticky lg:top-6">
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
+              <Camera className="text-red-500 flex-shrink-0" size={20} />
+              <h3 className="font-bold text-base sm:text-lg text-navy-500">Photo Summary</h3>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {PHOTO_CATEGORIES.map(category => {
                 const categoryPhotos = getPhotosForCategory(category.id)
                 const isComplete = category.required ? categoryPhotos.length > 0 : true
                 
                 return (
-                  <div key={category.id} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                  <div key={category.id} className="flex items-center justify-between gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
                       {isComplete ? (
-                        <CheckCircle className="text-green-500" size={16} />
+                        <CheckCircle className="text-green-500 flex-shrink-0" size={16} />
                       ) : (
-                        <AlertCircle className="text-red-500" size={16} />
+                        <AlertCircle className="text-red-500 flex-shrink-0" size={16} />
                       )}
-                      <span className="text-sm text-gray-700">{category.name}</span>
+                      <span className="text-xs sm:text-sm text-gray-700 truncate">{category.name}</span>
                       {category.required && (
-                        <span className="text-xs text-red-500">*</span>
+                        <span className="text-xs text-red-500 flex-shrink-0">*</span>
                       )}
                     </div>
-                    <span className={`text-sm font-semibold ${
+                    <span className={`text-xs sm:text-sm font-semibold flex-shrink-0 ${
                       categoryPhotos.length > 0 ? 'text-green-600' : 'text-gray-400'
                     }`}>
                       {categoryPhotos.length}/{category.maxPhotos}
@@ -494,18 +494,18 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
             )}
 
             {/* Action buttons */}
-            <div className="space-y-2 mt-6">
+            <div className="space-y-2 mt-4 sm:mt-6">
               <button
                 onClick={handleContinue}
                 disabled={!hasRequiredPhotos()}
-                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base py-2 sm:py-2.5"
               >
                 Continue
               </button>
               
               <button
                 onClick={handleSkip}
-                className="btn-outline border-gray-300 text-gray-700 w-full text-sm"
+                className="btn-outline border-gray-300 text-gray-700 w-full text-xs sm:text-sm py-2 sm:py-2.5"
               >
                 Skip Photos
               </button>
@@ -513,7 +513,7 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
               {onBack && (
                 <button
                   onClick={onBack}
-                  className="btn-outline border-gray-300 text-gray-700 w-full"
+                  className="btn-outline border-gray-300 text-gray-700 w-full text-sm sm:text-base py-2 sm:py-2.5"
                 >
                   Back
                 </button>
@@ -521,8 +521,8 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
             </div>
 
             {/* Mobile camera tip */}
-            <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-xs text-blue-800">
+            <div className="mt-3 sm:mt-4 bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3">
+              <p className="text-xs text-blue-800 break-words">
                 <strong>Mobile Tip:</strong> On phone? Click upload and choose "Camera" to take photos directly
               </p>
             </div>

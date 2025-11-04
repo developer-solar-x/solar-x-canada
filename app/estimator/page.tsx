@@ -307,9 +307,9 @@ export default function EstimatorPage() {
       // Check if battery system was selected
       const hasBattery = data.hasBattery || data.systemType === 'battery_system'
       
-      // If on Photos/Details step and grid-tied system, skip Battery Savings step when going back
+      // If on Photos/Details step and grid-tied system, go back to Add-ons (skip Battery Savings)
       if (isPeakShavingStep && !hasBattery) {
-        prevStep = currentStep - 2 // Skip the Battery Savings step
+        prevStep = currentStep - 1 // Go to Add-ons
       }
       
       setCurrentStep(prevStep)
@@ -413,11 +413,13 @@ export default function EstimatorPage() {
             {/* Mode Badge */}
             <div className="text-center mb-4">
               <span className={`inline-block px-4 py-1 rounded-full text-xs font-bold ${
-                data.estimatorMode === 'easy' 
-                  ? 'bg-red-100 text-red-600' 
-                  : 'bg-navy-100 text-navy-600'
+                data.programType === 'hrs_residential'
+                  ? 'bg-navy-100 text-navy-600'
+                  : data.estimatorMode === 'easy' 
+                    ? 'bg-red-100 text-red-600' 
+                    : 'bg-navy-100 text-navy-600'
               }`}>
-                {data.estimatorMode === 'easy' ? 'Quick Estimate' : 'Detailed Analysis'}
+                {data.programType === 'hrs_residential' ? 'Solar HRS Program' : (data.estimatorMode === 'easy' ? 'Quick Estimate' : 'Detailed Analysis')}
               </span>
             </div>
 
@@ -517,7 +519,7 @@ export default function EstimatorPage() {
         {savedProgressData && (
           <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm font-semibold text-blue-800 mb-1">
-              {savedProgressData.data.estimatorMode === 'easy' ? 'Quick Estimate' : 'Detailed Analysis'}
+              {savedProgressData.data.programType === 'hrs_residential' ? 'Solar HRS Program' : (savedProgressData.data.estimatorMode === 'easy' ? 'Quick Estimate' : 'Detailed Analysis')}
             </p>
             <p className="text-sm text-blue-600">
               Step {savedProgressData.currentStep}

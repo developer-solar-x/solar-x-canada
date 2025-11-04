@@ -66,7 +66,7 @@ export function ResumeEstimateBanner() {
                 Resume Your Solar Estimate
               </h3>
               <p className="text-sm text-white/80">
-                {progressInfo.mode === 'easy' ? 'Quick Estimate' : 'Detailed Analysis'} 
+                {progressInfo.programType === 'hrs_residential' ? 'Solar HRS Program' : (progressInfo.mode === 'easy' ? 'Quick Estimate' : 'Detailed Analysis')} 
                 {' • '}
                 Step {progressInfo.step} of 7 
                 {' • '}

@@ -54,7 +54,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
     return Math.round(monthlyKwh * 12)
   }
   
-  const defaultUsage = data.energyUsage?.annualKwh || 
+  // Calculate default usage - prefer persisted value from peakShaving, then energyUsage, then calculated
+  // Note: localStorage will be checked in useEffect after mount (SSR-safe)
+  const defaultUsage = data.peakShaving?.annualUsageKwh || 
+                       data.energyUsage?.annualKwh || 
                        (data.monthlyBill ? calculateUsageFromBill(data.monthlyBill) : null) || 
                        data.annualUsageKwh || 
                        14000
@@ -70,20 +73,43 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
   const [uloResults, setUloResults] = useState<Map<string, {result: SimplePeakShavingResult, projection: any, combined?: { annual: number, monthly: number, projection: any, netCost: number } }>>(new Map())
   const [showCustomRates, setShowCustomRates] = useState(false)
   const [showSavingsInfo, setShowSavingsInfo] = useState(false)
-  // Hydrate annual usage from storage after mount (standalone)
+  // Hydrate annual usage from storage after mount (both standalone and estimator)
   useEffect(() => {
-    if (allowManualSolar && typeof window !== 'undefined') {
-      const stored = localStorage.getItem('ps_annualUsageKwh')
-      if (stored && stored !== annualUsageInput) setAnnualUsageInput(stored)
+    if (typeof window === 'undefined') return
+    
+    // Priority 1: Check if props already have a value (from estimator data or peakShaving)
+    const fromProps = data.peakShaving?.annualUsageKwh || data.energyUsage?.annualKwh
+    if (fromProps && fromProps > 0) {
+      const propsValue = String(fromProps)
+      if (propsValue !== annualUsageInput) {
+        setAnnualUsageInput(propsValue)
+      }
+      // Also persist this value to localStorage for consistency
+      const storageKey = allowManualSolar ? 'ps_annualUsageKwh' : 'estimator_annualUsageKwh'
+      localStorage.setItem(storageKey, propsValue)
+      return
+    }
+    
+    // Priority 2: Check localStorage (different keys for standalone vs estimator)
+    const storageKey = allowManualSolar ? 'ps_annualUsageKwh' : 'estimator_annualUsageKwh'
+    const stored = localStorage.getItem(storageKey)
+    if (stored && stored !== '0' && Number(stored) > 0) {
+      const storedValue = String(stored)
+      if (storedValue !== annualUsageInput) {
+        setAnnualUsageInput(storedValue)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Persist annual usage when in standalone
+  // Persist annual usage (both standalone and estimator modes)
   useEffect(() => {
-    if (allowManualSolar && typeof window !== 'undefined') {
-      localStorage.setItem('ps_annualUsageKwh', annualUsageInput || '0')
-    }
+    if (typeof window === 'undefined') return
+    if (!annualUsageInput || Number(annualUsageInput) <= 0) return
+    
+    // Use different keys for standalone vs estimator
+    const storageKey = allowManualSolar ? 'ps_annualUsageKwh' : 'estimator_annualUsageKwh'
+    localStorage.setItem(storageKey, annualUsageInput)
   }, [allowManualSolar, annualUsageInput])
 
   // Allow overriding solar panel count/system size for rebate and display
@@ -1528,29 +1554,45 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
                <div className="grid md:grid-cols-2 gap-6">
                  {/* TOU Calculation Card */}
                  {(() => {
-                   // Get solar production (manual in standalone)
-                   const solarProductionKwh = effectiveSolarProductionKwh
-                   
-                  // Daytime offset = 50% of total annual consumption
-                  const solarOffsetKwh = annualUsageKwh * 0.5
-                   const solarOffsetPercent = annualUsageKwh > 0 ? (solarOffsetKwh / annualUsageKwh) * 100 : 0
-                   
+                  // Get solar production (manual in standalone)
+                  const solarProductionKwh = effectiveSolarProductionKwh
+                  
+                  // Daytime offset = 50% of total annual consumption, BUT capped at actual solar production
+                  const daytimeTargetKwh = annualUsageKwh * 0.5
+                  const solarOffsetKwh = Math.min(daytimeTargetKwh, solarProductionKwh)
+                  const solarOffsetPercent = annualUsageKwh > 0 ? (solarOffsetKwh / annualUsageKwh) * 100 : 0
+                  
                   // Calculate TOU battery offset capacity
                   const touBatteryOffsetKwh = touData.result.batteryOffsets.onPeak + 
                                              touData.result.batteryOffsets.midPeak + 
                                              touData.result.batteryOffsets.offPeak + 
                                              (touData.result.batteryOffsets.ultraLow || 0)
-                  // Night time offset = limited by remaining after daytime, leftover solar, and battery capability
+                  
+                  // Solar leftover = excess solar after covering daytime consumption
                   const touSolarLeftover = Math.max(0, solarProductionKwh - solarOffsetKwh)
+                  
+                  // Remaining consumption after daytime solar coverage
                   const touRemainingAfterDay = Math.max(0, annualUsageKwh - solarOffsetKwh)
+                  
+                  // Nighttime offset from stored solar = min of (remaining consumption, leftover solar, battery capacity)
+                  // This is ONLY stored solar used at night (excludes grid top-up)
                   const nightTimeOffsetTou = Math.min(touRemainingAfterDay, touSolarLeftover, touBatteryOffsetKwh)
                   const nightTimeOffsetTouPercent = annualUsageKwh > 0 ? (nightTimeOffsetTou / annualUsageKwh) * 100 : 0
-                  const touBatteryUsedBySolar = nightTimeOffsetTou
-                  const touGridChargeAvail = Math.max(0, touBatteryOffsetKwh - touSolarLeftover)
-                  const touRemainingAfterSolar = Math.max(0, annualUsageKwh - solarProductionKwh)
-                  const touGridChargeUsed = Math.min(touGridChargeAvail, touRemainingAfterSolar)
+                  
+                  // Solar → Battery: how much solar is stored in battery (limited by battery capacity and leftover solar)
+                  const touBatteryUsedBySolar = Math.min(touSolarLeftover, nightTimeOffsetTou)
+                  
+                  // Battery capacity available for grid charging (after solar storage)
+                  const touBatteryCapacityAfterSolar = Math.max(0, touBatteryOffsetKwh - touBatteryUsedBySolar)
+                  
+                  // Remaining consumption after solar (both daytime direct + nighttime from battery)
+                  const touRemainingAfterSolar = Math.max(0, annualUsageKwh - solarOffsetKwh - nightTimeOffsetTou)
+                  
+                  // Grid charge used = battery top-up from grid (limited by remaining consumption and available battery capacity)
+                  const touGridChargeUsed = Math.min(touBatteryCapacityAfterSolar, touRemainingAfterSolar)
                   const touTopUpPercent = annualUsageKwh > 0 ? (touGridChargeUsed / annualUsageKwh) * 100 : 0
-                  // True leftover should be what consumption still needs after daytime + night (solar) + grid top‑up
+                  
+                  // True leftover = consumption still not covered after all solar + battery (solar + grid charged)
                   const touActualLeftoverAfterFullBattery = Math.max(0, annualUsageKwh - (solarOffsetKwh + nightTimeOffsetTou + touGridChargeUsed))
                   const touActualLeftoverPercent = annualUsageKwh > 0 ? (touActualLeftoverAfterFullBattery / annualUsageKwh) * 100 : 0
                   const touRemainderPercent = touActualLeftoverPercent
@@ -1683,28 +1725,45 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
                  
                  {/* ULO Calculation Card */}
                  {(() => {
-                   // Get solar production (manual in standalone)
-                   const solarProductionKwh = effectiveSolarProductionKwh
-                   
-                  // Daytime offset = 50% of total annual consumption
-                  const solarOffsetKwh = annualUsageKwh * 0.5
-                   const solarOffsetPercent = annualUsageKwh > 0 ? (solarOffsetKwh / annualUsageKwh) * 100 : 0
-                   
+                  // Get solar production (manual in standalone)
+                  const solarProductionKwh = effectiveSolarProductionKwh
+                  
+                  // Daytime offset = 50% of total annual consumption, BUT capped at actual solar production
+                  const daytimeTargetKwh = annualUsageKwh * 0.5
+                  const solarOffsetKwh = Math.min(daytimeTargetKwh, solarProductionKwh)
+                  const solarOffsetPercent = annualUsageKwh > 0 ? (solarOffsetKwh / annualUsageKwh) * 100 : 0
+                  
                   // Calculate ULO battery offset capacity
                   const uloBatteryOffsetKwh = uloData.result.batteryOffsets.onPeak + 
                                              uloData.result.batteryOffsets.midPeak + 
                                              uloData.result.batteryOffsets.offPeak + 
                                              (uloData.result.batteryOffsets.ultraLow || 0)
-                  // Night time offset = limited by remaining after daytime, leftover solar, and battery capability
+                  
+                  // Solar leftover = excess solar after covering daytime consumption
                   const uloSolarLeftover = Math.max(0, solarProductionKwh - solarOffsetKwh)
+                  
+                  // Remaining consumption after daytime solar coverage
                   const uloRemainingAfterDay = Math.max(0, annualUsageKwh - solarOffsetKwh)
+                  
+                  // Nighttime offset from stored solar = min of (remaining consumption, leftover solar, battery capacity)
+                  // This is ONLY stored solar used at night (excludes grid top-up)
                   const nightTimeOffsetUlo = Math.min(uloRemainingAfterDay, uloSolarLeftover, uloBatteryOffsetKwh)
                   const nightTimeOffsetUloPercent = annualUsageKwh > 0 ? (nightTimeOffsetUlo / annualUsageKwh) * 100 : 0
-                  const uloBatteryUsedBySolar = nightTimeOffsetUlo
-                  const uloGridChargeAvail = Math.max(0, uloBatteryOffsetKwh - uloSolarLeftover)
-                  const uloRemainingAfterSolar = Math.max(0, annualUsageKwh - solarProductionKwh)
-                  const uloGridChargeUsed = Math.min(uloGridChargeAvail, uloRemainingAfterSolar)
+                  
+                  // Solar → Battery: how much solar is stored in battery (limited by battery capacity and leftover solar)
+                  const uloBatteryUsedBySolar = Math.min(uloSolarLeftover, nightTimeOffsetUlo)
+                  
+                  // Battery capacity available for grid charging (after solar storage)
+                  const uloBatteryCapacityAfterSolar = Math.max(0, uloBatteryOffsetKwh - uloBatteryUsedBySolar)
+                  
+                  // Remaining consumption after solar (both daytime direct + nighttime from battery)
+                  const uloRemainingAfterSolar = Math.max(0, annualUsageKwh - solarOffsetKwh - nightTimeOffsetUlo)
+                  
+                  // Grid charge used = battery top-up from grid (limited by remaining consumption and available battery capacity)
+                  const uloGridChargeUsed = Math.min(uloBatteryCapacityAfterSolar, uloRemainingAfterSolar)
                   const uloTopUpPercent = annualUsageKwh > 0 ? (uloGridChargeUsed / annualUsageKwh) * 100 : 0
+                  
+                  // True leftover = consumption still not covered after all solar + battery (solar + grid charged)
                   const uloActualLeftoverAfterFullBattery = Math.max(0, annualUsageKwh - (solarOffsetKwh + nightTimeOffsetUlo + uloGridChargeUsed))
                   const uloActualLeftoverPercent = annualUsageKwh > 0 ? (uloActualLeftoverAfterFullBattery / annualUsageKwh) * 100 : 0
                   const uloRemainderPercent = uloActualLeftoverPercent

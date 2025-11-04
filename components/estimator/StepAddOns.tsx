@@ -13,25 +13,25 @@ const ADD_ONS = [
     id: 'ev_charger',
     name: 'EV Charger',
     icon: Zap,
-    description: 'Level 2 home charging station for electric vehicles'
+    description: 'Level 2 (240V) charger, typical 32–40A. Indoor/outdoor install, includes permitting and panel tie‑in.'
   },
   {
     id: 'heat_pump',
     name: 'Heat Pump',
     icon: Wind,
-    description: 'Energy-efficient heating and cooling system'
+    description: 'High‑efficiency cold‑climate heat pump for year‑round heating and cooling. Ducted or ductless options.'
   },
   {
     id: 'new_roof',
     name: 'New Roof',
     icon: Home,
-    description: 'New roof installation before solar panel mounting'
+    description: 'Replace shingles prior to solar. Includes underlayment, flashing, and integrated solar mounts for a seamless install.'
   },
   {
     id: 'water_heater',
     name: 'Water Heater',
     icon: Zap,
-    description: 'High-efficiency water heating system'
+    description: 'High‑efficiency heat‑pump water heater or tankless option to reduce electric hot‑water costs.'
   }
 ]
 
@@ -115,6 +115,9 @@ export function StepAddOns({ data, onComplete, onBack }: StepAddOnsProps) {
                   <h3 className="text-xl font-bold text-navy-500 mb-1">
                     {addOn.name}
                   </h3>
+                  <p className={`text-sm ${isSelected ? 'text-red-700' : 'text-gray-600'}`}>
+                    {addOn.description}
+                  </p>
                 </div>
               </div>
             </button>

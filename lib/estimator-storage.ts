@@ -152,6 +152,7 @@ export async function getSavedProgressSummary(): Promise<{
   timeSince: string
   address?: string
   mode?: 'easy' | 'detailed'
+  programType?: string
   photoCount?: number
 } | null> {
   const saved = loadEstimatorProgress()
@@ -184,6 +185,7 @@ export async function getSavedProgressSummary(): Promise<{
     timeSince: getTimeSinceLastSave() || 'recently',
     address: saved.data.address,
     mode: saved.data.estimatorMode,
+    programType: (saved.data as any).programType,
     photoCount,
   }
 }

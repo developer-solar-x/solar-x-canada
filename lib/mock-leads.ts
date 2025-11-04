@@ -58,6 +58,19 @@ export interface MockLead {
   payback_years?: number
   annual_production_kwh?: number
   
+  // Peak‑shaving preview (new standalone + estimator alignment)
+  peak_shaving?: {
+    annual_usage_kwh: number
+    manual_production_kwh?: number
+    system_size_kw?: number
+    solar_rebate?: number
+    battery_id?: string
+    tou?: { battery_annual: number; combined_annual: number; payback_years: number }
+    ulo?: { battery_annual: number; combined_annual: number; payback_years: number }
+  }
+  // Persisted standalone inputs snapshot
+  standalone_persist?: { size_kw: number; num_panels: number; annual_production_kwh: number; annual_usage_kwh: number }
+  
   // Status tracking
   status: 'new' | 'contacted' | 'qualified' | 'closed'
   
@@ -114,6 +127,16 @@ export const mockLeads: MockLead[] = [
     annual_savings: 3250,
     payback_years: 8.9,
     annual_production_kwh: 16000,
+    peak_shaving: {
+      annual_usage_kwh: 14500,
+      manual_production_kwh: 16000,
+      system_size_kw: 12.8,
+      solar_rebate: 5000,
+      battery_id: 'renon-16',
+      tou: { battery_annual: 420, combined_annual: 1780, payback_years: 9.8 },
+      ulo: { battery_annual: 1240, combined_annual: 2600, payback_years: 7.6 }
+    },
+    standalone_persist: { size_kw: 12.8, num_panels: 26, annual_production_kwh: 16000, annual_usage_kwh: 14500 },
     status: 'new',
     hubspot_synced: false,
     source: 'estimator'
@@ -154,6 +177,16 @@ export const mockLeads: MockLead[] = [
     annual_savings: 1850,
     payback_years: 9.1,
     annual_production_kwh: 9375,
+    peak_shaving: {
+      annual_usage_kwh: 8200,
+      manual_production_kwh: 9375,
+      system_size_kw: 7.5,
+      solar_rebate: 5000,
+      battery_id: 'renon-16',
+      tou: { battery_annual: 306, combined_annual: 1386 + 306, payback_years: 12.5 },
+      ulo: { battery_annual: 1031, combined_annual: 1386 + 1031, payback_years: 8.8 }
+    },
+    standalone_persist: { size_kw: 7.5, num_panels: 15, annual_production_kwh: 9897, annual_usage_kwh: 10009 },
     status: 'contacted',
     hubspot_synced: true,
     hubspot_contact_id: 'hs-contact-12345',

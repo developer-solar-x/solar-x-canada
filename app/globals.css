@@ -292,6 +292,33 @@ body {
   background: var(--color-navy-600);
 }
 
+/* Chart scrollbar - always visible and touch-friendly */
+.chart-scroll-container::-webkit-scrollbar {
+  height: 12px;
+  display: block !important;
+}
+
+.chart-scroll-container::-webkit-scrollbar-track {
+  background: #F1F5F9;
+  border-radius: 6px;
+}
+
+.chart-scroll-container::-webkit-scrollbar-thumb {
+  background: #1B4E7C;
+  border-radius: 6px;
+  border: 2px solid #F1F5F9;
+  min-height: 12px;
+}
+
+.chart-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #163E63;
+}
+
+.chart-scroll-container {
+  scrollbar-width: auto;
+  scrollbar-color: #1B4E7C #F1F5F9;
+}
+
 /* Focus styles for accessibility */
 :focus-visible {
   outline: 2px solid var(--color-red-500);

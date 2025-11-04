@@ -25,6 +25,9 @@ export interface MockPartialLead {
     homeSize?: string
     selectedAddOns?: string[]
     photoCount?: number
+    // New: persist solar override and peak‑shaving inputs
+    solarOverride?: { sizeKw: number; numPanels: number }
+    peakShaving?: { annualUsageKwh?: number; manualProductionKwh?: number; systemSizeKw?: number }
   }
 }
 
@@ -83,7 +86,9 @@ export const mockPartialLeads: MockPartialLead[] = [
       roofType: 'asphalt_shingle',
       homeSize: '1500-2000',
       monthlyBill: 180,
-      annualUsageKwh: 9000
+      annualUsageKwh: 9000,
+      solarOverride: { sizeKw: 7.5, numPanels: 15 },
+      peakShaving: { annualUsageKwh: 9000, manualProductionKwh: 9897, systemSizeKw: 7.5 }
     }
   },
 
@@ -109,7 +114,9 @@ export const mockPartialLeads: MockPartialLead[] = [
       monthlyBill: 220,
       annualUsageKwh: 11000,
       selectedAddOns: ['ev_charger', 'battery'],
-      photoCount: 3
+      photoCount: 3,
+      solarOverride: { sizeKw: 10.5, numPanels: 21 },
+      peakShaving: { annualUsageKwh: 11000, manualProductionKwh: 12000, systemSizeKw: 10.5 }
     }
   },
 

@@ -44,38 +44,38 @@ export function StepRoofSimple({ data, onComplete, onBack, onUpgradeMode }: Step
   const canContinue = useCustom ? !!customSize && parseInt(customSize) > 0 : !!selectedSize
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="card p-8">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+    <div className="max-w-3xl mx-auto px-3 sm:px-0">
+      <div className="card p-6 sm:p-8">
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
             <Home className="text-white" size={32} />
           </div>
-          <h2 className="text-3xl font-bold text-navy-500 mb-2">
+          <h2 className="text-2xl sm:text-3xl font-bold text-navy-500 mb-1 sm:mb-2">
             Roof Size
           </h2>
-          <p className="text-gray-600">
+          <p className="text-gray-600 text-sm sm:text-base">
             Approximate size is fine - we'll verify later
           </p>
         </div>
 
         {/* Preset Size Options */}
         {!useCustom && (
-          <div className="space-y-4 mb-6">
-            <label className="block text-sm font-semibold text-gray-700 mb-3">
+          <div className="space-y-3 sm:space-y-4 mb-6">
+            <label className="block text-sm font-semibold text-gray-700 mb-2 sm:mb-3">
               Select approximate roof size:
             </label>
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               {ROOF_SIZE_PRESETS.map((preset) => (
                 <button
                   key={preset.id}
                   onClick={() => setSelectedSize(preset.id)}
-                  className={`p-4 border-2 rounded-lg transition-all text-left ${
+                  className={`p-4 sm:p-5 border-2 rounded-xl transition-all text-left ${
                     selectedSize === preset.id
-                      ? 'border-red-500 bg-red-50'
+                      ? 'border-red-500 bg-red-50 shadow-[0_2px_10px_rgba(255,59,48,0.08)]'
                       : 'border-gray-200 hover:border-red-300'
                   }`}
                 >
-                  <div className="font-semibold text-navy-500">{preset.label}</div>
+                  <div className="font-semibold text-navy-500 text-base sm:text-lg">{preset.label}</div>
                   <div className="text-sm text-gray-600">{preset.range}</div>
                   <div className="text-xs text-gray-500 mt-1">~{preset.sqft.toLocaleString()} sq ft</div>
                 </button>
@@ -97,7 +97,7 @@ export function StepRoofSimple({ data, onComplete, onBack, onUpgradeMode }: Step
                 value={customSize}
                 onChange={(e) => setCustomSize(e.target.value)}
                 placeholder="e.g., 1500"
-                className="w-full pl-10 pr-20 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none text-lg"
+                className="w-full pl-10 pr-20 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none text-base sm:text-lg"
               />
               <span className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">
                 sq ft
@@ -110,21 +110,21 @@ export function StepRoofSimple({ data, onComplete, onBack, onUpgradeMode }: Step
         )}
 
         {/* Toggle between preset and custom */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6 sm:mb-8">
           <button
             onClick={() => {
               setUseCustom(!useCustom)
               setSelectedSize('')
               setCustomSize('')
             }}
-            className="text-sm text-blue-600 hover:underline"
+            className="text-sm sm:text-base text-blue-600 hover:underline"
           >
             {useCustom ? 'Use size presets instead' : 'Enter exact size instead'}
           </button>
         </div>
 
         {/* Help Card */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-6">
           <h4 className="font-semibold text-navy-500 mb-2 text-sm">Not sure about your roof size?</h4>
           <ul className="text-xs text-gray-700 space-y-1 list-disc list-inside">
             <li>Most single-story homes: 1,200-1,800 sq ft</li>
@@ -156,7 +156,7 @@ export function StepRoofSimple({ data, onComplete, onBack, onUpgradeMode }: Step
         )}
 
         {/* Action Buttons */}
-        <div className="flex gap-4">
+        <div className="sm:flex sm:gap-4 fixed sm:static left-0 right-0 bottom-0 sm:bottom-auto z-40 bg-white sm:bg-transparent p-3 sm:p-0 border-t sm:border-0 shadow-[0_-4px_18px_rgba(0,0,0,0.06)] sm:shadow-none">
           {onBack && (
             <button
               onClick={onBack}

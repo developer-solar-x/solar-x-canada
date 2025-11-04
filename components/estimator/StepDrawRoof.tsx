@@ -152,14 +152,14 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   }
 
   return (
-    <div className="grid lg:grid-cols-[360px_1fr] gap-6" style={{ height: 'calc(100vh - 200px)' }}>
+    <div className="grid gap-4 lg:grid-cols-[360px_1fr] lg:gap-6 px-3 sm:px-0" style={{ minHeight: 'calc(100vh - 180px)' }}>
       {/* Left sidebar - Instructions and measurements */}
-      <div className="bg-white rounded-xl shadow-lg p-6 space-y-6 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+      <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto lg:order-1 order-2" style={{ maxHeight: 'calc(100vh - 220px)' }}>
         <div>
-          <h2 className="text-2xl font-bold text-navy-500 mb-2">
+          <h2 className="text-xl sm:text-2xl font-bold text-navy-500 mb-1 sm:mb-2">
             Draw Your Roof
           </h2>
-          <p className="text-gray-600">
+          <p className="text-gray-600 text-sm sm:text-base">
             Click on the map to outline your roof's perimeter
           </p>
         </div>
@@ -168,7 +168,7 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
         <div className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
                   <button
                     onClick={() => setShowTips(!showTips)}
-                    className="w-full p-4 flex items-center justify-between hover:bg-gray-100 transition-colors"
+                    className="w-full p-3 sm:p-4 flex items-center justify-between hover:bg-gray-100 transition-colors"
                   >
                     <h3 className="font-semibold text-navy-500">
                       Drawing & Edit Tips
@@ -436,7 +436,7 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
         )}
 
         {/* Action buttons */}
-        <div className="space-y-3 pt-4">
+        <div className="space-y-3 pt-4 pb-20 lg:pb-0">
           <button
             onClick={handleContinue}
             disabled={!roofArea || !roofPolygon}
@@ -457,7 +457,7 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
       </div>
 
       {/* Right side - Mapbox drawing interface */}
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden relative" style={{ height: 'calc(100vh - 200px)', minHeight: '600px' }}>
+      <div className="bg-white rounded-xl shadow-lg overflow-hidden relative lg:order-2 order-1" style={{ height: 'calc(60vh)', minHeight: '360px' }}>
         {data.coordinates ? (
           <MapboxDrawing
             coordinates={data.coordinates}
