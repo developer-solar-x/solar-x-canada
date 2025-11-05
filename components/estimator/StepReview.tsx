@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react'
 import { Zap, DollarSign, TrendingUp, TrendingDown, Loader2, Leaf, CreditCard, MapPin, Home, Compass, Building, Gauge, Sun, Calendar, Droplets, Bolt, Battery, Moon } from 'lucide-react'
 import { formatCurrency, formatKw, formatNumber } from '@/lib/utils'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { FINANCING_OPTIONS, calculateFinancing } from '@/config/provinces'
 import { calculateSimpleMultiYear } from '@/lib/simple-peak-shaving'
 import { BATTERY_SPECS } from '@/config/battery-specs'
@@ -24,10 +24,55 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'savings' | 'production' | 'environmental'>('savings')
   const [selectedFinancing, setSelectedFinancing] = useState<string>(data.financingOption || 'cash')
+  // Mobile awareness state – used to make charts roomier on phones
+  const [isMobile, setIsMobile] = useState(false) // track if we are on a small screen
   
   // State for image modal
   const [imageModalOpen, setImageModalOpen] = useState(false)
   const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string; title: string } | null>(null)
+
+  // Custom tooltip that flips to the left for later years to avoid clipping
+  function SavingsTooltip(props: any) {
+    const { active, label, payload, coordinate, viewBox } = props || {}
+    if (!active || !payload || payload.length === 0 || !coordinate || !viewBox) return null
+
+    const tooltipMaxWidth = 300 // px, keep in sync with styles below
+    const horizontalGap = 16 // px gap from cursor
+    const numericLabel = Number(label)
+    const flipAfterYear = 20
+    const shouldFlipLeft = !Number.isNaN(numericLabel) && numericLabel >= flipAfterYear
+
+    // Compute left position with simple clamping so it never goes off-canvas
+    const proposedLeft = shouldFlipLeft
+      ? coordinate.x - tooltipMaxWidth - horizontalGap
+      : coordinate.x + horizontalGap
+    const left = Math.min(Math.max(proposedLeft, 0), Math.max(0, (viewBox.width || 0) - tooltipMaxWidth))
+
+    // Place slightly above cursor; clamp to top
+    const top = Math.max((coordinate.y || 0) - 60, 0)
+
+    return (
+      <div
+        style={{ position: 'absolute', left, top, zIndex: 9999, pointerEvents: 'none', maxWidth: tooltipMaxWidth }}
+        className="rounded-md border border-gray-200 bg-white text-[14px] shadow-md p-3"
+      >
+        <div className="text-xs font-semibold text-gray-700 mb-1">Year {label}</div>
+        <div className="space-y-1">
+          {payload.map((p: any, idx: number) => {
+            const name = p?.name
+            const val = typeof p?.value === 'number' ? formatCurrency(Math.round(p.value)) : p?.value
+            return (
+              <div key={idx} className="flex items-center gap-2 text-gray-700">
+                <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: p?.color || '#999' }} />
+                <span className="whitespace-nowrap">{name}</span>
+                <span className="ml-auto font-medium">{val}</span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
 
   // Fetch estimate from API
   useEffect(() => {
@@ -66,6 +111,15 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
 
     fetchEstimate()
   }, [data])
+
+  // Detect screen size once and on resize so charts can adapt spacing for phones
+  useEffect(() => {
+    // helper to set the flag whenever the window size changes
+    const handleResize = () => setIsMobile(typeof window !== 'undefined' && window.innerWidth < 640)
+    handleResize() // set immediately on mount
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   if (loading || !estimate) {
     return (
@@ -1112,79 +1166,63 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
 
                   <div className="space-y-3">
                     {/* Chart container with responsive height and margins */}
-                    <div className="chart-scroll-container h-64 sm:h-72 md:h-80 w-full overflow-x-scroll overflow-y-hidden">
-                      <ResponsiveContainer width="100%" height="100%" minWidth={600}>
-                        <LineChart data={savingsSeries} margin={{ top: 10, right: 10, left: 40, bottom: 80 }}>
+                    <div className="chart-scroll-container h-[22rem] sm:h-80 md:h-80 w-full overflow-x-visible overflow-y-visible relative z-10">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={savingsSeries} margin={isMobile ? { top: 8, right: 20, left: 36, bottom: 36 } : { top: 10, right: 160, left: 48, bottom: 80 }}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis 
                             dataKey="year" 
-                            tick={{ fontSize: 11 }} 
+                            tick={{ fontSize: isMobile ? 10 : 11 }} 
                             label={{ value: 'Year', position: 'insideBottom', offset: -5, style: { fontSize: 12 } }}
                           />
                           <YAxis 
-                            tick={{ fontSize: 11 }} 
+                            tick={{ fontSize: isMobile ? 10 : 11 }} 
                             tickFormatter={(v: number) => `$${Math.round(v/1000)}k`}
                             label={{ value: 'Amount', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }}
-                            width={50}
+                            width={isMobile ? 38 : 50}
                           />
                           <Tooltip 
-                            formatter={(value: number, name: any) => {
-                              if (name === 'touCumulative') return [formatCurrency(Math.round(value)), 'Cumulative Savings (TOU)']
-                              if (name === 'uloCumulative') return [formatCurrency(Math.round(value)), 'Cumulative Savings (ULO)']
-                              if (name === 'touProfit') return [formatCurrency(Math.round(value)), '25-Year Profit (TOU)']
-                              if (name === 'uloProfit') return [formatCurrency(Math.round(value)), '25-Year Profit (ULO)']
-                              return [formatCurrency(Math.round(value)), name]
-                            }} 
-                            labelFormatter={(l: any) => `Year ${l}`}
-                            contentStyle={{ 
-                              fontSize: '14px', 
-                              padding: '12px 16px',
-                              backgroundColor: 'white',
-                              border: '1px solid #e5e7eb',
-                              borderRadius: '8px',
-                              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                              maxWidth: '300px'
-                            }}
-                            wrapperStyle={{ zIndex: 100 }}
-                            cursor={{ stroke: '#1B4E7C', strokeWidth: 2, strokeDasharray: '4 4' }}
-                            allowEscapeViewBox={{ x: true, y: true }}
+                            content={<SavingsTooltip />} 
+                            allowEscapeViewBox={{ x: true, y: true }} 
+                            cursor={{ stroke: '#1B4E7C', strokeWidth: 2, strokeDasharray: '4 4' }} 
+                            wrapperStyle={{ transform: 'none', left: 0, top: 0, zIndex: 9999, pointerEvents: 'none' }}
                           />
                           <Line 
                             type="monotone" 
                             dataKey="touCumulative" 
                             stroke="#1B4E7C" 
-                            strokeWidth={2.5} 
+                            strokeWidth={isMobile ? 2 : 2.5} 
                             strokeDasharray="5 5" 
-                            dot={{ r: 4, fill: '#1B4E7C', strokeWidth: 2, stroke: 'white' }} 
-                            activeDot={{ r: 7, fill: '#1B4E7C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
+                            dot={{ r: isMobile ? 3 : 4, fill: '#1B4E7C', strokeWidth: 2, stroke: 'white' }} 
+                            activeDot={{ r: isMobile ? 6 : 7, fill: '#1B4E7C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
                             name="Cumulative Savings (TOU)" 
                           />
                           <Line 
                             type="monotone" 
                             dataKey="uloCumulative" 
                             stroke="#DC143C" 
-                            strokeWidth={2.5} 
+                            strokeWidth={isMobile ? 2 : 2.5} 
                             strokeDasharray="5 5" 
-                            dot={{ r: 4, fill: '#DC143C', strokeWidth: 2, stroke: 'white' }} 
-                            activeDot={{ r: 7, fill: '#DC143C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
+                            dot={{ r: isMobile ? 3 : 4, fill: '#DC143C', strokeWidth: 2, stroke: 'white' }} 
+                            activeDot={{ r: isMobile ? 6 : 7, fill: '#DC143C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
                             name="Cumulative Savings (ULO)" 
                           />
                           <Line 
                             type="monotone" 
                             dataKey="touProfit" 
                             stroke="#1B4E7C" 
-                            strokeWidth={3.5} 
-                            dot={{ r: 5, fill: '#1B4E7C', strokeWidth: 2, stroke: 'white' }} 
-                            activeDot={{ r: 8, fill: '#1B4E7C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
+                            strokeWidth={isMobile ? 3 : 3.5} 
+                            dot={{ r: isMobile ? 4 : 5, fill: '#1B4E7C', strokeWidth: 2, stroke: 'white' }} 
+                            activeDot={{ r: isMobile ? 7 : 8, fill: '#1B4E7C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
                             name="25-Year Profit (TOU)" 
                           />
                           <Line 
                             type="monotone" 
                             dataKey="uloProfit" 
                             stroke="#DC143C" 
-                            strokeWidth={3.5} 
-                            dot={{ r: 5, fill: '#DC143C', strokeWidth: 2, stroke: 'white' }} 
-                            activeDot={{ r: 8, fill: '#DC143C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
+                            strokeWidth={isMobile ? 3 : 3.5} 
+                            dot={{ r: isMobile ? 4 : 5, fill: '#DC143C', strokeWidth: 2, stroke: 'white' }} 
+                            activeDot={{ r: isMobile ? 7 : 8, fill: '#DC143C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
                             name="25-Year Profit (ULO)" 
                           />
                           <ReferenceLine y={0} stroke="#666" strokeDasharray="2 2" />
@@ -1263,59 +1301,44 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
 
                 <div className="space-y-3">
                   {/* Chart container with responsive height and margins */}
-                  <div className="chart-scroll-container h-64 sm:h-72 md:h-80 w-full overflow-x-scroll overflow-y-hidden">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={600}>
-                      <LineChart data={savingsSeries} margin={{ top: 10, right: 10, left: 40, bottom: 80 }}>
+                  <div className="chart-scroll-container h-[22rem] sm:h-96 md:h-[26rem] w-full overflow-x-visible overflow-y-visible relative z-10">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={savingsSeries} margin={isMobile ? { top: 8, right: 20, left: 36, bottom: 36 } : { top: 10, right: 160, left: 48, bottom: 80 }}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis 
                           dataKey="year" 
-                          tick={{ fontSize: 11 }} 
+                          tick={{ fontSize: isMobile ? 10 : 11 }} 
                           label={{ value: 'Year', position: 'insideBottom', offset: -5, style: { fontSize: 12 } }}
                         />
                         <YAxis 
-                          tick={{ fontSize: 11 }} 
+                          tick={{ fontSize: isMobile ? 10 : 11 }} 
                           tickFormatter={(v: number) => `$${Math.round(v/1000)}k`}
                           label={{ value: 'Amount', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }}
-                          width={50}
+                          width={isMobile ? 38 : 50}
                         />
                         <Tooltip 
-                          formatter={(value: number, name: any) => {
-                            if (name === 'cumulative') return [formatCurrency(Math.round(value)), 'Cumulative Savings']
-                            if (name === 'profit') return [formatCurrency(Math.round(value)), '25-Year Profit']
-                            if (name === 'annual') return [formatCurrency(Math.round(value)), 'Annual Savings']
-                            return [formatCurrency(Math.round(value)), name]
-                          }} 
-                          labelFormatter={(l: any) => `Year ${l}`}
-                          contentStyle={{ 
-                            fontSize: '14px', 
-                            padding: '12px 16px',
-                            backgroundColor: 'white',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                            maxWidth: '300px'
-                          }}
-                          wrapperStyle={{ zIndex: 100 }}
-                          cursor={{ stroke: '#DC143C', strokeWidth: 2, strokeDasharray: '4 4' }}
-                          allowEscapeViewBox={{ x: true, y: true }}
+                          content={<SavingsTooltip />} 
+                          allowEscapeViewBox={{ x: true, y: true }} 
+                          cursor={{ stroke: '#DC143C', strokeWidth: 2, strokeDasharray: '4 4' }} 
+                          wrapperStyle={{ transform: 'none', left: 0, top: 0, zIndex: 9999, pointerEvents: 'none' }}
                         />
                         <Line 
                           type="monotone" 
                           dataKey="cumulative" 
                           stroke="#DC143C" 
-                          strokeWidth={2.5} 
+                          strokeWidth={isMobile ? 2 : 2.5} 
                           strokeDasharray="5 5" 
-                          dot={{ r: 4, fill: '#DC143C', strokeWidth: 2, stroke: 'white' }} 
-                          activeDot={{ r: 7, fill: '#DC143C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
+                          dot={{ r: isMobile ? 3 : 4, fill: '#DC143C', strokeWidth: 2, stroke: 'white' }} 
+                          activeDot={{ r: isMobile ? 6 : 7, fill: '#DC143C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
                           name="Cumulative Savings" 
                         />
                         <Line 
                           type="monotone" 
                           dataKey="profit" 
                           stroke="#DC143C" 
-                          strokeWidth={3.5} 
-                          dot={{ r: 5, fill: '#DC143C', strokeWidth: 2, stroke: 'white' }} 
-                          activeDot={{ r: 8, fill: '#DC143C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
+                          strokeWidth={isMobile ? 3 : 3.5} 
+                          dot={{ r: isMobile ? 4 : 5, fill: '#DC143C', strokeWidth: 2, stroke: 'white' }} 
+                          activeDot={{ r: isMobile ? 7 : 8, fill: '#DC143C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
                           name="25-Year Profit" 
                         />
                         <ReferenceLine y={0} stroke="#666" strokeDasharray="2 2" />
@@ -1364,14 +1387,14 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
               </div>
 
               {/* Production chart */}
-              <div className="h-64">
+              <div className="h-[20rem] sm:h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={productionChartData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis />
                     <Tooltip />
-                    <Line type="monotone" dataKey="production" stroke="#1B4E7C" strokeWidth={2} />
+                    <Line type="monotone" dataKey="production" stroke="#1B4E7C" strokeWidth={isMobile ? 2 : 2} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
