@@ -15,9 +15,11 @@ import {
   TOU_RATE_PLAN 
 } from '../../config/rate-plans'
 import { calculateSystemCost } from '../../config/pricing'
+import { calculateSavings as calculateProvinceSolarSavings } from '../../config/provinces'
 import {
   calculateSimplePeakShaving,
   calculateSimpleMultiYear,
+  calculateSolarOnlySavings,
   UsageDistribution,
   DEFAULT_TOU_DISTRIBUTION,
   DEFAULT_ULO_DISTRIBUTION,
@@ -28,11 +30,11 @@ interface StepBatteryPeakShavingSimpleProps {
   data: any
   onComplete: (data: any) => void
   onBack: () => void
-  // Optional: enable manual entry of solar annual production (for standalone)
-  allowManualSolar?: boolean
+  // Enable inline manual production editing without duplicating the UI
+  manualMode?: boolean
 }
 
-export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowManualSolar }: StepBatteryPeakShavingSimpleProps) {
+export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualMode = false }: StepBatteryPeakShavingSimpleProps) {
   // Info modals for rate plans
   const [showTouInfo, setShowTouInfo] = useState(false)
   const [showUloInfo, setShowUloInfo] = useState(false)
@@ -85,14 +87,21 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
         setAnnualUsageInput(propsValue)
       }
       // Also persist this value to localStorage for consistency
-      const storageKey = allowManualSolar ? 'ps_annualUsageKwh' : 'estimator_annualUsageKwh'
+      const storageKey = 'estimator_annualUsageKwh'
       localStorage.setItem(storageKey, propsValue)
+      // Persist manual copy for the manual page as well
+      if (manualMode) {
+        localStorage.setItem('manual_estimator_annual_kwh', propsValue)
+      }
       return
     }
     
     // Priority 2: Check localStorage (different keys for standalone vs estimator)
-    const storageKey = allowManualSolar ? 'ps_annualUsageKwh' : 'estimator_annualUsageKwh'
-    const stored = localStorage.getItem(storageKey)
+    // When manualMode, prefer manual key, else fall back to shared key
+    const manualKey = 'manual_estimator_annual_kwh'
+    const sharedKey = 'estimator_annualUsageKwh'
+    const stored = manualMode ? (localStorage.getItem(manualKey) || localStorage.getItem(sharedKey))
+                              : localStorage.getItem(sharedKey)
     if (stored && stored !== '0' && Number(stored) > 0) {
       const storedValue = String(stored)
       if (storedValue !== annualUsageInput) {
@@ -107,10 +116,14 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
     if (typeof window === 'undefined') return
     if (!annualUsageInput || Number(annualUsageInput) <= 0) return
     
-    // Use different keys for standalone vs estimator
-    const storageKey = allowManualSolar ? 'ps_annualUsageKwh' : 'estimator_annualUsageKwh'
-    localStorage.setItem(storageKey, annualUsageInput)
-  }, [allowManualSolar, annualUsageInput])
+  // Persist to estimator key
+  const storageKey = 'estimator_annualUsageKwh'
+  localStorage.setItem(storageKey, annualUsageInput)
+  // Persist to manual key if manualMode
+  if (manualMode) {
+    localStorage.setItem('manual_estimator_annual_kwh', annualUsageInput)
+  }
+}, [annualUsageInput])
 
   // Allow overriding solar panel count/system size for rebate and display
   // Prefer user's saved override from previous step navigation
@@ -122,39 +135,55 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
   // Override estimate (updated production when panels change)
   const [overrideEstimate, setOverrideEstimate] = useState<any>(null)
 
-  // Manual solar production (standalone) support (SSR-safe)
-  const [manualSolarProductionInput, setManualSolarProductionInput] = useState<string>(
-    (data?.estimate?.production?.annualKwh ? String(data.estimate.production.annualKwh) : '')
-  )
-  // Hydrate from storage after mount
+  // Manual production override state (only used when manualMode is enabled)
+  const [manualProductionInput, setManualProductionInput] = useState<number | null>(null)
+
   useEffect(() => {
-    if (allowManualSolar && typeof window !== 'undefined') {
-      const stored = localStorage.getItem('ps_annualProductionKwh')
-      if (stored && stored !== manualSolarProductionInput) {
-        setManualSolarProductionInput(stored)
-      }
+    if (!manualMode) return
+    if (typeof window === 'undefined') return
+    // Try restore from localStorage first
+    const stored = window.localStorage.getItem('manual_estimator_production_kwh')
+    if (stored !== null && !Number.isNaN(Number(stored))) {
+      setManualProductionInput(Number(stored))
+      return
+    }
+    // Fallback to provided estimate
+    const initial = (overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0)
+    setManualProductionInput(prev => (prev == null ? initial : prev))
+  }, [manualMode, data.estimate?.production?.annualKwh, overrideEstimate?.production?.annualKwh])
+
+  useEffect(() => {
+    if (!manualMode) return
+    if (typeof window === 'undefined') return
+    if (manualProductionInput == null) return
+    window.localStorage.setItem('manual_estimator_production_kwh', String(Math.max(0, manualProductionInput)))
+  }, [manualMode, manualProductionInput])
+
+  const effectiveSolarProductionKwh = (
+    manualMode && manualProductionInput != null
+      ? manualProductionInput
+      : (overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0)
+  )
+
+  // Persist and restore manual solar panel count to keep system size consistent across reloads
+  useEffect(() => {
+    if (!manualMode) return
+    if (typeof window === 'undefined') return
+    const storedPanels = window.localStorage.getItem('manual_estimator_solar_panels')
+    if (storedPanels !== null && !Number.isNaN(Number(storedPanels))) {
+      const n = Number(storedPanels)
+      if (n > 0 && n !== solarPanels) setSolarPanels(n)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-  // Persist changes
-  useEffect(() => {
-    if (allowManualSolar && typeof window !== 'undefined') {
-      localStorage.setItem('ps_annualProductionKwh', manualSolarProductionInput || '0')
-    }
-  }, [allowManualSolar, manualSolarProductionInput])
+  }, [manualMode])
 
-  // Persist panels and derived size when manual mode is on
   useEffect(() => {
-    if (allowManualSolar && typeof window !== 'undefined') {
-      localStorage.setItem('ps_numPanels', String(solarPanels || 0))
-      const size = Math.round(((solarPanels * (data.estimate?.system?.panelWattage || 500)) / 1000) * 10) / 10
-      if (!isNaN(size)) localStorage.setItem('ps_sizeKw', String(size))
+    if (!manualMode) return
+    if (typeof window === 'undefined') return
+    if (solarPanels != null) {
+      window.localStorage.setItem('manual_estimator_solar_panels', String(solarPanels))
     }
-  }, [allowManualSolar, solarPanels, data.estimate?.system?.panelWattage])
-  const manualSolarProductionKwh = Math.max(0, Number(manualSolarProductionInput) || 0)
-  const effectiveSolarProductionKwh = allowManualSolar
-    ? manualSolarProductionKwh
-    : (overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0)
+  }, [manualMode, solarPanels])
   const effectiveSystemSizeKw = (systemSizeKwOverride || data.estimate?.system?.sizeKw || 0)
 
   const canContinue = (() => {
@@ -275,23 +304,27 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
 
       // Combined (Solar + Battery) figures
       const currentEstimate = overrideEstimate || data.estimate
-      const blendedRate = 0.277
-      // Cap solar daytime offset to 50% of load to avoid overcounting
-      const daytimeCapKwh = Math.max(0, 0.5 * annualUsageKwh)
-      const solarAnnual = allowManualSolar
-        ? Math.max(0, Math.min(effectiveSolarProductionKwh, daytimeCapKwh) * blendedRate)
-        : (currentEstimate?.savings?.annualSavings || 0)
+      // Solar annual savings: estimator value when available; manual uses rate/distribution-based solar-only savings
+      const solarAnnual = (currentEstimate?.savings?.annualSavings != null)
+        ? currentEstimate.savings.annualSavings
+        : (manualMode
+            ? calculateProvinceSolarSavings(effectiveSolarProductionKwh, 0, 'ON', annualUsageKwh).annualSavings
+            : calculateSolarOnlySavings(annualUsageKwh, effectiveSolarProductionKwh, touRatePlan, touDistribution).annualSavings)
       const combinedAnnual = calcResult.annualSavings + solarAnnual
       const combinedMonthly = Math.round(combinedAnnual / 12)
-      const solarNet = currentEstimate?.costs?.netCost || 0
+      const manualSolarNet = Math.max(0, calculateSystemCost(effectiveSystemSizeKw) - solarRebate)
+      const solarNet = (currentEstimate?.costs?.netCost != null) ? currentEstimate.costs.netCost : manualSolarNet
       const combinedNet = Math.max(0, solarNet + netCost)
-      const combinedProjection = calculateSimpleMultiYear({ annualSavings: combinedAnnual } as any, combinedNet, 0.05, 25)
+      // Client requirement: 5% annual escalation for 25-year totals, payback = Net / Year 1 Annual
+      const escalated = calculateSimpleMultiYear({ annualSavings: combinedAnnual } as any, combinedNet, 0.05, 25)
+      const simplePayback = combinedAnnual > 0 ? Math.round((combinedNet / combinedAnnual) * 10) / 10 : Number.POSITIVE_INFINITY
+      const combinedProjection = { ...escalated, paybackYears: simplePayback }
 
       newResults.set('combined', { result: calcResult, projection: multiYear, combined: { annual: combinedAnnual, monthly: combinedMonthly, projection: combinedProjection, netCost: combinedNet } })
     }
 
     setTouResults(newResults)
-  }, [annualUsageInput, selectedBatteries, touDistribution, customRates.tou, data.estimate, systemSizeKwOverride, overrideEstimate])
+  }, [annualUsageInput, selectedBatteries, touDistribution, customRates.tou, data.estimate, systemSizeKwOverride, overrideEstimate, effectiveSolarProductionKwh])
 
   // Calculate ULO results for selected batteries
   useEffect(() => {
@@ -337,22 +370,26 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
 
       // Combined (Solar + Battery) figures
       const currentEstimate = overrideEstimate || data.estimate
-      const blendedRate = 0.277
-      const daytimeCapKwh = Math.max(0, 0.5 * annualUsageKwh)
-      const solarAnnual = allowManualSolar
-        ? Math.max(0, Math.min(effectiveSolarProductionKwh, daytimeCapKwh) * blendedRate)
-        : (currentEstimate?.savings?.annualSavings || 0)
+      const solarAnnual = (currentEstimate?.savings?.annualSavings != null)
+        ? currentEstimate.savings.annualSavings
+        : (manualMode
+            ? calculateProvinceSolarSavings(effectiveSolarProductionKwh, 0, 'ON', annualUsageKwh).annualSavings
+            : calculateSolarOnlySavings(annualUsageKwh, effectiveSolarProductionKwh, uloRatePlan, uloDistribution).annualSavings)
       const combinedAnnual = calcResult.annualSavings + solarAnnual
       const combinedMonthly = Math.round(combinedAnnual / 12)
-      const solarNet = currentEstimate?.costs?.netCost || 0
+      const manualSolarNet = Math.max(0, calculateSystemCost(effectiveSystemSizeKw) - solarRebate)
+      const solarNet = (currentEstimate?.costs?.netCost != null) ? currentEstimate.costs.netCost : manualSolarNet
       const combinedNet = Math.max(0, solarNet + netCost)
-      const combinedProjection = calculateSimpleMultiYear({ annualSavings: combinedAnnual } as any, combinedNet, 0.05, 25)
+      // Client requirement: 5% annual escalation for 25-year totals, payback = Net / Year 1 Annual
+      const escalated = calculateSimpleMultiYear({ annualSavings: combinedAnnual } as any, combinedNet, 0.05, 25)
+      const simplePayback = combinedAnnual > 0 ? Math.round((combinedNet / combinedAnnual) * 10) / 10 : Number.POSITIVE_INFINITY
+      const combinedProjection = { ...escalated, paybackYears: simplePayback }
 
       newResults.set('combined', { result: calcResult, projection: multiYear, combined: { annual: combinedAnnual, monthly: combinedMonthly, projection: combinedProjection, netCost: combinedNet } })
     }
 
     setUloResults(newResults)
-  }, [annualUsageInput, selectedBatteries, uloDistribution, customRates.ulo, data.estimate, systemSizeKwOverride, overrideEstimate])
+  }, [annualUsageInput, selectedBatteries, uloDistribution, customRates.ulo, data.estimate, systemSizeKwOverride, overrideEstimate, effectiveSolarProductionKwh])
 
   const handleComplete = () => {
     const selectedTouResult = touResults.get('combined')
@@ -449,15 +486,15 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
             </div>
             <div>
               <p className="text-xs text-gray-600 font-medium">Annual Production</p>
-              {allowManualSolar ? (
+              {manualMode ? (
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
-                    value={manualSolarProductionInput}
-                    onChange={(e) => setManualSolarProductionInput(e.target.value)}
-                    className="w-32 px-2 py-1 border-2 border-green-300 rounded-md text-green-700 font-bold focus:ring-2 focus:ring-green-400 focus:border-green-400"
+                    value={Math.round(effectiveSolarProductionKwh)}
+                    onChange={(e) => setManualProductionInput(Math.max(0, Number(e.target.value)))}
+                    className="w-28 px-2 py-1 border-2 border-green-300 rounded-md text-green-700 font-bold focus:ring-2 focus:ring-green-400 focus:border-green-400"
                   />
-                  <span className="text-sm text-gray-700 font-semibold">kWh</span>
+                  <span className="text-sm font-semibold text-green-700">kWh</span>
                 </div>
               ) : (
                 <p className="text-xl font-bold text-green-600">{Math.round((overrideEstimate?.production?.annualKwh ?? data.estimate.production.annualKwh)).toLocaleString()} kWh</p>
@@ -558,9 +595,20 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
         cancelText="Close"
       >
         {(() => {
-          const solarNet = (overrideEstimate || data.estimate)?.costs?.netCost || 0
-          const solarAnnual = (overrideEstimate || data.estimate)?.savings?.annualSavings || 0
-          const solarRebate = (overrideEstimate || data.estimate)?.costs?.incentives || 0
+          const currentEstimate = overrideEstimate || data.estimate
+          const systemSizeKw = effectiveSystemSizeKw
+          const solarRebatePerKw = 1000
+          const solarMaxRebate = 5000
+          const solarRebate = systemSizeKw > 0 ? Math.min(systemSizeKw * solarRebatePerKw, solarMaxRebate) : 0
+          const manualSolarNet = Math.max(0, calculateSystemCost(systemSizeKw) - solarRebate)
+          const solarNet = (currentEstimate?.costs?.netCost != null) ? currentEstimate.costs.netCost : manualSolarNet
+          // Use calculated solar-only savings when estimate value is not present
+          const solarAnnualTou = (currentEstimate?.savings?.annualSavings != null)
+            ? currentEstimate.savings.annualSavings
+            : calculateSolarOnlySavings(annualUsageKwh, effectiveSolarProductionKwh, getCustomTouRatePlan(), touDistribution).annualSavings
+          const solarAnnualUlo = (currentEstimate?.savings?.annualSavings != null)
+            ? currentEstimate.savings.annualSavings
+            : calculateSolarOnlySavings(annualUsageKwh, effectiveSolarProductionKwh, getCustomUloRatePlan(), uloDistribution).annualSavings
           const tou = touResults.get('combined')
           const ulo = uloResults.get('combined')
           
@@ -590,8 +638,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
 
           const fullTouNet = solarNet + batteryTouNet
           const fullUloNet = solarNet + batteryUloNet
-          const fullTouAnnual = solarAnnual + batteryTouAnnual
-          const fullUloAnnual = solarAnnual + batteryUloAnnual
+          const fullTouAnnual = solarAnnualTou + batteryTouAnnual
+          const fullUloAnnual = solarAnnualUlo + batteryUloAnnual
 
           const fullTouPayback = fullTouNet <= 0 ? 0 : (fullTouAnnual > 0 ? fullTouNet / fullTouAnnual : Infinity)
           const fullUloPayback = fullUloNet <= 0 ? 0 : (fullUloAnnual > 0 ? fullUloNet / fullUloAnnual : Infinity)
@@ -613,7 +661,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
                   Rebates: Solar ${solarRebate.toLocaleString()} + Battery ${batteryTouRebate.toLocaleString()} (Battery price ${batteryPrice.toLocaleString()} − Rebate ${batteryTouRebate.toLocaleString()})
                 </div>
                 <div className="text-xs text-gray-700">
-                  Annual Savings = ${solarAnnual.toLocaleString()} + ${batteryTouAnnual.toLocaleString()} = <span className="font-semibold">${fullTouAnnual.toLocaleString()}</span>
+                  Annual Savings = ${Math.round(solarAnnualTou).toLocaleString()} + ${batteryTouAnnual.toLocaleString()} = <span className="font-semibold">${fullTouAnnual.toLocaleString()}</span>
                 </div>
                 <div className="text-xs text-gray-700 mt-1">
                   Payback = {fullTouNet <= 0 ? '0' : fullTouAnnual > 0 ? `${(fullTouNet).toLocaleString()} ÷ ${fullTouAnnual.toLocaleString()}` : 'N/A'} = <span className="font-bold text-navy-600">{fullTouPayback === Infinity ? 'N/A' : `${fullTouPayback.toFixed(1)} years`}</span>
@@ -630,7 +678,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
                   Rebates: Solar ${solarRebate.toLocaleString()} + Battery ${batteryUloRebate.toLocaleString()} (Battery price ${batteryPrice.toLocaleString()} − Rebate ${batteryUloRebate.toLocaleString()})
                 </div>
                 <div className="text-xs text-gray-700">
-                  Annual Savings = ${solarAnnual.toLocaleString()} + ${batteryUloAnnual.toLocaleString()} = <span className="font-semibold">${fullUloAnnual.toLocaleString()}</span>
+                  Annual Savings = ${Math.round(solarAnnualUlo).toLocaleString()} + ${batteryUloAnnual.toLocaleString()} = <span className="font-semibold">${fullUloAnnual.toLocaleString()}</span>
                 </div>
                 <div className="text-xs text-gray-700 mt-1">
                   Payback = {fullUloNet <= 0 ? '0' : fullUloAnnual > 0 ? `${(fullUloNet).toLocaleString()} ÷ ${fullUloAnnual.toLocaleString()}` : 'N/A'} = <span className="font-bold text-navy-600">{fullUloPayback === Infinity ? 'N/A' : `${fullUloPayback.toFixed(1)} years`}</span>
@@ -658,13 +706,23 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
       >
         {(() => {
           const solarNet = (overrideEstimate || data.estimate)?.costs?.netCost || 0
-          const solarAnnual = (overrideEstimate || data.estimate)?.savings?.annualSavings || 0
+          // Compute solar annual savings consistently with manualMode and rate plan
+          const solarAnnualTou = (overrideEstimate || data.estimate)?.savings?.annualSavings ?? (
+            manualMode
+              ? calculateProvinceSolarSavings(effectiveSolarProductionKwh, 0, 'ON', annualUsageKwh).annualSavings
+              : calculateSolarOnlySavings(annualUsageKwh, effectiveSolarProductionKwh, getCustomTouRatePlan(), touDistribution).annualSavings
+          )
+          const solarAnnualUlo = (overrideEstimate || data.estimate)?.savings?.annualSavings ?? (
+            manualMode
+              ? calculateProvinceSolarSavings(effectiveSolarProductionKwh, 0, 'ON', annualUsageKwh).annualSavings
+              : calculateSolarOnlySavings(annualUsageKwh, effectiveSolarProductionKwh, getCustomUloRatePlan(), uloDistribution).annualSavings
+          )
           const tou = touResults.get('combined')
           const ulo = uloResults.get('combined')
           const batteryTouAnnual = tou?.result?.annualSavings || 0
           const batteryUloAnnual = ulo?.result?.annualSavings || 0
-          const fullTouAnnual = solarAnnual + batteryTouAnnual
-          const fullUloAnnual = solarAnnual + batteryUloAnnual
+          const fullTouAnnual = Math.round(solarAnnualTou + batteryTouAnnual)
+          const fullUloAnnual = Math.round(solarAnnualUlo + batteryUloAnnual)
 
           const touProfit = tou?.combined?.projection?.netProfit25Year || 0
           const uloProfit = ulo?.combined?.projection?.netProfit25Year || 0
@@ -673,15 +731,19 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
             <div className="space-y-4 text-sm text-gray-700">
               <div>
                 <span className="font-semibold">Formulas</span>
-                <div className="mt-1 text-xs text-gray-600 ml-1">Combined Annual Savings = Solar Annual Savings + Battery Annual Savings (from rate plan)</div>
-                <div className="mt-1 text-xs text-gray-600 ml-1">25‑Year Profit = (Sum of Combined Annual Savings with 5%/year escalation over 25 years) − Combined Net Investment</div>
+                <div className="mt-1 text-xs text-gray-600 ml-1">Year‑1 Bill Before = Σ(kWh × rate(period))</div>
+                <div className="mt-1 text-xs text-gray-600 ml-1">Year‑1 Bill After = Σ(kWh_after_battery × rate(period))</div>
+                <div className="mt-1 text-xs text-gray-600 ml-1">Annual Savings (Year‑1) = Bill Before − Bill After</div>
+                <div className="mt-1 text-xs text-gray-600 ml-1">Combined Annual Savings = Solar Annual Savings + Battery Annual Savings</div>
+                <div className="mt-1 text-xs text-gray-600 ml-1">Escalated Year n Savings = Annual Savings × 1.05^(n−1)</div>
+                <div className="mt-1 text-xs text-gray-600 ml-1">25‑Year Profit = Σ( Escalated Year n Savings ) − Combined Net Investment</div>
               </div>
 
               {/* TOU Sample */}
               <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
                 <div className="text-xs font-semibold text-navy-600 mb-1">TOU Sample</div>
                 <div className="text-xs text-gray-700">
-                  Combined Annual Savings = ${solarAnnual.toLocaleString()} (Solar) + ${batteryTouAnnual.toLocaleString()} (Battery) = <span className="font-semibold">${fullTouAnnual.toLocaleString()}</span>
+                  Combined Annual Savings = ${Math.round(solarAnnualTou).toLocaleString()} (Solar) + ${batteryTouAnnual.toLocaleString()} (Battery) = <span className="font-semibold">${fullTouAnnual.toLocaleString()}</span>
                 </div>
                 <div className="text-xs text-gray-700 mt-1">
                   25‑Year Profit = <span className="font-bold text-green-600">${touProfit.toLocaleString()}</span>
@@ -695,7 +757,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
               <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
                 <div className="text-xs font-semibold text-navy-600 mb-1">ULO Sample</div>
                 <div className="text-xs text-gray-700">
-                  Combined Annual Savings = ${solarAnnual.toLocaleString()} (Solar) + ${batteryUloAnnual.toLocaleString()} (Battery) = <span className="font-semibold">${fullUloAnnual.toLocaleString()}</span>
+                  Combined Annual Savings = ${Math.round(solarAnnualUlo).toLocaleString()} (Solar) + ${batteryUloAnnual.toLocaleString()} (Battery) = <span className="font-semibold">${fullUloAnnual.toLocaleString()}</span>
                 </div>
                 <div className="text-xs text-gray-700 mt-1">
                   25‑Year Profit = <span className="font-bold text-green-600">${uloProfit.toLocaleString()}</span>
@@ -1910,14 +1972,16 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, allowMa
           <ArrowRight size={20} className="rotate-180" />
           Back
         </button>
-        <button
-          onClick={handleComplete}
-          disabled={!canContinue}
-          className={`px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition-all flex items-center gap-2 ${canContinue ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white hover:shadow-xl' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
-        >
-          Continue to Next Step
-          <ArrowRight size={20} />
-        </button>
+        {!manualMode && (
+          <button
+            onClick={handleComplete}
+            disabled={!canContinue}
+            className={`px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition-all flex items-center gap-2 ${canContinue ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white hover:shadow-xl' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+          >
+            Continue to Next Step
+            <ArrowRight size={20} />
+          </button>
+        )}
       </div>
     </div>
   )

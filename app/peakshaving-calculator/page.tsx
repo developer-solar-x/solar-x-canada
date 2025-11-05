@@ -5,7 +5,7 @@
 
 import { useCallback } from 'react'
 import Link from 'next/link'
-import { StepBatteryPeakShavingStandalone } from '@/components/estimator/StepBatteryPeakShavingStandalone'
+import { StepBatteryPeakShavingSimple } from '@/components/estimator/StepBatteryPeakShavingSimple'
 
 export default function PeakShavingCalculatorPage() {
   // back handler — sends users to homepage
@@ -29,8 +29,13 @@ export default function PeakShavingCalculatorPage() {
         <span className="text-navy-500 font-semibold">Peak-Shaving Calculator</span>
       </div>
 
-      {/* Standalone calculator component (isolated from estimator flow) */}
-      <StepBatteryPeakShavingStandalone onBack={handleBack} />
+      {/* Standalone calculator component using the simple peak-shaving flow */}
+      <StepBatteryPeakShavingSimple 
+        data={{}}
+        onComplete={() => {}}
+        onBack={handleBack}
+        manualMode
+      />
     </main>
   )
 }

@@ -79,6 +79,96 @@ export interface SimplePeakShavingResult {
   }
 }
 
+// Calculate solar-only annual savings given a rate plan and usage distribution
+export function calculateSolarOnlySavings(
+  annualUsageKwh: number,
+  solarProductionKwh: number,
+  ratePlan: RatePlan,
+  distribution?: UsageDistribution
+): {
+  billBefore: number
+  billAfter: number
+  annualSavings: number
+  usageByPeriod: { ultraLow?: number; offPeak: number; midPeak: number; onPeak: number }
+} {
+  // Use default distribution if not provided
+  const dist = distribution || (
+    ratePlan.id === 'ulo' ? DEFAULT_ULO_DISTRIBUTION : DEFAULT_TOU_DISTRIBUTION
+  )
+
+  // Extract rates (in $/kWh)
+  const rates = { ultraLow: 0, offPeak: 0, midPeak: 0, onPeak: 0 }
+  ratePlan.periods.forEach(p => {
+    const r = p.rate / 100
+    if (p.period === 'ultra-low') rates.ultraLow = r
+    else if (p.period === 'off-peak') rates.offPeak = r
+    else if (p.period === 'mid-peak') rates.midPeak = r
+    else if (p.period === 'on-peak') rates.onPeak = r
+  })
+  if (rates.offPeak === 0 && ratePlan.weekendRate) {
+    rates.offPeak = ratePlan.weekendRate / 100
+  }
+
+  // Usage by period
+  const usageByPeriod = {
+    ultraLow: dist.ultraLowPercent ? (annualUsageKwh * dist.ultraLowPercent / 100) : undefined,
+    offPeak: annualUsageKwh * dist.offPeakPercent / 100,
+    midPeak: annualUsageKwh * dist.midPeakPercent / 100,
+    onPeak: annualUsageKwh * dist.onPeakPercent / 100,
+  }
+
+  // Bill before solar
+  const billBefore =
+    (usageByPeriod.ultraLow ? usageByPeriod.ultraLow * rates.ultraLow : 0) +
+    usageByPeriod.offPeak * rates.offPeak +
+    usageByPeriod.midPeak * rates.midPeak +
+    usageByPeriod.onPeak * rates.onPeak
+
+  // Apply solar production to offset the highest-cost periods first (no charging cost)
+  let remainingSolar = Math.max(0, solarProductionKwh || 0)
+  let onPeakAfter = usageByPeriod.onPeak
+  let midPeakAfter = usageByPeriod.midPeak
+  let offPeakAfter = usageByPeriod.offPeak
+  let ultraLowAfter = usageByPeriod.ultraLow || 0
+
+  // On-Peak
+  const onOffset = Math.min(onPeakAfter, remainingSolar)
+  onPeakAfter -= onOffset
+  remainingSolar -= onOffset
+  // Mid-Peak
+  const midOffset = Math.min(midPeakAfter, remainingSolar)
+  midPeakAfter -= midOffset
+  remainingSolar -= midOffset
+  // Off-Peak
+  const offOffset = Math.min(offPeakAfter, remainingSolar)
+  offPeakAfter -= offOffset
+  remainingSolar -= offOffset
+  // Ultra-Low (rare)
+  if (usageByPeriod.ultraLow) {
+    const ulOffset = Math.min(ultraLowAfter, remainingSolar)
+    ultraLowAfter -= ulOffset
+    remainingSolar -= ulOffset
+  }
+
+  const billAfter =
+    (usageByPeriod.ultraLow ? ultraLowAfter * rates.ultraLow : 0) +
+    offPeakAfter * rates.offPeak +
+    midPeakAfter * rates.midPeak +
+    onPeakAfter * rates.onPeak
+
+  return {
+    billBefore,
+    billAfter,
+    annualSavings: billBefore - billAfter,
+    usageByPeriod: {
+      ultraLow: usageByPeriod.ultraLow,
+      offPeak: usageByPeriod.offPeak,
+      midPeak: usageByPeriod.midPeak,
+      onPeak: usageByPeriod.onPeak,
+    },
+  }
+}
+
 // Calculate simple peak-shaving savings
 // Optional solarProductionKwh: if provided, solar only offsets ~50% (daytime usage)
 export function calculateSimplePeakShaving(

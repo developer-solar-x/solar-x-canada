@@ -149,6 +149,7 @@ export async function getSavedProgressSummary(): Promise<{
   hasProgress: boolean
   step: number
   stepName: string
+  totalSteps: number
   timeSince: string
   address?: string
   mode?: 'easy' | 'detailed'
@@ -161,27 +162,65 @@ export async function getSavedProgressSummary(): Promise<{
     return null
   }
   
-  // Determine step name based on step number and mode
-  const getStepName = (step: number, mode?: 'easy' | 'detailed'): string => {
-    if (step === 0) return 'Mode Selection'
-    if (step === 1) return 'Location'
-    
-    if (mode === 'easy') {
-      const stepNames = ['', 'Location', 'Roof Size', 'Photos', 'Energy', 'Details', 'Review', 'Submit']
-      return stepNames[step] || `Step ${step}`
-    } else {
-      const stepNames = ['', 'Location', 'Draw Roof', 'Photos', 'Appliances', 'Details', 'Review', 'Submit']
-      return stepNames[step] || `Step ${step}`
-    }
+  // Determine step metadata based on current mode and program
+  const getStepMeta = (
+    stepIndex: number,
+    mode?: 'easy' | 'detailed',
+    programType?: string
+  ): { name: string; totalSteps: number } => {
+    // Define current step sequences (aligned with app/estimator/page.tsx)
+    // Index-based arrays for display labels
+    const easyAll = [
+      'Program',
+      'Location',
+      'Roof Size',
+      'Energy',
+      'Battery Savings',
+      'Add-ons',
+      'Photos',
+      'Details',
+      'Review',
+      'Submit',
+    ]
+    const detailedAll = [
+      'Program',
+      'Location',
+      'Draw Roof',
+      'Details',
+      'Battery Savings',
+      'Add-ons',
+      'Photos',
+      'Review',
+      'Submit',
+    ]
+
+    const isHrs = programType === 'hrs_residential'
+
+    // Filter Battery Savings step for non-HRS programs
+    const easy = isHrs ? easyAll : easyAll.filter(name => name !== 'Battery Savings')
+    const detailed = isHrs ? detailedAll : detailedAll.filter(name => name !== 'Battery Savings')
+
+    const sequence = mode === 'detailed' ? detailed : easy
+    const totalSteps = sequence.length
+
+    const name = sequence[stepIndex] || `Step ${stepIndex + 1}`
+    return { name, totalSteps }
   }
   
   // Get photo count from IndexedDB
   const photoCount = await getPhotoCount()
   
+  const { name: resolvedStepName, totalSteps } = getStepMeta(
+    saved.currentStep,
+    saved.data.estimatorMode,
+    (saved.data as any).programType
+  )
+
   return {
     hasProgress: true,
     step: saved.currentStep,
-    stepName: getStepName(saved.currentStep, saved.data.estimatorMode),
+    stepName: resolvedStepName,
+    totalSteps,
     timeSince: getTimeSinceLastSave() || 'recently',
     address: saved.data.address,
     mode: saved.data.estimatorMode,
