@@ -79,33 +79,43 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
   useEffect(() => {
     if (typeof window === 'undefined') return
     
-    // Priority 1: Check if props already have a value (from estimator data or peakShaving)
+    const manualKey = 'manual_estimator_annual_kwh'
+    const sharedKey = 'estimator_annualUsageKwh'
+    
+    // In manualMode, prefer saved manual/shared value first to prevent props from overwriting user input
+    if (manualMode) {
+      const stored = localStorage.getItem(manualKey) || localStorage.getItem(sharedKey)
+      if (stored && stored !== '0' && Number(stored) > 0) {
+        const storedValue = String(stored)
+        if (storedValue !== annualUsageInput) {
+          setAnnualUsageInput(storedValue)
+        }
+        return
+      }
+    }
+
+    // Fall back to props when available
     const fromProps = data.peakShaving?.annualUsageKwh || data.energyUsage?.annualKwh
     if (fromProps && fromProps > 0) {
       const propsValue = String(fromProps)
       if (propsValue !== annualUsageInput) {
         setAnnualUsageInput(propsValue)
       }
-      // Also persist this value to localStorage for consistency
-      const storageKey = 'estimator_annualUsageKwh'
-      localStorage.setItem(storageKey, propsValue)
-      // Persist manual copy for the manual page as well
+      localStorage.setItem(sharedKey, propsValue)
       if (manualMode) {
-        localStorage.setItem('manual_estimator_annual_kwh', propsValue)
+        localStorage.setItem(manualKey, propsValue)
       }
       return
     }
-    
-    // Priority 2: Check localStorage (different keys for standalone vs estimator)
-    // When manualMode, prefer manual key, else fall back to shared key
-    const manualKey = 'manual_estimator_annual_kwh'
-    const sharedKey = 'estimator_annualUsageKwh'
-    const stored = manualMode ? (localStorage.getItem(manualKey) || localStorage.getItem(sharedKey))
-                              : localStorage.getItem(sharedKey)
-    if (stored && stored !== '0' && Number(stored) > 0) {
-      const storedValue = String(stored)
-      if (storedValue !== annualUsageInput) {
-        setAnnualUsageInput(storedValue)
+
+    // For non-manual mode, try shared storage as a fallback
+    if (!manualMode) {
+      const stored = localStorage.getItem(sharedKey)
+      if (stored && stored !== '0' && Number(stored) > 0) {
+        const storedValue = String(stored)
+        if (storedValue !== annualUsageInput) {
+          setAnnualUsageInput(storedValue)
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -135,33 +145,38 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
   // Override estimate (updated production when panels change)
   const [overrideEstimate, setOverrideEstimate] = useState<any>(null)
 
-  // Manual production override state (only used when manualMode is enabled)
-  const [manualProductionInput, setManualProductionInput] = useState<number | null>(null)
+  // Manual production override input as string to allow temporary blank (better editing UX)
+  const [manualProductionInput, setManualProductionInput] = useState<string>('')
 
   useEffect(() => {
     if (!manualMode) return
     if (typeof window === 'undefined') return
     // Try restore from localStorage first
     const stored = window.localStorage.getItem('manual_estimator_production_kwh')
-    if (stored !== null && !Number.isNaN(Number(stored))) {
-      setManualProductionInput(Number(stored))
+    if (stored !== null) {
+      setManualProductionInput(stored)
       return
     }
     // Fallback to provided estimate
     const initial = (overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0)
-    setManualProductionInput(prev => (prev == null ? initial : prev))
+    setManualProductionInput(prev => (prev === '' ? String(Math.max(0, Math.round(initial))) : prev))
   }, [manualMode, data.estimate?.production?.annualKwh, overrideEstimate?.production?.annualKwh])
 
   useEffect(() => {
     if (!manualMode) return
     if (typeof window === 'undefined') return
-    if (manualProductionInput == null) return
-    window.localStorage.setItem('manual_estimator_production_kwh', String(Math.max(0, manualProductionInput)))
+    // If blank, clear persisted value so the input can be truly empty
+    if (manualProductionInput === '') {
+      window.localStorage.removeItem('manual_estimator_production_kwh')
+      return
+    }
+    const n = Math.max(0, Number(manualProductionInput) || 0)
+    window.localStorage.setItem('manual_estimator_production_kwh', String(n))
   }, [manualMode, manualProductionInput])
 
   const effectiveSolarProductionKwh = (
-    manualMode && manualProductionInput != null
-      ? manualProductionInput
+    manualMode
+      ? Math.max(0, Number(manualProductionInput) || 0)
       : (overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0)
   )
 
@@ -490,8 +505,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
-                    value={Math.round(effectiveSolarProductionKwh)}
-                    onChange={(e) => setManualProductionInput(Math.max(0, Number(e.target.value)))}
+                    value={manualProductionInput}
+                    onChange={(e) => setManualProductionInput(e.target.value)}
                     className="w-28 px-2 py-1 border-2 border-green-300 rounded-md text-green-700 font-bold focus:ring-2 focus:ring-green-400 focus:border-green-400"
                   />
                   <span className="text-sm font-semibold text-green-700">kWh</span>
@@ -605,10 +620,14 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
           // Use calculated solar-only savings when estimate value is not present
           const solarAnnualTou = (currentEstimate?.savings?.annualSavings != null)
             ? currentEstimate.savings.annualSavings
-            : calculateSolarOnlySavings(annualUsageKwh, effectiveSolarProductionKwh, getCustomTouRatePlan(), touDistribution).annualSavings
+            : (manualMode
+                ? calculateProvinceSolarSavings(effectiveSolarProductionKwh, 0, 'ON', annualUsageKwh).annualSavings
+                : calculateSolarOnlySavings(annualUsageKwh, effectiveSolarProductionKwh, getCustomTouRatePlan(), touDistribution).annualSavings)
           const solarAnnualUlo = (currentEstimate?.savings?.annualSavings != null)
             ? currentEstimate.savings.annualSavings
-            : calculateSolarOnlySavings(annualUsageKwh, effectiveSolarProductionKwh, getCustomUloRatePlan(), uloDistribution).annualSavings
+            : (manualMode
+                ? calculateProvinceSolarSavings(effectiveSolarProductionKwh, 0, 'ON', annualUsageKwh).annualSavings
+                : calculateSolarOnlySavings(annualUsageKwh, effectiveSolarProductionKwh, getCustomUloRatePlan(), uloDistribution).annualSavings)
           const tou = touResults.get('combined')
           const ulo = uloResults.get('combined')
           

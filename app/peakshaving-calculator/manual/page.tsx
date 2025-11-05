@@ -1,7 +1,7 @@
 'use client'
 
 // Import React to build the client page
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 // Import the Step 4 simple component to perfectly clone its UI
 import { StepBatteryPeakShavingSimple } from '../../../components/estimator/StepBatteryPeakShavingSimple'
@@ -9,6 +9,17 @@ import { StepBatteryPeakShavingSimple } from '../../../components/estimator/Step
 // Export default Next.js page component
 export default function Page() {
   const router = useRouter()
+  // Read persisted manual values when available
+  const [persisted, setPersisted] = useState<{ usage?: number; production?: number }>(() => ({ }))
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const usageStr = window.localStorage.getItem('manual_estimator_annual_kwh') || window.localStorage.getItem('estimator_annualUsageKwh')
+    const prodStr = window.localStorage.getItem('manual_estimator_production_kwh')
+    setPersisted({
+      usage: usageStr && Number(usageStr) > 0 ? Number(usageStr) : undefined,
+      production: prodStr && Number(prodStr) > 0 ? Number(prodStr) : undefined,
+    })
+  }, [])
   // Build a data object to seed manual values into the cloned UI
   const data = useMemo(() => ({
     // No coordinates so the child won't call the estimator API
@@ -21,7 +32,8 @@ export default function Page() {
         panelWattage: 500 // default panel wattage to keep math consistent
       },
       production: {
-        annualKwh: 8000 // manual annual production (no NREL)
+        // Prefer persisted production when available; let component manage blank gracefully
+        annualKwh: persisted.production ?? undefined as unknown as number
       },
       savings: {
         annualSavings: undefined // let the step compute savings consistently
@@ -31,14 +43,14 @@ export default function Page() {
       }
     },
     // Default annual usage; the step's input can still override locally
-    peakShaving: { annualUsageKwh: 18000 },
-    energyUsage: { annualKwh: 18000 },
+    peakShaving: { annualUsageKwh: persisted.usage ?? undefined as unknown as number },
+    energyUsage: { annualKwh: persisted.usage ?? undefined as unknown as number },
     monthlyBill: undefined,
     // Persisted battery selection can be blank; UI provides selection
     selectedBattery: 'renon-16',
     // No overrides to keep behavior predictable
     solarOverride: undefined
-  }), [])
+  }), [persisted])
 
   // Render the exact cloned UI only (no extra top controls)
   return (
