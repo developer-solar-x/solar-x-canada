@@ -180,13 +180,13 @@ export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: St
               <div className="flex-1">
                 <h4 className="font-semibold text-navy-500 mb-1 text-sm">Need more precision?</h4>
                 <p className="text-xs text-gray-700 mb-2">
-                  Switch to detailed mode for appliance-by-appliance analysis
+                  Switch to detailed mode for more accurate property details and roof drawing
                 </p>
                 <button
                   onClick={onUpgradeMode}
                   className="text-sm text-navy-600 hover:underline font-semibold flex items-center gap-1"
                 >
-                  Use Appliance Calculator
+                  Switch to Detailed Mode
                   <ArrowRight size={14} />
                 </button>
               </div>

@@ -22,9 +22,9 @@ export async function POST(request: Request) {
     // Initialize Supabase client
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // Check if this email already has a saved draft
+    // Check if this email already has a saved draft (v2)
     const { data: existing, error: checkError } = await supabase
-      .from('partial_leads')
+      .from('partial_leads_v3')
       .select('id')
       .eq('email', email)
       .single()
@@ -36,11 +36,27 @@ export async function POST(request: Request) {
 
     if (existing) {
       // Update existing draft
+      // Extract photo URLs (if estimatorData contains photos array with url fields)
+      const photoUrls = Array.isArray(estimatorData?.photos)
+        ? estimatorData.photos.map((p: any) => p.url || p.uploadedUrl || p.preview).filter(Boolean)
+        : null
+
       const { error: updateError } = await supabase
-        .from('partial_leads')
+        .from('partial_leads_v3')
         .update({
           estimator_data: estimatorData,
           current_step: currentStep,
+          // denormalized for quick filters (best-effort extractions)
+          address: estimatorData?.address || '',
+          coordinates: estimatorData?.coordinates || {},
+          rate_plan: estimatorData?.peakShaving?.ratePlan || '',
+          roof_area_sqft: estimatorData?.roofAreaSqft ?? 0,
+          monthly_bill: estimatorData?.monthlyBill ?? 0,
+          annual_usage_kwh: estimatorData?.annualUsageKwh || estimatorData?.energyUsage?.annualKwh || 0,
+          selected_add_ons: estimatorData?.selectedAddOns || [],
+          photo_count: Array.isArray(estimatorData?.photos) ? estimatorData.photos.length : (estimatorData?.photoCount ?? (photoUrls ? photoUrls.length : 0)),
+          photo_urls: photoUrls || [],
+          map_snapshot_url: estimatorData?.mapSnapshot || '',
           updated_at: new Date().toISOString(),
         })
         .eq('id', existing.id)
@@ -60,12 +76,27 @@ export async function POST(request: Request) {
       })
     } else {
       // Create new draft
+      // Extract photo URLs (if estimatorData contains photos array with url fields)
+      const photoUrlsNew = Array.isArray(estimatorData?.photos)
+        ? estimatorData.photos.map((p: any) => p.url || p.uploadedUrl || p.preview).filter(Boolean)
+        : null
+
       const { data, error: insertError } = await supabase
-        .from('partial_leads')
+        .from('partial_leads_v3')
         .insert({
           email,
           estimator_data: estimatorData,
           current_step: currentStep,
+          address: estimatorData?.address || '',
+          coordinates: estimatorData?.coordinates || {},
+          rate_plan: estimatorData?.peakShaving?.ratePlan || '',
+          roof_area_sqft: estimatorData?.roofAreaSqft ?? 0,
+          monthly_bill: estimatorData?.monthlyBill ?? 0,
+          annual_usage_kwh: estimatorData?.annualUsageKwh || estimatorData?.energyUsage?.annualKwh || 0,
+          selected_add_ons: estimatorData?.selectedAddOns || [],
+          photo_count: Array.isArray(estimatorData?.photos) ? estimatorData.photos.length : (estimatorData?.photoCount ?? (photoUrlsNew ? photoUrlsNew.length : 0)),
+          photo_urls: photoUrlsNew || [],
+          map_snapshot_url: estimatorData?.mapSnapshot || '',
         })
         .select()
         .single()
@@ -93,49 +124,80 @@ export async function POST(request: Request) {
   }
 }
 
-// GET: Retrieve saved progress by email
+// GET: Retrieve partial leads (all or by email)
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const email = searchParams.get('email')
-
-    if (!email) {
-      return NextResponse.json(
-        { error: 'Email parameter is required' },
-        { status: 400 }
-      )
-    }
+    const search = searchParams.get('search') || ''
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '50')
+    const offset = (page - 1) * limit
 
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    const { data, error } = await supabase
-      .from('partial_leads')
-      .select('*')
-      .eq('email', email)
-      .single()
+    // If email is provided, return single partial lead
+    if (email) {
+      const { data, error } = await supabase
+        .from('partial_leads_v3')
+        .select('*')
+        .eq('email', email)
+        .single()
 
-    if (error) {
-      if (error.code === 'PGRST116') {
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return NextResponse.json(
+            { error: 'No saved progress found' },
+            { status: 404 }
+          )
+        }
+        console.error('Error retrieving partial lead:', error)
         return NextResponse.json(
-          { error: 'No saved progress found' },
-          { status: 404 }
+          { error: 'Failed to retrieve progress' },
+          { status: 500 }
         )
       }
-      console.error('Error retrieving partial lead:', error)
-      return NextResponse.json(
-        { error: 'Failed to retrieve progress' },
-        { status: 500 }
-      )
+
+      return NextResponse.json({
+        success: true,
+        data,
+      })
+    }
+
+    // Otherwise, return list of partial leads
+    let query = supabase
+      .from('partial_leads_v3')
+      .select('*', { count: 'exact' })
+      .order('updated_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    // Apply search filter if provided
+    if (search) {
+      query = query.or(`email.ilike.%${search}%,address.ilike.%${search}%`)
+    }
+
+    const { data: partialLeads, error, count } = await query
+
+    if (error) {
+      throw error
     }
 
     return NextResponse.json({
       success: true,
-      data,
+      data: {
+        partialLeads: partialLeads || [],
+        pagination: {
+          page,
+          limit,
+          total: count || 0,
+          totalPages: Math.ceil((count || 0) / limit),
+        }
+      }
     })
   } catch (error) {
     console.error('Error in GET partial-lead:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }

@@ -1,9 +1,9 @@
 'use client'
 
-// Step 5: Contact form and lead submission
+// Step 8: Contact form and lead submission
 
-import { useState } from 'react'
-import { CheckCircle, Loader2, Download } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { CheckCircle, Loader2 } from 'lucide-react'
 import { isValidEmail, isValidPhone, formatPhone } from '@/lib/utils'
 
 interface StepContactProps {
@@ -27,6 +27,106 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [leadId, setLeadId] = useState('')
+  const [saving, setSaving] = useState(false)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [dataLoaded, setDataLoaded] = useState(false)
+
+  // Restore contact form data from saved estimator data if available
+  // Also check for email from location step (data.email) which should persist
+  useEffect(() => {
+    // Check for email from location step (data.email) which should persist through all steps
+    const emailFromData = data?.email || data?.contactForm?.email || ''
+    
+    // If email exists in data but not in formData, update formData
+    if (emailFromData && !formData.email) {
+      setFormData(prev => ({
+        ...prev,
+        email: emailFromData,
+      }))
+    }
+    
+    // Restore other contact form data if available (only once)
+    if (!dataLoaded && data?.contactForm) {
+      setFormData(prev => ({
+        ...prev,
+        fullName: data.contactForm.fullName || prev.fullName,
+        email: emailFromData || prev.email, // Prioritize email from location step
+        phone: data.contactForm.phone || prev.phone,
+        preferredContactTime: data.contactForm.preferredContactTime || prev.preferredContactTime,
+        preferredContactMethod: data.contactForm.preferredContactMethod || prev.preferredContactMethod,
+        comments: data.contactForm.comments || prev.comments,
+        consent: data.contactForm.consent || prev.consent,
+      }))
+      setDataLoaded(true)
+    } else if (!dataLoaded) {
+      // If no contactForm data but email exists from location step, pre-fill email
+      if (emailFromData) {
+        setFormData(prev => ({
+          ...prev,
+          email: emailFromData,
+        }))
+      }
+      setDataLoaded(true)
+    }
+  }, [data, dataLoaded, formData.email])
+
+  // Auto-save contact form data to partial leads as user types (debounced)
+  useEffect(() => {
+    // Only save if email is valid (required for partial leads)
+    if (!formData.email || !isValidEmail(formData.email)) {
+      return
+    }
+
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+
+    // Debounce save by 1.5 seconds after user stops typing
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        setSaving(true)
+        const response = await fetch('/api/partial-lead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: formData.email,
+            estimatorData: {
+              ...data,
+              // Include contact form data in estimator_data
+              contactForm: {
+                fullName: formData.fullName,
+                email: formData.email,
+                phone: formData.phone,
+                preferredContactTime: formData.preferredContactTime,
+                preferredContactMethod: formData.preferredContactMethod,
+                comments: formData.comments,
+                consent: formData.consent,
+              },
+            },
+            currentStep: 8, // Step 8 is the contact form
+          }),
+        })
+
+        if (response.ok) {
+          console.log('Contact form data saved to partial lead')
+        } else {
+          console.warn('Failed to save contact form data:', await response.text())
+        }
+      } catch (error) {
+        console.error('Error saving contact form data:', error)
+      } finally {
+        setSaving(false)
+      }
+    }, 1500) // Wait 1.5 seconds after user stops typing
+
+    // Cleanup timeout on unmount or when formData changes
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [formData, data])
 
   // Validate form
   const validate = () => {
@@ -139,10 +239,6 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
 
           {/* Action buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="btn-outline border-navy-500 text-navy-500 inline-flex items-center justify-center">
-              <Download size={20} />
-              Download PDF
-            </button>
             <a href="/" className="btn-primary inline-flex items-center justify-center">
               Back to Home
             </a>
@@ -318,13 +414,21 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
             </div>
           )}
 
+          {/* Save indicator */}
+          {saving && (
+            <div className="text-xs text-gray-500 text-center flex items-center justify-center gap-2">
+              <Loader2 className="animate-spin" size={14} />
+              Saving progress...
+            </div>
+          )}
+
           {/* Submit button */}
           <div className="flex gap-4">
             {onBack && (
               <button
                 type="button"
                 onClick={onBack}
-                disabled={submitting}
+                disabled={submitting || saving}
                 className="btn-outline border-gray-300 text-gray-700 flex-1"
               >
                 Back
@@ -332,7 +436,7 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
             )}
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || saving}
               className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? (

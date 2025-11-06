@@ -1,0 +1,61 @@
+-- Create first superadmin user: developer@solar-x.ca
+-- This script creates the user in Supabase Auth and links it to admin_users table
+-- 
+-- IMPORTANT: Run this in Supabase SQL Editor after creating the admin_users table
+-- 
+-- Step 1: First, create the user in Supabase Auth using the Management API or Dashboard
+-- 
+-- Option A: Use Supabase Dashboard
+-- 1. Go to Authentication > Users > Add User
+-- 2. Email: developer@solar-x.ca
+-- 3. Password: SolarX2025
+-- 4. Auto Confirm User: Yes
+-- 5. Copy the User UUID that gets created
+--
+-- Option B: Use the API (recommended - automated)
+-- POST https://YOUR_PROJECT.supabase.co/auth/v1/admin/users
+-- Headers:
+--   Authorization: Bearer YOUR_SERVICE_ROLE_KEY
+--   apikey: YOUR_SERVICE_ROLE_KEY
+--   Content-Type: application/json
+-- Body:
+-- {
+--   "email": "developer@solar-x.ca",
+--   "password": "SolarX2025",
+--   "email_confirm": true
+-- }
+--
+-- Step 2: After creating the auth user, get their UUID and run this SQL:
+-- (Replace USER_UUID_HERE with the actual UUID from the auth user you just created)
+
+-- IMPORTANT: First run the migration script (supabase/migrate_users_table.sql) 
+-- to remove the password_hash column if it exists!
+
+-- Uncomment and replace USER_UUID_HERE with the actual UUID:
+
+-- INSERT INTO admin_users (id, email, full_name, role, is_active)
+-- VALUES (
+--   'USER_UUID_HERE',  -- Replace with UUID from auth.users
+--   'developer@solar-x.ca',
+--   'Developer',
+--   'superadmin',
+--   true
+-- )
+-- ON CONFLICT (id) DO UPDATE
+-- SET 
+--   email = EXCLUDED.email,
+--   full_name = EXCLUDED.full_name,
+--   role = EXCLUDED.role,
+--   is_active = EXCLUDED.is_active;
+
+
+-- Alternative: Use the /api/users endpoint to create the user (easiest method)
+-- This will automatically create both the auth user and admin_users record
+-- POST /api/users
+-- {
+--   "email": "developer@solar-x.ca",
+--   "full_name": "Developer",
+--   "password": "SolarX2025",
+--   "role": "superadmin"
+-- }
+

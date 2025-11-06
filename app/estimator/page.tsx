@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { X, Check, Save, Trash2 } from 'lucide-react'
 import { convertEasyToDetailed } from '@/lib/mode-converter'
 import { saveEstimatorProgress, loadEstimatorProgress, clearEstimatorProgress, getTimeSinceLastSave } from '@/lib/estimator-storage'
-import { SaveProgressModal } from '@/components/ui/SaveProgressModal'
+import { isValidEmail } from '@/lib/utils'
 import { Modal } from '@/components/ui/Modal'
 import { StepModeSelector } from '@/components/estimator/StepModeSelector'
 import { StepLocation } from '@/components/estimator/StepLocation'
@@ -127,8 +127,6 @@ export default function EstimatorPage() {
   const [lastSaved, setLastSaved] = useState<string | null>(null)
   // Show save indicator
   const [showSaveIndicator, setShowSaveIndicator] = useState(false)
-  // Save progress modal
-  const [showSaveModal, setShowSaveModal] = useState(false)
   // Clear progress modal
   const [showClearModal, setShowClearModal] = useState(false)
   // Resume progress modal
@@ -193,15 +191,90 @@ export default function EstimatorPage() {
     
     // Show save indicator briefly
     setShowSaveIndicator(true)
-    const timer = setTimeout(() => setShowSaveIndicator(false), 2000)
+    const saveIndicatorTimer = setTimeout(() => setShowSaveIndicator(false), 2000)
     
-    return () => clearTimeout(timer)
+    // Also save to partial leads database if email exists (required for partial leads)
+    // Exclude map snapshots from frequent saves to improve efficiency (they're large base64 images)
+    // Map snapshots are only saved when explicitly needed (e.g., when roof drawing is completed)
+    let partialLeadTimer: NodeJS.Timeout | null = null
+    if (data.email && isValidEmail(data.email)) {
+      // Debounce partial lead saves to avoid excessive API calls
+      partialLeadTimer = setTimeout(async () => {
+        try {
+          // Create a copy of data without map snapshot for efficient saving
+          // Map snapshots are large base64 images (500KB-2MB+) and significantly increase payload size
+          // Exclude from frequent auto-saves to improve performance
+          // Map snapshots are saved separately when explicitly provided (see handleStepComplete)
+          const dataWithoutSnapshot = { ...data }
+          if (dataWithoutSnapshot.mapSnapshot) {
+            delete dataWithoutSnapshot.mapSnapshot
+          }
+          
+          const response = await fetch('/api/partial-lead', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: data.email,
+              estimatorData: dataWithoutSnapshot,
+              currentStep: currentStep,
+            }),
+          })
+          
+          if (response.ok) {
+            console.log('Progress saved to partial leads database')
+          }
+        } catch (error) {
+          console.error('Failed to save to partial leads:', error)
+          // Fail silently - don't break the user experience
+        }
+      }, 1000) // Debounce 1 second
+    }
+    
+    // Cleanup function for both timers
+    return () => {
+      clearTimeout(saveIndicatorTimer)
+      if (partialLeadTimer) {
+        clearTimeout(partialLeadTimer)
+      }
+    }
   }, [data, currentStep])
 
   // Update data and move to next step
   const handleStepComplete = async (stepData: Partial<EstimatorData>) => {
-    const updatedData = { ...data, ...stepData }
+    // Preserve email if it already exists (captured in location step)
+    // Only overwrite email if stepData explicitly provides a new non-empty email
+    const updatedData = { 
+      ...data, 
+      ...stepData,
+      // Preserve email from location step unless stepData explicitly provides a new non-empty email
+      email: (stepData.email && stepData.email.trim()) ? stepData.email : data.email
+    }
     setData(updatedData)
+    
+    // If map snapshot is included in stepData (e.g., from roof drawing step), save it to partial leads
+    // This ensures map snapshots are saved when they're created, but not on every step
+    if (stepData.mapSnapshot && updatedData.email && isValidEmail(updatedData.email)) {
+      // Save with map snapshot when it's explicitly provided (roof drawing completion)
+      setTimeout(async () => {
+        try {
+          const response = await fetch('/api/partial-lead', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: updatedData.email,
+              estimatorData: updatedData,
+              currentStep: currentStep,
+            }),
+          })
+          
+          if (response.ok) {
+            console.log('Progress with map snapshot saved to partial leads')
+          }
+        } catch (error) {
+          console.error('Failed to save map snapshot to partial leads:', error)
+        }
+      }, 500) // Small delay to ensure data is updated
+    }
     
     // Special handling for mode selection (step 0)
     if (currentStep === 0 && stepData.estimatorMode) {
@@ -249,49 +322,15 @@ export default function EstimatorPage() {
         
         setCurrentStep(nextStep)
         
-        // Show save modal after energy/consumption step if email not captured yet
-        // This ensures we capture consumption/bill data which is critical for peak shaving
-        // Easy mode: Step 3 (Energy) - moved up to capture consumption early
-        // Detailed mode: Step 3 (Details) - moved up to capture consumption early
-        const isEnergyStep = (data.estimatorMode === 'easy' && currentStep === 3) || 
-                             (data.estimatorMode === 'detailed' && currentStep === 3)
-        
-        if (isEnergyStep && !emailCaptured && data.address) {
-          setTimeout(() => setShowSaveModal(true), 500) // Small delay for smooth transition
+        // Email is now required on Location step, so no need for save modal
+        // Update emailCaptured state if email was provided in location step
+        if (updatedData.email && isValidEmail(updatedData.email)) {
+          setEmailCaptured(true)
         }
       }
     }
   }
 
-  // Handle email save from modal
-  const handleSaveWithEmail = async (email: string) => {
-    try {
-      const response = await fetch('/api/partial-lead', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          estimatorData: { ...data, email }, // Include email in data
-          currentStep,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to save progress')
-      }
-
-      setEmailCaptured(true)
-      setData(prev => ({ ...prev, email }))
-      
-      // Also save to localStorage
-      saveEstimatorProgress({ ...data, email }, currentStep)
-      
-      console.log('✅ Progress saved to database with email')
-    } catch (error) {
-      console.error('❌ Failed to save progress:', error)
-      throw error
-    }
-  }
 
   // Go back to previous step
   const handleBack = () => {
@@ -323,14 +362,29 @@ export default function EstimatorPage() {
     setData(prev => ({ ...prev, ...convertedData }))
     
     // Map current easy step to equivalent detailed step
+    // Easy: 0=Program, 1=Location, 2=Roof, 3=Energy, 4=Battery, 5=Add-ons, 6=Photos, 7=Details, 8=Review, 9=Submit
+    // Detailed: 0=Program, 1=Location, 2=Draw Roof, 3=Details, 4=Battery, 5=Add-ons, 6=Photos, 7=Review, 8=Submit
     const stepMapping: Record<number, number> = {
-      2: 2, // Roof Size -> Draw Roof
-      3: 3, // Photos Simple -> Photos
-      4: 4, // Energy Simple -> Appliances
-      5: 5, // Details Simple -> Details
+      2: 2, // Roof Size -> Draw Roof (same step number)
+      3: 3, // Energy Simple -> Details (energy info is part of Details in detailed mode)
+      4: 4, // Battery Savings -> Battery Savings (same step number)
+      5: 5, // Add-ons -> Add-ons (same step number)
+      6: 6, // Photos Simple -> Photos (same step number)
+      7: 3, // Details Simple -> Details (already passed, go to Details step)
     }
     
-    const newStep = stepMapping[currentStep] || currentStep
+    // If on step 7 (Details Simple), we've already collected energy, so go to Details step
+    // If on step 3 (Energy), go to Details step which includes energy info
+    let newStep = stepMapping[currentStep]
+    if (newStep === undefined) {
+      // Default: try to stay on same step number, or go to Details if we've passed Energy
+      if (currentStep >= 3 && currentStep < 7) {
+        newStep = 3 // Go to Details step in detailed mode
+      } else {
+        newStep = currentStep
+      }
+    }
+    
     setCurrentStep(newStep)
   }
 
@@ -496,14 +550,6 @@ export default function EstimatorPage() {
           />
         )}
       </main>
-
-      {/* Save Progress Modal */}
-      <SaveProgressModal
-        isOpen={showSaveModal}
-        onClose={() => setShowSaveModal(false)}
-        onSave={handleSaveWithEmail}
-        currentStep={currentStep}
-      />
 
       {/* Resume Progress Modal */}
       <Modal

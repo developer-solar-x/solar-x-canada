@@ -25,6 +25,7 @@ export interface MockLead {
   
   // Estimator mode
   estimator_mode: 'easy' | 'detailed'
+  rate_plan?: 'tou' | 'ulo'
   
   // Roof information
   roof_polygon?: any
@@ -39,10 +40,12 @@ export interface MockLead {
   // Photos
   photo_urls?: string[]
   photo_count?: number
+  photo_summary?: { total: number; byCategory: Array<{ category: string; count: number }> }
   
   // Energy information
   monthly_bill?: number
   annual_usage_kwh?: number
+  energy_usage?: { dailyKwh?: number; monthlyKwh?: number; annualKwh?: number }
   home_size?: string
   energy_entry_method?: 'simple' | 'detailed'
   
@@ -52,11 +55,15 @@ export interface MockLead {
   // Estimate data
   estimate_data?: any
   system_size_kw?: number
+  num_panels?: number
   estimated_cost?: number
+  solar_incentives?: number
   net_cost_after_incentives?: number
   annual_savings?: number
+  monthly_savings?: number
   payback_years?: number
   annual_production_kwh?: number
+  roi_percent?: number
   
   // Peak‑shaving preview (new standalone + estimator alignment)
   peak_shaving?: {
@@ -65,15 +72,40 @@ export interface MockLead {
     system_size_kw?: number
     solar_rebate?: number
     battery_id?: string
-    tou?: { battery_annual: number; combined_annual: number; payback_years: number }
-    ulo?: { battery_annual: number; combined_annual: number; payback_years: number }
+    tou?: { battery_annual: number; combined_annual: number; payback_years: number; profit_25y?: number }
+    ulo?: { battery_annual: number; combined_annual: number; payback_years: number; profit_25y?: number }
   }
   // Persisted standalone inputs snapshot
   standalone_persist?: { size_kw: number; num_panels: number; annual_production_kwh: number; annual_usage_kwh: number }
   
   // Status tracking
   status: 'new' | 'contacted' | 'qualified' | 'closed'
-  
+
+  // Combined review totals (mirrors StepReview)
+  combined?: {
+    total_cost?: number
+    net_cost?: number
+    monthly_savings?: number
+    annual_savings?: number
+    payback_years?: number
+    profit_25y?: number
+  }
+
+  // Environmental snapshot
+  environmental?: { co2_tpy?: number; trees?: number; cars_off_road?: number }
+
+  // Financing
+  financing_preference?: 'cash' | string
+
+  // Activity log for admin Activity tab
+  activities?: Array<{
+    id: string
+    created_at: string
+    activity_type: 'status_change' | 'email_sent' | 'hubspot_sync' | 'note_added' | 'estimate_updated'
+    activity_data?: any
+    user_id?: string
+  }>
+
   // HubSpot CRM integration
   hubspot_contact_id?: string
   hubspot_deal_id?: string
@@ -103,6 +135,7 @@ export const mockLeads: MockLead[] = [
     postal_code: 'M5H 1J8',
     coordinates: { lat: 43.6487, lng: -79.3877 },
     estimator_mode: 'detailed',
+    rate_plan: 'ulo',
     roof_polygon: { type: 'FeatureCollection', features: [] }, // Simplified for mock
     roof_area_sqft: 2800,
     roof_sections: 2,
@@ -117,26 +150,53 @@ export const mockLeads: MockLead[] = [
       'https://example.com/photos/electrical-panel.jpg'
     ],
     photo_count: 3,
+    photo_summary: { total: 3, byCategory: [{ category: 'general', count: 3 }] },
     monthly_bill: 280,
     annual_usage_kwh: 14500,
+    energy_usage: { monthlyKwh: 1208, annualKwh: 14500 },
     energy_entry_method: 'detailed',
     selected_add_ons: ['ev_charger', 'battery'],
     system_size_kw: 12.8,
+    num_panels: 26,
     estimated_cost: 38400,
+    solar_incentives: 9600,
     net_cost_after_incentives: 28800,
     annual_savings: 3250,
+    monthly_savings: 271,
     payback_years: 8.9,
     annual_production_kwh: 16000,
+    roi_percent: 265,
     peak_shaving: {
       annual_usage_kwh: 14500,
       manual_production_kwh: 16000,
       system_size_kw: 12.8,
       solar_rebate: 5000,
       battery_id: 'renon-16',
-      tou: { battery_annual: 420, combined_annual: 1780, payback_years: 9.8 },
-      ulo: { battery_annual: 1240, combined_annual: 2600, payback_years: 7.6 }
+      tou: { battery_annual: 420, combined_annual: 1780, payback_years: 9.8, profit_25y: 32000 },
+      ulo: { battery_annual: 1240, combined_annual: 2600, payback_years: 7.6, profit_25y: 54000 }
     },
     standalone_persist: { size_kw: 12.8, num_panels: 26, annual_production_kwh: 16000, annual_usage_kwh: 14500 },
+    combined: { total_cost: 38400, net_cost: 28800, monthly_savings: 271, annual_savings: 3250, payback_years: 8.9, profit_25y: 52000 },
+    environmental: { co2_tpy: 4.5, trees: 108, cars_off_road: 0.9 },
+    financing_preference: 'cash',
+    // Full estimate snapshot for admin Estimate tab
+    estimate_data: {
+      costs: { totalCost: 38400, incentives: 9600, netCost: 28800 },
+      savings: { annualSavings: 3250, monthlySavings: 271, paybackYears: 8.9, roi: 265 },
+      production: { annualKwh: 16000, monthlyKwh: Array(12).fill(1333) },
+      environmental: { co2OffsetTonsPerYear: 4.5, treesEquivalent: 108, carsOffRoadEquivalent: 0.9 },
+      peakShaving: {
+        ratePlan: 'ulo',
+        tou: { annualCombined: 1780, paybackYears: 9.8, profit25y: 32000 },
+        ulo: { annualCombined: 2600, paybackYears: 7.6, profit25y: 54000 }
+      }
+    },
+    // Activity timeline for admin Activity tab
+    activities: [
+      { id: 'act-001a', created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), activity_type: 'estimate_updated', activity_data: { stage: 'review' } },
+      { id: 'act-001b', created_at: new Date(Date.now() - 90 * 60 * 1000).toISOString(), activity_type: 'email_sent', activity_data: { template: 'estimate_summary' } },
+      { id: 'act-001c', created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(), activity_type: 'status_change', activity_data: { from: 'new', to: 'contacted' } }
+    ],
     status: 'new',
     hubspot_synced: false,
     source: 'estimator'
@@ -159,6 +219,7 @@ export const mockLeads: MockLead[] = [
     postal_code: 'M6H 1L5',
     coordinates: { lat: 43.6589, lng: -79.4291 },
     estimator_mode: 'easy',
+    rate_plan: 'tou',
     roof_area_sqft: 1500,
     roof_sections: 1,
     roof_type: 'asphalt_shingle',
@@ -166,15 +227,20 @@ export const mockLeads: MockLead[] = [
     roof_pitch: 'medium',
     shading_level: 'minimal',
     photo_count: 2,
+    photo_summary: { total: 2, byCategory: [{ category: 'general', count: 2 }] },
     monthly_bill: 165,
     annual_usage_kwh: 8200,
+    energy_usage: { monthlyKwh: 683, annualKwh: 8200 },
     home_size: '1500-2000',
     energy_entry_method: 'simple',
     selected_add_ons: [],
     system_size_kw: 7.5,
+    num_panels: 15,
     estimated_cost: 22500,
+    solar_incentives: 5625,
     net_cost_after_incentives: 16875,
     annual_savings: 1850,
+    monthly_savings: 154,
     payback_years: 9.1,
     annual_production_kwh: 9375,
     peak_shaving: {
@@ -183,10 +249,29 @@ export const mockLeads: MockLead[] = [
       system_size_kw: 7.5,
       solar_rebate: 5000,
       battery_id: 'renon-16',
-      tou: { battery_annual: 306, combined_annual: 1386 + 306, payback_years: 12.5 },
-      ulo: { battery_annual: 1031, combined_annual: 1386 + 1031, payback_years: 8.8 }
+      tou: { battery_annual: 306, combined_annual: 1692, payback_years: 12.5, profit_25y: 21000 },
+      ulo: { battery_annual: 1031, combined_annual: 2417, payback_years: 8.8, profit_25y: 41000 }
     },
     standalone_persist: { size_kw: 7.5, num_panels: 15, annual_production_kwh: 9897, annual_usage_kwh: 10009 },
+    combined: { total_cost: 22500, net_cost: 16875, monthly_savings: 154, annual_savings: 1850, payback_years: 9.1, profit_25y: 29000 },
+    environmental: { co2_tpy: 3.2, trees: 78, cars_off_road: 0.6 },
+    financing_preference: 'cash',
+    estimate_data: {
+      costs: { totalCost: 22500, incentives: 5625, netCost: 16875 },
+      savings: { annualSavings: 1850, monthlySavings: 154, paybackYears: 9.1, roi: 220 },
+      production: { annualKwh: 9375, monthlyKwh: Array(12).fill(781) },
+      environmental: { co2OffsetTonsPerYear: 3.2, treesEquivalent: 78, carsOffRoadEquivalent: 0.6 },
+      peakShaving: {
+        ratePlan: 'tou',
+        tou: { annualCombined: 1692, paybackYears: 12.5, profit25y: 21000 },
+        ulo: { annualCombined: 2417, paybackYears: 8.8, profit25y: 41000 }
+      }
+    },
+    activities: [
+      { id: 'act-002a', created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), activity_type: 'estimate_updated', activity_data: { stage: 'energy' } },
+      { id: 'act-002b', created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), activity_type: 'hubspot_sync', activity_data: { result: 'success' } },
+      { id: 'act-002c', created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), activity_type: 'status_change', activity_data: { from: 'new', to: 'contacted' } }
+    ],
     status: 'contacted',
     hubspot_synced: true,
     hubspot_contact_id: 'hs-contact-12345',

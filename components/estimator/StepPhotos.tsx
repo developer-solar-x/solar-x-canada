@@ -28,6 +28,9 @@ interface UploadedPhoto {
   file: File
   preview: string
   uploaded: boolean
+  uploadedUrl?: string // Supabase Storage URL after upload
+  uploading?: boolean // Upload status
+  uploadError?: string // Upload error message
 }
 
 const PHOTO_CATEGORIES: PhotoCategory[] = [
@@ -103,8 +106,37 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
           preview: URL.createObjectURL(stored.blob),
           uploaded: true,
         }))
-        
-        setPhotos(loadedPhotos)
+
+        // If nothing in IndexedDB and we have an email, try to restore from partial lead
+        if (loadedPhotos.length === 0 && data?.email) {
+          try {
+            const res = await fetch(`/api/partial-lead?email=${encodeURIComponent(data.email)}`)
+            if (res.ok) {
+              const json = await res.json()
+              const estimator = json?.data?.estimator_data
+              const urls: string[] = json?.data?.photo_urls || (Array.isArray(estimator?.photos) ? estimator.photos.map((p: any) => p.url || p.uploadedUrl || p.preview).filter(Boolean) : [])
+              if (urls && urls.length > 0) {
+                const restored: UploadedPhoto[] = urls.map((url: string, idx: number) => ({
+                  id: `restored-${idx}-${Date.now()}`,
+                  category: 'roof',
+                  file: new File([], 'photo.jpg', { type: 'image/jpeg' }),
+                  preview: url,
+                  uploaded: true,
+                  uploadedUrl: url,
+                }))
+                setPhotos(restored)
+              } else {
+                setPhotos(loadedPhotos)
+              }
+            } else {
+              setPhotos(loadedPhotos)
+            }
+          } catch {
+            setPhotos(loadedPhotos)
+          }
+        } else {
+          setPhotos(loadedPhotos)
+        }
         console.log(`Loaded ${loadedPhotos.length} photos from IndexedDB`)
       } catch (error) {
         console.error('Failed to load photos:', error)
@@ -124,6 +156,36 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
       })
     }
   }, []) // Empty dependency array - run only on mount
+
+  // Auto-save uploaded URLs to partial lead when available (debounced)
+  useEffect(() => {
+    if (!data?.email) return
+    const urls = photos.map(p => p.uploadedUrl || p.preview).filter(Boolean) as string[]
+    if (urls.length === 0) return
+    const timer = setTimeout(async () => {
+      try {
+        await fetch('/api/partial-lead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: data.email,
+            estimatorData: {
+              ...data,
+              photos: photos.map(p => ({ id: p.id, category: p.category, url: p.uploadedUrl || p.preview })),
+              photoSummary: {
+                total: photos.length,
+                byCategory: PHOTO_CATEGORIES.map(cat => ({ category: cat.id, count: getPhotosForCategory(cat.id).length })),
+              },
+            },
+            currentStep: 3,
+          }),
+        })
+      } catch (e) {
+        console.warn('Failed to autosave photos to draft', e)
+      }
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [photos, data])
 
   // Check if required categories have photos
   const hasRequiredPhotos = () => {
@@ -184,17 +246,56 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
       file,
       preview: URL.createObjectURL(file),
       uploaded: false,
+      uploading: true,
     }))
 
     // Update UI immediately
     setPhotos([...photos, ...newPhotos])
 
-    // Save each photo to IndexedDB in the background
+    // Upload each photo to Supabase Storage and save to IndexedDB
     for (const photo of newPhotos) {
       try {
-        await savePhoto(photo.id, photo.file, photo.category)
+        // Upload to Supabase Storage
+        const uploadFormData = new FormData()
+        uploadFormData.append('file', photo.file)
+        uploadFormData.append('category', photo.category)
+        
+        const uploadResponse = await fetch('/api/upload-photo', {
+          method: 'POST',
+          body: uploadFormData,
+        })
+        
+        if (!uploadResponse.ok) {
+          throw new Error('Upload failed')
+        }
+        
+        const uploadResult = await uploadResponse.json()
+        
+        if (uploadResult.success && uploadResult.data?.url) {
+          // Update photo with uploaded URL
+          setPhotos(prevPhotos => 
+            prevPhotos.map(p => 
+              p.id === photo.id 
+                ? { ...p, uploadedUrl: uploadResult.data.url, uploaded: true, uploading: false }
+                : p
+            )
+          )
+          
+          // Save to IndexedDB as backup
+          await savePhoto(photo.id, photo.file, photo.category)
+        } else {
+          throw new Error('No URL returned from upload')
+        }
       } catch (error) {
-        console.error(`Failed to save photo ${photo.id}:`, error)
+        console.error(`Failed to upload photo ${photo.id}:`, error)
+        // Mark as failed but keep in UI
+        setPhotos(prevPhotos => 
+          prevPhotos.map(p => 
+            p.id === photo.id 
+              ? { ...p, uploading: false, uploadError: error instanceof Error ? error.message : 'Upload failed' }
+              : p
+          )
+        )
       }
     }
   }
@@ -220,8 +321,23 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
 
   // Handle continue
   const handleContinue = () => {
+    // Filter photos that have been successfully uploaded
+    const uploadedPhotos = photos.filter(p => p.uploadedUrl)
+    
+    // Warn if some photos failed to upload
+    const failedPhotos = photos.filter(p => p.uploadError)
+    if (failedPhotos.length > 0) {
+      console.warn(`${failedPhotos.length} photo(s) failed to upload, but continuing anyway`)
+    }
+    
     onComplete({
-      photos: photos,
+      photos: photos.map(p => ({
+        id: p.id,
+        category: p.category,
+        file: p.file,
+        preview: p.preview,
+        url: p.uploadedUrl, // Use Supabase URL instead of blob URL
+      })),
       photoSummary: {
         total: photos.length,
         byCategory: PHOTO_CATEGORIES.map(cat => ({

@@ -211,29 +211,34 @@ export function StepModeSelector({ onComplete }: StepModeSelectorProps) {
                 <td className="text-center text-navy-600">10-15 min</td>
               </tr>
               <tr className="border-b border-gray-100">
-                <td className="py-3">Roof Drawing</td>
-                <td className="text-center">Simple size selection</td>
-                <td className="text-center">Precise map tracing</td>
+                <td className="py-3">Roof Input</td>
+                <td className="text-center">Preset size selection</td>
+                <td className="text-center">Interactive satellite map drawing</td>
               </tr>
               <tr className="border-b border-gray-100">
-                <td className="py-3">Energy Analysis</td>
-                <td className="text-center">Monthly bill only</td>
-                <td className="text-center">Appliance-by-appliance</td>
+                <td className="py-3">Energy Entry</td>
+                <td className="text-center">Monthly bill input</td>
+                <td className="text-center">Property details & monthly bill</td>
+              </tr>
+              <tr className="border-b border-gray-100">
+                <td className="py-3">Battery Peak Shaving</td>
+                <td className="text-center">Available (HRS program)</td>
+                <td className="text-center">Available (HRS program)</td>
               </tr>
               <tr className="border-b border-gray-100">
                 <td className="py-3">Photos</td>
-                <td className="text-center">Optional (2-3)</td>
-                <td className="text-center">Organized (up to 17)</td>
+                <td className="text-center">Simple (2-3 photos)</td>
+                <td className="text-center">Organized categories (up to 17)</td>
               </tr>
               <tr className="border-b border-gray-100">
-                <td className="py-3">Accuracy</td>
+                <td className="py-3">System Accuracy</td>
                 <td className="text-center">±15-20%</td>
                 <td className="text-center">±5-10%</td>
               </tr>
               <tr>
                 <td className="py-3">Best For</td>
-                <td className="text-center">Browsing, initial research</td>
-                <td className="text-center">Serious buyers, accurate quote</td>
+                <td className="text-center">Quick estimates, browsing</td>
+                <td className="text-center">Accurate quotes, HRS rebates</td>
               </tr>
             </tbody>
           </table>

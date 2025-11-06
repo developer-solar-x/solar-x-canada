@@ -20,6 +20,9 @@ interface Photo {
   file: File
   preview: string
   category: string
+  uploadedUrl?: string // Supabase Storage URL after upload
+  uploading?: boolean // Upload status
+  uploadError?: string // Upload error message
 }
 
 export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: StepPhotosSimpleProps) {
@@ -47,7 +50,36 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
           preview: URL.createObjectURL(stored.blob),
         }))
         
-        setPhotos(loadedPhotos)
+        // If nothing in IndexedDB and we have an email, try to restore from partial lead
+        if (loadedPhotos.length === 0 && data?.email) {
+          try {
+            const res = await fetch(`/api/partial-lead?email=${encodeURIComponent(data.email)}`)
+            if (res.ok) {
+              const json = await res.json()
+              const estimator = json?.data?.estimator_data
+              const urls: string[] = json?.data?.photo_urls || (Array.isArray(estimator?.photos) ? estimator.photos.map((p: any) => p.url || p.uploadedUrl || p.preview).filter(Boolean) : [])
+              if (urls && urls.length > 0) {
+                const restored: Photo[] = urls.map((url: string, idx: number) => ({
+                  id: `restored-${idx}-${Date.now()}`,
+                  category: 'general',
+                  // Create a placeholder File; UI uses preview/uploadedUrl for display
+                  file: new File([], 'photo.jpg', { type: 'image/jpeg' }),
+                  preview: url,
+                  uploadedUrl: url,
+                }))
+                setPhotos(restored)
+              } else {
+                setPhotos(loadedPhotos)
+              }
+            } else {
+              setPhotos(loadedPhotos)
+            }
+          } catch {
+            setPhotos(loadedPhotos)
+          }
+        } else {
+          setPhotos(loadedPhotos)
+        }
         console.log(`Loaded ${loadedPhotos.length} photos from IndexedDB`)
       } catch (error) {
         console.error('Failed to load photos:', error)
@@ -68,6 +100,36 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
     }
   }, []) // Empty dependency array - run only on mount
 
+  // Auto-save uploaded URLs to partial lead when available (debounced)
+  useEffect(() => {
+    if (!data?.email) return
+    const urls = photos.map(p => p.uploadedUrl).filter(Boolean) as string[]
+    if (urls.length === 0) return
+    const timer = setTimeout(async () => {
+      try {
+        await fetch('/api/partial-lead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: data.email,
+            estimatorData: {
+              ...data,
+              photos: photos.map(p => ({ id: p.id, category: p.category, url: p.uploadedUrl || p.preview })),
+              photoSummary: {
+                total: photos.length,
+                byCategory: [{ category: 'general', count: photos.length }],
+              },
+            },
+            currentStep: 3,
+          }),
+        })
+      } catch (e) {
+        console.warn('Failed to autosave photos to draft', e)
+      }
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [photos, data])
+
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
     if (files) {
@@ -76,17 +138,57 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
         file,
         preview: URL.createObjectURL(file),
         category: 'general',
+        uploading: true,
       }))
       
       // Update UI immediately
       setPhotos([...photos, ...newPhotos])
       
-      // Save each photo to IndexedDB in the background
-      for (const photo of newPhotos) {
+      // Upload each photo to Supabase Storage and save to IndexedDB
+      for (let i = 0; i < newPhotos.length; i++) {
+        const photo = newPhotos[i]
         try {
-          await savePhoto(photo.id, photo.file, photo.category)
+          // Upload to Supabase Storage
+          const uploadFormData = new FormData()
+          uploadFormData.append('file', photo.file)
+          uploadFormData.append('category', photo.category)
+          
+          const uploadResponse = await fetch('/api/upload-photo', {
+            method: 'POST',
+            body: uploadFormData,
+          })
+          
+          if (!uploadResponse.ok) {
+            throw new Error('Upload failed')
+          }
+          
+          const uploadResult = await uploadResponse.json()
+          
+          if (uploadResult.success && uploadResult.data?.url) {
+            // Update photo with uploaded URL
+            setPhotos(prevPhotos => 
+              prevPhotos.map(p => 
+                p.id === photo.id 
+                  ? { ...p, uploadedUrl: uploadResult.data.url, uploading: false }
+                  : p
+              )
+            )
+            
+            // Save to IndexedDB as backup
+            await savePhoto(photo.id, photo.file, photo.category)
+          } else {
+            throw new Error('No URL returned from upload')
+          }
         } catch (error) {
-          console.error(`Failed to save photo ${photo.id}:`, error)
+          console.error(`Failed to upload photo ${photo.id}:`, error)
+          // Mark as failed but keep in UI
+          setPhotos(prevPhotos => 
+            prevPhotos.map(p => 
+              p.id === photo.id 
+                ? { ...p, uploading: false, uploadError: error instanceof Error ? error.message : 'Upload failed' }
+                : p
+            )
+          )
         }
       }
     }
@@ -111,8 +213,23 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
   }
 
   const handleContinue = () => {
+    // Filter photos that have been successfully uploaded
+    const uploadedPhotos = photos.filter(p => p.uploadedUrl)
+    
+    // Warn if some photos failed to upload
+    const failedPhotos = photos.filter(p => p.uploadError)
+    if (failedPhotos.length > 0) {
+      console.warn(`${failedPhotos.length} photo(s) failed to upload, but continuing anyway`)
+    }
+    
     onComplete({
-      photos,
+      photos: photos.map(p => ({
+        id: p.id,
+        category: p.category,
+        file: p.file,
+        preview: p.preview,
+        url: p.uploadedUrl, // Use Supabase URL instead of blob URL
+      })),
       photoSummary: {
         total: photos.length,
         byCategory: [{ category: 'general', count: photos.length }],
@@ -210,11 +327,19 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
               {photos.map((photo, index) => (
                 <div key={photo.id} className="relative group">
                   <div 
-                    className="aspect-square relative rounded-lg overflow-hidden border-2 border-gray-200 cursor-pointer hover:border-blue-500 transition-colors"
+                    className={`aspect-square relative rounded-lg overflow-hidden border-2 cursor-pointer transition-colors ${
+                      photo.uploading 
+                        ? 'border-yellow-400 bg-yellow-50' 
+                        : photo.uploadError 
+                        ? 'border-red-400 bg-red-50' 
+                        : photo.uploadedUrl 
+                        ? 'border-green-400 hover:border-blue-500' 
+                        : 'border-gray-200 hover:border-blue-500'
+                    }`}
                     onClick={() => {
                       // Open image in modal when thumbnail is clicked
                       setSelectedImage({ 
-                        src: photo.preview, 
+                        src: photo.uploadedUrl || photo.preview, 
                         alt: `Property photo ${index + 1}`, 
                         title: `Property Photo ${index + 1} - ${photo.file.name}` 
                       })
@@ -223,10 +348,25 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
                     title="Click to view full size"
                   >
                     <img
-                      src={photo.preview}
+                      src={photo.uploadedUrl || photo.preview}
                       alt="Property photo"
                       className="w-full h-full object-cover"
                     />
+                    {photo.uploading && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                      </div>
+                    )}
+                    {photo.uploadError && (
+                      <div className="absolute inset-0 bg-red-500/80 flex items-center justify-center p-2">
+                        <p className="text-white text-xs text-center">Upload failed</p>
+                      </div>
+                    )}
+                    {photo.uploadedUrl && !photo.uploading && (
+                      <div className="absolute top-1 left-1 bg-green-500 text-white rounded-full p-1">
+                        <CheckCircle size={14} />
+                      </div>
+                    )}
                     <button
                       onClick={(e) => {
                         // Stop propagation to prevent opening modal when deleting

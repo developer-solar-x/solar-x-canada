@@ -80,12 +80,6 @@ export default function AdminLoginPage() {
             </div>
           )}
 
-          {/* Demo credentials notice */}
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm font-medium text-blue-800 mb-2">Demo Credentials:</p>
-            <p className="text-xs text-blue-600 font-mono">admin@solarx.ca</p>
-            <p className="text-xs text-blue-600 font-mono">admin123</p>
-          </div>
 
           {/* Login form */}
           <form onSubmit={handleSubmit} className="space-y-6">

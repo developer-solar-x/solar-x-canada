@@ -187,4 +187,71 @@ FOR INSERT WITH CHECK (true); -- allow writing only
 -- Final friendly message so you know it ran fine
 SELECT 'SolarX v2 schema installed' AS message; -- success note for the console
 
+-- ---------------------------------------------
+-- Draft/Partial Leads (in-progress estimators)
+-- ---------------------------------------------
+
+-- Store in-progress sessions immediately when an email is captured.
+-- Keeps a JSONB blob for full flexibility plus a few indexed columns
+-- for common filters in the admin.
+CREATE TABLE IF NOT EXISTS partial_leads_v2 ( -- in-progress estimate drafts
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(), -- unique draft id
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- when started
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- last update time
+  resumed_at TIMESTAMPTZ, -- last resume time if user came back
+
+  -- Identity for lookups
+  email TEXT NOT NULL, -- captured early to allow resume
+
+  -- Progress state
+  current_step INTEGER NOT NULL DEFAULT 0, -- step index in wizard
+
+  -- Snapshot of whole estimator state at save time
+  estimator_data JSONB NOT NULL, -- everything captured so far
+
+  -- Optional denormalized fields for quick filters (nullable)
+  address TEXT, -- human readable address (if provided)
+  coordinates JSONB, -- { lat, lng }
+  rate_plan TEXT, -- best plan so far (tou/ulo)
+  roof_area_sqft NUMERIC, -- quick roof size filter
+  monthly_bill NUMERIC, -- quick budget filter
+  annual_usage_kwh NUMERIC, -- quick sizing filter
+  selected_add_ons JSONB, -- quick tags
+  photo_count INTEGER, -- quick photo completeness
+  photo_urls JSONB, -- array of photo URLs saved to storage
+  map_snapshot_url TEXT -- preview
+);
+
+-- Indexes for common queries
+CREATE INDEX IF NOT EXISTS idx_partial_leads_v2_email ON partial_leads_v2(email);
+CREATE INDEX IF NOT EXISTS idx_partial_leads_v2_updated ON partial_leads_v2(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_partial_leads_v2_rate_plan ON partial_leads_v2(rate_plan);
+
+-- Keep updated_at fresh
+CREATE OR REPLACE FUNCTION update_partial_leads_v2_updated_at() -- touch updated timestamp
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW(); -- bump on update
+  RETURN NEW; -- return changed row
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_update_partial_leads_v2_updated_at -- connect trigger
+BEFORE UPDATE ON partial_leads_v2
+FOR EACH ROW EXECUTE FUNCTION update_partial_leads_v2_updated_at();
+
+-- Row Level Security and permissive public inserts (frontend drafts)
+ALTER TABLE partial_leads_v2 ENABLE ROW LEVEL SECURITY; -- enable RLS
+
+-- Allow anyone to create or update a draft (public site capture)
+CREATE POLICY "Allow public insert partial_leads_v2" ON partial_leads_v2
+FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Allow public update partial_leads_v2" ON partial_leads_v2
+FOR UPDATE USING (true) WITH CHECK (true);
+
+-- Allow selects (e.g., resume) – typically restrict by email in API
+CREATE POLICY "Allow public select partial_leads_v2" ON partial_leads_v2
+FOR SELECT USING (true);
+
 

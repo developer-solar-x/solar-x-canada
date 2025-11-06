@@ -3,14 +3,18 @@ import './globals.css'
 
 // Metadata for SEO optimization
 export const metadata: Metadata = {
+  metadataBase: new URL('https://www.solarcalculatorcanada.org'),
   title: 'SolarX - Modern Solar Solutions | Get Your Free Solar Estimate',
   description: 'Get your personalized solar estimate in minutes. Join thousands of Ontario homeowners saving money and the planet with SolarX.',
-  keywords: ['solar panels', 'solar energy', 'Ontario solar', 'solar installation', 'solar estimate', 'renewable energy'],
+  keywords: ['solar panels', 'solar energy', 'Ontario solar', 'solar installation', 'solar estimate', 'renewable energy', 'solar calculator canada'],
   authors: [{ name: 'SolarX' }],
+  alternates: {
+    canonical: 'https://www.solarcalculatorcanada.org',
+  },
   openGraph: {
     type: 'website',
     locale: 'en_CA',
-    url: 'https://solarx.ca',
+    url: 'https://www.solarcalculatorcanada.org',
     siteName: 'SolarX',
     title: 'SolarX - Modern Solar Solutions',
     description: 'Get your personalized solar estimate in minutes',
@@ -23,6 +27,13 @@ export const metadata: Metadata = {
   robots: {
     index: true,
     follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
   },
 }
 

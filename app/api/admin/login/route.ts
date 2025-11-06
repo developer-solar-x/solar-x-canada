@@ -1,15 +1,8 @@
-// Admin login API endpoint with mock credentials
-// Creates a secure session cookie for authenticated admins
+// Admin login API endpoint using Supabase Auth
 
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-
-// Mock credentials for demo/development
-// In production, these would be replaced with proper authentication
-const MOCK_CREDENTIALS = {
-  email: 'admin@solarx.ca',
-  password: 'admin123',
-}
+import { getSupabaseAdmin } from '@/lib/supabase'
 
 // Session configuration
 const SESSION_COOKIE_NAME = 'solarx_admin_session'
@@ -29,53 +22,105 @@ export async function POST(request: Request) {
       )
     }
 
-    // Check credentials against mock data
-    if (
-      email.toLowerCase() === MOCK_CREDENTIALS.email.toLowerCase() &&
-      password === MOCK_CREDENTIALS.password
-    ) {
-      // Create session token (simple random string for now)
-      // In production, use JWT or proper session management
-      const sessionToken = generateSessionToken()
-      
-      // Set secure HTTP-only cookie
-      const cookieStore = await cookies()
-      cookieStore.set(SESSION_COOKIE_NAME, sessionToken, {
-        httpOnly: true, // Prevents JavaScript access (XSS protection)
-        secure: process.env.NODE_ENV === 'production', // HTTPS only in production
-        sameSite: 'lax', // CSRF protection
-        maxAge: SESSION_MAX_AGE,
-        path: '/', // Available across entire site
-      })
+    const supabase = getSupabaseAdmin()
 
-      // Log successful login
-      console.log(`✅ Admin login successful: ${email}`)
+    // Sign in with Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: email.toLowerCase().trim(),
+      password: password,
+    })
 
-      return NextResponse.json({
-        success: true,
-        message: 'Login successful',
-      })
+    if (authError || !authData.user) {
+      console.warn(`❌ Failed login attempt: ${email}`)
+      return NextResponse.json(
+        { error: 'Invalid email or password' },
+        { status: 401 }
+      )
     }
 
-    // Invalid credentials - log attempt
-    console.warn(`❌ Failed login attempt: ${email}`)
+    // Check if user exists in admin_users table and is active
+    const { data: adminUser, error: userError } = await supabase
+      .from('admin_users')
+      .select('id, email, full_name, role, is_active')
+      .eq('id', authData.user.id)
+      .single()
 
-    return NextResponse.json(
-      { error: 'Invalid email or password' },
-      { status: 401 }
-    )
+    if (userError || !adminUser) {
+      console.warn(`❌ Admin user not found: ${email}`)
+      // Sign out from auth if user doesn't exist in admin_users
+      await supabase.auth.signOut()
+      return NextResponse.json(
+        { error: 'Access denied. User is not an admin.' },
+        { status: 403 }
+      )
+    }
+
+    if (!adminUser.is_active) {
+      console.warn(`❌ Inactive admin login attempt: ${email}`)
+      await supabase.auth.signOut()
+      return NextResponse.json(
+        { error: 'Account is inactive. Please contact an administrator.' },
+        { status: 403 }
+      )
+    }
+
+    // Update last login time
+    await supabase
+      .from('admin_users')
+      .update({ last_login_at: new Date().toISOString() })
+      .eq('id', adminUser.id)
+
+    // Create session token (using Supabase session)
+    const sessionToken = authData.session?.access_token || generateSessionToken()
+    
+    // Set secure HTTP-only cookie
+    const cookieStore = await cookies()
+    cookieStore.set(SESSION_COOKIE_NAME, sessionToken, {
+      httpOnly: true, // Prevents JavaScript access (XSS protection)
+      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+      sameSite: 'lax', // CSRF protection
+      maxAge: SESSION_MAX_AGE,
+      path: '/', // Available across entire site
+    })
+
+    // Also store user info in a separate cookie (non-httpOnly for client access)
+    cookieStore.set('solarx_admin_user', JSON.stringify({
+      id: adminUser.id,
+      email: adminUser.email,
+      full_name: adminUser.full_name,
+      role: adminUser.role,
+    }), {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: SESSION_MAX_AGE,
+      path: '/',
+    })
+
+    // Log successful login
+    console.log(`✅ Admin login successful: ${email} (${adminUser.role})`)
+
+    return NextResponse.json({
+      success: true,
+      message: 'Login successful',
+      user: {
+        id: adminUser.id,
+        email: adminUser.email,
+        full_name: adminUser.full_name,
+        role: adminUser.role,
+      }
+    })
   } catch (error) {
     console.error('Login error:', error)
     return NextResponse.json(
-      { error: 'Login failed' },
+      { error: 'An error occurred during login' },
       { status: 500 }
     )
   }
 }
 
-// Generate a simple session token
-// In production, use crypto.randomBytes() or JWT
+// Generate a simple session token (fallback)
 function generateSessionToken(): string {
-  return `admin_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
+  return Math.random().toString(36).substring(2, 15) + 
+         Math.random().toString(36).substring(2, 15) +
+         Date.now().toString(36)
 }
-

@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     // Get lead from database
     const supabase = getSupabaseAdmin()
     const { data: lead, error: fetchError } = await supabase
-      .from('leads')
+      .from('leads_v3')
       .select('*')
       .eq('id', leadId)
       .single()
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
     // Update lead with HubSpot IDs
     await supabase
-      .from('leads')
+      .from('leads_v3')
       .update({
         hubspot_contact_id: syncResult.contactId,
         hubspot_deal_id: syncResult.dealId,
@@ -46,14 +46,30 @@ export async function POST(request: Request) {
       })
       .eq('id', leadId)
 
-    // Log activity
-    await supabase
-      .from('lead_activities')
-      .insert({
-        lead_id: leadId,
-        activity_type: 'hubspot_sync',
-        activity_data: syncResult,
-      })
+    // Log activity - try different table names
+    const activityTableNames = ['lead_activities_v3', 'lead_activities_v2', 'lead_activities']
+    for (const tableName of activityTableNames) {
+      const { error } = await supabase
+        .from(tableName)
+        .insert({
+          lead_id: leadId,
+          activity_type: 'hubspot_sync',
+          activity_data: syncResult,
+        })
+      
+      // If successful or table doesn't exist, break
+      if (!error || (error.code === 'PGRST205' && activityTableNames.indexOf(tableName) === activityTableNames.length - 1)) {
+        break
+      }
+      // If table doesn't exist, try next table
+      if (error && error.code === 'PGRST205') {
+        continue
+      }
+      // Log other errors but don't fail the sync
+      if (error) {
+        console.warn(`Failed to log activity to ${tableName}:`, error)
+      }
+    }
 
     return NextResponse.json({
       success: true,

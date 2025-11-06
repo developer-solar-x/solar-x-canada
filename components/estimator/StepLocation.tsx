@@ -2,9 +2,10 @@
 
 // Step 1: Address/Location input
 
-import { useState, useEffect, useRef } from 'react'
-import { MapPin, Loader2, AlertTriangle } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { MapPin, Loader2, AlertTriangle, Mail } from 'lucide-react'
 import { validateServiceArea } from '@/lib/geofencing'
+import { isValidEmail } from '@/lib/utils'
 
 interface StepLocationProps {
   data: any
@@ -14,6 +15,7 @@ interface StepLocationProps {
 
 export function StepLocation({ data, onComplete }: StepLocationProps) {
   const [address, setAddress] = useState(data.address || '')
+  const [email, setEmail] = useState(data.email || '')
   const [useCoords, setUseCoords] = useState(false)
   const [lat, setLat] = useState<string>(data.coordinates?.lat ? String(data.coordinates.lat) : '')
   const [lng, setLng] = useState<string>(data.coordinates?.lng ? String(data.coordinates.lng) : '')
@@ -22,6 +24,7 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
   const [error, setError] = useState('')
   const [serviceAreaWarning, setServiceAreaWarning] = useState<string | null>(null)
   const [pendingData, setPendingData] = useState<any>(null)
+  const [savingProgress, setSavingProgress] = useState(false)
   
   // Autocomplete state
   const [suggestions, setSuggestions] = useState<any[]>([])
@@ -90,6 +93,14 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
 
   // Handle suggestion selection
   const handleSelectSuggestion = async (suggestion: any) => {
+    // Validate email before proceeding
+    if (!email || !email.trim() || !isValidEmail(email)) {
+      setError('Please enter a valid email address before selecting an address')
+      setShowSuggestions(false)
+      setSuggestions([])
+      return
+    }
+
     setAddress(suggestion.place_name)
     setShowSuggestions(false)
     setSuggestions([])
@@ -135,20 +146,88 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
         province,
       })
     } else {
-      onComplete({
+      // Within service area - proceed
+      const locationData = {
         address: suggestion.place_name,
         coordinates: { lat, lng },
         city,
         province,
-      })
+        email: email || undefined, // Include email if provided
+      }
+      onComplete(locationData)
+      
+      // Save to partial leads if email is provided
+      if (email && isValidEmail(email)) {
+        saveProgressToPartialLead(locationData)
+      }
     }
   }
+
+  // Save progress to partial leads when email is provided
+  const saveProgressToPartialLead = useCallback(async (locationData: any) => {
+    if (!email || !isValidEmail(email)) return
+    
+    try {
+      setSavingProgress(true)
+      const response = await fetch('/api/partial-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          estimatorData: {
+            ...data,
+            ...locationData,
+            email,
+          },
+          currentStep: 1, // Location step
+        }),
+      })
+      
+      if (response.ok) {
+        console.log('Progress saved to partial lead')
+      }
+    } catch (error) {
+      console.error('Failed to save progress:', error)
+    } finally {
+      setSavingProgress(false)
+    }
+  }, [email, data])
+
+  // Auto-save when email is entered and address is valid
+  useEffect(() => {
+    if (email && isValidEmail(email) && address && !loading) {
+      const timer = setTimeout(() => {
+        if (data.coordinates || (lat && lng)) {
+          // Only save if we have valid coordinates
+          const locationData = {
+            address,
+            coordinates: data.coordinates || (lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng) } : undefined),
+            email,
+          }
+          saveProgressToPartialLead(locationData)
+        }
+      }, 1000) // Debounce 1 second
+      
+      return () => clearTimeout(timer)
+    }
+  }, [email, address, data.coordinates, lat, lng, loading, saveProgressToPartialLead])
 
   // Handle address submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setShowSuggestions(false)
+
+    // Validate email is required
+    if (!email || !email.trim()) {
+      setError('Please enter your email address')
+      return
+    }
+
+    if (!isValidEmail(email)) {
+      setError('Please enter a valid email address')
+      return
+    }
 
     if (!address.trim()) {
       setError('Please enter an address')
@@ -193,12 +272,17 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
           })
         } else {
           // Within service area - proceed
-          onComplete({
+          const locationData = {
             address: result.data.address,
             coordinates: result.data.coordinates,
             city: result.data.city,
             province: result.data.province,
-          })
+            email: email, // Email is required
+          }
+          onComplete(locationData)
+          
+          // Save to partial leads (email is required)
+          saveProgressToPartialLead(locationData)
         }
       } else {
         setError('Address not found. Please try a different address.')
@@ -214,6 +298,13 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
   // Handle geolocation (Use My Location)
   const handleUseLocation = async () => {
     setError('')
+    
+    // Validate email before proceeding
+    if (!email || !email.trim() || !isValidEmail(email)) {
+      setError('Please enter a valid email address before using your location')
+      return
+    }
+    
     setLoadingLocation(true)
 
     // Check if geolocation is supported
@@ -268,12 +359,17 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
                 })
               } else {
                 // Within service area - proceed
-                onComplete({
+                const locationData = {
                   address: result.data.address,
                   coordinates: result.data.coordinates,
                   city: result.data.city,
                   province: result.data.province,
-                })
+                  email: email, // Email is required
+                }
+                onComplete(locationData)
+                
+                // Save to partial leads (email is required)
+                saveProgressToPartialLead(locationData)
               }
             } else {
               setError('Could not determine your address. Please enter it manually.')
@@ -337,6 +433,40 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Email capture (required) */}
+          <div className="text-left">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Email Address <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  setError('') // Clear error when user types
+                }}
+                placeholder="your@email.com"
+                className={`w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-red-100 outline-none transition-colors ${
+                  error && !isValidEmail(email) ? 'border-red-500' : 'border-gray-200 focus:border-red-500'
+                }`}
+                disabled={loading}
+                autoComplete="email"
+                required
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              {email && isValidEmail(email) ? (
+                <span className="text-green-600 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                  Your progress will be saved automatically
+                </span>
+              ) : (
+                'Required to save your progress and continue later'
+              )}
+            </p>
+          </div>
           {/* Address input with autocomplete */}
           {!useCoords && (
           <div className="text-left relative" ref={autocompleteRef}>
@@ -510,13 +640,18 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
           {!useCoords ? (
             <button
               type="submit"
-              disabled={loading || loadingLocation || !address.trim()}
-              className="btn-primary w-full h-12 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading || loadingLocation || !address.trim() || !email.trim() || !isValidEmail(email)}
+              className="btn-primary w-full h-12 text-lg disabled:opacity-50 disabled:cursor-not-allowed relative"
             >
               {loading ? (
                 <>
                   <Loader2 className="animate-spin" size={20} />
                   Finding address...
+                </>
+              ) : savingProgress ? (
+                <>
+                  <Loader2 className="animate-spin" size={20} />
+                  Saving progress...
                 </>
               ) : (
                 'Continue to Map'
@@ -525,9 +660,16 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
           ) : (
             <button
               type="button"
-              disabled={loading || loadingLocation || !lat || !lng}
+              disabled={loading || loadingLocation || !lat || !lng || !email.trim() || !isValidEmail(email)}
               onClick={async ()=>{
                 setError('')
+                
+                // Validate email before proceeding
+                if (!email || !email.trim() || !isValidEmail(email)) {
+                  setError('Please enter a valid email address')
+                  return
+                }
+                
                 setLoading(true)
                 const parsedLat = Number(lat)
                 const parsedLng = Number(lng)
@@ -548,13 +690,34 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
                       coordinates: { lat: parsedLat, lng: parsedLng },
                       city: result.data.city,
                       province: result.data.province,
-                    } : { coordinates: { lat: parsedLat, lng: parsedLng } }
+                      email: email, // Email is required
+                    } : { 
+                      coordinates: { lat: parsedLat, lng: parsedLng },
+                      email: email, // Email is required
+                    }
                     onComplete(dataOut)
+                    
+                    // Save to partial leads (email is required)
+                    saveProgressToPartialLead(dataOut)
                   } else {
-                    onComplete({ coordinates: { lat: parsedLat, lng: parsedLng } })
+                    const coordData = {
+                      coordinates: { lat: parsedLat, lng: parsedLng },
+                      email: email, // Email is required
+                    }
+                    onComplete(coordData)
+                    
+                    // Save to partial leads (email is required)
+                    saveProgressToPartialLead(coordData)
                   }
                 } catch (e){
-                  onComplete({ coordinates: { lat: parsedLat, lng: parsedLng } })
+                  const coordData = {
+                    coordinates: { lat: parsedLat, lng: parsedLng },
+                    email: email, // Email is required
+                  }
+                  onComplete(coordData)
+                  
+                  // Save to partial leads (email is required)
+                  saveProgressToPartialLead(coordData)
                 } finally {
                   setLoading(false)
                 }

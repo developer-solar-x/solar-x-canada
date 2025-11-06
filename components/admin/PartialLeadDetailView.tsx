@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import { 
   X, MapPin, Home, Clock, Mail, AlertCircle, Zap, Tag,
-  TrendingUp, CheckCircle, Edit2, Trash2, Send
+  TrendingUp, CheckCircle, Edit2, Trash2, Send, ExternalLink, CreditCard
 } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
 import type { MockPartialLead } from '@/lib/mock-partial-leads'
@@ -120,13 +120,11 @@ export function PartialLeadDetailView({
                   </div>
                 </div>
                 {getPriorityBadge()}
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                  partialLead.estimator_data.estimatorMode === 'easy' 
-                    ? 'bg-red-100 text-red-600' 
-                    : 'bg-navy-100 text-navy-600'
-                }`}>
-                  {partialLead.estimator_data.estimatorMode === 'easy' ? 'Quick Estimate' : 'Detailed Analysis'}
-                </span>
+                {partialLead.estimator_data.peakShaving?.ratePlan && (
+                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                    Best Plan: {partialLead.estimator_data.peakShaving.ratePlan.toUpperCase()}
+                  </span>
+                )}
               </div>
               
               <button 
@@ -281,6 +279,17 @@ export function PartialLeadDetailView({
                         </a>
                       </div>
                     </div>
+                    {(partialLead.estimator_data.financingOption || partialLead.estimator_data.financingPreference) && (
+                      <div className="flex items-center gap-3">
+                        <CreditCard className="text-gray-400 flex-shrink-0" size={18} />
+                        <div>
+                          <div className="text-xs text-gray-500">Financing Preference</div>
+                          <div className="text-sm font-medium capitalize">
+                            {partialLead.estimator_data.financingOption || partialLead.estimator_data.financingPreference}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
                       <p className="text-xs text-yellow-800">
                         <strong>Note:</strong> Full contact details (name, phone) are collected at the final step. 
@@ -318,17 +327,59 @@ export function PartialLeadDetailView({
                           )}
                         </div>
                       )}
+                      {partialLead.estimator_data.coordinates && (
+                        <div className="mt-1">
+                          <div className="text-xs text-gray-500">Coordinates</div>
+                          <div className="text-sm font-medium">{partialLead.estimator_data.coordinates.lat}, {partialLead.estimator_data.coordinates.lng}</div>
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${partialLead.estimator_data.coordinates.lat},${partialLead.estimator_data.coordinates.lng}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 text-xs text-blue-600 hover:underline mt-1"
+                          >
+                            View on Map
+                            <ExternalLink size={12} />
+                          </a>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
 
                 {/* Roof Information */}
-                {partialLead.estimator_data.roofAreaSqft && (
+                {(partialLead.estimator_data.roofAreaSqft || partialLead.estimator_data.mapSnapshot || partialLead.map_snapshot_url) && (
                   <div className="card p-6">
                     <h3 className="text-lg font-bold text-navy-500 mb-4 flex items-center gap-2">
                       <Home size={20} />
                       Roof Information
                     </h3>
+                    
+                    {/* Map Snapshot */}
+                    {(partialLead.estimator_data.mapSnapshot || partialLead.map_snapshot_url) && (
+                      <div className="rounded-lg overflow-hidden mb-4" style={{ height: '400px' }}>
+                        <img
+                          src={partialLead.map_snapshot_url || partialLead.estimator_data.mapSnapshot || ''}
+                          alt="Roof snapshot"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            // Hide image if it fails to load
+                            const target = e.target as HTMLImageElement
+                            target.style.display = 'none'
+                            if (target.nextElementSibling) {
+                              (target.nextElementSibling as HTMLElement).style.display = 'flex'
+                            }
+                          }}
+                        />
+                        <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100" style={{ display: 'none' }}>
+                          <div className="text-center">
+                            <MapPin size={48} className="mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">Map snapshot failed to load</p>
+                            <p className="text-xs mt-1">Roof polygon data stored: {partialLead.estimator_data.roofPolygon ? 'Yes' : 'No'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="bg-blue-50 rounded-lg p-3">
                         <div className="text-xs text-gray-600 mb-1">Area</div>
@@ -440,6 +491,78 @@ export function PartialLeadDetailView({
                     </div>
                   </div>
                 )}
+
+                {/* Peak Shaving inputs preview */}
+                {(partialLead.estimator_data.peakShaving) && (
+                  <div className="card p-6">
+                    <h3 className="text-lg font-bold text-navy-500 mb-4">Battery Savings (Draft)</h3>
+                    <div className="grid md:grid-cols-3 gap-3 text-sm">
+                      {partialLead.estimator_data.peakShaving.ratePlan && (
+                        <div className="bg-gray-50 rounded p-3">
+                          <div className="text-xs text-gray-600">Plan</div>
+                          <div className="font-semibold uppercase">{partialLead.estimator_data.peakShaving.ratePlan}</div>
+                        </div>
+                      )}
+                      {partialLead.estimator_data.peakShaving.systemSizeKw && (
+                        <div className="bg-gray-50 rounded p-3">
+                          <div className="text-xs text-gray-600">System Size</div>
+                          <div className="font-semibold">{partialLead.estimator_data.peakShaving.systemSizeKw} kW</div>
+                        </div>
+                      )}
+                      {partialLead.estimator_data.peakShaving.selectedBattery && (
+                        <div className="bg-gray-50 rounded p-3">
+                          <div className="text-xs text-gray-600">Battery</div>
+                          <div className="font-semibold">{partialLead.estimator_data.peakShaving.selectedBattery}</div>
+                        </div>
+                      )}
+                      {partialLead.estimator_data.peakShaving.annualUsageKwh && (
+                        <div className="bg-gray-50 rounded p-3">
+                          <div className="text-xs text-gray-600">Annual Usage</div>
+                          <div className="font-semibold">{partialLead.estimator_data.peakShaving.annualUsageKwh.toLocaleString()} kWh</div>
+                        </div>
+                      )}
+                      {partialLead.estimator_data.peakShaving.manualProductionKwh && (
+                        <div className="bg-gray-50 rounded p-3">
+                          <div className="text-xs text-gray-600">Annual Production (est.)</div>
+                          <div className="font-semibold">{partialLead.estimator_data.peakShaving.manualProductionKwh.toLocaleString()} kWh</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Optional: Environmental & Financing (if present later in flow) */}
+                {((partialLead as any).environmental || partialLead.estimator_data.financingOption || partialLead.estimator_data.financingPreference) ? (
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {(partialLead as any).environmental && (
+                      <div className="card p-6">
+                        <h3 className="text-lg font-bold text-navy-500 mb-2">Environmental</h3>
+                        <div className="grid grid-cols-3 gap-3 text-center text-sm">
+                          <div>
+                            <div className="text-xs text-gray-600">CO₂/yr</div>
+                            <div className="font-semibold">{(partialLead as any).environmental.co2_tpy ?? '—'}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-600">Trees</div>
+                            <div className="font-semibold">{(partialLead as any).environmental.trees ?? '—'}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-600">Cars</div>
+                            <div className="font-semibold">{(partialLead as any).environmental.cars_off_road ?? '—'}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {(partialLead.estimator_data.financingOption || partialLead.estimator_data.financingPreference) && (
+                      <div className="card p-6">
+                        <h3 className="text-lg font-bold text-navy-500 mb-2">Financing Preference</h3>
+                        <div className="text-sm capitalize">
+                          {partialLead.estimator_data.financingOption || partialLead.estimator_data.financingPreference}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
 
                 {/* Data Summary */}
                 <div className="card p-6 bg-gray-50">

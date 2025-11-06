@@ -8,6 +8,7 @@ export interface MockPartialLead {
   updated_at: string
   resumed_at: string | null
   current_step: number
+  map_snapshot_url?: string
   estimator_data: {
     estimatorMode?: 'easy' | 'detailed'
     address?: string
@@ -20,6 +21,7 @@ export interface MockPartialLead {
     roofAge?: string
     roofPitch?: string
     shadingLevel?: string
+    mapSnapshot?: string
     monthlyBill?: number
     annualUsageKwh?: number
     homeSize?: string
@@ -27,7 +29,10 @@ export interface MockPartialLead {
     photoCount?: number
     // New: persist solar override and peak‑shaving inputs
     solarOverride?: { sizeKw: number; numPanels: number }
-    peakShaving?: { annualUsageKwh?: number; manualProductionKwh?: number; systemSizeKw?: number }
+    peakShaving?: { ratePlan?: 'tou' | 'ulo'; annualUsageKwh?: number; manualProductionKwh?: number; systemSizeKw?: number; selectedBattery?: string }
+    // Financing preference
+    financingOption?: string
+    financingPreference?: string
   }
 }
 
@@ -116,7 +121,7 @@ export const mockPartialLeads: MockPartialLead[] = [
       selectedAddOns: ['ev_charger', 'battery'],
       photoCount: 3,
       solarOverride: { sizeKw: 10.5, numPanels: 21 },
-      peakShaving: { annualUsageKwh: 11000, manualProductionKwh: 12000, systemSizeKw: 10.5 }
+      peakShaving: { ratePlan: 'ulo', annualUsageKwh: 11000, manualProductionKwh: 12000, systemSizeKw: 10.5, selectedBattery: 'renon-16' }
     }
   },
 

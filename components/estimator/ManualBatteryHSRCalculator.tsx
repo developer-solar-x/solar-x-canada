@@ -257,3 +257,6 @@ export default function ManualBatteryHSRCalculator() {
     </div>
   )
 }
+
+
+

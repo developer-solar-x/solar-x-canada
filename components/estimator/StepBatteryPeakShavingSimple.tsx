@@ -409,10 +409,37 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
   const handleComplete = () => {
     const selectedTouResult = touResults.get('combined')
     const selectedUloResult = uloResults.get('combined')
+    // Derive battery price and program-net using selected batteries
+    const batteries = selectedBatteries.map(id => BATTERY_SPECS.find(b => b.id === id)).filter(Boolean) as BatterySpec[]
+    const combinedBattery = batteries.length > 0 ? batteries.reduce((combined, current, idx) => {
+      if (idx === 0) return { ...current }
+      return {
+        ...combined,
+        nominalKwh: combined.nominalKwh + current.nominalKwh,
+        usableKwh: combined.usableKwh + current.usableKwh,
+        price: combined.price + current.price,
+      }
+    }, batteries[0]) : null
+    const programBatteryRebate = combinedBattery ? Math.min(combinedBattery.nominalKwh * 300, 5000) : 0
+    const programBatteryNet = combinedBattery ? Math.max(0, combinedBattery.price - programBatteryRebate) : null
     onComplete({
       ...data,
       solarOverride: { numPanels: solarPanels, sizeKw: systemSizeKwOverride },
       selectedBatteries,
+      ...(combinedBattery ? {
+        batteryDetails: {
+          battery: {
+            price: combinedBattery.price,
+            usableKwh: combinedBattery.usableKwh,
+          },
+          multiYearProjection: {
+            netCost: programBatteryNet,
+          },
+          firstYearAnalysis: {
+            totalSavings: (selectedTouResult?.result?.annualSavings || selectedUloResult?.result?.annualSavings || 0),
+          },
+        },
+      } : {}),
       peakShaving: {
         annualUsageKwh,
         tou: {
