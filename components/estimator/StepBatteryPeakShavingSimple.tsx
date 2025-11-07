@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Battery, DollarSign, TrendingUp, Calendar, ArrowRight, Check, ChevronDown, Percent, Zap, Clock, Info, TrendingDown, BarChart3, Lightbulb, Home, Moon, Sun, Award, AlertTriangle, Plus, X } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { 
@@ -179,6 +179,99 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
       ? Math.max(0, Number(manualProductionInput) || 0)
       : (overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0)
   )
+
+  const offsetCapInfo = useMemo(() => {
+    const usage = Math.max(0, annualUsageKwh || 0)
+    const production = Math.max(0, effectiveSolarProductionKwh || 0)
+
+    if (usage <= 0) {
+      return {
+        finalFraction: 0.93,
+        baseFraction: 0.92,
+        matchesUsage: false,
+        orientationBonus: false,
+        productionBonus: false,
+        ratio: 0,
+      }
+    }
+
+    const ratio = production > 0 ? production / usage : 0
+    const matchesUsage = ratio > 0.95 && ratio < 1.05
+
+    const pitchSource = (overrideEstimate?.roof?.pitch ?? data.roofPitch ?? data.estimate?.roofPitch ?? data.estimate?.roof?.pitch) as unknown
+    let isSteep = false
+    if (typeof pitchSource === 'string') {
+      const normalized = pitchSource.toLowerCase()
+      isSteep = normalized.includes('steep') || normalized.includes('40')
+    } else if (typeof pitchSource === 'number') {
+      isSteep = pitchSource >= 35
+    }
+
+    const sectionAzimuth = Array.isArray(data.roofSections)
+      ? data.roofSections
+          .map((section: any) => {
+            if (typeof section?.azimuth === 'number') return section.azimuth
+            if (typeof section?.orientationAzimuth === 'number') return section.orientationAzimuth
+            if (typeof section?.direction === 'string' && section.direction.toLowerCase().includes('south')) return 180
+            return undefined
+          })
+          .find((val: number | undefined): val is number => typeof val === 'number')
+      : undefined
+
+    const azimuthCandidates = [
+      data.roofAzimuth,
+      overrideEstimate?.roof?.azimuth,
+      data.estimate?.roofAzimuth,
+      data.estimate?.roof?.azimuth,
+      sectionAzimuth,
+    ].filter((val): val is number => typeof val === 'number' && Number.isFinite(val))
+
+    const chosenAzimuth = azimuthCandidates.length > 0 ? azimuthCandidates[0] : undefined
+
+    const normalizeAngle = (value: number) => {
+      const normalized = ((value % 360) + 360) % 360
+      return normalized
+    }
+
+    const calculateAngularDifference = (a: number, b: number) => {
+      const diff = Math.abs(normalizeAngle(a) - normalizeAngle(b))
+      return diff > 180 ? 360 - diff : diff
+    }
+
+    let isSouthFacing = false
+    if (typeof chosenAzimuth === 'number') {
+      isSouthFacing = calculateAngularDifference(chosenAzimuth, 180) <= 25
+    } else if (Array.isArray(data.roofSections)) {
+      isSouthFacing = data.roofSections.some((section: any) => {
+        if (typeof section?.azimuth === 'number') {
+          return calculateAngularDifference(section.azimuth, 180) <= 25
+        }
+        if (typeof section?.direction === 'string') {
+          return section.direction.toLowerCase().includes('south')
+        }
+        return false
+      })
+    }
+
+    const orientationBonus = isSteep && isSouthFacing
+    const productionBonus = ratio >= 1.1
+
+    let baseFraction = matchesUsage ? 0.9 : 0.92
+    if (orientationBonus) baseFraction += 0.01
+    if (productionBonus) baseFraction += 0.01
+    const finalFraction = Math.min(baseFraction, 0.93)
+
+    return {
+      finalFraction,
+      baseFraction: matchesUsage ? 0.9 : 0.92,
+      matchesUsage,
+      orientationBonus,
+      productionBonus,
+      ratio,
+    }
+  }, [annualUsageKwh, effectiveSolarProductionKwh, overrideEstimate?.roof?.pitch, data.roofPitch, data.estimate?.roofPitch, data.estimate?.roof?.pitch, data.roofAzimuth, overrideEstimate?.roof?.azimuth, data.estimate?.roofAzimuth, data.estimate?.roof?.azimuth, data.roofSections])
+
+  const offsetCapPercent = offsetCapInfo.finalFraction * 100
 
   // Persist and restore manual solar panel count to keep system size consistent across reloads
   useEffect(() => {
@@ -1705,10 +1798,13 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                   const touActualLeftoverPercent = annualUsageKwh > 0 ? (touActualLeftoverAfterFullBattery / annualUsageKwh) * 100 : 0
                   const touRemainderPercent = touActualLeftoverPercent
                    
-                  // Calculate combined offset (exclude grid-charged battery top-up), capped at 100%
+                  // Calculate combined offset (exclude grid-charged battery top-up)
                   const touCombinedOffsetRaw = solarOffsetKwh + nightTimeOffsetTou
-                  const touCombinedOffset = Math.min(touCombinedOffsetRaw, annualUsageKwh)
-                  const touCombinedOffsetPercent = annualUsageKwh > 0 ? (touCombinedOffset / annualUsageKwh) * 100 : 0
+                  const touCombinedOffsetMaxKwh = Math.min(touCombinedOffsetRaw, annualUsageKwh)
+                  const touCombinedOffsetPercentRaw = annualUsageKwh > 0 ? (touCombinedOffsetMaxKwh / annualUsageKwh) * 100 : 0
+                  const touCombinedOffsetPercent = Math.min(touCombinedOffsetPercentRaw, offsetCapPercent)
+                  const touCombinedOffset = (touCombinedOffsetPercent / 100) * annualUsageKwh
+                  const touOffsetCapped = touCombinedOffsetPercent < touCombinedOffsetPercentRaw - 0.1
                    
                   // TOU: low-rate energy bucket (battery top-up + still from grid)
                   const touLeftoverKwh = touActualLeftoverAfterFullBattery
@@ -1790,11 +1886,25 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                                <span className="font-bold text-gray-700">Total covered (solar + battery)</span>
                              </div>
                              <div className="text-right">
-                               <div className="text-2xl font-bold text-green-600">{touCombinedOffset.toFixed(0)}</div>
-                               <div className="text-xs text-gray-600">({touCombinedOffsetPercent.toFixed(1)}%)</div>
+                              <div className="text-2xl font-bold text-green-600">{touCombinedOffset.toFixed(0)}</div>
+                              <div className="text-xs text-gray-600">({touCombinedOffsetPercent.toFixed(1)}%)</div>
                              </div>
                            </div>
-                           <div className="text-xs text-gray-600 pl-7">Everything you don’t need to buy from the grid</div>
+                          <div className="text-xs text-gray-600 pl-7">Everything you don’t need to buy from the grid</div>
+                          {touOffsetCapped && (
+                            <div className="text-[11px] text-amber-600 pl-7 mt-1">
+                              Capped at {offsetCapPercent.toFixed(0)}% to reflect winter limits
+                              {offsetCapInfo.matchesUsage ? ' (solar production closely matches annual usage).' : '.'}
+                              {offsetCapInfo.orientationBonus || offsetCapInfo.productionBonus ? (
+                                <span className="block">
+                                  Bonus applied for
+                                  {offsetCapInfo.orientationBonus ? ' steep south-facing roof' : ''}
+                                  {offsetCapInfo.orientationBonus && offsetCapInfo.productionBonus ? ' and' : ''}
+                                  {offsetCapInfo.productionBonus ? ' 10%+ extra production' : ''}.
+                                </span>
+                              ) : null}
+                            </div>
+                          )}
                          </div>
                          
                         <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border-2 border-red-200">
@@ -1876,10 +1986,13 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                   const uloActualLeftoverPercent = annualUsageKwh > 0 ? (uloActualLeftoverAfterFullBattery / annualUsageKwh) * 100 : 0
                   const uloRemainderPercent = uloActualLeftoverPercent
                    
-                  // Calculate combined offset (exclude grid-charged battery top-up), capped at 100%
+                  // Calculate combined offset (exclude grid-charged battery top-up)
                   const uloCombinedOffsetRaw = solarOffsetKwh + nightTimeOffsetUlo
-                  const uloCombinedOffset = Math.min(uloCombinedOffsetRaw, annualUsageKwh)
-                  const uloCombinedOffsetPercent = annualUsageKwh > 0 ? (uloCombinedOffset / annualUsageKwh) * 100 : 0
+                  const uloCombinedOffsetMaxKwh = Math.min(uloCombinedOffsetRaw, annualUsageKwh)
+                  const uloCombinedOffsetPercentRaw = annualUsageKwh > 0 ? (uloCombinedOffsetMaxKwh / annualUsageKwh) * 100 : 0
+                  const uloCombinedOffsetPercent = Math.min(uloCombinedOffsetPercentRaw, offsetCapPercent)
+                  const uloCombinedOffset = (uloCombinedOffsetPercent / 100) * annualUsageKwh
+                  const uloOffsetCapped = uloCombinedOffsetPercent < uloCombinedOffsetPercentRaw - 0.1
                    
                   // ULO: low-rate energy bucket (battery top-up + still from grid)
                   const uloLeftoverKwh = uloActualLeftoverAfterFullBattery
@@ -1961,11 +2074,25 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                                <span className="font-bold text-gray-700">Total covered (solar + battery)</span>
                              </div>
                              <div className="text-right">
-                               <div className="text-2xl font-bold text-green-600">{uloCombinedOffset.toFixed(0)}</div>
-                               <div className="text-xs text-gray-600">({uloCombinedOffsetPercent.toFixed(1)}%)</div>
+                              <div className="text-2xl font-bold text-green-600">{uloCombinedOffset.toFixed(0)}</div>
+                              <div className="text-xs text-gray-600">({uloCombinedOffsetPercent.toFixed(1)}%)</div>
                              </div>
                            </div>
-                           <div className="text-xs text-gray-600 pl-7">Everything you don’t need to buy from the grid</div>
+                          <div className="text-xs text-gray-600 pl-7">Everything you don’t need to buy from the grid</div>
+                          {uloOffsetCapped && (
+                            <div className="text-[11px] text-amber-600 pl-7 mt-1">
+                              Capped at {offsetCapPercent.toFixed(0)}% to reflect winter limits
+                              {offsetCapInfo.matchesUsage ? ' (solar production closely matches annual usage).' : '.'}
+                              {offsetCapInfo.orientationBonus || offsetCapInfo.productionBonus ? (
+                                <span className="block">
+                                  Bonus applied for
+                                  {offsetCapInfo.orientationBonus ? ' steep south-facing roof' : ''}
+                                  {offsetCapInfo.orientationBonus && offsetCapInfo.productionBonus ? ' and' : ''}
+                                  {offsetCapInfo.productionBonus ? ' 10%+ extra production' : ''}.
+                                </span>
+                              ) : null}
+                            </div>
+                          )}
                          </div>
                          
                         <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border-2 border-red-200">
