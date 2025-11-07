@@ -1,0 +1,178 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:cust="http://naesb.org/espi/customer">
+  <id>urn:uuid:c73ea1f6-81e3-551c-910f-0624890f15be</id>
+  <title>RetailCustomer - Customer</title>
+  <updated>2025-10-30T14:29:33.048Z</updated>
+  <link href="https://cert.greenbuttonalliance.org/certificate/9af381a7-ce54-5af2-b9d7-f87bcc563b7d" rel="related" type="text/html"/>
+  <entry>
+    <id>urn:uuid:9db04637-3932-574d-be58-f253b7e5cae4</id>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer" rel="up" type="cust-feed/Customer"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866" rel="self" type="cust-entry/Customer"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632" rel="related" type="cust-entry/CustomerAccount"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/LocalTimeParameters/100000001" rel="related" type="cust-entry/LocalTimeParameters"/>
+    <title>Customer</title>
+    <content>
+      <cust:Customer xmlns:cust="http://naesb.org/espi/customer">
+        <cust:Organisation>
+          <cust:streetAddress>
+            <cust:streetDetail>
+              <cust:addressGeneral>12869 LAKESHORE RD</cust:addressGeneral>
+            </cust:streetDetail>
+            <cust:townDetail>
+              <cust:name>Wainfleet</cust:name>
+              <cust:stateOrProvince>ON</cust:stateOrProvince>
+              <cust:country>CA</cust:country>
+            </cust:townDetail>
+            <cust:status>
+              <cust:value>Active</cust:value>
+            </cust:status>
+            <cust:postalCode>L0S 1V0</cust:postalCode>
+          </cust:streetAddress>
+          <cust:phone1>
+            <cust:countryCode>CA</cust:countryCode>
+            <cust:localNumber/>
+          </cust:phone1>
+          <cust:electronicAddress>
+            <cust:email1/>
+          </cust:electronicAddress>
+          <cust:organisationName>Atusa Abdollahian</cust:organisationName>
+        </cust:Organisation>
+        <cust:kind/>
+        <cust:status>
+          <cust:value>Active</cust:value>
+        </cust:status>
+        <cust:locale/>
+        <cust:customerName>Atusa Abdollahian</cust:customerName>
+      </cust:Customer>
+    </content>
+    <published>2025-10-30T14:29:33.044Z</published>
+    <updated>2025-10-30T14:29:33.044Z</updated>
+  </entry>
+  <entry>
+    <id>urn:uuid:2fbbd5dc-6043-5268-87d2-9e5a474725fa</id>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/LocalTimeParameters" rel="up" type="cust-feed/LocalTimeParameters"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/LocalTimeParameters/100000001" rel="self" type="cust-entry/LocalTimeParameters"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866" rel="related" type="cust-entry/Customer"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632/CustomerAgreement/0401690842/ServiceLocation/0700735486" rel="related" type="cust-entry/ServiceLocation"/>
+    <title>Local Time Parameters</title>
+    <content>
+      <cust:LocalTimeParameters xmlns:cust="http://naesb.org/espi/customer">
+        <cust:dstEndRule>B40E2000</cust:dstEndRule>
+        <cust:dstOffset>3600</cust:dstOffset>
+        <cust:dstStartRule>360E2000</cust:dstStartRule>
+        <cust:tzOffset>-18000</cust:tzOffset>
+      </cust:LocalTimeParameters>
+    </content>
+    <published>2025-10-30T14:29:33.046Z</published>
+    <updated>2025-10-30T14:29:33.046Z</updated>
+  </entry>
+  <entry>
+    <id>urn:uuid:ce4b78c3-eb30-5274-84e5-807982694be3</id>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount" rel="up" type="cust-feed/CustomerAccount"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632" rel="self" type="cust-entry/CustomerAccount"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866" rel="related" type="cust-entry/Customer"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632/CustomerAgreement/0401690842" rel="related" type="cust-entry/CustomerAgreement"/>
+    <title>Customer Account</title>
+    <content>
+      <cust:CustomerAccount xmlns:cust="http://naesb.org/espi/customer">
+        <cust:contactInfo>
+          <cust:streetAddress>
+            <cust:streetDetail>
+              <cust:number/>
+              <cust:addressGeneral>12869 LAKESHORE RD</cust:addressGeneral>
+              <cust:addressGeneral3/>
+            </cust:streetDetail>
+            <cust:townDetail>
+              <cust:name>Wainfleet</cust:name>
+              <cust:stateOrProvince>ON</cust:stateOrProvince>
+            </cust:townDetail>
+            <cust:postalCode>L0S 1V0</cust:postalCode>
+          </cust:streetAddress>
+        </cust:contactInfo>
+        <cust:accountId>200187555632</cust:accountId>
+      </cust:CustomerAccount>
+    </content>
+    <published>2025-10-30T14:29:33.043Z</published>
+    <updated>2025-10-30T14:29:33.043Z</updated>
+  </entry>
+  <entry>
+    <id>urn:uuid:c9288798-2984-5902-905f-748d582acfd2</id>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632/CustomerAgreement" rel="up" type="cust-feed/CustomerAgreement"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632/CustomerAgreement/0401690842" rel="self" type="cust-entry/CustomerAgreement"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632" rel="related" type="cust-entry/CustomerAccount"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632/CustomerAgreement/0401690842/ServiceLocation/0700735486" rel="related" type="cust-entry/ServiceLocation"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632/CustomerAgreement/0401690842/ServiceSupplier/0100000000" rel="related" type="cust-entry/ServiceSupplier"/>
+    <title>Customer Agreement</title>
+    <content>
+      <cust:CustomerAgreement xmlns:cust="http://naesb.org/espi/customer">
+        <cust:agreementId>0401690842</cust:agreementId>
+      </cust:CustomerAgreement>
+    </content>
+    <published>2025-10-30T14:29:33.047Z</published>
+    <updated>2025-10-30T14:29:33.047Z</updated>
+  </entry>
+  <entry>
+    <id>urn:uuid:f6c6ffb7-5b26-5f4d-8dbe-fd6af83d0388</id>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632/CustomerAgreement/0401690842/ServiceSupplier" rel="up" type="cust-feed/ServiceSupplier"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632/CustomerAgreement/0401690842/ServiceSupplier/0100000000" rel="self" type="cust-entry/ServiceSupplier"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632/CustomerAgreement/0401690842" rel="related" type="cust-entry/CustomerAgreement"/>
+    <title>Service Supplier</title>
+    <content>
+      <cust:ServiceSupplier xmlns:cust="http://naesb.org/espi/customer">
+        <cust:Organisation>
+          <cust:organisationName>Hydro One Networks Inc.</cust:organisationName>
+        </cust:Organisation>
+      </cust:ServiceSupplier>
+    </content>
+    <published>2025-10-30T14:29:33.044Z</published>
+    <updated>2025-10-30T14:29:33.044Z</updated>
+  </entry>
+  <entry>
+    <id>urn:uuid:4da1831f-c581-598c-b63a-c82d18bc00f3</id>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632/CustomerAgreement/0401690842/ServiceLocation" rel="up" type="cust-feed/ServiceLocation"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632/CustomerAgreement/0401690842/ServiceLocation/0700735486" rel="self" type="cust-entry/ServiceLocation"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632/CustomerAgreement/0401690842" rel="related" type="cust-entry/CustomerAgreement"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/LocalTimeParameters/100000001" rel="related" type="cust-entry/LocalTimeParameters"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632/CustomerAgreement/0401690842/ServiceLocation/0700735486/Meter/J3990379" rel="related" type="cust-entry/Meter"/>
+    <title>Service Location</title>
+    <content>
+      <cust:ServiceLocation xmlns:cust="http://naesb.org/espi/customer">
+        <cust:type/>
+        <cust:mainAddress>
+          <cust:streetDetail>
+            <cust:number>12869</cust:number>
+            <cust:name>OLD LAKESHORE RD W 28 1</cust:name>
+          </cust:streetDetail>
+          <cust:townDetail>
+            <cust:name>Wainfleet</cust:name>
+            <cust:county>CA</cust:county>
+            <cust:stateOrProvince>ON</cust:stateOrProvince>
+          </cust:townDetail>
+          <cust:postalCode>L0S 1V0</cust:postalCode>
+        </cust:mainAddress>
+        <cust:status>
+          <cust:value>Active</cust:value>
+        </cust:status>
+        <cust:UsagePoints>
+          <cust:UsagePoint>https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/UsagePoint/7e21ba5b-2b0a-526a-8b22-e16b26ad9e70</cust:UsagePoint>
+        </cust:UsagePoints>
+      </cust:ServiceLocation>
+    </content>
+    <published>2025-10-30T14:29:33.043Z</published>
+    <updated>2025-10-30T14:29:33.043Z</updated>
+  </entry>
+  <entry>
+    <id>urn:uuid:31f6a399-41e3-5872-8a96-42fbbb34c199</id>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632/CustomerAgreement/0401690842/ServiceLocation/0700735486/Meter" rel="up" type="cust-feed/Meter"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632/CustomerAgreement/0401690842/ServiceLocation/0700735486/Meter/J3990379" rel="self" type="cust-entry/Meter"/>
+    <link href="https://mule.ext.hydroone.com/greenbutton-experience-api/api/espi/1_1/resource/RetailCustomer/a9e1587b-cb2f-569f-8f8b-a03cff2c6b16/Customer/ac2fd038-31e0-53d5-9df5-9f18d5415866/CustomerAccount/200187555632/CustomerAgreement/0401690842/ServiceLocation/0700735486" rel="related" type="cust-entry/ServiceLocation"/>
+    <title>Meter</title>
+    <content>
+      <cust:Meter xmlns:cust="http://naesb.org/espi/customer">
+        <cust:serialNumber>J3990379</cust:serialNumber>
+      </cust:Meter>
+    </content>
+    <published>2025-10-30T14:29:33.046Z</published>
+    <updated>2025-10-30T14:29:33.046Z</updated>
+  </entry>
+</feed>

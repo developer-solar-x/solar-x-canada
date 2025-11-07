@@ -13,6 +13,7 @@ import { LeadDetailView } from '@/components/admin/LeadDetailView'
 import { PartialLeadDetailView } from '@/components/admin/PartialLeadDetailView'
 import { UserModal, UserFormData } from '@/components/admin/UserModal'
 import { DeleteUserModal } from '@/components/admin/DeleteUserModal'
+import { GreenButtonParserSection } from '@/components/admin/GreenButtonParser' // Bringing in the new parser view so admins can explore the energy data
 
 // Lead type matching database schema
 interface Lead {
@@ -38,7 +39,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
-  const [activeSection, setActiveSection] = useState('leads') // State to track active section (leads, partial-leads, or users)
+  const [activeSection, setActiveSection] = useState('leads') // State to track active section (leads, partial-leads, users, analytics, or greenbutton)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null) // State for detailed lead view
   const [selectedPartialLead, setSelectedPartialLead] = useState<MockPartialLead | null>(null) // State for partial lead detail view
   const router = useRouter()
@@ -392,6 +393,15 @@ export default function AdminPage() {
           >
             <Users size={20} />
             Users
+          </button>
+          <button 
+            onClick={() => setActiveSection('greenbutton')} // Switching the view to the freshly added Green Button parser section
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+              activeSection === 'greenbutton' ? 'bg-red-500' : 'hover:bg-navy-600'
+            }`}
+          >
+            <Zap size={20} />
+            Green Button
           </button>
           <button 
             onClick={() => setActiveSection('analytics')}
@@ -1241,6 +1251,9 @@ export default function AdminPage() {
               </div>
             </div>
           </div>
+        )}
+        {activeSection === 'greenbutton' && (
+          <GreenButtonParserSection />
         )}
       </main>
 
