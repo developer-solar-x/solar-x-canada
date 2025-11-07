@@ -342,6 +342,218 @@ export function calculateSimplePeakShaving(
   }
 }
 
+// Combined solar + battery outcome to keep savings consistent everywhere
+export function calculateSolarBatteryCombined(
+  annualUsageKwh: number,
+  solarProductionKwh: number,
+  battery: BatterySpec,
+  ratePlan: RatePlan,
+  distribution?: UsageDistribution,
+  offsetCapFraction?: number
+) {
+  // Use the same distribution logic so numbers match the other helpers
+  const dist = distribution || (ratePlan.id === 'ulo' ? DEFAULT_ULO_DISTRIBUTION : DEFAULT_TOU_DISTRIBUTION)
+
+  // Build a quick map of period rates in dollars for easy reuse later on
+  const rates = { ultraLow: 0, offPeak: 0, midPeak: 0, onPeak: 0 }
+  ratePlan.periods.forEach(period => {
+    const rateInDollars = period.rate / 100
+    if (period.period === 'ultra-low') rates.ultraLow = rateInDollars
+    if (period.period === 'off-peak') rates.offPeak = rateInDollars
+    if (period.period === 'mid-peak') rates.midPeak = rateInDollars
+    if (period.period === 'on-peak') rates.onPeak = rateInDollars
+  })
+  if (rates.offPeak === 0 && ratePlan.weekendRate) {
+    rates.offPeak = ratePlan.weekendRate / 100
+  }
+
+  // Translate the annual usage into kWh buckets for each rate period
+  const usageOriginal = {
+    ultraLow: dist.ultraLowPercent ? (annualUsageKwh * dist.ultraLowPercent / 100) : 0,
+    offPeak: annualUsageKwh * dist.offPeakPercent / 100,
+    midPeak: annualUsageKwh * dist.midPeakPercent / 100,
+    onPeak: annualUsageKwh * dist.onPeakPercent / 100,
+  }
+
+  // Helper to total up a bill using the per-period usage numbers
+  const costFromUsage = (usage: typeof usageOriginal) => (
+    (usage.ultraLow || 0) * rates.ultraLow +
+    usage.offPeak * rates.offPeak +
+    usage.midPeak * rates.midPeak +
+    usage.onPeak * rates.onPeak
+  )
+
+  // Start by figuring out the baseline bill without solar or batteries
+  const baselineAnnualBill = costFromUsage(usageOriginal)
+
+  // Apply solar energy to the most expensive periods first so the effect feels realistic
+  const usageAfterSolar = { ...usageOriginal }
+  let remainingSolar = Math.max(0, solarProductionKwh || 0)
+
+  const shavePeriod = (key: 'onPeak' | 'midPeak' | 'offPeak' | 'ultraLow') => {
+    const available = usageAfterSolar[key] || 0
+    const offset = Math.min(available, remainingSolar)
+    usageAfterSolar[key] = available - offset
+    remainingSolar -= offset
+  }
+
+  shavePeriod('onPeak')
+  shavePeriod('midPeak')
+  shavePeriod('offPeak')
+  shavePeriod('ultraLow')
+
+  // The bill after only solar has done its work
+  const postSolarAnnualBill = costFromUsage(usageAfterSolar)
+
+  // Now let the battery step in using the remaining usage after solar
+  const usageForBattery = { ...usageAfterSolar }
+  let remainingBattery = battery.usableKwh * 365
+  const batteryOffsets = { ultraLow: 0, offPeak: 0, midPeak: 0, onPeak: 0 }
+
+  const shaveWithBattery = (key: 'onPeak' | 'midPeak' | 'offPeak') => {
+    const available = usageForBattery[key]
+    if (remainingBattery <= 0 || available <= 0) return
+    const offset = Math.min(available, remainingBattery)
+    batteryOffsets[key] = offset
+    usageForBattery[key] = available - offset
+    remainingBattery -= offset
+  }
+
+  shaveWithBattery('onPeak')
+  shaveWithBattery('midPeak')
+  shaveWithBattery('offPeak')
+
+  // Batteries recharge at the cheapest available rate so we add that cost back in
+  const chargeRate = rates.ultraLow > 0 ? rates.ultraLow : rates.offPeak
+  const batteryChargingCost = (
+    batteryOffsets.onPeak + batteryOffsets.midPeak + batteryOffsets.offPeak + batteryOffsets.ultraLow
+  ) * chargeRate
+
+  // Costs after both technologies are working together
+  const postSolarBatteryAnnualBill = (
+    usageForBattery.offPeak * rates.offPeak +
+    usageForBattery.midPeak * rates.midPeak +
+    usageForBattery.onPeak * rates.onPeak +
+    (usageForBattery.ultraLow || 0) * rates.ultraLow +
+    batteryChargingCost
+  )
+
+  // Pull out the savings so downstream screens can rely on them
+  const solarOnlySavings = baselineAnnualBill - postSolarAnnualBill
+  const batteryOnTopSavings = postSolarAnnualBill - postSolarBatteryAnnualBill
+  const uncappedAnnualSavings = baselineAnnualBill - postSolarBatteryAnnualBill
+
+  const safeCap = typeof offsetCapFraction === 'number' && Number.isFinite(offsetCapFraction)
+    ? Math.min(Math.max(offsetCapFraction, 0), 1)
+    : undefined
+
+  const combinedAnnualSavings = safeCap != null
+    ? Math.min(uncappedAnnualSavings, baselineAnnualBill * safeCap)
+    : uncappedAnnualSavings
+
+  const postSolarBatteryAnnualBillCapped = Math.max(0, baselineAnnualBill - combinedAnnualSavings)
+
+  return {
+    baselineAnnualBill,
+    postSolarAnnualBill,
+    postSolarBatteryAnnualBill: postSolarBatteryAnnualBillCapped,
+    solarOnlySavings,
+    batteryOnTopSavings,
+    combinedAnnualSavings,
+    combinedMonthlySavings: combinedAnnualSavings / 12,
+  }
+}
+
+// This helper projects combined solar + battery savings over time with simple escalation and degradation so long-term payback feels grounded
+export function calculateCombinedMultiYear(
+  firstYearAnnualSavings: number,
+  combinedNetCost: number,
+  rateEscalation: number = 0.05,
+  systemDegradation: number = 0.005,
+  years: number = 25,
+  options?: {
+    baselineAnnualBill?: number
+    offsetCapFraction?: number
+  }
+) {
+  // Keep net cost from going negative so the payback clock behaves
+  const paybackEligibleNet = Math.max(0, combinedNetCost)
+  // Track savings as we march through each year
+  let cumulativeSavings = 0
+  // Remember when the payback line gets crossed
+  let paybackYears = 0
+  let paybackFound = false
+  // Collect rows for the UI table
+  const yearlyProjections: Array<{ year: number; annualSavings: number; cumulativeSavings: number; rateMultiplier: number; degradationMultiplier: number }> = []
+
+  const baselineAnnualBill = options?.baselineAnnualBill
+  const capFractionFromBaseline = (() => {
+    if (!baselineAnnualBill || baselineAnnualBill <= 0) return undefined
+    if (firstYearAnnualSavings <= 0) return 0
+    return Math.min(firstYearAnnualSavings / baselineAnnualBill, 1)
+  })()
+  const capFraction = options?.offsetCapFraction != null
+    ? Math.min(Math.max(options.offsetCapFraction, 0), 1)
+    : capFractionFromBaseline
+
+  for (let year = 1; year <= years; year++) {
+    // Grow rates over time to mimic electricity inflation
+    const rateMultiplier = Math.pow(1 + rateEscalation, year - 1)
+    // Fade savings gently to reflect solar+battery wear and tear
+    const degradationMultiplier = Math.pow(1 - systemDegradation, year - 1)
+    // Blend both effects so the annual savings feels realistic
+    const projectedSavings = Math.max(0, firstYearAnnualSavings * rateMultiplier * degradationMultiplier)
+
+    // Cap each year's savings using the same winter offset fraction so projections stay realistic
+    const cappedSavings = (() => {
+      if (!baselineAnnualBill || baselineAnnualBill <= 0 || capFraction == null) {
+        return projectedSavings
+      }
+      const baselineForYear = baselineAnnualBill * rateMultiplier
+      const capForYear = baselineForYear * capFraction
+      return Math.min(projectedSavings, capForYear)
+    })()
+
+    const annualSavings = cappedSavings
+    cumulativeSavings += annualSavings
+
+    // Spot the exact moment cumulative savings beat the upfront cost
+    if (!paybackFound && cumulativeSavings >= paybackEligibleNet && annualSavings > 0) {
+      const previousCumulative = cumulativeSavings - annualSavings
+      const fractionOfYear = (paybackEligibleNet - previousCumulative) / annualSavings
+      paybackYears = year - 1 + fractionOfYear
+      paybackFound = true
+    }
+
+    yearlyProjections.push({
+      year,
+      annualSavings: Math.round(annualSavings),
+      cumulativeSavings: Math.round(cumulativeSavings),
+      rateMultiplier: Math.round(rateMultiplier * 100) / 100,
+      degradationMultiplier: Math.round(degradationMultiplier * 1000) / 1000,
+    })
+  }
+
+  // Total savings at the end of the window
+  const totalSavings = cumulativeSavings
+  // Profit after paying back the system
+  const netProfit = totalSavings - combinedNetCost
+
+  return {
+    yearlyProjections,
+    totalSavings25Year: Math.round(totalSavings),
+    netCost: Math.round(combinedNetCost),
+    paybackYears: paybackFound ? Math.round(paybackYears * 10) / 10 : Number.POSITIVE_INFINITY,
+    netProfit25Year: Math.round(netProfit),
+    annualROI: combinedNetCost <= 0 ? 'N/A' : ((netProfit / combinedNetCost / years) * 100).toFixed(1),
+    assumptions: {
+      rateEscalation,
+      systemDegradation,
+      offsetCapFraction: capFraction,
+    }
+  }
+}
+
 // Calculate multi-year projection with simple formula
 export function calculateSimpleMultiYear(
   firstYearResult: SimplePeakShavingResult,
@@ -387,6 +599,99 @@ export function calculateSimpleMultiYear(
     paybackYears: batteryNetCost <= 0 ? 0 : Math.round(paybackYears * 10) / 10,
     netProfit25Year: Math.round(netProfit25Year),
     annualROI: batteryNetCost <= 0 ? 'N/A' : ((netProfit25Year / batteryNetCost / 25) * 100).toFixed(1)
+  }
+}
+
+export interface SolarBatteryOffsetCapInput {
+  usageKwh: number
+  productionKwh: number
+  roofPitch?: string | number
+  roofAzimuth?: number
+  roofSections?: Array<{ azimuth?: number; orientationAzimuth?: number; direction?: string }>
+}
+
+export interface SolarBatteryOffsetCapResult {
+  capFraction: number
+  baseFraction: number
+  matchesUsage: boolean
+  orientationBonus: boolean
+  productionBonus: boolean
+  productionToLoadRatio: number
+}
+
+function normalizeAzimuth(value: number): number {
+  return ((value % 360) + 360) % 360
+}
+
+function angularDifference(a: number, b: number): number {
+  const diff = Math.abs(normalizeAzimuth(a) - normalizeAzimuth(b))
+  return diff > 180 ? 360 - diff : diff
+}
+
+function isSteepPitch(pitch?: string | number): boolean {
+  if (typeof pitch === 'number') {
+    return pitch >= 35
+  }
+  if (typeof pitch === 'string') {
+    const normalized = pitch.toLowerCase()
+    return normalized.includes('steep') || normalized.includes('40') || normalized.includes('45')
+  }
+  return false
+}
+
+function resolveAzimuth(input: SolarBatteryOffsetCapInput): number | undefined {
+  if (typeof input.roofAzimuth === 'number' && Number.isFinite(input.roofAzimuth)) {
+    return input.roofAzimuth
+  }
+
+  if (Array.isArray(input.roofSections)) {
+    for (const section of input.roofSections) {
+      if (typeof section?.azimuth === 'number') return section.azimuth
+      if (typeof section?.orientationAzimuth === 'number') return section.orientationAzimuth
+      if (typeof section?.direction === 'string' && section.direction.toLowerCase().includes('south')) return 180
+    }
+  }
+
+  return undefined
+}
+
+export function computeSolarBatteryOffsetCap(input: SolarBatteryOffsetCapInput): SolarBatteryOffsetCapResult {
+  const usage = Math.max(0, input.usageKwh || 0)
+  const production = Math.max(0, input.productionKwh || 0)
+
+  if (usage === 0) {
+    return {
+      capFraction: 0,
+      baseFraction: 0.92,
+      matchesUsage: false,
+      orientationBonus: false,
+      productionBonus: false,
+      productionToLoadRatio: 0
+    }
+  }
+
+  const ratio = production / usage
+  const matchesUsage = ratio > 0.95 && ratio < 1.05
+
+  const steep = isSteepPitch(input.roofPitch)
+  const azimuth = resolveAzimuth(input)
+  const orientationBonus = steep && (typeof azimuth === 'number' ? angularDifference(azimuth, 180) <= 25 : false)
+
+  const productionBonus = ratio >= 1.1
+
+  let baseFraction = matchesUsage ? 0.9 : 0.92
+  if (orientationBonus) baseFraction += 0.01
+  if (productionBonus) baseFraction += 0.01
+
+  const capFraction = Math.min(baseFraction, 0.93)
+
+  return {
+    capFraction,
+    baseFraction: matchesUsage ? 0.9 : 0.92,
+    matchesUsage,
+    orientationBonus,
+    productionBonus,
+    productionToLoadRatio: ratio
   }
 }
 

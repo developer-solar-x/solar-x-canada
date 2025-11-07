@@ -7,7 +7,7 @@ import { BATTERY_SPECS, BatterySpec, calculateBatteryFinancials } from '../../co
 // Import rate plan definitions for TOU/ULO
 import { RATE_PLANS, RatePlan, TOU_RATE_PLAN, ULO_RATE_PLAN } from '../../config/rate-plans'
 // Import simple peak-shaving calculators (solar-only, battery, and multi-year)
-import { DEFAULT_TOU_DISTRIBUTION, DEFAULT_ULO_DISTRIBUTION, calculateSimpleMultiYear, calculateSimplePeakShaving, calculateSolarOnlySavings } from '../../lib/simple-peak-shaving'
+import { DEFAULT_TOU_DISTRIBUTION, DEFAULT_ULO_DISTRIBUTION, calculateSimpleMultiYear, calculateSimplePeakShaving, calculateSolarOnlySavings, computeSolarBatteryOffsetCap } from '../../lib/simple-peak-shaving'
 // Import pricing utilities for system cost from size
 import { calculateSystemCost } from '../../config/pricing'
 
@@ -107,6 +107,17 @@ export default function ManualBatteryHSRCalculator() {
     // Return combined results object for display
     return { annual, monthly, net, projection }
   }, [solarOnly, batteryOnly, solarSystemCost, solarRebate, batteryFinancials])
+
+  const offsetCapInfo = useMemo(() => (
+    computeSolarBatteryOffsetCap({
+      usageKwh: Math.max(0, annualConsumptionKwh || 0),
+      productionKwh: Math.max(0, annualProductionKwh || 0),
+    })
+  ), [annualConsumptionKwh, annualProductionKwh])
+  const offsetCapPercent = Math.min(100, Math.max(0, offsetCapInfo.capFraction * 100))
+  const gridEnergyPercent = Math.max(0, Math.min(100, 100 - offsetCapPercent))
+  const gridEnergyKwh = (gridEnergyPercent / 100) * Math.max(0, annualConsumptionKwh || 0)
+  const savingsPercent = Math.max(0, Math.min(100, batteryOnly ? 100 - (batteryOnly.leftoverEnergy.costPercent || 0) : 0))
 
   // Render the manual calculator UI
   return (
@@ -253,6 +264,37 @@ export default function ManualBatteryHSRCalculator() {
             <div className="text-xs text-gray-600">Battery charges at cheapest rate; discharges at peak</div>
           </div>
         </div>
+      </div>
+
+      {/* Offset vs Savings */}
+      <div className="card p-5 space-y-4">
+        <h2 className="text-xl font-semibold text-navy-500">Offset vs Savings</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-4 rounded-lg bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200">
+            <div className="text-xs text-gray-600">Offset (solar + battery)</div>
+            <div className="text-3xl font-bold text-green-600">{offsetCapPercent.toFixed(2)}%</div>
+            <div className="text-xs text-gray-500">{((offsetCapPercent / 100) * Math.max(0, annualConsumptionKwh || 0)).toFixed(0)} kWh/year</div>
+            <div className="text-[11px] text-amber-600 mt-2">
+              Winter limits cap the offset to {offsetCapPercent.toFixed(0)}%.
+            </div>
+          </div>
+          <div className="p-4 rounded-lg bg-gradient-to-br from-blue-50 to-white border-2 border-blue-200">
+            <div className="text-xs text-gray-600">Total savings (first year)</div>
+            <div className="text-3xl font-bold text-blue-600">{savingsPercent.toFixed(2)}%</div>
+            <div className="text-xs text-gray-500">≈ ${combined.annual.toLocaleString()} saved</div>
+            <div className="text-[11px] text-blue-600 mt-2">
+              Savings are higher because any remaining energy is bought at low overnight rates.
+            </div>
+          </div>
+          <div className="p-4 rounded-lg bg-gradient-to-br from-red-50 to-pink-50 border-2 border-red-200">
+            <div className="text-xs text-gray-600">Bought from the grid (cheap hours)</div>
+            <div className="text-3xl font-bold text-red-600">{gridEnergyPercent.toFixed(2)}%</div>
+            <div className="text-xs text-gray-500">{gridEnergyKwh.toFixed(0)} kWh/year at low rates</div>
+          </div>
+        </div>
+        <p className="text-xs text-gray-600">
+          Offset tells you how much consumption the system covers even in winter; savings show how little of the original bill remains thanks to low-rate top-ups.
+        </p>
       </div>
     </div>
   )
