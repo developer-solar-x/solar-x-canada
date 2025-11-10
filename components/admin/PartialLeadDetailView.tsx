@@ -424,26 +424,26 @@ export function PartialLeadDetailView({
                 )}
 
                 {/* Energy Usage */}
-                {(partialLead.estimator_data.monthlyBill || partialLead.estimator_data.annualUsageKwh || partialLead.estimator_data.homeSize) && (
+                {(partialLead.estimator_data.annualUsageKwh || partialLead.estimator_data.monthlyBill || partialLead.estimator_data.homeSize) && (
                   <div className="card p-6">
                     <h3 className="text-lg font-bold text-navy-500 mb-4 flex items-center gap-2">
                       <Zap size={20} />
                       Energy Information
                     </h3>
                     <div className="grid md:grid-cols-3 gap-4">
-                      {partialLead.estimator_data.monthlyBill && (
-                        <div className="bg-yellow-50 rounded-lg p-4">
-                          <div className="text-xs text-gray-600 mb-1">Monthly Bill</div>
-                          <div className="text-2xl font-bold text-yellow-600">
-                            ${partialLead.estimator_data.monthlyBill}
-                          </div>
-                        </div>
-                      )}
                       {partialLead.estimator_data.annualUsageKwh && (
                         <div className="bg-purple-50 rounded-lg p-4">
                           <div className="text-xs text-gray-600 mb-1">Annual Usage</div>
                           <div className="text-2xl font-bold text-purple-600">
                             {partialLead.estimator_data.annualUsageKwh.toLocaleString()} kWh
+                          </div>
+                        </div>
+                      )}
+                      {partialLead.estimator_data.monthlyBill && (
+                        <div className="bg-yellow-50 rounded-lg p-4">
+                          <div className="text-xs text-gray-600 mb-1">Legacy Monthly Bill</div>
+                          <div className="text-2xl font-bold text-yellow-600">
+                            ${partialLead.estimator_data.monthlyBill}
                           </div>
                         </div>
                       )}
@@ -581,10 +581,14 @@ export function PartialLeadDetailView({
                       <div className="text-lg">{partialLead.estimator_data.roofAreaSqft ? '✓' : '○'}</div>
                     </div>
                     <div className={`p-3 rounded-lg text-center ${
-                      partialLead.estimator_data.monthlyBill ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'
+                      (partialLead.estimator_data.annualUsageKwh || partialLead.estimator_data.monthlyBill)
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-gray-200 text-gray-500'
                     }`}>
                       <div className="text-xs font-semibold">Energy Data</div>
-                      <div className="text-lg">{partialLead.estimator_data.monthlyBill ? '✓' : '○'}</div>
+                        <div className="text-lg">
+                          {(partialLead.estimator_data.annualUsageKwh || partialLead.estimator_data.monthlyBill) ? '✓' : '○'}
+                        </div>
                     </div>
                     <div className={`p-3 rounded-lg text-center ${
                       partialLead.estimator_data.photoCount ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'

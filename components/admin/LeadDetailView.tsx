@@ -689,6 +689,28 @@ export function LeadDetailView({ lead, onClose, onStatusChange }: LeadDetailView
                           </div>
                         </div>
                       )}
+                      {lead.program_type && (
+                        <div className="flex items-start gap-3">
+                          <Zap className="text-gray-400 flex-shrink-0 mt-0.5" size={18} />
+                          <div>
+                            <div className="text-xs text-gray-500">Program</div>
+                            <div className="text-sm font-medium capitalize">
+                              {lead.program_type.replace(/_/g, ' ')}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {lead.estimator_mode && (
+                        <div className="flex items-start gap-3">
+                          <Tag className="text-gray-400 flex-shrink-0 mt-0.5" size={18} />
+                          <div>
+                            <div className="text-xs text-gray-500">Estimator Mode</div>
+                            <div className="text-sm font-medium capitalize">
+                              {lead.estimator_mode}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       {lead.comments && (
                         <div className="pt-3 border-t border-gray-200">
                           <div className="text-xs text-gray-500 mb-1">Comments</div>
@@ -779,12 +801,20 @@ export function LeadDetailView({ lead, onClose, onStatusChange }: LeadDetailView
                       )}
                     </h3>
                     
-                    {/* Roof Snapshot or Placeholder */}
+                    {/* Roof Snapshot, fallback to first uploaded photo */}
                     {lead.map_snapshot_url ? (
                       <div className="rounded-lg overflow-hidden mb-4" style={{ height: '400px' }}>
                         <img
                           src={typeof lead.map_snapshot_url === 'string' ? lead.map_snapshot_url : ''}
                           alt="Roof snapshot"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : photoUrls.length > 0 ? (
+                      <div className="rounded-lg overflow-hidden mb-4" style={{ height: '400px' }}>
+                        <img
+                          src={photoUrls[0]}
+                          alt="Uploaded roof photo"
                           className="w-full h-full object-cover"
                         />
                       </div>

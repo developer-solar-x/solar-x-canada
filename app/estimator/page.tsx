@@ -61,10 +61,12 @@ export interface EstimatorData {
     monthlyKwh: number
     annualKwh: number
   }
+  annualUsageKwh?: number
   
   // Step 5: System type and add-ons
-  systemType?: 'grid_tied' | 'battery_system'
   hasBattery?: boolean
+  // Picking the overall vibe for the solar setup
+  systemType?: 'battery_system' | 'grid_tied'
   selectedAddOns?: string[]
   
   // Step 5.5: Peak shaving and battery selection (only if battery system selected)
@@ -144,7 +146,7 @@ export default function EstimatorPage() {
   // Show Battery Savings step only for HRS program
   const displaySteps = steps.filter(step => {
     if (step.name === 'Battery Savings') {
-      return data.programType === 'hrs_residential'
+      return data.programType === 'hrs_residential' || data.systemType === 'battery_system'
     }
     return true
   })
@@ -286,9 +288,21 @@ export default function EstimatorPage() {
       
       if (currentStep < nextSteps.length - 1) {
         let nextStep = currentStep + 1
+
+        // Skip Battery Savings step entirely when not in HRS program
+        while (
+          nextStep < nextSteps.length &&
+          nextSteps[nextStep]?.name === 'Battery Savings' &&
+          updatedData.programType !== 'hrs_residential' &&
+          updatedData.systemType !== 'battery_system'
+        ) {
+          nextStep += 1
+        }
         
         // Prepare data before Battery Savings (step 4) when program is HRS Residential
-        const willEnterBatterySavings = currentStep === 3 && updatedData.programType === 'hrs_residential'
+        const willEnterBatterySavings =
+          currentStep === 3 &&
+          (updatedData.programType === 'hrs_residential' || updatedData.systemType === 'battery_system')
         if (willEnterBatterySavings && updatedData.coordinates && (updatedData.roofPolygon || updatedData.roofAreaSqft)) {
           try {
             // Show loading overlay while preparing the Battery Savings step
@@ -320,7 +334,7 @@ export default function EstimatorPage() {
           return
         }
         
-        setCurrentStep(nextStep)
+        setCurrentStep(Math.min(nextStep, nextSteps.length - 1))
         
         // Email is now required on Location step, so no need for save modal
         // Update emailCaptured state if email was provided in location step
@@ -335,23 +349,19 @@ export default function EstimatorPage() {
   // Go back to previous step
   const handleBack = () => {
     if (currentStep > 0) {
+      const stepsForMode = data.estimatorMode === 'easy' ? easySteps : data.estimatorMode === 'detailed' ? detailedSteps : easySteps
       let prevStep = currentStep - 1
-      
-      // Skip peak-shaving step when going back if grid-tied system (no battery)
-      // Easy mode: Step 5 is Battery Savings, Step 4 is System Type/Add-ons
-      // Detailed mode: Step 5 is Battery Savings, Step 4 is System Type/Add-ons
-      const isPeakShavingStep = (data.estimatorMode === 'easy' && currentStep === 6) || 
-                                 (data.estimatorMode === 'detailed' && currentStep === 6)
-      
-      // Check if battery system was selected
-      const hasBattery = data.hasBattery || data.systemType === 'battery_system'
-      
-      // If on Photos/Details step and grid-tied system, go back to Add-ons (skip Battery Savings)
-      if (isPeakShavingStep && !hasBattery) {
-        prevStep = currentStep - 1 // Go to Add-ons
+
+      while (
+        prevStep > 0 &&
+        stepsForMode[prevStep]?.name === 'Battery Savings' &&
+        data.programType !== 'hrs_residential' &&
+        data.systemType !== 'battery_system'
+      ) {
+        prevStep -= 1
       }
-      
-      setCurrentStep(prevStep)
+
+      setCurrentStep(Math.max(prevStep, 0))
     }
   }
 

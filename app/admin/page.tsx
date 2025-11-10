@@ -356,6 +356,35 @@ export default function AdminPage() {
     }
   }
 
+  const formatProgramType = (type?: string | null) => {
+    if (!type) return '—'
+    const normalized = type.toLowerCase()
+    const map: Record<string, string> = {
+      quick: 'Quick Estimate',
+      'quick_estimate': 'Quick Estimate',
+      'hrs_residential': 'HRS Program',
+      'net_metering': 'Net Metering',
+      detailed: 'Detailed Estimate'
+    }
+    return map[normalized] || type.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())
+  }
+
+  const getProgramBadgeColor = (type?: string | null) => {
+    if (!type) return 'bg-gray-100 text-gray-500'
+    const normalized = type.toLowerCase()
+    switch (normalized) {
+      case 'hrs_residential':
+        return 'bg-blue-100 text-blue-700'
+      case 'net_metering':
+        return 'bg-emerald-100 text-emerald-700'
+      case 'quick':
+      case 'quick_estimate':
+        return 'bg-red-100 text-red-700'
+      default:
+        return 'bg-gray-100 text-gray-500'
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Sidebar */}
@@ -534,6 +563,7 @@ export default function AdminPage() {
                     <tr>
                       <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold">Name</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Program</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold">Location</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold">System Size</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold">Savings/Year</th>
@@ -556,6 +586,11 @@ export default function AdminPage() {
                       <td className="px-4 py-3">
                         <div className="font-semibold text-navy-500">{lead.full_name}</div>
                         <div className="text-sm text-gray-500">{lead.email}</div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        <span className={`inline-flex items-center gap-2 px-2 py-1 rounded text-xs font-semibold uppercase tracking-wide ${getProgramBadgeColor(lead.program_type)}`}>
+                          {formatProgramType(lead.program_type)}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
                         {lead.city}, {lead.province}
@@ -747,8 +782,8 @@ export default function AdminPage() {
                                   {partialLead.estimator_data.roofAreaSqft && (
                                     <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs">Roof</span>
                                   )}
-                                  {partialLead.estimator_data.monthlyBill && (
-                                    <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs">Bill</span>
+                                  {partialLead.estimator_data.annualUsageKwh && (
+                                    <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs">Usage</span>
                                   )}
                                   {partialLead.estimator_data.selectedAddOns && partialLead.estimator_data.selectedAddOns.length > 0 && (
                                     <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs">Add-ons</span>

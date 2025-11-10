@@ -467,18 +467,20 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             </div>
           </div>
 
-          {/* Monthly bill - Most prominent */}
-          <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg p-4 mb-3 shadow-md">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-red-100 mb-1">Monthly Electricity Bill</p>
-                <p className="text-3xl font-bold">
-                  {formatCurrency(parseFloat(data.monthlyBill || '0'))}
-                </p>
+          {/* Annual usage highlight */}
+          {data.energyUsage && (
+            <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg p-4 mb-3 shadow-md">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-red-100 mb-1">Annual Electricity Use</p>
+                  <p className="text-3xl font-bold">
+                    {data.energyUsage.annualKwh.toLocaleString()} <span className="text-base font-semibold">kWh</span>
+                  </p>
+                </div>
+                <div className="text-5xl opacity-20">⚡</div>
               </div>
-              <div className="text-5xl opacity-20">💡</div>
             </div>
-          </div>
+          )}
 
           {/* Consumption breakdown */}
           {data.energyUsage && (
