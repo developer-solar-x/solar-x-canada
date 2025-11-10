@@ -50,6 +50,7 @@ type CombinedPlanResult = {
   batteryNetCost?: number
   batteryRebateApplied?: number
   batteryGrossCost?: number
+  solarProductionKwh?: number // Remember the solar production we modeled so readers can see it later
 }
 
 export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualMode = false }: StepBatteryPeakShavingSimpleProps) {
@@ -433,6 +434,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
           batteryAnnual: batteryScaled,
           solarNetCost: solarNet,
           solarRebateApplied: solarRebate,
+          solarProductionKwh, // Preserve the solar production that fed this run
           batteryNetCost: netCost,
           batteryRebateApplied: batteryRebate,
           batteryGrossCost: battery.price,
@@ -540,6 +542,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
           batteryAnnual: batteryScaled,
           solarNetCost: solarNet,
           solarRebateApplied: solarRebate,
+          solarProductionKwh, // Preserve the modeled solar production for later displays
           batteryNetCost: netCost,
           batteryRebateApplied: batteryRebate,
           batteryGrossCost: battery.price,
@@ -725,6 +728,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
             </p>
           </div>
         </div>
+        {/* Friendly heads-up so folks know this bill includes every utility line item */}
+        <div className="mt-3 text-xs text-gray-500 italic">
+          This monthly estimate includes delivery, regulatory fees, and HST as well as energy usage, so it will be higher than the energy-only savings tables below.
+        </div>
       </div>
 
       {/* Info Modals */}
@@ -732,22 +739,120 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
       <Modal
         isOpen={showTouInfo}
         onClose={() => setShowTouInfo(false)}
-        title="About Time-of-Use (TOU)"
-        message="TOU rates vary by time of day: lower rates overnight/off-peak, higher during on-peak hours. Batteries can charge when rates are low and discharge when rates are high."
+        title="How We Calculate TOU Peak Shaving"
+        message="This section mirrors the Time-of-Use savings card inside the battery comparison area so you can trace every assumption behind the annual results."
         variant="info"
         cancelText="Close"
       >
-        <img
-          src="/TOU.JPG"
-          alt="Time-of-Use (TOU) illustration"
-          className="w-full h-auto rounded-lg border-2 border-gray-200"
-          onError={(e) => {
-            const el = e.currentTarget as HTMLImageElement
-            const fallbacks = ['/TOU.jpg', '/TOU.jpeg', '/TOU.png', '/TOU.HPH']
-            const next = fallbacks.find((p) => p !== el.src.replace(window.location.origin, ''))
-            if (next) el.src = next
-          }}
-        />
+        {(() => {
+          const touEntry = touResults.get('combined')
+          if (!touEntry) {
+            return (
+              <div className="text-sm text-gray-700">
+                We will show the full TOU breakdown as soon as the calculation finishes.
+              </div>
+            )
+          }
+          const formatMoney = (value: number) => `$${value.toFixed(2)}`
+          const formatCents = (value: number) => `${value.toFixed(1)}¢/kWh`
+          const weekdayRates = Array.from(new Map(TOU_RATE_PLAN.periods.map(period => [period.period, period.rate])))
+          const weekendRate = TOU_RATE_PLAN.weekendRate ?? null
+          const batteryPack = selectedBatteries
+            .map(id => BATTERY_SPECS.find(spec => spec.id === id))
+            .filter((spec): spec is BatterySpec => Boolean(spec))
+          const totalUsableKwh = batteryPack.reduce((sum, spec) => sum + spec.usableKwh, 0)
+          const totalInverterKw = batteryPack.reduce((sum, spec) => sum + (spec.inverterKw || 0), 0)
+          const solarProductionKwh = touEntry.combined?.solarProductionKwh ?? (effectiveSolarProductionKwh || 0) // Pull the solar production that fed the combined run
+          const before = touEntry.result.originalCost
+          const after = touEntry.result.newCost
+          const offsets = touEntry.result.batteryOffsets
+          const leftover = touEntry.result.leftoverEnergy
+          const cappedAnnual = touEntry.combined?.annual ?? touEntry.result.annualSavings
+          const solarAnnual = touEntry.combined?.solarOnlyAnnual ?? 0
+          const batteryAnnual = touEntry.combined?.batteryAnnual ?? 0
+          const batteryOnlyAnnual = touResults.get('battery-only')?.result?.annualSavings ?? 0
+          const shiftedKwh = offsets.offPeak + offsets.midPeak + offsets.onPeak + (offsets.ultraLow || 0)
+
+          return (
+            <div className="space-y-5 text-sm text-gray-700">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="text-xs font-semibold text-blue-800 uppercase">Key givens</div>
+                <ul className="mt-2 list-disc ml-5 space-y-1 text-xs text-gray-600">
+                  {weekdayRates.map(([period, rate]) => (
+                    <li key={period}>
+                      {period === 'off-peak'
+                        ? 'Weekday off-peak'
+                        : period === 'mid-peak'
+                        ? 'Weekday mid-peak'
+                        : 'Weekday on-peak'} billed at <span className="font-semibold">{formatCents(rate)}</span>.
+                    </li>
+                  ))}
+                  {weekendRate && (
+                    <li>
+                      Weekends and Ontario holidays priced at <span className="font-semibold">{formatCents(weekendRate)}</span> for every hour.
+                    </li>
+                  )}
+                  <li>
+                    Annual usage modeled: <span className="font-semibold">{annualUsageKwh.toLocaleString()} kWh</span>.
+                  </li>
+                  <li>
+                    Battery stack: <span className="font-semibold">{batteryPack.map(spec => `${spec.brand} ${spec.model}`).join(' + ')}</span> delivering{' '}
+                    <span className="font-semibold">{totalUsableKwh.toFixed(1)} kWh</span> usable storage and{' '}
+                    <span className="font-semibold">{totalInverterKw.toFixed(1)} kW</span> peak discharge.
+                  </li>
+                  <li>
+                    Solar production modeled: <span className="font-semibold">{solarProductionKwh.toLocaleString()} kWh</span>.
+                  </li>
+                  <li>Solar production offsets daytime loads first, then the battery discharges during the morning and evening on-peak windows.</li>
+                </ul>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white border border-gray-200 rounded-lg p-3 text-xs text-gray-600">
+                <div>
+                  <div className="font-semibold text-navy-600 mb-1">Bill without peak shaving</div>
+                  <div>Off-Peak: <span className="font-semibold">{formatMoney(before.offPeak)}</span></div>
+                  <div>Mid-Peak: <span className="font-semibold">{formatMoney(before.midPeak)}</span></div>
+                  <div>On-Peak: <span className="font-semibold">{formatMoney(before.onPeak)}</span></div>
+                  <div className="mt-2 text-red-600 font-semibold">Annual total: {formatMoney(before.total)}</div>
+                </div>
+                <div>
+                  <div className="font-semibold text-navy-600 mb-1">Bill with battery help</div>
+                  <div>Off-Peak: <span className="font-semibold">{formatMoney(after.offPeak)}</span></div>
+                  <div>Mid-Peak: <span className="font-semibold">{formatMoney(after.midPeak)}</span></div>
+                  <div>On-Peak: <span className="font-semibold">{formatMoney(after.onPeak)}</span></div>
+                  <div className="mt-2 text-green-600 font-semibold">Annual total: {formatMoney(after.total)}</div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-600 space-y-1">
+                <div className="font-semibold text-navy-600">How the comparison card is built</div>
+                <div>Combined annual savings after the winter safeguard: <span className="font-semibold text-navy-600">{formatMoney(cappedAnnual)}</span>.</div>
+                <div>Solar slice inside the cap: <span className="font-semibold text-green-600">{formatMoney(solarAnnual)}</span>.</div>
+                <div>
+                  Battery slice inside the cap (the portion of the savings card credited to the battery after the winter safeguard is applied):{' '}
+                  <span className="font-semibold text-blue-600">{formatMoney(Math.max(batteryAnnual, 0))}</span>.
+                </div>
+                <div>Battery-only result without the cap: <span className="font-semibold text-blue-600">{formatMoney(batteryOnlyAnnual)}</span>.</div>
+                <div>
+                  Energy shifted out of expensive hours: <span className="font-semibold">{shiftedKwh.toFixed(0)} kWh</span>. Remaining grid draw: <span className="font-semibold">{leftover.totalKwh.toFixed(0)} kWh</span> at{' '}
+                  <span className="font-semibold">{formatCents(leftover.ratePerKwh * 100)}</span>, costing <span className="font-semibold">{formatMoney(leftover.costAtOffPeak)}</span>.
+                </div>
+              </div>
+
+              <img
+                src="/TOU.JPG"
+                alt="Time-of-Use (TOU) illustration"
+                className="w-full h-auto rounded-lg border-2 border-gray-200"
+                onError={(e) => {
+                  const el = e.currentTarget as HTMLImageElement
+                  const fallbacks = ['/TOU.jpg', '/TOU.jpeg', '/TOU.png', '/TOU.HPH']
+                  const next = fallbacks.find((path) => path !== el.src.replace(window.location.origin, ''))
+                  if (next) el.src = next
+                }}
+              />
+            </div>
+          )
+        })()}
       </Modal>
 
       {/* 25-Year Profit Info Modal */}
@@ -813,22 +918,120 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
       <Modal
         isOpen={showUloInfo}
         onClose={() => setShowUloInfo(false)}
-        title="About Ultra-Low Overnight (ULO)"
-        message="ULO plans offer ultra-low rates overnight (e.g., 11 PM–7 AM). Perfect for EV charging and for charging your battery to use during expensive daytime periods."
+        title="How We Calculate ULO Peak Shaving"
+        message="These numbers match the Ultra-Low Overnight savings card so you can double-check the midnight charging model and the winter safeguard split."
         variant="info"
         cancelText="Close"
       >
-        <img
-          src="/ULO.JPG"
-          alt="Ultra-Low Overnight (ULO) illustration"
-          className="w-full h-auto rounded-lg border-2 border-gray-200"
-          onError={(e) => {
-            const el = e.currentTarget as HTMLImageElement
-            const fallbacks = ['/ULO.jpg', '/ULO.jpeg', '/ULO.png']
-            const next = fallbacks.find((p) => p !== el.src.replace(window.location.origin, ''))
-            if (next) el.src = next
-          }}
-        />
+        {(() => {
+          const uloEntry = uloResults.get('combined')
+          if (!uloEntry) {
+            return (
+              <div className="text-sm text-gray-700">
+                We will show the ULO breakdown as soon as the calculation finishes.
+              </div>
+            )
+          }
+          const formatMoney = (value: number) => `$${value.toFixed(2)}`
+          const formatCents = (value: number) => `${value.toFixed(1)}¢/kWh`
+          const weekdayRates = Array.from(new Map(ULO_RATE_PLAN.periods.map(period => [period.period, period.rate])))
+          const weekendRate = ULO_RATE_PLAN.weekendRate ?? null
+          const batteryPack = selectedBatteries
+            .map(id => BATTERY_SPECS.find(spec => spec.id === id))
+            .filter((spec): spec is BatterySpec => Boolean(spec))
+          const totalUsableKwh = batteryPack.reduce((sum, spec) => sum + spec.usableKwh, 0)
+          const totalInverterKw = batteryPack.reduce((sum, spec) => sum + (spec.inverterKw || 0), 0)
+          const solarProductionKwh = uloEntry.combined?.solarProductionKwh ?? (effectiveSolarProductionKwh || 0) // Capture the solar production that powered the combined run
+          const before = uloEntry.result.originalCost
+          const after = uloEntry.result.newCost
+          const offsets = uloEntry.result.batteryOffsets
+          const leftover = uloEntry.result.leftoverEnergy
+          const cappedAnnual = uloEntry.combined?.annual ?? uloEntry.result.annualSavings
+          const solarAnnual = uloEntry.combined?.solarOnlyAnnual ?? 0
+          const batteryAnnual = uloEntry.combined?.batteryAnnual ?? 0
+          const batteryOnlyAnnual = uloResults.get('battery-only')?.result?.annualSavings ?? 0
+          const shiftedKwh = (offsets.ultraLow || 0) + offsets.midPeak + offsets.onPeak + offsets.offPeak
+
+          return (
+            <div className="space-y-5 text-sm text-gray-700">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="text-xs font-semibold text-blue-800 uppercase">Key givens</div>
+                <ul className="mt-2 list-disc ml-5 space-y-1 text-xs text-gray-600">
+                  {weekdayRates.map(([period, rate]) => (
+                    <li key={period}>
+                      {period === 'ultra-low'
+                        ? 'Weekday 11PM–7AM ultra-low'
+                        : period === 'mid-peak'
+                        ? 'Weekday mid-peak'
+                        : 'Weekday on-peak'} priced at <span className="font-semibold">{formatCents(rate)}</span>.
+                    </li>
+                  ))}
+                  {weekendRate && (
+                    <li>
+                      Weekends and holidays priced at <span className="font-semibold">{formatCents(weekendRate)}</span> all day.
+                    </li>
+                  )}
+                  <li>
+                    Annual usage modeled: <span className="font-semibold">{annualUsageKwh.toLocaleString()} kWh</span>.
+                  </li>
+                  <li>
+                    Battery stack: <span className="font-semibold">{batteryPack.map(spec => `${spec.brand} ${spec.model}`).join(' + ')}</span> holding{' '}
+                    <span className="font-semibold">{totalUsableKwh.toFixed(1)} kWh</span> usable capacity with{' '}
+                    <span className="font-semibold">{totalInverterKw.toFixed(1)} kW</span> peak discharge.
+                  </li>
+                  <li>
+                    Solar production modeled: <span className="font-semibold">{solarProductionKwh.toLocaleString()} kWh</span>.
+                  </li>
+                  <li>The battery charges during the 3.9¢ ultra-low window, then discharges across the 4–9 PM on-peak period to avoid the 39.1¢ rate.</li>
+                </ul>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white border border-gray-200 rounded-lg p-3 text-xs text-gray-600">
+                <div>
+                  <div className="font-semibold text-navy-600 mb-1">Bill without ultra-low shifting</div>
+                  <div>Ultra-Low: <span className="font-semibold">{formatMoney(before.ultraLow || 0)}</span></div>
+                  <div>Mid-Peak: <span className="font-semibold">{formatMoney(before.midPeak)}</span></div>
+                  <div>On-Peak: <span className="font-semibold">{formatMoney(before.onPeak)}</span></div>
+                  <div className="mt-2 text-red-600 font-semibold">Annual total: {formatMoney(before.total)}</div>
+                </div>
+                <div>
+                  <div className="font-semibold text-navy-600 mb-1">Bill with battery shifting</div>
+                  <div>Ultra-Low (charging cost): <span className="font-semibold">{formatMoney(after.ultraLow || 0)}</span></div>
+                  <div>Mid-Peak: <span className="font-semibold">{formatMoney(after.midPeak)}</span></div>
+                  <div>On-Peak: <span className="font-semibold">{formatMoney(after.onPeak)}</span></div>
+                  <div className="mt-2 text-green-600 font-semibold">Annual total: {formatMoney(after.total)}</div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-600 space-y-1">
+                <div className="font-semibold text-navy-600">How the comparison card is built</div>
+                <div>Combined annual savings after the winter safeguard: <span className="font-semibold text-navy-600">{formatMoney(cappedAnnual)}</span>.</div>
+                <div>Solar slice inside the cap: <span className="font-semibold text-green-600">{formatMoney(solarAnnual)}</span>.</div>
+                <div>
+                  Battery slice inside the cap (the portion of the savings card credited to the battery after the winter safeguard is applied):{' '}
+                  <span className="font-semibold text-blue-600">{formatMoney(Math.max(batteryAnnual, 0))}</span>.
+                </div>
+                <div>Battery-only result without the cap: <span className="font-semibold text-blue-600">{formatMoney(batteryOnlyAnnual)}</span>.</div>
+                <div>
+                  Energy shifted out of expensive hours: <span className="font-semibold">{shiftedKwh.toFixed(0)} kWh</span>. Remaining grid draw at the safeguard rate: <span className="font-semibold">{leftover.totalKwh.toFixed(0)} kWh</span> costing{' '}
+                  <span className="font-semibold">{formatMoney(leftover.costAtOffPeak)}</span> at <span className="font-semibold">{formatCents(leftover.ratePerKwh * 100)}</span>.
+                </div>
+              </div>
+
+              <img
+                src="/ULO.JPG"
+                alt="Ultra-Low Overnight (ULO) illustration"
+                className="w-full h-auto rounded-lg border-2 border-gray-200"
+                onError={(e) => {
+                  const el = e.currentTarget as HTMLImageElement
+                  const fallbacks = ['/ULO.jpg', '/ULO.jpeg', '/ULO.png']
+                  const next = fallbacks.find((path) => path !== el.src.replace(window.location.origin, ''))
+                  if (next) el.src = next
+                }}
+              />
+            </div>
+          )
+        })()}
       </Modal>
 
       {/* Payback Info Modal */}
@@ -1878,11 +2081,24 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
            {/* Detailed Cost Breakdown - Side by Side */}
            <div className="grid md:grid-cols-2 gap-6 mb-6">
              {/* TOU Cost Breakdown */}
-             <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-300 hover:border-navy-300 transition-all">
-               <div className="flex items-center justify-center gap-2 mb-5">
-                 <Sun className="text-navy-500" size={20} />
-                 <h4 className="font-bold text-navy-500 text-lg">Time-of-Use (TOU) Plan</h4>
+            <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-300 hover:border-navy-300 transition-all">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <Sun className="text-navy-500" size={20} />
+                  <h4 className="font-bold text-navy-500 text-lg">Time-of-Use (TOU) Plan</h4>
+                </div>
+                <button
+                  onClick={() => setShowTouInfo(true)}
+                  className="inline-flex items-center gap-1 text-navy-600 hover:text-navy-700 text-xs font-semibold"
+                >
+                  <Info size={16} />
+                  View How It’s Calculated
+                </button>
                </div>
+              {/* Let readers know these rows exclude the non-usage fees */}
+              <div className="mb-3 text-xs text-gray-500 italic">
+                Energy charges only are shown here. Delivery, regulatory, and fixed fees remain unchanged by the battery.
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                  <div>
                   <div className="text-sm font-semibold text-gray-700 mb-3">Before Peak Shaving</div>
@@ -1949,11 +2165,24 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
              </div>
 
              {/* ULO Cost Breakdown */}
-             <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-300 hover:border-navy-300 transition-all">
-               <div className="flex items-center justify-center gap-2 mb-5">
-                 <Moon className="text-navy-500" size={20} />
-                 <h4 className="font-bold text-navy-500 text-lg">Ultra-Low Overnight (ULO) Plan</h4>
+            <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-300 hover:border-navy-300 transition-all">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <Moon className="text-navy-500" size={20} />
+                  <h4 className="font-bold text-navy-500 text-lg">Ultra-Low Overnight (ULO) Plan</h4>
+                </div>
+                <button
+                  onClick={() => setShowUloInfo(true)}
+                  className="inline-flex items-center gap-1 text-navy-600 hover:text-navy-700 text-xs font-semibold"
+                >
+                  <Info size={16} />
+                  View How It’s Calculated
+                </button>
                </div>
+              {/* Clear note that delivery and other fixed fees are outside this table */}
+              <div className="mb-3 text-xs text-gray-500 italic">
+                These rows cover energy usage only—the fixed delivery and regulatory charges on your bill stay constant.
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                  <div>
                   <div className="text-sm font-semibold text-gray-700 mb-3">Before Peak Shaving</div>
