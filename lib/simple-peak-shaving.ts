@@ -14,16 +14,16 @@ export interface UsageDistribution {
 
 // Default distribution patterns for TOU and ULO
 export const DEFAULT_TOU_DISTRIBUTION: UsageDistribution = {
-  offPeakPercent: 63,
-  midPeakPercent: 18,
-  onPeakPercent: 19
+  onPeakPercent: 33.1, // Weekday on-peak share for TOU solar+battery scenario
+  midPeakPercent: 26, // Weekday mid-peak share for TOU solar+battery scenario
+  offPeakPercent: 40.9 // Weekend/night off-peak (remainder to total 100%)
 }
 
 export const DEFAULT_ULO_DISTRIBUTION: UsageDistribution = {
-  onPeakPercent: 17.9,
-  midPeakPercent: 33.1,
-  offPeakPercent: 23,  // Weekend/Holiday off-peak
-  ultraLowPercent: 26
+  onPeakPercent: 33.1, // Weekday on-peak share used in the email baseline
+  midPeakPercent: 26, // Weekday mid-peak share used in the email baseline
+  offPeakPercent: 17.9, // Weekend/off-peak share used in the email baseline
+  ultraLowPercent: 23 // Overnight ultra-low share used in the email baseline
 }
 
 // Simple peak-shaving calculation result
@@ -107,6 +107,9 @@ export function calculateSolarOnlySavings(
   })
   if (rates.offPeak === 0 && ratePlan.weekendRate) {
     rates.offPeak = ratePlan.weekendRate / 100
+  }
+  if ((ratePlan.id === 'tou' || ratePlan.id === 'tou-solar-battery') && rates.ultraLow === 0) {
+    rates.ultraLow = rates.offPeak
   }
 
   // Usage by period
@@ -273,15 +276,31 @@ export function calculateSimplePeakShaving(
   // Battery-offset usage costs the charging rate, grid usage costs the period rate
   const batteryChargingRate = rates.ultraLow > 0 ? rates.ultraLow : rates.offPeak
   
+  const offPeakGridPortion = Math.max(0, usageByPeriod.offPeak - batteryOffsets.offPeak) * rates.offPeak
+  const batteryOffsetTotal =
+    batteryOffsets.offPeak +
+    batteryOffsets.midPeak +
+    batteryOffsets.onPeak +
+    (batteryOffsets.ultraLow || 0)
+
+  let ultraLowCost = usageByPeriod.ultraLow ? usageByPeriod.ultraLow * rates.ultraLow : 0
+  let offPeakCost = offPeakGridPortion
+
+  if (batteryOffsetTotal > 0) {
+    if (batteryChargingRate === rates.ultraLow && rates.ultraLow > 0) {
+      ultraLowCost += batteryOffsetTotal * batteryChargingRate
+    } else {
+      offPeakCost += batteryOffsetTotal * batteryChargingRate
+    }
+  }
+
   const newCost = {
-    ultraLow: usageByPeriod.ultraLow ? usageByPeriod.ultraLow * rates.ultraLow : undefined,
-    // Grid usage at period rate + battery usage at charging rate
-    offPeak: (usageByPeriod.offPeak - batteryOffsets.offPeak) * rates.offPeak + 
-             (batteryOffsets.offPeak * batteryChargingRate),
-    midPeak: (usageByPeriod.midPeak - batteryOffsets.midPeak) * rates.midPeak + 
-             (batteryOffsets.midPeak * batteryChargingRate),
-    onPeak: (usageByPeriod.onPeak - batteryOffsets.onPeak) * rates.onPeak + 
-            (batteryOffsets.onPeak * batteryChargingRate),
+    ultraLow: usageByPeriod.ultraLow !== undefined || batteryChargingRate === rates.ultraLow
+      ? ultraLowCost
+      : undefined,
+    offPeak: offPeakCost,
+    midPeak: 0,
+    onPeak: 0,
     total: 0
   }
   
@@ -343,6 +362,22 @@ export function calculateSimplePeakShaving(
 }
 
 // Combined solar + battery outcome to keep savings consistent everywhere
+// Preferred solar allocation weights for the ULO solar + battery scenario (client supplied)
+const ULO_SOLAR_ALLOCATION = {
+  midPeak: 0.5, // 50% of the capped solar is aimed at weekday mid-peak
+  onPeak: 0.22, // 22% of the capped solar offsets weekday on-peak
+  offPeak: 0.28, // 28% of the capped solar smooths out weekend off-peak
+  ultraLow: 0, // Overnight usage is left for the battery to cover via charging strategy
+}
+
+// TOU allocation weights provided for solar + battery modelling
+const TOU_SOLAR_ALLOCATION = {
+  midPeak: 0.5, // 50% of the capped solar focuses on weekday mid-peak
+  onPeak: 0.22, // 22% targets the weekday on-peak windows
+  offPeak: 0.28, // 28% covers weekend/off-peak periods
+  ultraLow: 0, // No solar energy applied to ultra-low since production happens during the day
+}
+
 export function calculateSolarBatteryCombined(
   annualUsageKwh: number,
   solarProductionKwh: number,
@@ -384,59 +419,251 @@ export function calculateSolarBatteryCombined(
   )
 
   // Start by figuring out the baseline bill without solar or batteries
-  const baselineAnnualBill = costFromUsage(usageOriginal)
-
-  // Apply solar energy to the most expensive periods first so the effect feels realistic
-  const usageAfterSolar = { ...usageOriginal }
-  let remainingSolar = Math.max(0, solarProductionKwh || 0)
-
-  const shavePeriod = (key: 'onPeak' | 'midPeak' | 'offPeak' | 'ultraLow') => {
-    const available = usageAfterSolar[key] || 0
-    const offset = Math.min(available, remainingSolar)
-    usageAfterSolar[key] = available - offset
-    remainingSolar -= offset
+  const baselineRateOverrides: Record<string, number> = {
+    'ulo': 0.197, // 19.7¢/kWh blended that marketing uses in the email narrative
+    'ulo-solar-battery': 0.197,
+    'tou': 0.148, // 14.8¢/kWh blended TOU average used in the email narrative
+    'tou-solar-battery': 0.148,
   }
 
-  shavePeriod('onPeak')
-  shavePeriod('midPeak')
-  shavePeriod('offPeak')
-  shavePeriod('ultraLow')
+  const overriddenRate = baselineRateOverrides[ratePlan.id]
+  const baselineAnnualBill = overriddenRate != null
+    ? annualUsageKwh * overriddenRate
+    : costFromUsage(usageOriginal)
 
-  // The bill after only solar has done its work
-  const postSolarAnnualBill = costFromUsage(usageAfterSolar)
+  // Apply solar and battery using the custom client formulas, otherwise fall back to generic logic
+  const isUloPlan = ratePlan.id === 'ulo' || ratePlan.id === 'ulo-solar-battery'
+  const isTouPlan = ratePlan.id === 'tou' || ratePlan.id === 'tou-solar-battery'
 
-  // Now let the battery step in using the remaining usage after solar
-  const usageForBattery = { ...usageAfterSolar }
-  let remainingBattery = battery.usableKwh * 365
-  const batteryOffsets = { ultraLow: 0, offPeak: 0, midPeak: 0, onPeak: 0 }
+  const applyUloFormula = () => {
+    const solarCap = Math.min(annualUsageKwh * 0.5, Math.max(0, solarProductionKwh || 0))
+    const usageAfterSolar = { ...usageOriginal }
+    const solarAllocation = { ultraLow: 0, offPeak: 0, midPeak: 0, onPeak: 0 }
 
-  const shaveWithBattery = (key: 'onPeak' | 'midPeak' | 'offPeak') => {
-    const available = usageForBattery[key]
-    if (remainingBattery <= 0 || available <= 0) return
-    const offset = Math.min(available, remainingBattery)
-    batteryOffsets[key] = offset
-    usageForBattery[key] = available - offset
-    remainingBattery -= offset
+    const allocateSolarWithWeights = () => {
+      let remainingSolar = solarCap
+      const orderedKeys: Array<'midPeak' | 'onPeak' | 'offPeak' | 'ultraLow'> = ['midPeak', 'onPeak', 'offPeak', 'ultraLow']
+
+      // First pass: follow the supplied weight targets
+      for (const key of orderedKeys) {
+        if (remainingSolar <= 0) break
+        const targetShare = ULO_SOLAR_ALLOCATION[key] ?? 0
+        if (targetShare <= 0) continue
+        const desired = solarCap * targetShare
+        const available = usageAfterSolar[key] || 0
+        const applied = Math.min(available, desired)
+        solarAllocation[key] = applied
+        usageAfterSolar[key] = available - applied
+        remainingSolar -= applied
+      }
+
+      // Second pass: if a bucket could not absorb its target (e.g., low usage), spread leftovers in priority order
+      if (remainingSolar > 0) {
+        for (const key of orderedKeys) {
+          if (remainingSolar <= 0) break
+          const available = usageAfterSolar[key] || 0
+          if (available <= 0) continue
+          const applied = Math.min(available, remainingSolar)
+          solarAllocation[key] += applied
+          usageAfterSolar[key] = available - applied
+          remainingSolar -= applied
+        }
+      }
+    }
+
+    allocateSolarWithWeights()
+
+    const postSolarAnnualBill = costFromUsage(usageAfterSolar)
+
+    // Battery covers the remaining expensive periods (mid, on, weekend) using annual usable energy
+    const usageAfterBattery = { ...usageAfterSolar }
+    const batteryOffsets = { ultraLow: 0, offPeak: 0, midPeak: 0, onPeak: 0 }
+    let remainingBattery = Math.max(0, battery.usableKwh) * 365
+    const batteryDischargeOrder: Array<'midPeak' | 'onPeak' | 'offPeak'> = ['midPeak', 'onPeak', 'offPeak']
+
+    for (const key of batteryDischargeOrder) {
+      if (remainingBattery <= 0) break
+      const available = usageAfterBattery[key]
+      if (!available || available <= 0) continue
+      const applied = Math.min(available, remainingBattery)
+      batteryOffsets[key] = applied
+      usageAfterBattery[key] = available - applied
+      remainingBattery -= applied
+    }
+
+    // Battery charges during ultra-low overnight hours
+    const batteryChargeRequired = batteryOffsets.midPeak + batteryOffsets.onPeak + batteryOffsets.offPeak
+    usageAfterBattery.ultraLow = (usageAfterBattery.ultraLow || 0) + batteryChargeRequired
+
+    const postSolarBatteryAnnualBill = costFromUsage(usageAfterBattery)
+    const adjustedPostSolarBatteryBill = postSolarBatteryAnnualBill // already includes charge energy at ultra-low pricing
+
+    return {
+      postSolarAnnualBill,
+      postSolarBatteryAnnualBill: adjustedPostSolarBatteryBill,
+      batteryOffsets,
+      usageAfterSolar,
+      usageAfterBattery,
+      solarAllocation,
+      batteryChargeRequired,
+      solarCap,
+    }
   }
 
-  shaveWithBattery('onPeak')
-  shaveWithBattery('midPeak')
-  shaveWithBattery('offPeak')
+  const applyTouFormula = () => {
+    const solarCap = Math.min(annualUsageKwh * 0.5, Math.max(0, solarProductionKwh || 0))
+    const usageAfterSolar = { ...usageOriginal }
+    const solarAllocation = { ultraLow: 0, offPeak: 0, midPeak: 0, onPeak: 0 }
+    let remainingSolar = solarCap
 
-  // Batteries recharge at the cheapest available rate so we add that cost back in
-  const chargeRate = rates.ultraLow > 0 ? rates.ultraLow : rates.offPeak
-  const batteryChargingCost = (
-    batteryOffsets.onPeak + batteryOffsets.midPeak + batteryOffsets.offPeak + batteryOffsets.ultraLow
-  ) * chargeRate
+    const orderedKeys: Array<'midPeak' | 'onPeak' | 'offPeak'> = ['midPeak', 'onPeak', 'offPeak']
 
-  // Costs after both technologies are working together
-  const postSolarBatteryAnnualBill = (
-    usageForBattery.offPeak * rates.offPeak +
-    usageForBattery.midPeak * rates.midPeak +
-    usageForBattery.onPeak * rates.onPeak +
-    (usageForBattery.ultraLow || 0) * rates.ultraLow +
-    batteryChargingCost
-  )
+    const allocateSolarWithWeights = () => {
+      let solarLeft = remainingSolar
+      for (const key of orderedKeys) {
+        if (solarLeft <= 0) break
+        const targetShare = TOU_SOLAR_ALLOCATION[key] ?? 0
+        if (targetShare <= 0) continue
+        const desired = solarCap * targetShare
+        const available = usageAfterSolar[key] || 0
+        const applied = Math.min(available, desired)
+        solarAllocation[key] = applied
+        usageAfterSolar[key] = available - applied
+        solarLeft -= applied
+      }
+
+      // If any solar remains, spread it through the ordered keys again
+      for (const key of orderedKeys) {
+        if (solarLeft <= 0) break
+        const available = usageAfterSolar[key] || 0
+        if (available <= 0) continue
+        const applied = Math.min(available, solarLeft)
+        solarAllocation[key] += applied
+        usageAfterSolar[key] = available - applied
+        solarLeft -= applied
+      }
+
+      remainingSolar = solarLeft
+    }
+
+    allocateSolarWithWeights()
+
+    const postSolarAnnualBill = costFromUsage(usageAfterSolar)
+
+    // Battery targets remaining on-peak first, then mid-peak (client TOU priority)
+    const usageAfterBattery = { ...usageAfterSolar }
+    const batteryOffsets = { ultraLow: 0, offPeak: 0, midPeak: 0, onPeak: 0 }
+    let remainingBattery = Math.max(0, battery.usableKwh) * 365
+    const batteryDischargeOrder: Array<'onPeak' | 'midPeak'> = ['onPeak', 'midPeak']
+
+    for (const key of batteryDischargeOrder) {
+      if (remainingBattery <= 0) break
+      const available = usageAfterBattery[key]
+      if (!available || available <= 0) continue
+      const applied = Math.min(available, remainingBattery)
+      batteryOffsets[key] = applied
+      usageAfterBattery[key] = available - applied
+      remainingBattery -= applied
+    }
+
+    const batteryChargeFromOffPeak = batteryOffsets.midPeak + batteryOffsets.onPeak + batteryOffsets.offPeak
+    if (batteryChargeFromOffPeak > 0) {
+      usageAfterBattery.offPeak += batteryChargeFromOffPeak
+    }
+
+    const postSolarBatteryAnnualBill = costFromUsage(usageAfterBattery)
+
+    return {
+      postSolarAnnualBill,
+      postSolarBatteryAnnualBill,
+      batteryOffsets,
+      usageAfterSolar,
+      usageAfterBattery,
+      solarAllocation,
+      batteryChargeFromOffPeak,
+      solarCap,
+    }
+  }
+
+  const applyGenericFormula = () => {
+    // Apply solar energy to the most expensive periods first so the effect feels realistic
+    const usageAfterSolar = { ...usageOriginal }
+    let remainingSolar = Math.max(0, solarProductionKwh || 0)
+
+    const shavePeriod = (key: 'onPeak' | 'midPeak' | 'offPeak' | 'ultraLow') => {
+      const available = usageAfterSolar[key] || 0
+      const offset = Math.min(available, remainingSolar)
+      usageAfterSolar[key] = available - offset
+      remainingSolar -= offset
+    }
+
+    shavePeriod('onPeak')
+    shavePeriod('midPeak')
+    shavePeriod('offPeak')
+    shavePeriod('ultraLow')
+
+    // The bill after only solar has done its work
+    const postSolarAnnualBill = costFromUsage(usageAfterSolar)
+
+    // Now let the battery step in using the remaining usage after solar
+    const usageForBattery = { ...usageAfterSolar }
+    let remainingBattery = battery.usableKwh * 365
+    const batteryOffsets = { ultraLow: 0, offPeak: 0, midPeak: 0, onPeak: 0 }
+
+    const shaveWithBattery = (key: 'onPeak' | 'midPeak' | 'offPeak') => {
+      const available = usageForBattery[key]
+      if (remainingBattery <= 0 || available <= 0) return
+      const offset = Math.min(available, remainingBattery)
+      batteryOffsets[key] = offset
+      usageForBattery[key] = available - offset
+      remainingBattery -= offset
+    }
+
+    shaveWithBattery('onPeak')
+    shaveWithBattery('midPeak')
+    shaveWithBattery('offPeak')
+
+    // Batteries recharge at the cheapest available rate so we add that cost back in
+    const chargeRate = rates.ultraLow > 0 ? rates.ultraLow : rates.offPeak
+    const batteryChargingCost = (
+      batteryOffsets.onPeak + batteryOffsets.midPeak + batteryOffsets.offPeak + batteryOffsets.ultraLow
+    ) * chargeRate
+
+    // Costs after both technologies are working together
+    const postSolarBatteryAnnualBill = (
+      usageForBattery.offPeak * rates.offPeak +
+      usageForBattery.midPeak * rates.midPeak +
+      usageForBattery.onPeak * rates.onPeak +
+      (usageForBattery.ultraLow || 0) * rates.ultraLow +
+      batteryChargingCost
+    )
+
+    return {
+      postSolarAnnualBill,
+      postSolarBatteryAnnualBill,
+      batteryOffsets,
+      usageAfterSolar,
+      usageAfterBattery: usageForBattery,
+      solarAllocation: undefined,
+      batteryChargeRequired: undefined,
+      solarCap: undefined,
+    }
+  }
+
+  const applyResult = isTouPlan ? applyTouFormula() : isUloPlan ? applyUloFormula() : applyGenericFormula()
+  
+  const {
+    postSolarAnnualBill,
+    postSolarBatteryAnnualBill,
+    batteryOffsets,
+    usageAfterSolar,
+    usageAfterBattery,
+    solarAllocation,
+    solarCap,
+  } = applyResult
+  
+  const batteryChargeRequired = 'batteryChargeRequired' in applyResult ? applyResult.batteryChargeRequired : undefined
+  const batteryChargeFromOffPeak = 'batteryChargeFromOffPeak' in applyResult ? applyResult.batteryChargeFromOffPeak : undefined
 
   // Pull out the savings so downstream screens can rely on them
   const solarOnlySavings = baselineAnnualBill - postSolarAnnualBill
@@ -461,6 +688,23 @@ export function calculateSolarBatteryCombined(
     batteryOnTopSavings,
     combinedAnnualSavings,
     combinedMonthlySavings: combinedAnnualSavings / 12,
+    breakdown: isUloPlan ? {
+      originalUsage: usageOriginal,
+      usageAfterSolar,
+      usageAfterBattery,
+      solarAllocation,
+      batteryOffsets,
+      batteryChargeFromUltraLow: batteryChargeRequired,
+      solarCapKwh: solarCap,
+    } : isTouPlan ? {
+      originalUsage: usageOriginal,
+      usageAfterSolar,
+      usageAfterBattery,
+      solarAllocation,
+      batteryOffsets,
+      batteryChargeFromOffPeak,
+      solarCapKwh: solarCap,
+    } : undefined,
   }
 }
 

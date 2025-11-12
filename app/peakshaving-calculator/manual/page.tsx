@@ -54,8 +54,28 @@ export default function Page() {
 
   // Render the exact cloned UI only (no extra top controls)
   return (
-    <section className="py-8">
-      <div className="max-w-7xl mx-auto px-4">
+    <section className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-amber-50 py-12">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="mb-8">
+          <button
+            onClick={() => router.push('/')}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border-2 border-navy-300 text-navy-600 bg-white hover:bg-navy-50 transition-colors text-sm font-semibold"
+          >
+            <span className="h-2 w-2 rounded-full bg-navy-400"></span>
+            Back to SolarX Calculator
+          </button>
+        </div>
+        <div className="bg-white/90 backdrop-blur-sm border border-emerald-200 shadow-xl rounded-3xl p-6 sm:p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-3 rounded-2xl bg-gradient-to-br from-emerald-500 to-navy-600 shadow-lg">
+              <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2v20" />
+                <path d="m4.93 4.93 14.14 14.14" />
+                <path d="M2 12h20" />
+                <path d="m4.93 19.07 14.14-14.14" />
+              </svg>
+            </div>
+          </div>
         {/* Perfectly cloned Step 4 UI */}
         <StepBatteryPeakShavingSimple
           data={data}
@@ -63,6 +83,7 @@ export default function Page() {
           onBack={() => router.push('/')}
           manualMode
         />
+        </div>
       </div>
     </section>
   )

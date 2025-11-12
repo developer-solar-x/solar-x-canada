@@ -26,14 +26,15 @@ export interface TimePeriod {
 }
 
 // Rate plan structure
-export interface RatePlan {
-  id: string
-  name: string
-  description: string
-  effectiveDate: string
-  periods: TimePeriod[]
-  weekendRate?: number // Simplified weekend rate if applicable
-  weekendPeriod?: RatePeriod
+export interface RatePlan { // Wrapping all plan details together for easier reuse
+  id: string // Giving the plan a unique label so we can reference it elsewhere
+  name: string // Keeping a friendly name for UI display
+  description: string // Providing context for humans reading the configuration
+  effectiveDate: string // Recording when these prices came into effect
+  periods: TimePeriod[] // Listing all the weekday pricing windows for the plan
+  weekendRate?: number // Offering a simple flat weekend price when detailed windows are not needed
+  weekendPeriod?: RatePeriod // Tagging the flat weekend period with a label for reporting
+  weekendPeriods?: TimePeriod[] // Allowing detailed weekend or holiday windows when the plan is more complex
 }
 
 // Ontario statutory holidays (treat as weekends for rate purposes)
@@ -70,12 +71,28 @@ export function isWeekendOrHoliday(date: Date): boolean {
 // Ultra-Low Overnight (ULO) Rate Plan
 // Effective November 1, 2025
 export const ULO_RATE_PLAN: RatePlan = {
-  id: 'ulo',
-  name: 'Ultra-Low Overnight (ULO)',
-  description: 'Best for EV owners and those who can shift usage to overnight hours',
-  effectiveDate: '2025-11-01',
-  weekendRate: 9.8, // All hours on weekends
-  weekendPeriod: 'off-peak',
+  id: 'ulo', // Using a short identifier so other modules can detect this plan
+  name: 'Ultra-Low Overnight (ULO)', // Leaving the friendly plan name intact for display
+  description: 'Best for EV owners and those who can shift usage to overnight hours', // Summarizing the value proposition for this plan
+  effectiveDate: '2025-11-01', // Documenting the start date of the published rates
+  weekendRate: 9.8, // Keeping a fallback price in case detailed weekend windows are unavailable
+  weekendPeriod: 'off-peak', // Tagging the fallback as an off-peak style rate
+  weekendPeriods: [ // Outlining the exact weekend and holiday windows requested
+    {
+      startHour: 7, // Starting the daytime window right after the overnight period
+      endHour: 23, // Ending the daytime window before the overnight period begins again
+      days: [DayOfWeek.SATURDAY, DayOfWeek.SUNDAY], // Listing the weekend days for clarity even though holidays reuse this logic
+      rate: 9.8, // Applying the 9.8¢ daytime price shared in the brief
+      period: 'off-peak' // Labeling the daytime price as off-peak for reporting
+    },
+    {
+      startHour: 23, // Starting the overnight window at 11 PM
+      endHour: 7, // Ending the overnight window at 7 AM on the following day
+      days: [DayOfWeek.SATURDAY, DayOfWeek.SUNDAY], // Mirroring the weekend list so the data stays self-explanatory
+      rate: 3.9, // Enforcing the ultra-low 3.9¢ overnight price across weekends and holidays
+      period: 'ultra-low' // Tagging this segment as ultra-low for downstream logic
+    }
+  ],
   periods: [
     // Weekday periods
     {
@@ -158,8 +175,42 @@ export const TOU_RATE_PLAN: RatePlan = {
   ]
 }
 
+// Solar + battery tuned Time-of-Use plan crafted for peak shaving comparisons
+export const TOU_SOLAR_BATTERY_PLAN: RatePlan = { // Packaging the specialized TOU settings for solar plus battery scenarios
+  id: 'tou-solar-battery', // Giving the plan a unique name so future logic can spot it easily
+  name: 'TOU Solar + Battery', // Sharing a friendly title that makes the intent obvious for readers
+  description: 'Comparison baseline that blends solar production with TOU peak shaving', // Explaining the story in everyday language for clarity
+  effectiveDate: '2025-11-01', // Reusing the current OEB schedule so stakeholders know the pricing vintage
+  weekendRate: 9.8, // Keeping the same fallback rate to stay aligned with the official tariff today
+  weekendPeriod: 'off-peak', // Tagging the fallback as off-peak to match reporting expectations
+  periods: TOU_RATE_PLAN.periods.map(period => ({ // Borrowing the weekday structure so launch happens quickly while we wait for deeper modelling
+    ...period, // Copying the base properties to avoid manual drift when the default plan updates
+  })), // Returning the cloned periods so the object stays well formed
+} // Closing out the TOU Solar + Battery definition before moving on
+
+// Solar + battery tuned Ultra-Low Overnight plan shaped for combined system modelling
+export const ULO_SOLAR_BATTERY_PLAN: RatePlan = { // Packaging the specialized ULO settings for solar plus battery comparisons
+  id: 'ulo-solar-battery', // Assigning a clear identifier so calculations can key off this plan later
+  name: 'ULO Solar + Battery', // Labeling the plan so the UI reads naturally to homeowners
+  description: 'Comparison baseline that layers solar offsets onto the ULO overnight strategy', // Summing up the intent without technical jargon
+  effectiveDate: '2025-11-01', // Staying consistent with the current posted rates until updates arrive
+  weekendRate: 9.8, // Keeping a safety net value while the detailed weekend windows remain the same
+  weekendPeriod: 'off-peak', // Tagging the fallback segment exactly like the base plan for continuity
+  weekendPeriods: ULO_RATE_PLAN.weekendPeriods?.map(period => ({ // Cloning the weekend windows so behaviour matches the official structure
+    ...period, // Copying each weekend entry to avoid editing multiple places when details evolve
+  })), // Returning the replicated weekend array ready for future tweaks
+  periods: ULO_RATE_PLAN.periods.map(period => ({ // Duplicating the weekday windows to keep schedules synchronised
+    ...period, // Copying every property so nothing goes missing during the quick setup
+  })), // Returning the array so this plan is immediately usable once logic appears
+} // Sealing the ULO Solar + Battery definition until the dedicated logic arrives
+
 // All available rate plans
-export const RATE_PLANS: RatePlan[] = [ULO_RATE_PLAN, TOU_RATE_PLAN]
+export const RATE_PLANS: RatePlan[] = [ // Listing plans in one spot so selectors can stay in sync
+  ULO_RATE_PLAN, // Keeping the standard ULO option available for regular comparisons
+  TOU_RATE_PLAN, // Keeping the standard TOU option available right beside it
+  ULO_SOLAR_BATTERY_PLAN, // Adding the new solar + battery ULO variant for combined modelling
+  TOU_SOLAR_BATTERY_PLAN, // Adding the new solar + battery TOU variant for combined modelling
+] // Wrapping up the array so downstream components can iterate cleanly
 
 // Get rate for a specific date and hour
 export function getRateForDateTime(ratePlan: RatePlan, date: Date, hour: number): {
@@ -167,10 +218,34 @@ export function getRateForDateTime(ratePlan: RatePlan, date: Date, hour: number)
   period: RatePeriod
 } {
   // Check if it's a weekend or holiday - use simplified weekend rate
-  if (isWeekendOrHoliday(date) && ratePlan.weekendRate !== undefined) {
+  if (isWeekendOrHoliday(date)) { // Detecting weekends or listed holidays so we can follow the alternate schedule
+    if (ratePlan.weekendPeriods && ratePlan.weekendPeriods.length > 0) { // Confirming the plan supplied detailed weekend windows
+      for (const period of ratePlan.weekendPeriods) { // Walking through each defined weekend window to find a match
+        if (period.startHour > period.endHour) { // Handling windows that wrap past midnight
+          const inOvernightWindow = hour >= period.startHour || hour < period.endHour // Testing whether the hour falls before or after midnight within the window
+          if (inOvernightWindow) { // Returning the matching overnight window immediately
+            return {
+              rate: period.rate, // Passing back the matched rate for pricing calculations
+              period: period.period // Passing back the descriptive label for reporting
+            }
+          }
+        } else {
+          const inDaytimeWindow = hour >= period.startHour && hour < period.endHour // Testing whether the hour falls inside a same-day window
+          if (inDaytimeWindow) { // Returning the matching daytime window immediately
+            return {
+              rate: period.rate, // Passing back the matched rate for pricing calculations
+              period: period.period // Passing back the descriptive label for reporting
+            }
+          }
+        }
+      }
+    }
+    
+    if (ratePlan.weekendRate !== undefined) { // Falling back to the legacy single weekend price when detailed windows are absent
     return {
-      rate: ratePlan.weekendRate,
-      period: ratePlan.weekendPeriod || 'off-peak'
+        rate: ratePlan.weekendRate, // Supplying the flat weekend price
+        period: ratePlan.weekendPeriod || 'off-peak' // Defaulting the label to off-peak when nothing else is provided
+      }
     }
   }
   

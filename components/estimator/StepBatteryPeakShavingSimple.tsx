@@ -41,8 +41,10 @@ type CombinedPlanResult = {
   monthly: number
   projection: any
   netCost: number
-  baselineAnnualBill?: number
-  postAnnualBill?: number
+  baselineAnnualBill?: number // Includes delivery/fixed fees
+  postAnnualBill?: number // Includes delivery/fixed fees
+  baselineAnnualBillEnergyOnly?: number // Energy-only baseline (matches ChatGPT format)
+  postSolarBatteryAnnualBillEnergyOnly?: number // Energy-only final cost (matches ChatGPT format)
   solarOnlyAnnual?: number
   batteryAnnual?: number
   solarNetCost?: number
@@ -51,6 +53,16 @@ type CombinedPlanResult = {
   batteryRebateApplied?: number
   batteryGrossCost?: number
   solarProductionKwh?: number // Remember the solar production we modeled so readers can see it later
+  breakdown?: {
+    originalUsage: Record<'midPeak' | 'onPeak' | 'offPeak' | 'ultraLow', number>
+    usageAfterSolar: Record<'midPeak' | 'onPeak' | 'offPeak' | 'ultraLow', number>
+    usageAfterBattery: Record<'midPeak' | 'onPeak' | 'offPeak' | 'ultraLow', number>
+    solarAllocation?: Record<'midPeak' | 'onPeak' | 'offPeak' | 'ultraLow', number>
+    batteryOffsets: Record<'midPeak' | 'onPeak' | 'offPeak' | 'ultraLow', number>
+    batteryChargeFromUltraLow?: number
+    batteryChargeFromOffPeak?: number
+    solarCapKwh?: number
+  }
 }
 
 export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualMode = false }: StepBatteryPeakShavingSimpleProps) {
@@ -58,6 +70,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
   const [showTouInfo, setShowTouInfo] = useState(false)
   const [showUloInfo, setShowUloInfo] = useState(false)
   const [showPaybackInfo, setShowPaybackInfo] = useState(false)
+  const [showCostTables, setShowCostTables] = useState(true) // Simple toggle so readers can hide the detailed cost tables
   // Check if estimate is being loaded (solar system size needed for rebate calculation)
   const [estimateLoading, setEstimateLoading] = useState(!data.estimate?.system?.sizeKw)
   
@@ -268,6 +281,11 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
     return true
   })()
 
+  // Friendly formatter so the custom rate cards can show the current usage share beside each rate
+const formatUsageShare = (value?: number) => `${(value ?? 0).toFixed(1)}%`
+const formatKwh = (value: number) => `${Math.round(value).toLocaleString()} kWh`
+const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
+
   // When panel count changes, re-run estimate with override size to refresh annual kWh
   useEffect(() => {
     const run = async () => {
@@ -428,8 +446,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
           monthly: combinedMonthly,
           projection: combinedProjection,
           netCost: combinedNet,
-          baselineAnnualBill: baselineAnnualDisplay,
-          postAnnualBill: newBillAnnual,
+          baselineAnnualBill: baselineAnnualDisplay, // Includes delivery/fixed fees for display
+          postAnnualBill: newBillAnnual, // Includes delivery/fixed fees for display
+          baselineAnnualBillEnergyOnly: combinedModel.baselineAnnualBill, // Energy-only baseline (matches ChatGPT)
+          postSolarBatteryAnnualBillEnergyOnly: combinedModel.postSolarBatteryAnnualBill, // Energy-only final (matches ChatGPT)
           solarOnlyAnnual: solarScaled,
           batteryAnnual: batteryScaled,
           solarNetCost: solarNet,
@@ -438,6 +458,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
           batteryNetCost: netCost,
           batteryRebateApplied: batteryRebate,
           batteryGrossCost: battery.price,
+          breakdown: combinedModel.breakdown,
         } as CombinedPlanResult,
       })
     }
@@ -536,8 +557,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
           monthly: combinedMonthly,
           projection: combinedProjection,
           netCost: combinedNet,
-          baselineAnnualBill: baselineAnnualDisplay,
-          postAnnualBill: newBillAnnual,
+          baselineAnnualBill: baselineAnnualDisplay, // Includes delivery/fixed fees for display
+          postAnnualBill: newBillAnnual, // Includes delivery/fixed fees for display
+          baselineAnnualBillEnergyOnly: combinedModel.baselineAnnualBill, // Energy-only baseline (matches ChatGPT)
+          postSolarBatteryAnnualBillEnergyOnly: combinedModel.postSolarBatteryAnnualBill, // Energy-only final (matches ChatGPT)
           solarOnlyAnnual: solarScaled,
           batteryAnnual: batteryScaled,
           solarNetCost: solarNet,
@@ -546,6 +569,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
           batteryNetCost: netCost,
           batteryRebateApplied: batteryRebate,
           batteryGrossCost: battery.price,
+          breakdown: combinedModel.breakdown,
         } as CombinedPlanResult,
       })
     }
@@ -1147,7 +1171,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
 
           // Keep helper formatters tiny and friendly for readers
           const formatMoney = (value: number) => `$${value.toFixed(2)}`
-          const formatKwh = (value: number) => `${value.toFixed(0)} kWh`
 
           // Pull the before/after cost tables so we can reference each row plainly
           const before = tou.result.originalCost
@@ -1228,7 +1251,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
 
           // Use soft helpers for formatting money and energy
           const formatMoney = (value: number) => `$${value.toFixed(2)}`
-          const formatKwh = (value: number) => `${value.toFixed(0)} kWh`
 
           // Grab before/after tables and leftover summary for easy reference
           const before = ulo.result.originalCost
@@ -1310,8 +1332,12 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
           const ulo = uloResults.get('combined')
 
           // Baseline numbers come from the same "Current Estimated Bill" card
-          const baselineMonthly = displayedMonthlyBill
-          const baselineAnnual = baselineMonthly * 12
+          const touBaselineEnergy = Math.max(0, tou?.combined?.baselineAnnualBillEnergyOnly ?? 0)
+          const uloBaselineEnergy = Math.max(0, ulo?.combined?.baselineAnnualBillEnergyOnly ?? 0)
+          const baselineAnnualEnergy = Math.max(touBaselineEnergy, uloBaselineEnergy)
+          const fallbackBaselineAnnual = displayedMonthlyBill * 12
+          const baselineAnnual = baselineAnnualEnergy > 0 ? baselineAnnualEnergy : fallbackBaselineAnnual
+          const baselineMonthly = baselineAnnual / 12
 
           // Safely read the annual savings straight from the combined maps
           const touAnnualSavings = Math.max(0, tou?.combined?.annual ?? 0)
@@ -1327,9 +1353,9 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
             <div className="space-y-4 text-sm text-gray-700">
               <div>
                 <span className="font-semibold">What the numbers mean</span>
-                <div className="mt-1 text-xs text-gray-600 ml-1">• Current bill (baseline): {formatMoney(baselineMonthly)}/month — the starting point for every calculation.</div>
-                <div className="mt-1 text-xs text-gray-600 ml-1">• Projected bill (after upgrades): same usage, but with solar generation and smart battery shifting applied.</div>
-                <div className="mt-1 text-xs text-gray-600 ml-1">• Annual savings = Baseline bill × 12 − Projected bill × 12, limited by a winter safeguard so estimates stay sensible.</div>
+                <div className="mt-1 text-xs text-gray-600 ml-1">• Current bill (baseline energy only): {formatMoney(baselineMonthly)}/month — the same {formatMoney(baselineAnnual)} per year shown in the summary card.</div>
+                <div className="mt-1 text-xs text-gray-600 ml-1">• Projected bill (after upgrades): same usage, but with solar production and smart battery shifting applied, expressed as energy charges only.</div>
+                <div className="mt-1 text-xs text-gray-600 ml-1">• Annual savings = Baseline energy charges − Projected energy charges, limited by a winter safeguard so estimates stay sensible.</div>
                 <div className="mt-1 text-xs text-gray-600 ml-1">• Monthly savings = Annual savings ÷ 12 — an easy way to compare against your current bill.</div>
                 <div className="mt-1 text-xs text-gray-600 ml-1">• Solar vs. Battery split mirrors the main card so you can explain which component delivers the benefit.</div>
               </div>
@@ -1531,7 +1557,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                  <div className="space-y-3 bg-gray-50 p-4 rounded-lg border-2 border-gray-300">
                    <h4 className="font-bold text-navy-500 mb-2">Ultra-Low Overnight (ULO)</h4>
                    <div className="flex items-center gap-2">
-                     <div className="w-32 text-xs font-semibold text-navy-600">Ultra-Low:</div>
+                    <div className="w-32">
+                      <div className="text-xs font-semibold text-navy-600">Ultra-Low:</div>
+                      <div className="text-[10px] text-gray-500">Usage share {formatUsageShare(uloDistribution.ultraLowPercent)}</div>
+                    </div>
                      <input
                        type="number"
                        value={customRates.ulo.ultraLow}
@@ -1544,7 +1573,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                      <span className="text-xs text-gray-600">¢/kWh</span>
                    </div>
                    <div className="flex items-center gap-2">
-                     <div className="w-32 text-xs font-semibold text-navy-600">Mid-Peak:</div>
+                    <div className="w-32">
+                      <div className="text-xs font-semibold text-navy-600">Mid-Peak:</div>
+                      <div className="text-[10px] text-gray-500">Usage share {formatUsageShare(uloDistribution.midPeakPercent)}</div>
+                    </div>
                      <input
                        type="number"
                        value={customRates.ulo.midPeak}
@@ -1557,7 +1589,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                      <span className="text-xs text-gray-600">¢/kWh</span>
                    </div>
                    <div className="flex items-center gap-2">
-                     <div className="w-32 text-xs font-semibold text-navy-600">On-Peak:</div>
+                    <div className="w-32">
+                      <div className="text-xs font-semibold text-navy-600">On-Peak:</div>
+                      <div className="text-[10px] text-gray-500">Usage share {formatUsageShare(uloDistribution.onPeakPercent)}</div>
+                    </div>
                      <input
                        type="number"
                        value={customRates.ulo.onPeak}
@@ -1570,7 +1605,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                      <span className="text-xs text-gray-600">¢/kWh</span>
                    </div>
                    <div className="flex items-center gap-2">
-                     <div className="w-32 text-xs font-semibold text-navy-600">Weekend:</div>
+                    <div className="w-32">
+                      <div className="text-xs font-semibold text-navy-600">Weekend:</div>
+                      <div className="text-[10px] text-gray-500">Usage share {formatUsageShare(uloDistribution.offPeakPercent)}</div>
+                    </div>
                      <input
                        type="number"
                        value={customRates.ulo.weekendOffPeak}
@@ -1958,127 +1996,264 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
             </h3>
            </div>
            
-           {/* Big Numbers - Both Plans */}
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-200 hover:border-red-300 transition-all">
-              <div className="flex items-center justify-between mb-3">
+          {/* Combined TOU vs ULO comparison card - All metrics in one table */}
+          {(() => {
+            // Pre-calculate all breakdown and offset data for the unified table
+            const touBreakdown = touData.combined?.breakdown
+            const uloBreakdown = uloData.combined?.breakdown
+            
+            if (!touBreakdown || !uloBreakdown) return null
+
+            // Calculate total offset: solar directly consumed + battery discharge
+            const touSolarOffset = Object.values(touBreakdown.solarAllocation || {}).reduce((sum, v) => sum + (v || 0), 0)
+            const touBatteryOffset = (touBreakdown.batteryOffsets?.onPeak || 0) + (touBreakdown.batteryOffsets?.midPeak || 0) + (touBreakdown.batteryOffsets?.offPeak || 0)
+            const touTotalOffset = touSolarOffset + touBatteryOffset
+            const touOffsetPercent = annualUsageKwh > 0 ? (touTotalOffset / annualUsageKwh) * 100 : 0
+
+            const uloSolarOffset = Object.values(uloBreakdown.solarAllocation || {}).reduce((sum, v) => sum + (v || 0), 0)
+            const uloBatteryOffset = (uloBreakdown.batteryOffsets?.onPeak || 0) + (uloBreakdown.batteryOffsets?.midPeak || 0) + (uloBreakdown.batteryOffsets?.offPeak || 0)
+            const uloTotalOffset = uloSolarOffset + uloBatteryOffset
+            const uloOffsetPercent = annualUsageKwh > 0 ? (uloTotalOffset / annualUsageKwh) * 100 : 0
+
+            // Get energy-only baseline and final costs
+            const touBaseline = touData.combined?.baselineAnnualBillEnergyOnly || 0
+            const touFinal = touData.combined?.postSolarBatteryAnnualBillEnergyOnly || 0
+            const touSavings = touBaseline - touFinal
+
+            const uloBaseline = uloData.combined?.baselineAnnualBillEnergyOnly || 0
+            const uloFinal = uloData.combined?.postSolarBatteryAnnualBillEnergyOnly || 0
+            const uloSavings = uloBaseline - uloFinal
+
+            return (
+          <div className="mb-8">
+            {/* Single unified card containing all metrics */}
+            <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-200">
+              {/* Header area */}
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+                {/* Title */}
                 <div className="flex items-center gap-2">
                   <div className="p-2 bg-red-100 rounded-lg">
-                    <DollarSign className="text-red-500" size={22} />
+                    <TrendingUp className="text-red-500" size={22} />
                   </div>
-                  <div className="text-sm font-bold text-gray-600 uppercase tracking-wide">Annual Savings</div>
+                  <h4 className="text-lg font-bold text-gray-700">Plan Comparison (TOU vs ULO)</h4>
                 </div>
-                <button
-                  onClick={() => setShowSavingsInfo(true)}
-                  className="inline-flex items-center gap-1 text-navy-600 hover:text-navy-700 text-xs font-semibold"
-                >
-                  <Info size={16} /> Info
-                </button>
+                {/* Subtitle note */}
+                <p className="text-xs text-gray-500">
+                  These results include both solar production and battery dispatch for each utility rate plan.
+                </p>
               </div>
-               <div className="space-y-2">
-                 <div>
-                  <div className="text-xs text-gray-500">TOU Plan (Solar + Battery)</div>
-                  <div className="text-2xl font-bold text-red-600">
-                    ${Math.round((touData.combined?.annual || 0)).toLocaleString()}
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    ${Math.round((touData.combined?.monthly || 0)).toLocaleString()}/month
-                  </div>
-                 </div>
-                 <div className="border-t border-gray-200 pt-2">
-                  <div className="text-xs text-gray-500">ULO Plan (Solar + Battery)</div>
-                  <div className="text-2xl font-bold text-red-600">
-                    ${Math.round((uloData.combined?.annual || 0)).toLocaleString()}
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    ${Math.round((uloData.combined?.monthly || 0)).toLocaleString()}/month
-                  </div>
-                 </div>
-               </div>
-             </div>
 
-             <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-200 hover:border-navy-300 transition-all">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-navy-100 rounded-lg">
-                    <Calendar className="text-navy-500" size={22} />
+              {/* Energy-only note */}
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-700">
+                  <strong>Note:</strong> Costs shown are energy charges only (excluding HST, delivery, and fixed fees) to match maximum savings calculation.
+                </p>
+              </div>
+
+              {/* Unified table with all metrics */}
+              <div className="overflow-hidden border border-gray-200 rounded-xl">
+                {/* Column headers */}
+                <div className="grid grid-cols-[1.2fr_1fr_1fr] bg-gray-50 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                  <div className="px-4 py-3">Metric</div>
+                  <div className="px-4 py-3 text-center text-blue-600">
+                    <Sun className="inline mr-1" size={14} />
+                    TOU Plan
                   </div>
-                  <div className="text-sm font-bold text-gray-600 uppercase tracking-wide">Payback Period (Full System)</div>
+                  <div className="px-4 py-3 text-center text-amber-600">
+                    <Moon className="inline mr-1" size={14} />
+                    ULO Plan
+                  </div>
                 </div>
-                <button
-                  onClick={() => setShowPaybackInfo(true)}
-                  className="inline-flex items-center gap-1 text-navy-600 hover:text-navy-700 text-xs font-semibold"
-                >
-                  <Info size={16} /> Info
-                </button>
-              </div>
-               {(() => {
-                 // Use the same precomputed combined figures as the modal
-                const touPaybackYears = touData.combined?.projection?.paybackYears
-                const uloPaybackYears = uloData.combined?.projection?.paybackYears
 
-                 return (
-                   <div className="space-y-4">
-                     <div>
-                       <div className="flex items-center gap-1 mb-1">
-                         <Sun size={14} className="text-navy-400" />
-                         <div className="text-xs text-gray-500 font-medium">TOU Plan</div>
-                       </div>
-                       <div className="text-2xl font-bold text-navy-600">
-                        {touPaybackYears == null || touPaybackYears === Number.POSITIVE_INFINITY
+                {/* Baseline (No System) row */}
+                <div className="grid grid-cols-[1.2fr_1fr_1fr] border-t border-gray-200 bg-gray-50">
+                  <div className="px-4 py-3">
+                    <span className="text-sm font-semibold text-gray-700">Baseline (No System)</span>
+                  </div>
+                  <div className="px-4 py-3 text-center">
+                    <div className="text-lg font-bold text-gray-800">${Math.round(touBaseline).toLocaleString()}/yr</div>
+                  </div>
+                  <div className="px-4 py-3 text-center">
+                    <div className="text-lg font-bold text-gray-800">${Math.round(uloBaseline).toLocaleString()}/yr</div>
+                  </div>
+                </div>
+
+                {/* After Solar + Battery row */}
+                <div className="grid grid-cols-[1.2fr_1fr_1fr] border-t border-gray-200">
+                  <div className="px-4 py-3">
+                    <span className="text-sm font-semibold text-gray-700">After Solar + Battery</span>
+                  </div>
+                  <div className="px-4 py-3 text-center">
+                    <div className="text-lg font-bold text-green-600">${Math.round(touFinal).toLocaleString()}/yr</div>
+                  </div>
+                  <div className="px-4 py-3 text-center">
+                    <div className="text-lg font-bold text-green-600">${Math.round(uloFinal).toLocaleString()}/yr</div>
+                  </div>
+                </div>
+
+                {/* Annual savings row */}
+                <div className="grid grid-cols-[1.2fr_1fr_1fr] border-t border-gray-200 bg-green-50">
+                  <div className="px-4 py-4 flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-gray-700">Annual Savings</span>
+                    <button
+                      onClick={() => setShowSavingsInfo(true)}
+                      className="inline-flex items-center gap-1 text-navy-600 hover:text-navy-700 text-xs font-semibold"
+                    >
+                      <Info size={14} /> Info
+                    </button>
+                  </div>
+                  <div className="px-4 py-4 text-center">
+                    <div className="text-2xl font-bold text-red-600">
+                      ${Math.round((touData.combined?.annual || 0)).toLocaleString()}
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      ${Math.round((touData.combined?.monthly || 0)).toLocaleString()}/month
+                    </div>
+                  </div>
+                  <div className="px-4 py-4 text-center">
+                    <div className="text-2xl font-bold text-red-600">
+                      ${Math.round((uloData.combined?.annual || 0)).toLocaleString()}
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      ${Math.round((uloData.combined?.monthly || 0)).toLocaleString()}/month
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payback period row */}
+                <div className="grid grid-cols-[1.2fr_1fr_1fr] border-t border-gray-200">
+                  <div className="px-4 py-4 flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-gray-700">Payback Period (Full System)</span>
+                    <button
+                      onClick={() => setShowPaybackInfo(true)}
+                      className="inline-flex items-center gap-1 text-navy-600 hover:text-navy-700 text-xs font-semibold"
+                    >
+                      <Info size={14} /> Info
+                    </button>
+                  </div>
+                  <div className="px-4 py-4 text-center">
+                        <div className="text-2xl font-bold text-navy-600">
+                      {(() => {
+                        const touPaybackYears = touData.combined?.projection?.paybackYears
+                        return touPaybackYears == null || touPaybackYears === Number.POSITIVE_INFINITY
                           ? 'N/A'
-                          : `${touPaybackYears.toFixed(1)} years`}
-                       </div>
-                     </div>
-                     <div className="border-t border-gray-200 pt-3">
-                       <div className="flex items-center gap-1 mb-1">
-                         <Moon size={14} className="text-navy-400" />
-                         <div className="text-xs text-gray-500 font-medium">ULO Plan</div>
-                       </div>
-                       <div className="text-2xl font-bold text-navy-600">
-                        {uloPaybackYears == null || uloPaybackYears === Number.POSITIVE_INFINITY
+                          : `${touPaybackYears.toFixed(1)} years`
+                      })()}
+                    </div>
+                  </div>
+                  <div className="px-4 py-4 text-center">
+                    <div className="text-2xl font-bold text-navy-600">
+                      {(() => {
+                        const uloPaybackYears = uloData.combined?.projection?.paybackYears
+                        return uloPaybackYears == null || uloPaybackYears === Number.POSITIVE_INFINITY
                           ? 'N/A'
-                          : `${uloPaybackYears.toFixed(1)} years`}
-                       </div>
-                     </div>
-                   </div>
-                 )
-               })()}
-             </div>
-
-            <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-200 hover:border-green-300 transition-all">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <TrendingUp className="text-green-600" size={22} />
+                          : `${uloPaybackYears.toFixed(1)} years`
+                      })()}
+                    </div>
                   </div>
-                  <div className="text-sm font-bold text-gray-600 uppercase tracking-wide">25-Year Profit</div>
                 </div>
-                <button
-                  onClick={() => setShowProfitInfo(true)}
-                  className="inline-flex items-center gap-1 text-navy-600 hover:text-navy-700 text-xs font-semibold"
-                >
-                  <Info size={16} /> Info
-                </button>
+
+                {/* 25-year profit row */}
+                <div className="grid grid-cols-[1.2fr_1fr_1fr] border-t border-gray-200">
+                  <div className="px-4 py-4 flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-gray-700">25-Year Profit</span>
+                    <button
+                      onClick={() => setShowProfitInfo(true)}
+                      className="inline-flex items-center gap-1 text-navy-600 hover:text-navy-700 text-xs font-semibold"
+                    >
+                      <Info size={14} /> Info
+                    </button>
+                  </div>
+                  <div className="px-4 py-4 text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      ${(
+                        touData.combined?.projection?.netProfit25Year ?? touData.projection.netProfit25Year
+                      ).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="px-4 py-4 text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      ${(
+                        uloData.combined?.projection?.netProfit25Year ?? uloData.projection.netProfit25Year
+                      ).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
               </div>
-               <div className="space-y-2">
-                 <div>
-                   <div className="text-xs text-gray-500">TOU Plan (Solar + Battery)</div>
-                  <div className="text-2xl font-bold text-green-600">
-                    ${(touData.combined?.projection?.netProfit25Year ?? touData.projection.netProfit25Year).toLocaleString()}
-                  </div>
-                 </div>
-                 <div className="border-t border-gray-200 pt-2">
-                   <div className="text-xs text-gray-500">ULO Plan (Solar + Battery)</div>
-                  <div className="text-2xl font-bold text-green-600">
-                    ${(uloData.combined?.projection?.netProfit25Year ?? uloData.projection.netProfit25Year).toLocaleString()}
-                  </div>
-                 </div>
-               </div>
-             </div>
-           </div>
+            </div>
+          </div>
+            )
+          })()}
+
 
            {/* Detailed Cost Breakdown - Side by Side */}
+          {/* Friendly toggle so homeowners can hide the cost comparison tables */}
+          <div className="flex items-center justify-between mt-8 mb-4">
+            <h3 className="text-lg font-bold text-navy-600">Detailed Cost Comparison</h3>
+            <button
+              type="button"
+              onClick={() => setShowCostTables(prev => !prev)}
+              className="px-4 py-2 text-sm font-semibold rounded-full border-2 border-navy-300 text-navy-600 hover:bg-navy-50 transition-colors"
+            >
+              {showCostTables ? 'Hide Before/After Tables' : 'Show Before/After Tables'}
+            </button>
+          </div>
+
+          {showCostTables && (() => {
+            const touBreakdown = touData?.combined?.breakdown
+            const touRatePlan = getCustomTouRatePlan()
+            const touRates = {
+              offPeak: (touRatePlan.periods.find(p => p.period === 'off-peak')?.rate ?? touRatePlan.weekendRate ?? 9.8) / 100,
+              midPeak: (touRatePlan.periods.find(p => p.period === 'mid-peak')?.rate ?? 15.7) / 100,
+              onPeak: (touRatePlan.periods.find(p => p.period === 'on-peak')?.rate ?? 20.3) / 100,
+            }
+
+            const touAfterDisplay = touBreakdown
+              ? {
+                  offPeak: (touBreakdown.usageAfterBattery.offPeak || 0) * touRates.offPeak,
+                  midPeak: (touBreakdown.usageAfterBattery.midPeak || 0) * touRates.midPeak,
+                  onPeak: (touBreakdown.usageAfterBattery.onPeak || 0) * touRates.onPeak,
+                  total: ((touBreakdown.usageAfterBattery.offPeak || 0) * touRates.offPeak) +
+                         ((touBreakdown.usageAfterBattery.midPeak || 0) * touRates.midPeak) +
+                         ((touBreakdown.usageAfterBattery.onPeak || 0) * touRates.onPeak)
+                }
+              : {
+                  offPeak: touData?.result?.newCost.offPeak ?? 0,
+                  midPeak: touData?.result?.newCost.midPeak ?? 0,
+                  onPeak: touData?.result?.newCost.onPeak ?? 0,
+                  total: touData?.result?.newCost.total ?? 0,
+                }
+
+            const uloBreakdown = uloData?.combined?.breakdown
+            const uloRatePlan = getCustomUloRatePlan()
+            const uloRates = {
+              ultraLow: (uloRatePlan.periods.find(p => p.period === 'ultra-low')?.rate ?? 3.9) / 100,
+              offPeak: (uloRatePlan.periods.find(p => p.period === 'off-peak')?.rate ?? uloRatePlan.weekendRate ?? 9.8) / 100,
+              midPeak: (uloRatePlan.periods.find(p => p.period === 'mid-peak')?.rate ?? 15.7) / 100,
+              onPeak: (uloRatePlan.periods.find(p => p.period === 'on-peak')?.rate ?? 39.1) / 100,
+            }
+
+            const uloAfterDisplay = uloBreakdown
+              ? {
+                  ultraLow: (uloBreakdown.usageAfterBattery.ultraLow || 0) * uloRates.ultraLow,
+                  offPeak: (uloBreakdown.usageAfterBattery.offPeak || 0) * uloRates.offPeak,
+                  midPeak: (uloBreakdown.usageAfterBattery.midPeak || 0) * uloRates.midPeak,
+                  onPeak: (uloBreakdown.usageAfterBattery.onPeak || 0) * uloRates.onPeak,
+                  total:
+                    ((uloBreakdown.usageAfterBattery.ultraLow || 0) * uloRates.ultraLow) +
+                    ((uloBreakdown.usageAfterBattery.offPeak || 0) * uloRates.offPeak) +
+                    ((uloBreakdown.usageAfterBattery.midPeak || 0) * uloRates.midPeak) +
+                    ((uloBreakdown.usageAfterBattery.onPeak || 0) * uloRates.onPeak),
+                }
+              : {
+                  ultraLow: uloData?.result?.newCost.ultraLow ?? 0,
+                  offPeak: uloData?.result?.newCost.offPeak ?? 0,
+                  midPeak: uloData?.result?.newCost.midPeak ?? 0,
+                  onPeak: uloData?.result?.newCost.onPeak ?? 0,
+                  total: uloData?.result?.newCost.total ?? 0,
+                }
+
+            return (
            <div className="grid md:grid-cols-2 gap-6 mb-6">
              {/* TOU Cost Breakdown */}
             <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-300 hover:border-navy-300 transition-all">
@@ -2126,20 +2301,23 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                    <div className="space-y-2 text-sm">
                      <div className="flex justify-between">
                        <span>Off-Peak:</span>
-                       <span className="font-semibold">${touData.result.newCost.offPeak.toFixed(2)}</span>
+                      <span className="font-semibold">${touAfterDisplay.offPeak.toFixed(2)}</span>
                      </div>
                      <div className="flex justify-between">
                        <span>Mid-Peak:</span>
-                       <span className="font-semibold">${touData.result.newCost.midPeak.toFixed(2)}</span>
+                      <span className="font-semibold">${touAfterDisplay.midPeak.toFixed(2)}</span>
                      </div>
                      <div className="flex justify-between">
                        <span>On-Peak:</span>
-                       <span className="font-semibold">${touData.result.newCost.onPeak.toFixed(2)}</span>
+                      <span className="font-semibold">${touAfterDisplay.onPeak.toFixed(2)}</span>
                      </div>
                      <div className="flex justify-between pt-2 border-t border-gray-300 font-bold text-green-600">
                        <span>Total:</span>
-                       <span>${touData.result.newCost.total.toFixed(2)}</span>
+                      <span>${touAfterDisplay.total.toFixed(2)}</span>
                      </div>
+                    <div className="text-[11px] text-gray-500 italic">
+                      Battery-charged kilowatt-hours settle into the off-peak bucket, so weekday mid/on-peak line items fall to $0.
+                    </div>
                    </div>
                  </div>
                </div>
@@ -2217,25 +2395,28 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                      {uloData.result.newCost.ultraLow !== undefined && (
                        <div className="flex justify-between">
                          <span>Ultra-Low:</span>
-                         <span className="font-semibold">${uloData.result.newCost.ultraLow?.toFixed(2)}</span>
+                        <span className="font-semibold">${uloAfterDisplay.ultraLow.toFixed(2)}</span>
                        </div>
                      )}
                      <div className="flex justify-between">
                        <span>Weekend:</span>
-                       <span className="font-semibold">${uloData.result.newCost.offPeak.toFixed(2)}</span>
+                      <span className="font-semibold">${uloAfterDisplay.offPeak.toFixed(2)}</span>
                      </div>
                      <div className="flex justify-between">
                        <span>Mid-Peak:</span>
-                       <span className="font-semibold">${uloData.result.newCost.midPeak.toFixed(2)}</span>
+                      <span className="font-semibold">${uloAfterDisplay.midPeak.toFixed(2)}</span>
                      </div>
                      <div className="flex justify-between">
                        <span>On-Peak:</span>
-                       <span className="font-semibold">${uloData.result.newCost.onPeak.toFixed(2)}</span>
+                      <span className="font-semibold">${uloAfterDisplay.onPeak.toFixed(2)}</span>
                      </div>
                      <div className="flex justify-between pt-2 border-t border-gray-300 font-bold text-green-600">
                        <span>Total:</span>
-                       <span>${uloData.result.newCost.total.toFixed(2)}</span>
+                      <span>${uloAfterDisplay.total.toFixed(2)}</span>
                      </div>
+                    <div className="text-[11px] text-gray-500 italic">
+                      Remaining grid costs live in the weekend/off-peak and ultra-low rows; the peak windows drop to $0 after shifting.
+                    </div>
                    </div>
                  </div>
                </div>
@@ -2260,6 +2441,197 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
               </div>
              </div>
            </div>
+            )
+          })()}
+
+          {/* Solar + Battery combined distribution card for TOU plan */}
+          {(() => {
+            const breakdown = touData.combined?.breakdown
+            if (!breakdown) return null
+
+            const totalUsage = annualUsageKwh || Object.values(breakdown.originalUsage).reduce((sum, v) => sum + v, 0)
+            const solarCapKwh = breakdown.solarCapKwh ?? totalUsage * 0.5
+
+            const periodMeta: Array<{ key: 'midPeak' | 'onPeak' | 'offPeak' | 'ultraLow'; label: string; description: string }> = [
+              { key: 'onPeak', label: 'Weekday On-Peak', description: '7 AM – 11 AM & 5 PM – 7 PM weekdays' },
+              { key: 'midPeak', label: 'Weekday Mid-Peak', description: '11 AM – 5 PM weekdays' },
+              { key: 'offPeak', label: 'Weekend & Off-Peak', description: 'Night + weekend hours' },
+            ]
+
+            return (
+              <div className="card mt-4 mb-6 p-6 bg-gradient-to-br from-blue-50 to-white border-2 border-blue-200 shadow-lg rounded-2xl">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                  <div className="p-3 bg-blue-500 rounded-xl shadow-md">
+                    <BarChart3 className="text-white" size={28} />
+                  </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-blue-700">Solar + Battery Peak-Shaving Distribution (TOU)</h3>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 overflow-x-auto">
+                  <table className="min-w-full divide-y divide-blue-200">
+                    <thead className="bg-blue-100/80">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-blue-800 uppercase tracking-wide">TOU Period</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-blue-800 uppercase tracking-wide">Annual Usage</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-blue-800 uppercase tracking-wide">Solar Allocation</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-blue-800 uppercase tracking-wide">Left After Solar</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-blue-800 uppercase tracking-wide">Battery Applied</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-blue-800 uppercase tracking-wide">Grid After Solar + Battery</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-blue-100">
+                      {periodMeta.map(period => {
+                        const original = breakdown.originalUsage[period.key] || 0
+                        const solar = breakdown.solarAllocation?.[period.key] ?? 0
+                        const leftoverSolar = breakdown.usageAfterSolar[period.key] || 0
+                        const batteryApplied = breakdown.batteryOffsets[period.key] || 0
+                        const gridAfterBattery = breakdown.usageAfterBattery[period.key] || 0
+                        const usagePercent = totalUsage > 0 ? original / totalUsage : 0
+                        const solarPercent = solarCapKwh > 0 ? solar / solarCapKwh : 0
+
+                        return (
+                          <tr key={period.key} className="hover:bg-blue-50 transition-colors">
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-blue-900">{period.label}</div>
+                              <div className="text-[11px] text-blue-600">{period.description}</div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">
+                              <div className="font-bold text-gray-800">{formatKwh(original)}</div>
+                              <div className="text-[11px] text-gray-500">{formatPercent(usagePercent)}</div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">
+                              <div className="font-bold text-green-700">{formatKwh(solar)}</div>
+                              <div className="text-[11px] text-gray-500">{formatPercent(solarPercent)}</div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">
+                              <div className="font-bold text-gray-800">{formatKwh(leftoverSolar)}</div>
+                              <div className="text-[11px] text-gray-500">After solar only</div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">
+                              <div className="font-bold text-navy-600">{formatKwh(batteryApplied)}</div>
+                              <div className="text-[11px] text-gray-500">Battery discharge</div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">
+                              <div className="font-bold text-red-600">{formatKwh(gridAfterBattery)}</div>
+                              <div className="text-[11px] text-gray-500">Purchased from grid</div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-4 p-4 bg-blue-100/70 rounded-xl border border-blue-200 text-sm text-blue-900">
+                  The battery shifts {formatKwh(breakdown.batteryOffsets.midPeak)} of lingering mid-peak energy into the 9.8¢ off-peak window, drawing {formatKwh(breakdown.batteryChargeFromOffPeak ?? breakdown.batteryOffsets.midPeak)} overnight and leaving {formatKwh(breakdown.usageAfterBattery.offPeak + breakdown.usageAfterBattery.ultraLow)} of grid usage entirely at the lowest TOU rate.
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Solar + Battery combined distribution card driven by the new spreadsheet logic */}
+          {(() => {
+            // Pull the combined ULO breakdown that now includes the solar + battery sharing story
+            const breakdown = uloData.combined?.breakdown
+            if (!breakdown) return null
+
+            // Helper to format kilowatt-hours in a friendly way for homeowners reading the table
+            // Helper to format percentages with one decimal place so the row sums are easy to verify at a glance
+            const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
+
+            // Total annual usage keeps all percentage math tidy and mirrors the inputs on the left-hand cards
+            const totalUsage = annualUsageKwh || Object.values(breakdown.originalUsage).reduce((sum, v) => sum + v, 0)
+            // Solar cap (50% of annual usage or production, whichever is smaller) provided by the new client formula
+            const solarCapKwh = breakdown.solarCapKwh ?? totalUsage * 0.5
+            // Lookup describing each ULO bucket in everyday language so the table reads naturally
+            const periodMeta: Array<{ key: 'midPeak' | 'onPeak' | 'offPeak' | 'ultraLow'; label: string; description: string }> = [
+              { key: 'midPeak', label: 'Weekday Mid-Peak', description: '7 AM – 4 PM and 9 PM – 11 PM weekday hours' },
+              { key: 'onPeak', label: 'Weekday On-Peak', description: '4 PM – 9 PM weekday hours' },
+              { key: 'offPeak', label: 'Weekend Off-Peak', description: '7 AM – 11 PM on weekends and statutory holidays' },
+              { key: 'ultraLow', label: 'Ultra-Low Overnight', description: '11 PM – 7 AM every day' },
+            ]
+
+            return (
+              <div className="card mt-4 mb-6 p-6 bg-gradient-to-br from-amber-50 to-white border-2 border-amber-200 shadow-lg rounded-2xl">
+                {/* Warm header with the chart badge that signals this is the combined-story section */}
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-amber-400 rounded-xl shadow-md">
+                      <BarChart3 className="text-white" size={28} />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-amber-700">Solar + Battery Peak-Shaving Distribution</h3>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Table summarising the allocation and leftovers per period */}
+                <div className="mt-6 overflow-x-auto">
+                  <table className="min-w-full divide-y divide-amber-200">
+                    <thead className="bg-amber-100/80">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-amber-800 uppercase tracking-wide">ULO Period</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-amber-800 uppercase tracking-wide">Annual Usage</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-amber-800 uppercase tracking-wide">Solar Allocation</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-amber-800 uppercase tracking-wide">Left After Solar</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-amber-800 uppercase tracking-wide">Battery Applied</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-amber-800 uppercase tracking-wide">Grid After Solar + Battery</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-amber-100">
+                      {periodMeta.map(period => {
+                        const original = breakdown.originalUsage[period.key] || 0
+                        const solar = breakdown.solarAllocation?.[period.key] ?? 0
+                        const leftoverSolar = breakdown.usageAfterSolar[period.key] || 0
+                        const batteryApplied = breakdown.batteryOffsets[period.key] || 0
+                        const gridAfterBattery = breakdown.usageAfterBattery[period.key] || 0
+                        const usagePercent = totalUsage > 0 ? original / totalUsage : 0
+                        const solarPercent = solarCapKwh > 0 ? solar / solarCapKwh : 0
+                        return (
+                          <tr key={period.key} className="hover:bg-amber-50 transition-colors">
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-amber-900">{period.label}</div>
+                              <div className="text-[11px] text-amber-600">{period.description}</div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">
+                              <div className="font-bold text-gray-800">{formatKwh(original)}</div>
+                              <div className="text-[11px] text-gray-500">{formatPercent(usagePercent)}</div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">
+                              <div className="font-bold text-green-700">{formatKwh(solar)}</div>
+                              <div className="text-[11px] text-gray-500">{formatPercent(solarPercent)}</div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">
+                              <div className="font-bold text-gray-800">{formatKwh(leftoverSolar)}</div>
+                              <div className="text-[11px] text-gray-500">After solar only</div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">
+                              <div className="font-bold text-navy-600">{formatKwh(batteryApplied)}</div>
+                              <div className="text-[11px] text-gray-500">Battery discharge</div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">
+                              <div className="font-bold text-red-600">{formatKwh(gridAfterBattery)}</div>
+                              <div className="text-[11px] text-gray-500">Purchased from grid</div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Quick takeaway row so readers understand why overnight energy grows */}
+                <div className="mt-4 p-4 bg-amber-100/70 rounded-xl border border-amber-200 text-sm text-amber-900">
+                  The battery soaks up {formatKwh(breakdown.batteryOffsets.midPeak + breakdown.batteryOffsets.onPeak + breakdown.batteryOffsets.offPeak)} of leftover mid/on/weekend usage and recharges overnight at the ultra-low rate, leaving {formatKwh(breakdown.usageAfterBattery.ultraLow)} of grid energy entirely in the cheapest bucket.
+                </div>
+              </div>
+            )
+          })()}
+
 
            {/* Full Calculation Breakdown - Card Layout */}
            {(touData.result || uloData.result) && (
