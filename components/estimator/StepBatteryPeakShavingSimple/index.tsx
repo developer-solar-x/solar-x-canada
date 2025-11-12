@@ -41,6 +41,68 @@ import {
   SolarSystemCard,
 } from './sections'
 
+type LeftoverBreakdown = {
+  ultraLow?: number
+  offPeak: number
+  midPeak: number
+  onPeak: number
+}
+
+function clampBreakdown(
+  breakdown: LeftoverBreakdown | undefined,
+  targetTotal: number,
+  order: Array<'ultraLow' | 'offPeak' | 'midPeak' | 'onPeak'>,
+  caps?: Partial<Record<'ultraLow' | 'offPeak' | 'midPeak' | 'onPeak', number>>
+) {
+  const safeBreakdown: LeftoverBreakdown = {
+    ultraLow: Math.max(0, breakdown?.ultraLow ?? 0),
+    offPeak: Math.max(0, breakdown?.offPeak ?? 0),
+    midPeak: Math.max(0, breakdown?.midPeak ?? 0),
+    onPeak: Math.max(0, breakdown?.onPeak ?? 0),
+  }
+
+  if (targetTotal <= 0) {
+    return {
+      ultraLow: 0,
+      offPeak: 0,
+      midPeak: 0,
+      onPeak: 0,
+    }
+  }
+
+  let remaining = targetTotal
+  const result: LeftoverBreakdown = { ultraLow: 0, offPeak: 0, midPeak: 0, onPeak: 0 }
+
+  // First pass respects caps (max shift per period)
+  order.forEach(period => {
+    if (remaining <= 0) return
+    const available = safeBreakdown[period] ?? 0
+    if (available <= 0) return
+    const cap = caps?.[period]
+    const allowed = cap != null ? Math.max(0, Math.min(cap, available)) : available
+    if (allowed <= 0) return
+    const allocation = Math.min(allowed, remaining)
+    result[period] = allocation
+    remaining -= allocation
+  })
+
+  // Second pass uses any leftover room without caps so totals always reconcile
+  if (remaining > 0) {
+    order.forEach(period => {
+      if (remaining <= 0) return
+      const available = safeBreakdown[period] ?? 0
+      const alreadyAllocated = result[period] ?? 0
+      const spaceLeft = Math.max(0, available - alreadyAllocated)
+      if (spaceLeft <= 0) return
+      const allocation = Math.min(spaceLeft, remaining)
+      result[period] = alreadyAllocated + allocation
+      remaining -= allocation
+    })
+  }
+
+  return result
+}
+
 export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualMode = false }: StepBatteryPeakShavingSimpleProps) {
   // Info modals for rate plans
   const [showTouInfo, setShowTouInfo] = useState(false)
@@ -2080,7 +2142,30 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                   const touOriginalBill = touData.result.originalCost.total || 1
                   const touLeftoverCostPercent = ((touLowRateEnergyKwh * touLeftoverRate) / touOriginalBill) * 100
                   const touTotalSavingsPercent = Math.max(0, 100 - touLeftoverCostPercent)
-                  const touSavingsKwhEquivalent = (annualUsageKwh * touTotalSavingsPercent) / 100
+                  // Keep the storytelling grounded by anchoring to the original peak-priced usage
+                  const touPeakPricedUsageKwh =
+                    (touData.result.usageByPeriod.onPeak ?? 0) +
+                    (touData.result.usageByPeriod.midPeak ?? 0)
+                  // Translate the savings percentage into a relatable kWh figure
+                  const touSavingsKwhEquivalentRaw = (annualUsageKwh * touTotalSavingsPercent) / 100
+                  const touSavingsKwhEquivalent = Math.min(touPeakPricedUsageKwh, touSavingsKwhEquivalentRaw)
+                  const touPostProgramsOffPeakUsage =
+                    (touData.result.usageByPeriod.offPeak ?? 0) +
+                    touAdjustedGridCharge
+                  const touOffPeakRoomForRemainder = Math.max(
+                    0,
+                    (annualUsageKwh * (touDistribution.offPeakPercent / 100)) - touPostProgramsOffPeakUsage
+                  )
+                  const touOffPeakCap = Math.min(
+                    touLeftoverKwh,
+                    touOffPeakRoomForRemainder + (annualUsageKwh * 0.05)
+                  )
+                  const touLeftoverBreakdown = clampBreakdown(
+                    touData.result.leftoverEnergy.breakdown,
+                    touLeftoverKwh,
+                    ['offPeak', 'midPeak', 'onPeak'],
+                    { offPeak: touOffPeakCap }
+                  )
                   
                   // Easy comparables for average bill rate before and after battery support
                   const touOriginalEffectiveRate = annualUsageKwh > 0 ? (touOriginalBill / annualUsageKwh) * 100 : 0
@@ -2226,7 +2311,13 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                               </div>
                             </div>
                             <div className="text-xs text-gray-600 pl-7">Battery top-up {touAdjustedGridCharge.toFixed(0)} kWh + small remainder {touLeftoverKwh.toFixed(0)} kWh</div>
-                            <div className="text-[11px] text-gray-500 pl-7">All of this energy is billed at the cheap overnight rate.</div>
+                            <div className="text-[11px] text-gray-500 pl-7">
+                              Blended rate {(touLeftoverRate * 100).toFixed(2)}¢/kWh • Remainder {touLeftoverKwh.toFixed(0)} kWh allocated:
+                              {touLeftoverBreakdown.offPeak > 0 && ` ${touLeftoverBreakdown.offPeak.toFixed(0)} kWh off-peak`}
+                              {touLeftoverBreakdown.midPeak > 0 && `, ${touLeftoverBreakdown.midPeak.toFixed(0)} kWh mid-peak`}
+                              {touLeftoverBreakdown.onPeak > 0 && `, ${touLeftoverBreakdown.onPeak.toFixed(0)} kWh on-peak`}
+                              {touAdjustedGridCharge > 0 && ` • Battery top-up ${touAdjustedGridCharge.toFixed(0)} kWh charged off-peak`}
+                            </div>
                           </div>
 
                           {/* Calm card sharing how the savings show up on the bill */}
@@ -2239,7 +2330,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                               </div>
                             </div>
                             <div className="text-xs text-gray-600 pl-7">
-                              Savings can exceed offset because any remaining energy is bought at ultra-low or off-peak rates.
+                              Savings can exceed offset because remaining energy is prioritized for cheaper rate periods.
                             </div>
                           </div>
 
@@ -2255,7 +2346,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                             <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
                               <Info size={14} className="text-navy-500 flex-shrink-0" />
                               <span className="text-xs text-gray-600">
-                                Low-rate energy priced at {(touLeftoverRate * 100).toFixed(2)}¢/kWh: battery top-up {touAdjustedGridCharge.toFixed(0)} kWh + small remainder {touLeftoverKwh.toFixed(0)} kWh • vs on-peak {touOnPeakRate.toFixed(2)}¢/kWh.
+                                Blended rate {(touLeftoverRate * 100).toFixed(2)}¢/kWh: battery top-up {touAdjustedGridCharge.toFixed(0)} kWh + remainder {touLeftoverKwh.toFixed(0)} kWh (allocated to cheapest available hours) • vs on-peak {touOnPeakRate.toFixed(2)}¢/kWh.
                               </span>
                             </div>
                           </div>
@@ -2346,7 +2437,18 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                   const uloOriginalBill = uloData.result.originalCost.total || 1
                   const uloLeftoverCostPercent = ((uloLowRateEnergyKwh * uloLeftoverRate) / uloOriginalBill) * 100
                   const uloTotalSavingsPercent = Math.max(0, 100 - uloLeftoverCostPercent)
-                  const uloSavingsKwhEquivalent = (annualUsageKwh * uloTotalSavingsPercent) / 100
+                  // Keep the storytelling grounded by anchoring to the original peak-priced usage
+                  const uloPeakPricedUsageKwh =
+                    (uloData.result.usageByPeriod.onPeak ?? 0) +
+                    (uloData.result.usageByPeriod.midPeak ?? 0)
+                  // Translate the savings percentage into a relatable kWh figure
+                  const uloSavingsKwhEquivalentRaw = (annualUsageKwh * uloTotalSavingsPercent) / 100
+                  const uloSavingsKwhEquivalent = Math.min(uloPeakPricedUsageKwh, uloSavingsKwhEquivalentRaw)
+                  const uloLeftoverBreakdown = clampBreakdown(
+                    uloData.result.leftoverEnergy.breakdown,
+                    uloLeftoverKwh,
+                    ['ultraLow', 'offPeak', 'midPeak', 'onPeak']
+                  )
                   
                   // Easy comparables for average bill rate before and after battery support
                   const uloOriginalEffectiveRate = annualUsageKwh > 0 ? (uloOriginalBill / annualUsageKwh) * 100 : 0
@@ -2493,7 +2595,14 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                               </div>
                             </div>
                             <div className="text-xs text-gray-600 pl-7">Battery top-up {uloAdjustedGridCharge.toFixed(0)} kWh + small remainder {uloLeftoverKwh.toFixed(0)} kWh</div>
-                            <div className="text-[11px] text-gray-500 pl-7">All billed at the ultra-low overnight price.</div>
+                            <div className="text-[11px] text-gray-500 pl-7">
+                              Blended rate {(uloLeftoverRate * 100).toFixed(2)}¢/kWh • Remainder {uloLeftoverKwh.toFixed(0)} kWh allocated:
+                              {uloLeftoverBreakdown.ultraLow > 0 && ` ${uloLeftoverBreakdown.ultraLow.toFixed(0)} kWh ultra-low`}
+                              {uloLeftoverBreakdown.offPeak > 0 && `, ${uloLeftoverBreakdown.offPeak.toFixed(0)} kWh off-peak`}
+                              {uloLeftoverBreakdown.midPeak > 0 && `, ${uloLeftoverBreakdown.midPeak.toFixed(0)} kWh mid-peak`}
+                              {uloLeftoverBreakdown.onPeak > 0 && `, ${uloLeftoverBreakdown.onPeak.toFixed(0)} kWh on-peak`}
+                              {uloAdjustedGridCharge > 0 && ` • Battery top-up ${uloAdjustedGridCharge.toFixed(0)} kWh charged ultra-low`}
+                            </div>
                           </div>
 
                           {/* Calm card sharing how the savings show up on the bill */}
@@ -2506,7 +2615,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                               </div>
                             </div>
                             <div className="text-xs text-gray-600 pl-7">
-                              Savings can exceed offset because any remaining energy is bought at ultra-low overnight rates.
+                              Savings can exceed offset because remaining energy is prioritized for cheaper rate periods.
                             </div>
                           </div>
 
@@ -2522,7 +2631,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                             <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
                               <Info size={14} className="text-navy-500 flex-shrink-0" />
                               <span className="text-xs text-gray-600">
-                                Charged at your cheapest rate {(uloLeftoverRate * 100).toFixed(2)}¢/kWh: battery top-up {uloAdjustedGridCharge.toFixed(0)} kWh + small remainder {uloLeftoverKwh.toFixed(0)} kWh • vs on-peak {uloOnPeakRate.toFixed(2)}¢/kWh.
+                                Blended rate {(uloLeftoverRate * 100).toFixed(2)}¢/kWh: battery top-up {uloAdjustedGridCharge.toFixed(0)} kWh + remainder {uloLeftoverKwh.toFixed(0)} kWh (allocated to cheapest available hours) • vs on-peak {uloOnPeakRate.toFixed(2)}¢/kWh.
                               </span>
                             </div>
                           </div>

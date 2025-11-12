@@ -75,7 +75,13 @@ export interface SimplePeakShavingResult {
     consumptionPercent: number  // % of total consumption (e.g., 17.15%)
     costAtOffPeak: number  // Cost of leftover at off-peak rates
     costPercent: number  // % of original cost (e.g., 4.2875%)
-    ratePerKwh: number  // Rate per kWh charged for leftover energy (ultra-low or off-peak)
+    ratePerKwh: number  // Blended rate per kWh charged for leftover energy
+    breakdown: {  // How leftover energy is distributed across rate periods
+      ultraLow: number
+      offPeak: number
+      midPeak: number
+      onPeak: number
+    }
   }
 }
 
@@ -333,9 +339,51 @@ export function calculateSimplePeakShaving(
   const leftoverEnergyKwh = Math.max(0, annualUsageKwh - combinedOffsetKwh)
   const leftoverConsumptionPercent = (leftoverEnergyKwh / annualUsageKwh) * 100
   
-  // Cost leftover at the cheapest available rate (ultra-low if present, else off-peak)
-  const leftoverRatePerKwh = rates.ultraLow > 0 ? rates.ultraLow : rates.offPeak
-  const leftoverCostAtOffPeak = leftoverEnergyKwh * leftoverRatePerKwh
+  // Allocate leftover energy to periods, prioritizing cheapest rates first, up to period capacity
+  // This is realistic because people can shift some usage to cheap hours but there's a physical limit
+  let remainingLeftover = leftoverEnergyKwh
+  const leftoverByPeriod = { ultraLow: 0, offPeak: 0, midPeak: 0, onPeak: 0 }
+  
+  // Period capacities based on usage distribution (maximum kWh that can be consumed in each period)
+  const periodCapacity = {
+    ultraLow: dist.ultraLowPercent ? (annualUsageKwh * dist.ultraLowPercent / 100) : 0,
+    offPeak: annualUsageKwh * dist.offPeakPercent / 100,
+    midPeak: annualUsageKwh * dist.midPeakPercent / 100,
+    onPeak: annualUsageKwh * dist.onPeakPercent / 100
+  }
+  
+  // Fill ultra-low first (if available in the rate plan)
+  if (rates.ultraLow > 0 && remainingLeftover > 0) {
+    leftoverByPeriod.ultraLow = Math.min(remainingLeftover, periodCapacity.ultraLow)
+    remainingLeftover -= leftoverByPeriod.ultraLow
+  }
+  
+  // Then fill off-peak
+  if (remainingLeftover > 0) {
+    leftoverByPeriod.offPeak = Math.min(remainingLeftover, periodCapacity.offPeak)
+    remainingLeftover -= leftoverByPeriod.offPeak
+  }
+  
+  // Then fill mid-peak (spillover from cheap hours)
+  if (remainingLeftover > 0) {
+    leftoverByPeriod.midPeak = Math.min(remainingLeftover, periodCapacity.midPeak)
+    remainingLeftover -= leftoverByPeriod.midPeak
+  }
+  
+  // Finally fill on-peak (last resort)
+  if (remainingLeftover > 0) {
+    leftoverByPeriod.onPeak = Math.min(remainingLeftover, periodCapacity.onPeak)
+  }
+  
+  // Calculate blended cost based on waterfall allocation
+  const leftoverCostAtOffPeak = 
+    leftoverByPeriod.ultraLow * rates.ultraLow +
+    leftoverByPeriod.offPeak * rates.offPeak +
+    leftoverByPeriod.midPeak * rates.midPeak +
+    leftoverByPeriod.onPeak * rates.onPeak
+  
+  // Calculate the effective blended rate for leftover energy
+  const leftoverRatePerKwh = leftoverEnergyKwh > 0 ? leftoverCostAtOffPeak / leftoverEnergyKwh : 0
   
   // Express leftover cost as a percentage of the original total cost
   const baseTotalCost = originalCost.total
@@ -356,7 +404,8 @@ export function calculateSimplePeakShaving(
       consumptionPercent: leftoverConsumptionPercent,
       costAtOffPeak: leftoverCostAtOffPeak,
       costPercent: leftoverCostPercent,
-      ratePerKwh: leftoverRatePerKwh
+      ratePerKwh: leftoverRatePerKwh,
+      breakdown: leftoverByPeriod
     }
   }
 }

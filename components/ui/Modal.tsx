@@ -4,6 +4,7 @@
 
 import { X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 interface ModalProps {
   isOpen: boolean
@@ -32,42 +33,52 @@ export function Modal({
   const scrollPositionRef = useRef(0)
   // Dynamically offset the modal so it opens close to where the user was interacting
   const [modalMarginTop, setModalMarginTop] = useState(64)
+  // Keep a handle on the scrollable wrapper so we can reset its scroll when reopening
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
 
-  // Close on Escape key
+  // Track if we're mounted on the client (for portal rendering)
+  const [mounted, setMounted] = useState(false)
+
   useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Close on Escape key and manage scroll lock
+  useEffect(() => {
+    // Whenever the modal closes we instantly reset the margin so the next open starts in view
+    if (!isOpen) {
+      setModalMarginTop(72) // Default cushion keeps the header visible without forcing extra scrolling
+      return
+    }
+
+    // Light listener so the Escape key can close the modal without hunting for the button
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
-    
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape)
-      scrollPositionRef.current = window.scrollY // Save where the viewer currently is
-      // Keep the modal within the viewport while nudging it near the trigger point
-      const preferredTop = window.scrollY - window.innerHeight * 0.15
-      setModalMarginTop(
-        Math.max(48, Math.min(preferredTop, window.scrollY + window.innerHeight * 0.25))
-      )
-      document.body.style.position = 'fixed' // Lock the body so it does not shift
-      document.body.style.top = `-${scrollPositionRef.current}px` // Counteract the natural jump to the top
-      document.body.style.left = '0' // Keep the layout anchored to the left edge
-      document.body.style.right = '0' // Keep the layout anchored to the right edge
-      document.body.style.width = '100%' // Prevent any horizontal shrink
-      document.body.style.overflow = 'hidden' // Hide scrollbars while the modal is active
-    }
-    
-    return () => {
-      document.removeEventListener('keydown', handleEscape)
-      document.body.style.position = '' // Allow the body to behave normally again
-      document.body.style.top = '' // Clear the temporary top offset
-      document.body.style.left = '' // Clear the temporary left lock
-      document.body.style.right = '' // Clear the temporary right lock
-      document.body.style.width = '' // Reset the width to default behaviour
-      document.body.style.overflow = 'unset' // Restore scrolling
-      window.scrollTo(0, scrollPositionRef.current) // Return the viewer to their original spot
-    }
-  }, [isOpen, onClose])
 
-  if (!isOpen) return null
+    document.addEventListener('keydown', handleEscape) // Attach the keyboard shortcut once we open the dialog
+    scrollPositionRef.current = window.scrollY // Capture the visitor's current scroll position for later restoration
+
+    // Keep the modal within the viewport while nudging it near the trigger point
+    setModalMarginTop(72) // Give the dialog a gentle top cushion so it appears immediately without extra scrolling
+
+    // Reset the scroll container so each modal opens from the top instead of remembering the last position
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0
+    }
+
+    // Lock background scroll - simpler approach that doesn't shift content
+    const previousBodyOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden' // Hide scrollbars to prevent background scrolling
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape) // Remove the keyboard listener once the dialog closes
+      document.body.style.overflow = previousBodyOverflow // Restore the previous overflow state
+      // No need to restore scroll position since we're not manipulating it
+    }
+  }, [isOpen, onClose]) // Depend on visibility and the provided close handler so behaviour stays in sync
+
+  if (!isOpen || !mounted) return null
 
   // Get colors based on variant
   const variantStyles = {
@@ -108,8 +119,12 @@ export function Modal({
   }
 
   // This wrapper keeps the modal tethered to the viewer's current spot instead of the global center
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto">
+  // Use portal to render at document body level, escaping any parent container constraints
+  const modalContent = (
+    <div
+      ref={scrollContainerRef}
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto"
+    >
       {/* Backdrop - gently dims everything behind the dialog */}
       <div 
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -171,5 +186,10 @@ export function Modal({
       </div>
     </div>
   )
+
+  // Render modal via portal to document.body to escape parent container constraints
+  // This ensures modals display properly even when parent containers have transform/overflow constraints
+  if (typeof document === 'undefined') return null
+  return createPortal(modalContent, document.body)
 }
 
