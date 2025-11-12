@@ -17,7 +17,7 @@ Battery Offsets = Most Expensive Periods First
 Savings = Original Cost - New Cost
 ```
 
-### **2. Clean UI** (`components/estimator/StepBatteryPeakShavingSimple.tsx`)
+### **2. Clean UI** (`components/estimator/StepBatteryPeakShavingSimple/index.tsx`)
 - Annual usage input
 - Rate plan selector (TOU/ULO)
 - **Manual % distribution inputs** (Off-Peak, Mid-Peak, On-Peak)
@@ -304,7 +304,7 @@ $1,799.98/year   →  $1,024.50/year
 ```bash
 # The files are ready:
 - lib/simple-peak-shaving.ts
-- components/estimator/StepBatteryPeakShavingSimple.tsx
+- components/estimator/StepBatteryPeakShavingSimple/index.tsx
 ```
 
 ### **2. Replace in your estimator flow:**

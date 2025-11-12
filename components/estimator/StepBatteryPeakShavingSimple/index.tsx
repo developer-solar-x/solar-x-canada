@@ -1,20 +1,19 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { Battery, DollarSign, TrendingUp, Calendar, ArrowRight, Check, ChevronDown, Percent, Zap, Clock, Info, TrendingDown, BarChart3, Lightbulb, Home, Moon, Sun, Award, AlertTriangle, Plus, X } from 'lucide-react'
-import { Modal } from '../ui/Modal'
+import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react'
+import { Battery, DollarSign, TrendingUp, Calendar, ArrowRight, Check, ChevronDown, Percent, Zap, Clock, Info, TrendingDown, BarChart3, Home, Moon, Sun, Award, AlertTriangle, Plus, X } from 'lucide-react'
 import { 
   BATTERY_SPECS, 
   BatterySpec, 
   calculateBatteryFinancials 
-} from '../../config/battery-specs'
+} from '@/config/battery-specs'
 import { 
   RATE_PLANS, 
   RatePlan, 
   ULO_RATE_PLAN, 
   TOU_RATE_PLAN 
-} from '../../config/rate-plans'
-import { calculateSystemCost } from '../../config/pricing'
+} from '@/config/rate-plans'
+import { calculateSystemCost } from '@/config/pricing'
 import {
   calculateSimplePeakShaving,
   calculateSimpleMultiYear,
@@ -25,45 +24,22 @@ import {
   DEFAULT_ULO_DISTRIBUTION,
   SimplePeakShavingResult,
   computeSolarBatteryOffsetCap,
-} from '../../lib/simple-peak-shaving'
-
-interface StepBatteryPeakShavingSimpleProps {
-  data: any
-  onComplete: (data: any) => void
-  onBack: () => void
-  // Enable inline manual production editing without duplicating the UI
-  manualMode?: boolean
-}
-
-// This shared shape keeps the combined savings data tidy across the TOU and ULO maps
-type CombinedPlanResult = {
-  annual: number
-  monthly: number
-  projection: any
-  netCost: number
-  baselineAnnualBill?: number // Includes delivery/fixed fees
-  postAnnualBill?: number // Includes delivery/fixed fees
-  baselineAnnualBillEnergyOnly?: number // Energy-only baseline (matches ChatGPT format)
-  postSolarBatteryAnnualBillEnergyOnly?: number // Energy-only final cost (matches ChatGPT format)
-  solarOnlyAnnual?: number
-  batteryAnnual?: number
-  solarNetCost?: number
-  solarRebateApplied?: number
-  batteryNetCost?: number
-  batteryRebateApplied?: number
-  batteryGrossCost?: number
-  solarProductionKwh?: number // Remember the solar production we modeled so readers can see it later
-  breakdown?: {
-    originalUsage: Record<'midPeak' | 'onPeak' | 'offPeak' | 'ultraLow', number>
-    usageAfterSolar: Record<'midPeak' | 'onPeak' | 'offPeak' | 'ultraLow', number>
-    usageAfterBattery: Record<'midPeak' | 'onPeak' | 'offPeak' | 'ultraLow', number>
-    solarAllocation?: Record<'midPeak' | 'onPeak' | 'offPeak' | 'ultraLow', number>
-    batteryOffsets: Record<'midPeak' | 'onPeak' | 'offPeak' | 'ultraLow', number>
-    batteryChargeFromUltraLow?: number
-    batteryChargeFromOffPeak?: number
-    solarCapKwh?: number
-  }
-}
+} from '@/lib/simple-peak-shaving'
+import type { CombinedPlanResult, StepBatteryPeakShavingSimpleProps, PlanResultMap } from './types'
+import {
+  AnnualSavingsModal,
+  PaybackInfoModal,
+  ProfitInfoModal,
+  TouInfoModal,
+  TouSavingsBreakdownModal,
+  UloInfoModal,
+  UloSavingsBreakdownModal,
+} from './modals'
+import {
+  HeaderSection,
+  MonthlyBillCard,
+  SolarSystemCard,
+} from './sections'
 
 export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualMode = false }: StepBatteryPeakShavingSimpleProps) {
   // Info modals for rate plans
@@ -99,7 +75,55 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
   // State
   // Allow blank input by storing as string; derive numeric where needed (SSR-safe)
   const [annualUsageInput, setAnnualUsageInput] = useState<string>(defaultUsage ? String(defaultUsage) : '')
+  const annualUsageScrollRef = useRef<{ scrollY: number; elementTop: number } | null>(null)
+  const annualUsageInputRef = useRef<HTMLInputElement | null>(null)
   const annualUsageKwh = Math.max(0, Number(annualUsageInput) || 0)
+  // Persist and restore scroll position so returning to the calculator keeps the viewer in context
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return
+    const storageKey = manualMode ? 'manual_peak_shaving_scroll' : 'estimator_peak_shaving_scroll'
+
+    const saved = window.sessionStorage.getItem(storageKey)
+    if (saved) {
+      window.scrollTo(0, Number(saved))
+    }
+
+    const handleScroll = () => {
+      if (document.body.style.position === 'fixed') return
+      window.sessionStorage.setItem(storageKey, String(window.scrollY))
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+    }
+  }, [manualMode])
+
+  // Restore the viewer's scroll position after annual usage edits so the page doesn't jump to the top
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return
+    if (annualUsageScrollRef.current == null) return
+    const { scrollY, elementTop } = annualUsageScrollRef.current
+    const currentTop = annualUsageInputRef.current?.getBoundingClientRect().top ?? elementTop
+    const adjustment = currentTop - elementTop
+    window.scrollTo(0, scrollY + adjustment)
+    annualUsageScrollRef.current = null
+  }, [annualUsageInput])
+
+  const handleAnnualUsageChange = (value: string) => {
+    if (typeof window !== 'undefined') {
+      if (document.body.style.position !== 'fixed') {
+        const elementTop = annualUsageInputRef.current?.getBoundingClientRect().top ?? 0
+        annualUsageScrollRef.current = {
+          scrollY: window.scrollY,
+          elementTop,
+        }
+        const storageKey = manualMode ? 'manual_peak_shaving_scroll' : 'estimator_peak_shaving_scroll'
+        window.sessionStorage.setItem(storageKey, String(window.scrollY))
+      }
+    }
+    setAnnualUsageInput(value)
+  }
   // This value keeps a simple blended electricity rate handy when we have to estimate bills from usage
   const assumedAverageRate = 0.223
   // This figure mirrors the bill card so every section references the same current monthly bill
@@ -110,9 +134,9 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
   const [touDistribution, setTouDistribution] = useState<UsageDistribution>(DEFAULT_TOU_DISTRIBUTION)
   const [uloDistribution, setUloDistribution] = useState<UsageDistribution>(DEFAULT_ULO_DISTRIBUTION)
   // This state holds the TOU simulations including the combo view so values stay in sync across the screen
-  const [touResults, setTouResults] = useState<Map<string, {result: SimplePeakShavingResult, projection: any, combined?: CombinedPlanResult}>>(new Map())
+  const [touResults, setTouResults] = useState<PlanResultMap>(new Map())
   // This state mirrors the same idea for the ULO plan so both cards get identical treatment
-  const [uloResults, setUloResults] = useState<Map<string, {result: SimplePeakShavingResult, projection: any, combined?: CombinedPlanResult}>>(new Map())
+  const [uloResults, setUloResults] = useState<PlanResultMap>(new Map())
   // This state remembers if the custom rate inputs should be visible for the person using the tool
   const [showCustomRates, setShowCustomRates] = useState(false)
   // This state keeps track of whether the usage breakdown editor is open so folks can hide it when they do not need it
@@ -655,72 +679,19 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="text-center mb-8">
-        <div className="flex flex-col items-center justify-center gap-3 sm:flex-row mb-3 text-center">
-          <div className="p-3 bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg">
-            <Battery className="text-white" size={32} />
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-navy-500">
-            Battery Savings Calculator
-          </h2>
-        </div>
-        <p className="text-base sm:text-lg text-gray-600 flex flex-col sm:flex-row items-center justify-center gap-2">
-          <Lightbulb className="text-navy-500" size={20} />
-          See how much you can save with peak-shaving battery storage
-        </p>
-      </div>
+      <HeaderSection />
 
-      {/* Solar System Information */}
       {data.estimate?.system && (
-        <div className="card p-5 bg-gradient-to-br from-green-50 to-white border-2 border-green-300 shadow-md">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-green-500 rounded-lg">
-              <Sun className="text-white" size={24} />
-            </div>
-            <h3 className="text-lg font-bold text-navy-500">Your Solar System</h3>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <p className="text-xs text-gray-600 font-medium">System Size</p>
-              <p className="text-xl font-bold text-green-600">{(systemSizeKwOverride || data.estimate.system.sizeKw).toFixed(1)} kW</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-600 font-medium">Solar Panels</p>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  value={solarPanels}
-                  min={0}
-                  onChange={(e) => setSolarPanels(Math.max(0, Number(e.target.value)))}
-                  className="w-24 px-2 py-1 border-2 border-green-300 rounded-md text-green-700 font-bold focus:ring-2 focus:ring-green-400 focus:border-green-400"
-                />
-              </div>
-            </div>
-            <div>
-              <p className="text-xs text-gray-600 font-medium">Annual Production</p>
-              {manualMode ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={manualProductionInput}
-                    onChange={(e) => setManualProductionInput(e.target.value)}
-                    className="w-28 px-2 py-1 border-2 border-green-300 rounded-md text-green-700 font-bold focus:ring-2 focus:ring-green-400 focus:border-green-400"
-                  />
-                  <span className="text-sm font-semibold text-green-700">kWh</span>
-                </div>
-              ) : (
-                <p className="text-xl font-bold text-green-600">{Math.round((overrideEstimate?.production?.annualKwh ?? data.estimate.production.annualKwh)).toLocaleString()} kWh</p>
-              )}
-            </div>
-            <div>
-              <p className="text-xs text-gray-600 font-medium">Solar Rebate Available</p>
-              <p className="text-xl font-bold text-green-600">
-                ${Math.min((systemSizeKwOverride || data.estimate.system.sizeKw) * 1000, 5000).toLocaleString()}
-              </p>
-            </div>
-          </div>
-        </div>
+        <SolarSystemCard
+          system={data.estimate.system}
+          systemSizeKwOverride={systemSizeKwOverride}
+          solarPanels={solarPanels}
+          onSolarPanelsChange={(value) => setSolarPanels(value)}
+          manualMode={manualMode}
+          manualProductionInput={manualProductionInput}
+          onManualProductionChange={(value) => setManualProductionInput(value)}
+          annualProductionEstimate={overrideEstimate?.production?.annualKwh ?? data.estimate.production.annualKwh}
+        />
       )}
       
       {/* Note about override */}
@@ -731,680 +702,66 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
       )}
 
       {/* Estimated Monthly Bill */}
-      <div className="card p-5 bg-gradient-to-br from-navy-50 to-gray-50 border-2 border-navy-200 shadow-md">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-navy-500 rounded-lg">
-              <DollarSign className="text-white" size={24} />
-            </div>
-            <div>
-              <p className="text-xs text-gray-600 font-medium">Current Estimated Bill</p>
-              <p className="text-2xl font-bold text-navy-500">
-                ${Math.round(displayedMonthlyBill).toLocaleString()}/month
-              </p>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-gray-600 font-medium">Annual Usage</p>
-            <p className="text-lg font-semibold text-gray-700 flex items-center gap-1">
-              <Zap size={16} className="text-red-500" />
-              {annualUsageKwh.toLocaleString()} kWh
-            </p>
-          </div>
-        </div>
-        {/* Friendly heads-up so folks know this bill includes every utility line item */}
-        <div className="mt-3 text-xs text-gray-500 italic">
-          This monthly estimate includes delivery, regulatory fees, and HST as well as energy usage, so it will be higher than the energy-only savings tables below.
-        </div>
-      </div>
+      <MonthlyBillCard
+        displayedMonthlyBill={displayedMonthlyBill}
+        annualUsageKwh={annualUsageKwh}
+      />
 
       {/* Info Modals */}
       
-      <Modal
-        isOpen={showTouInfo}
+      <TouInfoModal
+        open={showTouInfo}
         onClose={() => setShowTouInfo(false)}
-        title="How We Calculate TOU Peak Shaving"
-        message="This section mirrors the Time-of-Use savings card inside the battery comparison area so you can trace every assumption behind the annual results."
-        variant="info"
-        cancelText="Close"
-      >
-        {(() => {
-          const touEntry = touResults.get('combined')
-          if (!touEntry) {
-            return (
-              <div className="text-sm text-gray-700">
-                We will show the full TOU breakdown as soon as the calculation finishes.
-              </div>
-            )
-          }
-          const formatMoney = (value: number) => `$${value.toFixed(2)}`
-          const formatCents = (value: number) => `${value.toFixed(1)}¢/kWh`
-          const weekdayRates = Array.from(new Map(TOU_RATE_PLAN.periods.map(period => [period.period, period.rate])))
-          const weekendRate = TOU_RATE_PLAN.weekendRate ?? null
-          const batteryPack = selectedBatteries
-            .map(id => BATTERY_SPECS.find(spec => spec.id === id))
-            .filter((spec): spec is BatterySpec => Boolean(spec))
-          const totalUsableKwh = batteryPack.reduce((sum, spec) => sum + spec.usableKwh, 0)
-          const totalInverterKw = batteryPack.reduce((sum, spec) => sum + (spec.inverterKw || 0), 0)
-          const solarProductionKwh = touEntry.combined?.solarProductionKwh ?? (effectiveSolarProductionKwh || 0) // Pull the solar production that fed the combined run
-          const before = touEntry.result.originalCost
-          const after = touEntry.result.newCost
-          const offsets = touEntry.result.batteryOffsets
-          const leftover = touEntry.result.leftoverEnergy
-          const cappedAnnual = touEntry.combined?.annual ?? touEntry.result.annualSavings
-          const solarAnnual = touEntry.combined?.solarOnlyAnnual ?? 0
-          const batteryAnnual = touEntry.combined?.batteryAnnual ?? 0
-          const batteryOnlyAnnual = touResults.get('battery-only')?.result?.annualSavings ?? 0
-          const shiftedKwh = offsets.offPeak + offsets.midPeak + offsets.onPeak + (offsets.ultraLow || 0)
-
-          return (
-            <div className="space-y-5 text-sm text-gray-700">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="text-xs font-semibold text-blue-800 uppercase">Key givens</div>
-                <ul className="mt-2 list-disc ml-5 space-y-1 text-xs text-gray-600">
-                  {weekdayRates.map(([period, rate]) => (
-                    <li key={period}>
-                      {period === 'off-peak'
-                        ? 'Weekday off-peak'
-                        : period === 'mid-peak'
-                        ? 'Weekday mid-peak'
-                        : 'Weekday on-peak'} billed at <span className="font-semibold">{formatCents(rate)}</span>.
-                    </li>
-                  ))}
-                  {weekendRate && (
-                    <li>
-                      Weekends and Ontario holidays priced at <span className="font-semibold">{formatCents(weekendRate)}</span> for every hour.
-                    </li>
-                  )}
-                  <li>
-                    Annual usage modeled: <span className="font-semibold">{annualUsageKwh.toLocaleString()} kWh</span>.
-                  </li>
-                  <li>
-                    Battery stack: <span className="font-semibold">{batteryPack.map(spec => `${spec.brand} ${spec.model}`).join(' + ')}</span> delivering{' '}
-                    <span className="font-semibold">{totalUsableKwh.toFixed(1)} kWh</span> usable storage and{' '}
-                    <span className="font-semibold">{totalInverterKw.toFixed(1)} kW</span> peak discharge.
-                  </li>
-                  <li>
-                    Solar production modeled: <span className="font-semibold">{solarProductionKwh.toLocaleString()} kWh</span>.
-                  </li>
-                  <li>Solar production offsets daytime loads first, then the battery discharges during the morning and evening on-peak windows.</li>
-                </ul>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white border border-gray-200 rounded-lg p-3 text-xs text-gray-600">
-                <div>
-                  <div className="font-semibold text-navy-600 mb-1">Bill without peak shaving</div>
-                  <div>Off-Peak: <span className="font-semibold">{formatMoney(before.offPeak)}</span></div>
-                  <div>Mid-Peak: <span className="font-semibold">{formatMoney(before.midPeak)}</span></div>
-                  <div>On-Peak: <span className="font-semibold">{formatMoney(before.onPeak)}</span></div>
-                  <div className="mt-2 text-red-600 font-semibold">Annual total: {formatMoney(before.total)}</div>
-                </div>
-                <div>
-                  <div className="font-semibold text-navy-600 mb-1">Bill with battery help</div>
-                  <div>Off-Peak: <span className="font-semibold">{formatMoney(after.offPeak)}</span></div>
-                  <div>Mid-Peak: <span className="font-semibold">{formatMoney(after.midPeak)}</span></div>
-                  <div>On-Peak: <span className="font-semibold">{formatMoney(after.onPeak)}</span></div>
-                  <div className="mt-2 text-green-600 font-semibold">Annual total: {formatMoney(after.total)}</div>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-600 space-y-1">
-                <div className="font-semibold text-navy-600">How the comparison card is built</div>
-                <div>Combined annual savings after the winter safeguard: <span className="font-semibold text-navy-600">{formatMoney(cappedAnnual)}</span>.</div>
-                <div>Solar slice inside the cap: <span className="font-semibold text-green-600">{formatMoney(solarAnnual)}</span>.</div>
-                <div>
-                  Battery slice inside the cap (the portion of the savings card credited to the battery after the winter safeguard is applied):{' '}
-                  <span className="font-semibold text-blue-600">{formatMoney(Math.max(batteryAnnual, 0))}</span>.
-                </div>
-                <div>Battery-only result without the cap: <span className="font-semibold text-blue-600">{formatMoney(batteryOnlyAnnual)}</span>.</div>
-                <div>
-                  Energy shifted out of expensive hours: <span className="font-semibold">{shiftedKwh.toFixed(0)} kWh</span>. Remaining grid draw: <span className="font-semibold">{leftover.totalKwh.toFixed(0)} kWh</span> at{' '}
-                  <span className="font-semibold">{formatCents(leftover.ratePerKwh * 100)}</span>, costing <span className="font-semibold">{formatMoney(leftover.costAtOffPeak)}</span>.
-                </div>
-              </div>
-
-              <img
-                src="/TOU.JPG"
-                alt="Time-of-Use (TOU) illustration"
-                className="w-full h-auto rounded-lg border-2 border-gray-200"
-                onError={(e) => {
-                  const el = e.currentTarget as HTMLImageElement
-                  const fallbacks = ['/TOU.jpg', '/TOU.jpeg', '/TOU.png', '/TOU.HPH']
-                  const next = fallbacks.find((path) => path !== el.src.replace(window.location.origin, ''))
-                  if (next) el.src = next
-                }}
-              />
-            </div>
-          )
-        })()}
-      </Modal>
+        annualUsageKwh={annualUsageKwh}
+        touResults={touResults}
+      />
 
       {/* 25-Year Profit Info Modal */}
-      <Modal
-        isOpen={showProfitInfo}
+      <ProfitInfoModal
+        open={showProfitInfo}
         onClose={() => setShowProfitInfo(false)}
-        title="How 25‑Year Profit Is Calculated"
-        message="We extend the same Year‑1 savings curve out to 25 years, then subtract the combined net cost to show the long-term outcome." 
-        variant="info"
-        cancelText="Close"
-      >
-        {(() => {
-          // This helper keeps currency output friendly for folks reading the modal
-          const formatMoney = (value: number) => `$${Math.round(value).toLocaleString()}`
+        touResults={touResults}
+        uloResults={uloResults}
+      />
 
-          // Pull the same combined results used on the main cards so the narrative stays consistent
-          const tou = touResults.get('combined')
-          const ulo = uloResults.get('combined')
-
-          // Extract long-term projection numbers with safe fallbacks
-          const touProjection = tou?.combined?.projection
-          const uloProjection = ulo?.combined?.projection
-          const touTotalSavings = touProjection?.totalSavings25Year ?? 0
-          const uloTotalSavings = uloProjection?.totalSavings25Year ?? 0
-          const touProfit = touProjection?.netProfit25Year ?? 0
-          const uloProfit = uloProjection?.netProfit25Year ?? 0
-          const assumptions = touProjection?.assumptions || uloProjection?.assumptions
-
-          return (
-            <div className="space-y-4 text-sm text-gray-700">
-              <div>
-                <span className="font-semibold">What the model assumes</span>
-                <div className="mt-1 text-xs text-gray-600 ml-1">• Year‑1 savings start with the same capped amount shown on the annual card.</div>
-                <div className="mt-1 text-xs text-gray-600 ml-1">• Long-term projection gently increases utility prices while trimming solar+battery performance to stay realistic.</div>
-                <div className="mt-1 text-xs text-gray-600 ml-1">• Total 25‑year savings add up that adjusted curve; profit simply subtracts the combined net cost.</div>
-              </div>
-
-              {/* TOU Sample */}
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                <div className="text-xs font-semibold text-navy-600 mb-1">Time-of-Use (TOU)</div>
-                <div className="text-xs text-gray-700">Net cost: <span className="font-semibold">{formatMoney(tou?.combined?.netCost ?? 0)}</span></div>
-                <div className="text-xs text-gray-700">25‑Year total savings: <span className="font-semibold text-navy-600">{formatMoney(touTotalSavings)}</span></div>
-                <div className="text-xs text-gray-700">25‑Year profit: <span className="font-semibold text-green-600">{formatMoney(touProfit)}</span></div>
-                <div className="text-[11px] text-gray-600 mt-1">Savings reflect the winter safeguard and the same solar+battery mix from the main view.</div>
-              </div>
-
-              {/* ULO Sample */}
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                <div className="text-xs font-semibold text-navy-600 mb-1">Ultra-Low Overnight (ULO)</div>
-                <div className="text-xs text-gray-700">Net cost: <span className="font-semibold">{formatMoney(ulo?.combined?.netCost ?? 0)}</span></div>
-                <div className="text-xs text-gray-700">25‑Year total savings: <span className="font-semibold text-navy-600">{formatMoney(uloTotalSavings)}</span></div>
-                <div className="text-xs text-gray-700">25‑Year profit: <span className="font-semibold text-green-600">{formatMoney(uloProfit)}</span></div>
-                <div className="text-[11px] text-gray-600 mt-1">Night charging plus the winter safeguard drive the difference versus TOU.</div>
-              </div>
-
-              <div className="text-xs text-gray-600 italic mt-2">
-                Long-term profit is one more way to see the combined effect of capped savings, rate trends, and incentives.</div>
-            </div>
-          )
-        })()}
-      </Modal>
-
-      <Modal
-        isOpen={showUloInfo}
+      <UloInfoModal
+        open={showUloInfo}
         onClose={() => setShowUloInfo(false)}
-        title="How We Calculate ULO Peak Shaving"
-        message="These numbers match the Ultra-Low Overnight savings card so you can double-check the midnight charging model and the winter safeguard split."
-        variant="info"
-        cancelText="Close"
-      >
-        {(() => {
-          const uloEntry = uloResults.get('combined')
-          if (!uloEntry) {
-            return (
-              <div className="text-sm text-gray-700">
-                We will show the ULO breakdown as soon as the calculation finishes.
-              </div>
-            )
-          }
-          const formatMoney = (value: number) => `$${value.toFixed(2)}`
-          const formatCents = (value: number) => `${value.toFixed(1)}¢/kWh`
-          const weekdayRates = Array.from(new Map(ULO_RATE_PLAN.periods.map(period => [period.period, period.rate])))
-          const weekendRate = ULO_RATE_PLAN.weekendRate ?? null
-          const batteryPack = selectedBatteries
-            .map(id => BATTERY_SPECS.find(spec => spec.id === id))
-            .filter((spec): spec is BatterySpec => Boolean(spec))
-          const totalUsableKwh = batteryPack.reduce((sum, spec) => sum + spec.usableKwh, 0)
-          const totalInverterKw = batteryPack.reduce((sum, spec) => sum + (spec.inverterKw || 0), 0)
-          const solarProductionKwh = uloEntry.combined?.solarProductionKwh ?? (effectiveSolarProductionKwh || 0) // Capture the solar production that powered the combined run
-          const before = uloEntry.result.originalCost
-          const after = uloEntry.result.newCost
-          const offsets = uloEntry.result.batteryOffsets
-          const leftover = uloEntry.result.leftoverEnergy
-          const cappedAnnual = uloEntry.combined?.annual ?? uloEntry.result.annualSavings
-          const solarAnnual = uloEntry.combined?.solarOnlyAnnual ?? 0
-          const batteryAnnual = uloEntry.combined?.batteryAnnual ?? 0
-          const batteryOnlyAnnual = uloResults.get('battery-only')?.result?.annualSavings ?? 0
-          const shiftedKwh = (offsets.ultraLow || 0) + offsets.midPeak + offsets.onPeak + offsets.offPeak
-
-          return (
-            <div className="space-y-5 text-sm text-gray-700">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="text-xs font-semibold text-blue-800 uppercase">Key givens</div>
-                <ul className="mt-2 list-disc ml-5 space-y-1 text-xs text-gray-600">
-                  {weekdayRates.map(([period, rate]) => (
-                    <li key={period}>
-                      {period === 'ultra-low'
-                        ? 'Weekday 11PM–7AM ultra-low'
-                        : period === 'mid-peak'
-                        ? 'Weekday mid-peak'
-                        : 'Weekday on-peak'} priced at <span className="font-semibold">{formatCents(rate)}</span>.
-                    </li>
-                  ))}
-                  {weekendRate && (
-                    <li>
-                      Weekends and holidays priced at <span className="font-semibold">{formatCents(weekendRate)}</span> all day.
-                    </li>
-                  )}
-                  <li>
-                    Annual usage modeled: <span className="font-semibold">{annualUsageKwh.toLocaleString()} kWh</span>.
-                  </li>
-                  <li>
-                    Battery stack: <span className="font-semibold">{batteryPack.map(spec => `${spec.brand} ${spec.model}`).join(' + ')}</span> holding{' '}
-                    <span className="font-semibold">{totalUsableKwh.toFixed(1)} kWh</span> usable capacity with{' '}
-                    <span className="font-semibold">{totalInverterKw.toFixed(1)} kW</span> peak discharge.
-                  </li>
-                  <li>
-                    Solar production modeled: <span className="font-semibold">{solarProductionKwh.toLocaleString()} kWh</span>.
-                  </li>
-                  <li>The battery charges during the 3.9¢ ultra-low window, then discharges across the 4–9 PM on-peak period to avoid the 39.1¢ rate.</li>
-                </ul>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white border border-gray-200 rounded-lg p-3 text-xs text-gray-600">
-                <div>
-                  <div className="font-semibold text-navy-600 mb-1">Bill without ultra-low shifting</div>
-                  <div>Ultra-Low: <span className="font-semibold">{formatMoney(before.ultraLow || 0)}</span></div>
-                  <div>Mid-Peak: <span className="font-semibold">{formatMoney(before.midPeak)}</span></div>
-                  <div>On-Peak: <span className="font-semibold">{formatMoney(before.onPeak)}</span></div>
-                  <div className="mt-2 text-red-600 font-semibold">Annual total: {formatMoney(before.total)}</div>
-                </div>
-                <div>
-                  <div className="font-semibold text-navy-600 mb-1">Bill with battery shifting</div>
-                  <div>Ultra-Low (charging cost): <span className="font-semibold">{formatMoney(after.ultraLow || 0)}</span></div>
-                  <div>Mid-Peak: <span className="font-semibold">{formatMoney(after.midPeak)}</span></div>
-                  <div>On-Peak: <span className="font-semibold">{formatMoney(after.onPeak)}</span></div>
-                  <div className="mt-2 text-green-600 font-semibold">Annual total: {formatMoney(after.total)}</div>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-600 space-y-1">
-                <div className="font-semibold text-navy-600">How the comparison card is built</div>
-                <div>Combined annual savings after the winter safeguard: <span className="font-semibold text-navy-600">{formatMoney(cappedAnnual)}</span>.</div>
-                <div>Solar slice inside the cap: <span className="font-semibold text-green-600">{formatMoney(solarAnnual)}</span>.</div>
-                <div>
-                  Battery slice inside the cap (the portion of the savings card credited to the battery after the winter safeguard is applied):{' '}
-                  <span className="font-semibold text-blue-600">{formatMoney(Math.max(batteryAnnual, 0))}</span>.
-                </div>
-                <div>Battery-only result without the cap: <span className="font-semibold text-blue-600">{formatMoney(batteryOnlyAnnual)}</span>.</div>
-                <div>
-                  Energy shifted out of expensive hours: <span className="font-semibold">{shiftedKwh.toFixed(0)} kWh</span>. Remaining grid draw at the safeguard rate: <span className="font-semibold">{leftover.totalKwh.toFixed(0)} kWh</span> costing{' '}
-                  <span className="font-semibold">{formatMoney(leftover.costAtOffPeak)}</span> at <span className="font-semibold">{formatCents(leftover.ratePerKwh * 100)}</span>.
-                </div>
-              </div>
-
-              <img
-                src="/ULO.JPG"
-                alt="Ultra-Low Overnight (ULO) illustration"
-                className="w-full h-auto rounded-lg border-2 border-gray-200"
-                onError={(e) => {
-                  const el = e.currentTarget as HTMLImageElement
-                  const fallbacks = ['/ULO.jpg', '/ULO.jpeg', '/ULO.png']
-                  const next = fallbacks.find((path) => path !== el.src.replace(window.location.origin, ''))
-                  if (next) el.src = next
-                }}
-              />
-            </div>
-          )
-        })()}
-      </Modal>
+        uloResults={uloResults}
+      />
 
       {/* Payback Info Modal */}
-      <Modal
-        isOpen={showPaybackInfo}
+      <PaybackInfoModal
+        open={showPaybackInfo}
         onClose={() => setShowPaybackInfo(false)}
-        title="How Full System Payback Is Calculated"
-        message="We combine the capped Year‑1 savings with a gentle long-term curve to show when the system fully repays its upfront cost." 
-        variant="info"
-        cancelText="Close"
-      >
-        {(() => {
-          const tou = touResults.get('combined')
-          const ulo = uloResults.get('combined')
-
-          const formatMoney = (value: number | undefined) => `$${Math.round(value || 0).toLocaleString()}`
-
-          return (
-            <div className="space-y-4 text-sm text-gray-700">
-              <div>
-                <span className="font-semibold">What we include</span>
-                <div className="mt-1 text-xs text-gray-600 ml-1">• Net cost: solar + battery after incentives — the investment the system must earn back.</div>
-                <div className="mt-1 text-xs text-gray-600 ml-1">• Year‑1 savings: the capped annual savings, shown with the same solar/battery split as the summary card.</div>
-                <div className="mt-1 text-xs text-gray-600 ml-1">• Long-term curve: savings rise gently with utility rates and taper slightly each year to reflect real-world performance.</div>
-                <div className="mt-1 text-xs text-gray-600 ml-1">• Payback moment: the first year when cumulative savings exceed the combined net cost (or “N/A” if that point never arrives).</div>
-              </div>
-
-              {/* TOU Sample */}
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                <div className="text-xs font-semibold text-navy-600 mb-1">Time-of-Use (TOU)</div>
-                <div className="text-xs text-gray-700">Net cost: <span className="font-semibold">{formatMoney(tou?.combined?.netCost)}</span></div>
-                <div className="text-xs text-gray-600 ml-1 mt-1">• Solar net (after rebate): {formatMoney(tou?.combined?.solarNetCost)}</div>
-                {tou?.combined?.solarRebateApplied ? (
-                  <div className="text-[11px] text-gray-500 ml-3">Solar rebate applied: {formatMoney(tou.combined.solarRebateApplied)}</div>
-                ) : null}
-                <div className="text-xs text-gray-600 ml-1">• Battery net (after rebate): {formatMoney(tou?.combined?.batteryNetCost)}</div>
-                {tou?.combined?.batteryRebateApplied ? (
-                  <div className="text-[11px] text-gray-500 ml-3">
-                    Battery rebate applied: {formatMoney(tou.combined.batteryRebateApplied)}
-                    {tou?.combined?.batteryGrossCost ? (
-                      <>
-                        {' '}(from {formatMoney(tou.combined.batteryGrossCost)})
-                      </>
-                    ) : null}
-                  </div>
-                ) : tou?.combined?.batteryGrossCost ? (
-                  <div className="text-[11px] text-gray-500 ml-3">Battery price: {formatMoney(tou.combined.batteryGrossCost)}</div>
-                ) : null}
-                <div className="text-xs text-gray-700">Year 1 savings: <span className="font-semibold">{formatMoney(tou?.combined?.annual)}</span></div>
-                <div className="text-xs text-gray-700">Payback: <span className="font-bold text-navy-600">{(() => {
-                  const years = tou?.combined?.projection?.paybackYears
-                  if (years == null || years === Number.POSITIVE_INFINITY) return 'N/A'
-                  return `${years.toFixed(1)} years`
-                })()}</span></div>
-                <div className="text-[11px] text-gray-600 mt-1">Savings glide gently over time while rates rise, producing a realistic payback slope.</div>
-              </div>
-
-              {/* ULO Sample */}
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                <div className="text-xs font-semibold text-navy-600 mb-1">Ultra-Low Overnight (ULO)</div>
-                <div className="text-xs text-gray-700">Net cost: <span className="font-semibold">{formatMoney(ulo?.combined?.netCost)}</span></div>
-                <div className="text-xs text-gray-600 ml-1 mt-1">• Solar net (after rebate): {formatMoney(ulo?.combined?.solarNetCost)}</div>
-                {ulo?.combined?.solarRebateApplied ? (
-                  <div className="text-[11px] text-gray-500 ml-3">Solar rebate applied: {formatMoney(ulo.combined.solarRebateApplied)}</div>
-                ) : null}
-                <div className="text-xs text-gray-600 ml-1">• Battery net (after rebate): {formatMoney(ulo?.combined?.batteryNetCost)}</div>
-                {ulo?.combined?.batteryRebateApplied ? (
-                  <div className="text-[11px] text-gray-500 ml-3">
-                    Battery rebate applied: {formatMoney(ulo.combined.batteryRebateApplied)}
-                    {ulo?.combined?.batteryGrossCost ? (
-                      <>
-                        {' '}(from {formatMoney(ulo.combined.batteryGrossCost)})
-                      </>
-                    ) : null}
-                  </div>
-                ) : ulo?.combined?.batteryGrossCost ? (
-                  <div className="text-[11px] text-gray-500 ml-3">Battery price: {formatMoney(ulo.combined.batteryGrossCost)}</div>
-                ) : null}
-                <div className="text-xs text-gray-700">Year 1 savings: <span className="font-semibold">{formatMoney(ulo?.combined?.annual)}</span></div>
-                <div className="text-xs text-gray-700">Payback: <span className="font-bold text-navy-600">{(() => {
-                  const years = ulo?.combined?.projection?.paybackYears
-                  if (years == null || years === Number.POSITIVE_INFINITY) return 'N/A'
-                  return `${years.toFixed(1)} years`
-                })()}</span></div>
-                <div className="text-[11px] text-gray-600 mt-1">Night charging and the same winter safeguard are both included, which is why ULO often pays back sooner.</div>
-              </div>
-
-              <ul className="list-disc ml-6 text-xs text-gray-600">
-                <li>If the net cost is ≤ 0, payback is 0 years.</li>
-                <li>If capped savings never exceed the cost, payback shows as N/A so you know the system never breaks even under these assumptions.</li>
-              </ul>
-            </div>
-          )
-        })()}
-      </Modal>
+        touResults={touResults}
+        uloResults={uloResults}
+      />
 
       {/* TOU savings section explainer keeps the context handy for that card stack */}
-      <Modal
-        isOpen={showTouSavingsSectionInfo}
+      <TouSavingsBreakdownModal
+        open={showTouSavingsSectionInfo}
         onClose={() => setShowTouSavingsSectionInfo(false)}
-        title="TOU Savings & Remaining Costs"
-        message="Here is how each number inside the Time-of-Use savings panel is built."
-        variant="info"
-        cancelText="Got it"
-      >
-        {(() => {
-          // Grab the combined TOU record so the modal mirrors the visible cards
-          const tou = touResults.get('combined')
-          if (!tou) {
-            // Safety fallback in case data has not loaded yet
-            return <div className="text-sm text-gray-700">We will show the full breakdown once the simulation finishes running.</div>
-          }
-
-          // Keep helper formatters tiny and friendly for readers
-          const formatMoney = (value: number) => `$${value.toFixed(2)}`
-
-          // Pull the before/after cost tables so we can reference each row plainly
-          const before = tou.result.originalCost
-          const after = tou.result.newCost
-          const offsets = tou.result.batteryOffsets
-          const leftover = tou.result.leftoverEnergy
-
-          // Calculate a quick view of how many kWh the battery moved across all periods
-          const shiftedKwh = offsets.offPeak + offsets.midPeak + offsets.onPeak + (offsets.ultraLow || 0)
-
-          return (
-            <div className="space-y-4 text-sm text-gray-700">
-              <div>
-                <span className="font-semibold">What the rows compare</span>
-                <ul className="mt-2 list-disc ml-5 text-xs text-gray-600 space-y-1">
-                  <li>Before peak shaving totals the bill if the battery never helped.</li>
-                  <li>After peak shaving shows the same usage once the battery discharges into peak windows.</li>
-                  <li>The Total line is simply the sum of Off-, Mid-, and On-Peak rows on each side.</li>
-                </ul>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50 border border-gray-200 rounded-lg p-3">
-                <div>
-                  <div className="text-xs font-semibold text-navy-600 mb-1">Bill without battery</div>
-                  <div className="text-xs text-gray-600">Off-Peak: <span className="font-semibold">{formatMoney(before.offPeak)}</span></div>
-                  <div className="text-xs text-gray-600">Mid-Peak: <span className="font-semibold">{formatMoney(before.midPeak)}</span></div>
-                  <div className="text-xs text-gray-600">On-Peak: <span className="font-semibold">{formatMoney(before.onPeak)}</span></div>
-                  <div className="text-xs font-semibold text-red-600 mt-2">Total: {formatMoney(before.total)}</div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-navy-600 mb-1">Bill with battery help</div>
-                  <div className="text-xs text-gray-600">Off-Peak: <span className="font-semibold">{formatMoney(after.offPeak)}</span></div>
-                  <div className="text-xs text-gray-600">Mid-Peak: <span className="font-semibold">{formatMoney(after.midPeak)}</span></div>
-                  <div className="text-xs text-gray-600">On-Peak: <span className="font-semibold">{formatMoney(after.onPeak)}</span></div>
-                  <div className="text-xs font-semibold text-green-600 mt-2">Total: {formatMoney(after.total)}</div>
-                </div>
-              </div>
-
-              <div className="bg-white border border-gray-200 rounded-lg p-3 text-xs text-gray-600 space-y-1">
-                <div className="font-semibold text-navy-600">How the battery is working</div>
-                <div>• Energy shifted out of expensive hours: <span className="font-semibold">{formatKwh(shiftedKwh)}</span>.</div>
-                <div>• Still bought from the grid: <span className="font-semibold">{formatKwh(leftover.totalKwh)}</span> at <span className="font-semibold">{(leftover.ratePerKwh * 100).toFixed(2)}¢/kWh</span>.</div>
-                <div>• Cost of that remainder: <span className="font-semibold">{formatMoney(leftover.costAtOffPeak)}</span> ({leftover.costPercent.toFixed(2)}% of the original bill).</div>
-              </div>
-
-              <div className="text-xs text-gray-500 italic">Savings in this section equal {formatMoney(before.total - after.total)} per year — exactly the difference between the two totals above.</div>
-
-              {(() => {
-                const combinedBatteryPiece = Math.max(0, tou.combined?.batteryAnnual ?? 0)
-                if (combinedBatteryPiece > 1) return null
-                return (
-                  <div className="text-[11px] text-gray-500 italic">
-                    Battery slice showing $0? That simply means solar production already maxed out the winter cap (92%), so the combined view has no headroom left to display the battery’s share—even though the battery plan card still shows its standalone savings.
-                  </div>
-                )
-              })()}
-            </div>
-          )
-        })()}
-      </Modal>
+        results={touResults}
+        formatKwh={formatKwh}
+      />
 
       {/* ULO savings section explainer mirrors the same idea but calls out the overnight top-ups */}
-      <Modal
-        isOpen={showUloSavingsSectionInfo}
+      <UloSavingsBreakdownModal
+        open={showUloSavingsSectionInfo}
         onClose={() => setShowUloSavingsSectionInfo(false)}
-        title="ULO Savings & Remaining Costs"
-        message="This is the detailed view of the Ultra-Low Overnight savings math."
-        variant="info"
-        cancelText="Understood"
-      >
-        {(() => {
-          // Pick up the combined Ultra-Low result so values line up with the visible panel
-          const ulo = uloResults.get('combined')
-          if (!ulo) {
-            // Friendly fallback while calculations load
-            return <div className="text-sm text-gray-700">Hang tight—once the simulation finishes we will show the step-by-step costs.</div>
-          }
-
-          // Use soft helpers for formatting money and energy
-          const formatMoney = (value: number) => `$${value.toFixed(2)}`
-
-          // Grab before/after tables and leftover summary for easy reference
-          const before = ulo.result.originalCost
-          const after = ulo.result.newCost
-          const offsets = ulo.result.batteryOffsets
-          const leftover = ulo.result.leftoverEnergy
-
-          // Total stored energy covers ultra-low, mid-peak, and on-peak buckets depending on what the battery could move
-          const shiftedKwh = offsets.offPeak + offsets.midPeak + offsets.onPeak + (offsets.ultraLow || 0)
-
-          return (
-            <div className="space-y-4 text-sm text-gray-700">
-              <div>
-                <span className="font-semibold">Reading the table</span>
-                <ul className="mt-2 list-disc ml-5 text-xs text-gray-600 space-y-1">
-                  <li>Ultra-Low rows reflect overnight charging — these barely change because the rate is already cheap.</li>
-                  <li>Mid- and On-Peak rows shrink because the battery discharges during those pricey windows.</li>
-                  <li>Totals are simply the column sums; the gap between them is the savings you see in the green banner.</li>
-                </ul>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50 border border-gray-200 rounded-lg p-3">
-                <div>
-                  <div className="text-xs font-semibold text-navy-600 mb-1">Before the battery helps</div>
-                  <div className="text-xs text-gray-600">Ultra-Low: <span className="font-semibold">{formatMoney(before.ultraLow ?? 0)}</span></div>
-                  <div className="text-xs text-gray-600">Weekend: <span className="font-semibold">{formatMoney(before.offPeak)}</span></div>
-                  <div className="text-xs text-gray-600">Mid-Peak: <span className="font-semibold">{formatMoney(before.midPeak)}</span></div>
-                  <div className="text-xs text-gray-600">On-Peak: <span className="font-semibold">{formatMoney(before.onPeak)}</span></div>
-                  <div className="text-xs font-semibold text-red-600 mt-2">Total: {formatMoney(before.total)}</div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-navy-600 mb-1">After the battery shifts usage</div>
-                  <div className="text-xs text-gray-600">Ultra-Low: <span className="font-semibold">{formatMoney(after.ultraLow ?? 0)}</span></div>
-                  <div className="text-xs text-gray-600">Weekend: <span className="font-semibold">{formatMoney(after.offPeak)}</span></div>
-                  <div className="text-xs text-gray-600">Mid-Peak: <span className="font-semibold">{formatMoney(after.midPeak)}</span></div>
-                  <div className="text-xs text-gray-600">On-Peak: <span className="font-semibold">{formatMoney(after.onPeak)}</span></div>
-                  <div className="text-xs font-semibold text-green-600 mt-2">Total: {formatMoney(after.total)}</div>
-                </div>
-              </div>
-
-              <div className="bg-white border border-gray-200 rounded-lg p-3 text-xs text-gray-600 space-y-1">
-                <div className="font-semibold text-navy-600">Battery action in plain numbers</div>
-                <div>• Energy shifted out of expensive periods: <span className="font-semibold">{formatKwh(shiftedKwh)}</span>.</div>
-                <div>• Remaining grid energy: <span className="font-semibold">{formatKwh(leftover.totalKwh)}</span>, now billed at <span className="font-semibold">{(leftover.ratePerKwh * 100).toFixed(2)}¢/kWh</span>.</div>
-                <div>• Cost of that remainder: <span className="font-semibold">{formatMoney(leftover.costAtOffPeak)}</span> ({leftover.costPercent.toFixed(2)}% of the original bill).</div>
-              </div>
-
-              <div className="text-xs text-gray-500 italic">That is why the savings banner shows {formatMoney(before.total - after.total)} per year — it is the exact gap between the two totals above.</div>
-
-              {(() => {
-                const combinedBatteryPiece = Math.max(0, ulo.combined?.batteryAnnual ?? 0)
-                if (combinedBatteryPiece > 1) return null
-                return (
-                  <div className="text-[11px] text-gray-500 italic">
-                    If the battery column reads $0, solar alone already pushed savings to the winter cap, so the combined split hides the incremental battery portion even though the standalone battery card still shows its impact.
-                  </div>
-                )
-              })()}
-            </div>
-          )
-        })()}
-      </Modal>
+        results={uloResults}
+        formatKwh={formatKwh}
+      />
 
       {/* Savings & 25-Year Profit Info Modal */}
-      <Modal
-        isOpen={showSavingsInfo}
+      <AnnualSavingsModal
+        open={showSavingsInfo}
         onClose={() => setShowSavingsInfo(false)}
-        title="How Annual Savings Are Calculated"
-        message="We compare today’s bill with the projected bill after solar plus battery to share a realistic Year‑1 savings estimate."
-        variant="info"
-        cancelText="Close"
-      >
-        {(() => {
-          // Helper to keep formatting tidy and human-friendly
-          const formatMoney = (value: number) => `$${Math.round(value).toLocaleString()}`
-
-          // Pull combined plan snapshots so we can reference the exact values shown on the summary tiles
-          const tou = touResults.get('combined')
-          const ulo = uloResults.get('combined')
-
-          // Baseline numbers come from the same "Current Estimated Bill" card
-          const touBaselineEnergy = Math.max(0, tou?.combined?.baselineAnnualBillEnergyOnly ?? 0)
-          const uloBaselineEnergy = Math.max(0, ulo?.combined?.baselineAnnualBillEnergyOnly ?? 0)
-          const baselineAnnualEnergy = Math.max(touBaselineEnergy, uloBaselineEnergy)
-          const fallbackBaselineAnnual = displayedMonthlyBill * 12
-          const baselineAnnual = baselineAnnualEnergy > 0 ? baselineAnnualEnergy : fallbackBaselineAnnual
-          const baselineMonthly = baselineAnnual / 12
-
-          // Safely read the annual savings straight from the combined maps
-          const touAnnualSavings = Math.max(0, tou?.combined?.annual ?? 0)
-          const uloAnnualSavings = Math.max(0, ulo?.combined?.annual ?? 0)
-
-          // Break the combined savings into solar and battery pieces using the same scaled values we show on the card
-          const touSolarPiece = tou?.combined?.solarOnlyAnnual ?? 0
-          const touBatteryPiece = tou?.combined?.batteryAnnual ?? 0
-          const uloSolarPiece = ulo?.combined?.solarOnlyAnnual ?? 0
-          const uloBatteryPiece = ulo?.combined?.batteryAnnual ?? 0
-
-          return (
-            <div className="space-y-4 text-sm text-gray-700">
-              <div>
-                <span className="font-semibold">What the numbers mean</span>
-                <div className="mt-1 text-xs text-gray-600 ml-1">• Current bill (baseline energy only): {formatMoney(baselineMonthly)}/month — the same {formatMoney(baselineAnnual)} per year shown in the summary card.</div>
-                <div className="mt-1 text-xs text-gray-600 ml-1">• Projected bill (after upgrades): same usage, but with solar production and smart battery shifting applied, expressed as energy charges only.</div>
-                <div className="mt-1 text-xs text-gray-600 ml-1">• Annual savings = Baseline energy charges − Projected energy charges, limited by a winter safeguard so estimates stay sensible.</div>
-                <div className="mt-1 text-xs text-gray-600 ml-1">• Monthly savings = Annual savings ÷ 12 — an easy way to compare against your current bill.</div>
-                <div className="mt-1 text-xs text-gray-600 ml-1">• Solar vs. Battery split mirrors the main card so you can explain which component delivers the benefit.</div>
-              </div>
-
-              {/* TOU Sample */}
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                <div className="text-xs font-semibold text-navy-600 mb-1">Time-of-Use (TOU)</div>
-                <div className="text-xs text-gray-700">
-                  Annual savings: <span className="font-semibold text-navy-600">{formatMoney(touAnnualSavings)}</span> = {formatMoney(touSolarPiece)} (Solar) + {formatMoney(touBatteryPiece)} (Battery)
-                </div>
-                <div className="text-xs text-gray-700">
-                  Monthly savings: <span className="font-semibold text-navy-600">{formatMoney(touAnnualSavings / 12)}</span>
-                </div>
-                <div className="text-[11px] text-gray-600 mt-1">
-                  These match the TOU card after applying the winter safeguard. The split simply reflects the capped total.
-                </div>
-              {touBatteryPiece < 1 && (
-                <div className="text-[11px] text-gray-500 italic mt-1">
-                  Battery showing $0 here? Solar savings already reached the winter cap, so the combined split has no extra room to display the battery slice—even though the battery-only plan still reports its standalone benefit.
-                </div>
-              )}
-              </div>
-
-              {/* ULO Sample */}
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                <div className="text-xs font-semibold text-navy-600 mb-1">Ultra-Low Overnight (ULO)</div>
-                <div className="text-xs text-gray-700">
-                  Annual savings: <span className="font-semibold text-navy-600">{formatMoney(uloAnnualSavings)}</span> = {formatMoney(uloSolarPiece)} (Solar) + {formatMoney(uloBatteryPiece)} (Battery)
-                </div>
-                <div className="text-xs text-gray-700">
-                  Monthly savings: <span className="font-semibold text-navy-600">{formatMoney(uloAnnualSavings / 12)}</span>
-                </div>
-                <div className="text-[11px] text-gray-600 mt-1">
-                  ULO savings reflect cheaper overnight charging, lower daytime grid costs, and the same winter safeguard.
-                </div>
-              {uloBatteryPiece < 1 && (
-                <div className="text-[11px] text-gray-500 italic mt-1">
-                  Battery column resting at $0? Solar alone maxed out the winter cap, so the combined split hides the incremental battery portion even though the battery plan card still shows its own savings.
-                </div>
-              )}
-              </div>
-
-              <div className="text-xs text-gray-600 italic mt-2">
-                <span className="font-semibold">Why the plans differ:</span> Each rate plan has unique peak prices. The battery fills up when power is cheapest and discharges when it is most expensive, so the savings depend on the plan you pick.
-              </div>
-            </div>
-          )
-        })()}
-      </Modal>
+        touResults={touResults}
+        uloResults={uloResults}
+        displayedMonthlyBill={displayedMonthlyBill}
+      />
 
       {/* Input Section */}
       <div className="card p-6 space-y-6 shadow-md">
@@ -1417,8 +774,9 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
           <div className="relative">
             <input
               type="number"
+              ref={annualUsageInputRef}
               value={annualUsageInput}
-              onChange={(e) => setAnnualUsageInput(e.target.value)}
+              onChange={(e) => handleAnnualUsageChange(e.target.value)}
               className="w-full px-4 py-4 pr-16 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 text-lg font-bold text-navy-600 shadow-sm transition-all"
               min="0"
               step="100"
@@ -2526,9 +1884,6 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                   </table>
                 </div>
 
-                <div className="mt-4 p-4 bg-blue-100/70 rounded-xl border border-blue-200 text-sm text-blue-900">
-                  The battery shifts {formatKwh(breakdown.batteryOffsets.midPeak)} of lingering mid-peak energy into the 9.8¢ off-peak window, drawing {formatKwh(breakdown.batteryChargeFromOffPeak ?? breakdown.batteryOffsets.midPeak)} overnight and leaving {formatKwh(breakdown.usageAfterBattery.offPeak + breakdown.usageAfterBattery.ultraLow)} of grid usage entirely at the lowest TOU rate.
-                </div>
               </div>
             )
           })()}
@@ -2625,9 +1980,6 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                 </div>
 
                 {/* Quick takeaway row so readers understand why overnight energy grows */}
-                <div className="mt-4 p-4 bg-amber-100/70 rounded-xl border border-amber-200 text-sm text-amber-900">
-                  The battery soaks up {formatKwh(breakdown.batteryOffsets.midPeak + breakdown.batteryOffsets.onPeak + breakdown.batteryOffsets.offPeak)} of leftover mid/on/weekend usage and recharges overnight at the ultra-low rate, leaving {formatKwh(breakdown.usageAfterBattery.ultraLow)} of grid energy entirely in the cheapest bucket.
-                </div>
               </div>
             )
           })()}

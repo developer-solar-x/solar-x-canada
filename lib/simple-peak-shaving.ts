@@ -14,16 +14,16 @@ export interface UsageDistribution {
 
 // Default distribution patterns for TOU and ULO
 export const DEFAULT_TOU_DISTRIBUTION: UsageDistribution = {
-  onPeakPercent: 33.1, // Weekday on-peak share for TOU solar+battery scenario
-  midPeakPercent: 26, // Weekday mid-peak share for TOU solar+battery scenario
-  offPeakPercent: 40.9 // Weekend/night off-peak (remainder to total 100%)
+  onPeakPercent: 19, // Weekday on-peak share for TOU solar+battery scenario
+  midPeakPercent: 18, // Weekday mid-peak share for TOU solar+battery scenario
+  offPeakPercent: 63 // Weekend/night off-peak (remainder to total 100%)
 }
 
 export const DEFAULT_ULO_DISTRIBUTION: UsageDistribution = {
-  onPeakPercent: 33.1, // Weekday on-peak share used in the email baseline
-  midPeakPercent: 26, // Weekday mid-peak share used in the email baseline
-  offPeakPercent: 17.9, // Weekend/off-peak share used in the email baseline
-  ultraLowPercent: 23 // Overnight ultra-low share used in the email baseline
+  onPeakPercent: 17.9, // Weekday on-peak share used in the email baseline
+  midPeakPercent: 33.1, // Weekday mid-peak share used in the email baseline
+  offPeakPercent: 23, // Weekend/off-peak share used in the email baseline
+  ultraLowPercent: 26 // Overnight ultra-low share used in the email baseline
 }
 
 // Simple peak-shaving calculation result

@@ -3,6 +3,12 @@ const nextConfig = {
   // Enable React 19 features
   reactStrictMode: true,
   
+  // ESLint configuration for build
+  eslint: {
+    // Skip ESLint during production builds (run separately in CI/CD)
+    ignoreDuringBuilds: true,
+  },
+  
   // Image optimization configuration
   images: {
     domains: ['api.mapbox.com', 'via.placeholder.com'],

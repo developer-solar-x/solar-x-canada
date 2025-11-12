@@ -190,7 +190,7 @@ Total:     100.0%
 
 ### **Files in Use:**
 1. ✅ `lib/simple-peak-shaving.ts` - Calculator logic
-2. ✅ `components/estimator/StepBatteryPeakShavingSimple.tsx` - UI component
+2. ✅ `components/estimator/StepBatteryPeakShavingSimple/index.tsx` - UI component
 3. ✅ `app/estimator/page.tsx` - Integration (updated)
 
 ### **Old Files (No Longer Used):**
