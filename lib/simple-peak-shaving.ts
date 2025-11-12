@@ -475,11 +475,11 @@ export function calculateSolarBatteryCombined(
 
     const postSolarAnnualBill = costFromUsage(usageAfterSolar)
 
-    // Battery covers the remaining expensive periods (mid, on, weekend) using annual usable energy
+    // Battery covers the remaining expensive periods (on, then mid, then weekend/off-peak) using annual usable energy
     const usageAfterBattery = { ...usageAfterSolar }
     const batteryOffsets = { ultraLow: 0, offPeak: 0, midPeak: 0, onPeak: 0 }
     let remainingBattery = Math.max(0, battery.usableKwh) * 365
-    const batteryDischargeOrder: Array<'midPeak' | 'onPeak' | 'offPeak'> = ['midPeak', 'onPeak', 'offPeak']
+    const batteryDischargeOrder: Array<'midPeak' | 'onPeak' | 'offPeak'> = ['onPeak', 'midPeak', 'offPeak']
 
     for (const key of batteryDischargeOrder) {
       if (remainingBattery <= 0) break
@@ -550,7 +550,7 @@ export function calculateSolarBatteryCombined(
 
     const postSolarAnnualBill = costFromUsage(usageAfterSolar)
 
-    // Battery targets remaining on-peak first, then mid-peak (client TOU priority)
+    // Battery targets remaining on-peak first, then mid-peak (no off-peak discharge for TOU)
     const usageAfterBattery = { ...usageAfterSolar }
     const batteryOffsets = { ultraLow: 0, offPeak: 0, midPeak: 0, onPeak: 0 }
     let remainingBattery = Math.max(0, battery.usableKwh) * 365
