@@ -210,6 +210,7 @@ export async function POST(request: Request) {
       // Additional metadata
       estimator_mode: body.estimatorMode || body.estimator_mode || '',
       program_type: body.programType || body.program_type || '',
+      lead_type: body.leadType || body.lead_type || 'residential', // Default to residential if not specified
       roof_sections: body.roofSections || [],
       map_snapshot_url: body.mapSnapshot || body.mapSnapshotUrl || '',
       photo_urls: body.photos?.map((p: any) => p.url || p.uploadedUrl || p.preview).filter(Boolean) || body.photoUrls || [],

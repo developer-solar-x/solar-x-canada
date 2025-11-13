@@ -152,7 +152,7 @@ export async function getSavedProgressSummary(): Promise<{
   totalSteps: number
   timeSince: string
   address?: string
-  mode?: 'easy' | 'detailed'
+  mode?: 'easy' | 'detailed' | 'commercial'
   programType?: string
   photoCount?: number
 } | null> {
@@ -165,7 +165,7 @@ export async function getSavedProgressSummary(): Promise<{
   // Determine step metadata based on current mode and program
   const getStepMeta = (
     stepIndex: number,
-    mode?: 'easy' | 'detailed',
+    mode?: 'easy' | 'detailed' | 'commercial',
     programType?: string
   ): { name: string; totalSteps: number } => {
     // Define current step sequences (aligned with app/estimator/page.tsx)
@@ -196,13 +196,35 @@ export async function getSavedProgressSummary(): Promise<{
 
     const isHrs = programType === 'hrs_residential'
 
+    // Commercial steps sequence
+    const commercialAll = [
+      'Program',
+      'Location',
+      'Draw Roof',
+      'Green Button',
+      'Tariff',
+      'Peak Shaving',
+      'Battery Specs',
+      'Costs & Rebate',
+      'Results',
+      'Submit',
+    ]
+
     // Filter Battery Savings step for non-HRS programs
     const easy = isHrs ? easyAll : easyAll.filter(name => name !== 'Battery Savings')
     const detailed = isHrs ? detailedAll : detailedAll.filter(name => name !== 'Battery Savings')
 
-    const sequence = mode === 'detailed' ? detailed : easy
+    // Select sequence based on mode
+    let sequence: string[]
+    if (mode === 'commercial') {
+      sequence = commercialAll
+    } else if (mode === 'detailed') {
+      sequence = detailed
+    } else {
+      sequence = easy
+    }
+    
     const totalSteps = sequence.length
-
     const name = sequence[stepIndex] || `Step ${stepIndex + 1}`
     return { name, totalSteps }
   }

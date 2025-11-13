@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react'
 import { Logo } from '@/components/Logo'
-import { Users, DollarSign, Zap, TrendingUp, LogOut, Search, Download, Clock, AlertCircle, Mail, MapPin, Battery, Home, Calendar, BarChart3, PieChart } from 'lucide-react'
+import { Users, DollarSign, Zap, TrendingUp, LogOut, Search, Download, Clock, AlertCircle, Mail, MapPin, Battery, Home, Calendar, BarChart3, PieChart, ArrowRightFromLine, ExternalLink, Calculator, Menu, X } from 'lucide-react'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -14,6 +14,9 @@ import { PartialLeadDetailView } from '@/components/admin/PartialLeadDetailView'
 import { UserModal, UserFormData } from '@/components/admin/UserModal'
 import { DeleteUserModal } from '@/components/admin/DeleteUserModal'
 import { GreenButtonParserSection } from '@/components/admin/GreenButtonParser' // Bringing in the new parser view so admins can explore the energy data
+import FileUpload from '@/components/sales-kpi/FileUpload'
+import KPIDashboard from '@/components/sales-kpi/KPIDashboard'
+import { CommercialCalculator } from '@/components/admin/CommercialCalculator'
 
 // Lead type matching database schema
 interface Lead {
@@ -39,9 +42,10 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
-  const [activeSection, setActiveSection] = useState('leads') // State to track active section (leads, partial-leads, users, analytics, or greenbutton)
+  const [activeSection, setActiveSection] = useState('analytics') // State to track active section (leads, partial-leads, users, analytics, greenbutton, sales-kpi, or commercial-calculator)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null) // State for detailed lead view
   const [selectedPartialLead, setSelectedPartialLead] = useState<MockPartialLead | null>(null) // State for partial lead detail view
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false) // Mobile menu state
   const router = useRouter()
   
   // Users state
@@ -387,76 +391,144 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Mobile Menu Button */}
+      <button
+        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        className="lg:hidden fixed top-4 left-4 z-50 bg-navy-500 text-white p-2 rounded-lg shadow-lg"
+      >
+        {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+      </button>
+
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 bottom-0 w-64 bg-navy-500 text-white p-6">
+      <aside className={`
+        fixed left-0 top-0 bottom-0 bg-navy-500 text-white p-6 z-40
+        transition-transform duration-300 ease-in-out
+        w-64
+        ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+        lg:translate-x-0
+      `}>
         <div className="mb-8 bg-white p-4 rounded-lg">
           <Logo size="md" />
         </div>
 
         <nav className="space-y-2">
           <button 
-            onClick={() => setActiveSection('leads')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
-              activeSection === 'leads' ? 'bg-red-500' : 'hover:bg-navy-600'
-            }`}
-          >
-            <Users size={20} />
-            <span className="flex-1 text-left">Leads</span>
-            <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{stats.totalLeads}</span>
-          </button>
-          <button 
-            onClick={() => setActiveSection('partial-leads')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
-              activeSection === 'partial-leads' ? 'bg-red-500' : 'hover:bg-navy-600'
-            }`}
-          >
-            <Clock size={20} />
-            <span className="flex-1 text-left">Partial Leads</span>
-            <span className="bg-yellow-400 text-navy-500 px-2 py-0.5 rounded-full text-xs font-bold">{partialStats.total}</span>
-          </button>
-          <button 
-            onClick={() => setActiveSection('users')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
-              activeSection === 'users' ? 'bg-red-500' : 'hover:bg-navy-600'
-            }`}
-          >
-            <Users size={20} />
-            Users
-          </button>
-          <button 
-            onClick={() => setActiveSection('greenbutton')} // Switching the view to the freshly added Green Button parser section
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
-              activeSection === 'greenbutton' ? 'bg-red-500' : 'hover:bg-navy-600'
-            }`}
-          >
-            <Zap size={20} />
-            Green Button
-          </button>
-          <button 
-            onClick={() => setActiveSection('analytics')}
+            onClick={() => {
+              setActiveSection('analytics')
+              setMobileMenuOpen(false)
+            }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
               activeSection === 'analytics' ? 'bg-red-500' : 'hover:bg-navy-600'
             }`}
           >
-            <TrendingUp size={20} />
-            Analytics
+            <TrendingUp size={20} className="flex-shrink-0" />
+            <span>Analytics</span>
           </button>
           <button 
-            onClick={handleLogout}
+            onClick={() => {
+              setActiveSection('leads')
+              setMobileMenuOpen(false)
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+              activeSection === 'leads' ? 'bg-red-500' : 'hover:bg-navy-600'
+            }`}
+          >
+            <Users size={20} className="flex-shrink-0" />
+            <span className="flex-1 text-left">Leads</span>
+            <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{stats.totalLeads}</span>
+          </button>
+          <button 
+            onClick={() => {
+              setActiveSection('partial-leads')
+              setMobileMenuOpen(false)
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+              activeSection === 'partial-leads' ? 'bg-red-500' : 'hover:bg-navy-600'
+            }`}
+          >
+            <Clock size={20} className="flex-shrink-0" />
+            <span className="flex-1 text-left">Partial Leads</span>
+            <span className="bg-yellow-400 text-navy-500 px-2 py-0.5 rounded-full text-xs font-bold">{partialStats.total}</span>
+          </button>
+          <button 
+            onClick={() => {
+              setActiveSection('users')
+              setMobileMenuOpen(false)
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+              activeSection === 'users' ? 'bg-red-500' : 'hover:bg-navy-600'
+            }`}
+          >
+            <Users size={20} className="flex-shrink-0" />
+            <span>Users</span>
+          </button>
+          <button 
+            onClick={() => {
+              setActiveSection('sales-kpi')
+              setMobileMenuOpen(false)
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+              activeSection === 'sales-kpi' ? 'bg-red-500' : 'hover:bg-navy-600'
+            }`}
+          >
+            <BarChart3 size={20} className="flex-shrink-0" />
+            <span>Sales KPI</span>
+          </button>
+          <button 
+            onClick={() => {
+              setActiveSection('commercial-calculator')
+              setMobileMenuOpen(false)
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+              activeSection === 'commercial-calculator' ? 'bg-red-500' : 'hover:bg-navy-600'
+            }`}
+          >
+            <Calculator size={20} className="flex-shrink-0" />
+            <span>Demand Calc</span>
+          </button>
+          <button 
+            onClick={() => {
+              setActiveSection('greenbutton')
+              setMobileMenuOpen(false)
+            }}
+            disabled
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors opacity-60 cursor-not-allowed hover:bg-navy-600"
+          >
+            <Zap size={20} className="flex-shrink-0" />
+            <span className="flex-1 text-left">Green Button</span>
+            <span className="text-xs bg-yellow-400 text-navy-500 px-2 py-0.5 rounded-full font-bold">Coming Soon</span>
+          </button>
+          <button 
+            onClick={() => {
+              handleLogout()
+              setMobileMenuOpen(false)
+            }}
             className="w-full flex items-center gap-3 px-4 py-3 hover:bg-navy-600 rounded-lg transition-colors text-left"
           >
-            <LogOut size={20} />
-            Logout
+            <ArrowRightFromLine size={20} className="flex-shrink-0" />
+            <span>Logout</span>
           </button>
-          <a href="/" className="flex items-center gap-3 px-4 py-3 hover:bg-navy-600 rounded-lg transition-colors">
-            <LogOut size={20} />
-            Exit to Site
+          <a 
+            href="/" 
+            className="flex items-center gap-3 px-4 py-3 hover:bg-navy-600 rounded-lg transition-colors"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            <ExternalLink size={20} className="flex-shrink-0" />
+            <span>Exit to Site</span>
           </a>
         </nav>
       </aside>
 
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/50 z-30"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Main content */}
-      <main className="ml-64 p-8">
+      <main className="lg:ml-64 ml-0 p-4 lg:p-8 transition-all duration-300">
         {/* Conditionally render content based on active section */}
         {activeSection === 'leads' && (
           <>
@@ -557,8 +629,8 @@ export default function AdminPage() {
                   💡 <strong>Tip:</strong> Click on any row to view complete lead details including roof visualization, photos, and full estimate breakdown
                 </p>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
+              <div className="overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0">
+                <table className="w-full min-w-[900px]">
                   <thead className="bg-navy-500 text-white">
                     <tr>
                       <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
@@ -714,8 +786,8 @@ export default function AdminPage() {
                       Focus on HOT and High Priority leads first - they have the highest conversion potential.
                     </p>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
+                  <div className="overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0">
+                    <table className="w-full min-w-[800px]">
                       <thead className="bg-navy-500 text-white">
                         <tr>
                           <th className="px-4 py-3 text-left text-sm font-semibold">Email</th>
@@ -887,7 +959,8 @@ export default function AdminPage() {
               </div>
             ) : (
               <div className="card overflow-hidden">
-                <table className="w-full">
+                <div className="overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0">
+                  <table className="w-full min-w-[700px]">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Name</th>
@@ -940,6 +1013,7 @@ export default function AdminPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
           </div>
@@ -1073,43 +1147,66 @@ export default function AdminPage() {
             </div>
 
             {/* System Metrics */}
-            <div className="grid md:grid-cols-3 gap-6 mb-8">
+             <div className="grid md:grid-cols-2 gap-6 mb-8">
               <div className="card p-6">
                 <h2 className="text-lg font-bold text-navy-500 mb-4 flex items-center gap-2">
-                  <Battery size={20} />
-                  Battery Adoption
+                   <Zap size={20} />
+                   Program Distribution
                 </h2>
-                <div className="text-3xl font-bold text-navy-500 mb-2">
+                 <div className="space-y-3">
                   {(() => {
-                    const withBattery = leads.filter(l => l.has_battery || (l.selected_add_ons && Array.isArray(l.selected_add_ons) && l.selected_add_ons.includes('battery'))).length
-                    return stats.totalLeads > 0 ? ((withBattery / stats.totalLeads) * 100).toFixed(1) : '0'
-                  })()}%
-                </div>
-                <div className="text-sm text-gray-600">
-                  {leads.filter(l => l.has_battery || (l.selected_add_ons && Array.isArray(l.selected_add_ons) && l.selected_add_ons.includes('battery'))).length} of {stats.totalLeads} leads
-                </div>
-              </div>
-
-              <div className="card p-6">
-                <h2 className="text-lg font-bold text-navy-500 mb-4 flex items-center gap-2">
-                  <BarChart3 size={20} />
-                  Rate Plan Preference
-                </h2>
-                <div className="space-y-2">
-                  {(() => {
-                    const touCount = leads.filter(l => l.rate_plan === 'tou' || (l.tou_annual_savings && l.tou_annual_savings > 0)).length
-                    const uloCount = leads.filter(l => l.rate_plan === 'ulo' || (l.ulo_annual_savings && l.ulo_annual_savings > 0)).length
-                    const total = touCount + uloCount
+                     // Count leads by program type
+                     const hrsCount = leads.filter(l => {
+                       const program = l.program_type?.toLowerCase()
+                       return program === 'hrs_residential' || program === 'hrs' || program?.includes('hrs')
+                     }).length
+                     const netMeteringCount = leads.filter(l => {
+                       const program = l.program_type?.toLowerCase()
+                       return program === 'net_metering' || program === 'netmetering' || program?.includes('net')
+                     }).length
+                     const otherCount = stats.totalLeads - hrsCount - netMeteringCount
+                     const total = stats.totalLeads
+                     
                     return (
                       <>
-                        <div className="flex justify-between">
-                          <span className="text-sm text-gray-700">TOU</span>
-                          <span className="text-sm font-medium text-gray-900">{touCount} ({total > 0 ? ((touCount / total) * 100).toFixed(1) : 0}%)</span>
+                         <div>
+                           <div className="flex justify-between items-center mb-1">
+                             <span className="text-sm font-medium text-gray-700">Solar HRS Program</span>
+                             <span className="text-sm font-medium text-gray-900">{hrsCount} ({total > 0 ? ((hrsCount / total) * 100).toFixed(1) : 0}%)</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm text-gray-700">ULO</span>
-                          <span className="text-sm font-medium text-gray-900">{uloCount} ({total > 0 ? ((uloCount / total) * 100).toFixed(1) : 0}%)</span>
+                           <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                             <div
+                               className="bg-blue-500 h-2 rounded-full transition-all"
+                               style={{ width: `${total > 0 ? (hrsCount / total) * 100 : 0}%` }}
+                             />
                         </div>
+                         </div>
+                         <div>
+                           <div className="flex justify-between items-center mb-1">
+                             <span className="text-sm font-medium text-gray-700">Net Metering Program</span>
+                             <span className="text-sm font-medium text-gray-900">{netMeteringCount} ({total > 0 ? ((netMeteringCount / total) * 100).toFixed(1) : 0}%)</span>
+                           </div>
+                           <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                             <div
+                               className="bg-green-500 h-2 rounded-full transition-all"
+                               style={{ width: `${total > 0 ? (netMeteringCount / total) * 100 : 0}%` }}
+                             />
+                           </div>
+                         </div>
+                         {otherCount > 0 && (
+                           <div>
+                             <div className="flex justify-between items-center mb-1">
+                               <span className="text-sm font-medium text-gray-700">Other</span>
+                               <span className="text-sm font-medium text-gray-900">{otherCount} ({total > 0 ? ((otherCount / total) * 100).toFixed(1) : 0}%)</span>
+                             </div>
+                             <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                               <div
+                                 className="bg-gray-500 h-2 rounded-full transition-all"
+                                 style={{ width: `${total > 0 ? (otherCount / total) * 100 : 0}%` }}
+                               />
+                             </div>
+                           </div>
+                         )}
                       </>
                     )
                   })()}
@@ -1289,6 +1386,28 @@ export default function AdminPage() {
         )}
         {activeSection === 'greenbutton' && (
           <GreenButtonParserSection />
+        )}
+        {activeSection === 'sales-kpi' && (
+          <div>
+            {/* Header */}
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-navy-500 mb-2">Weekly Sales KPI Dashboard</h1>
+              <p className="text-gray-600">Track performance metrics across your sales team</p>
+            </div>
+
+            {/* File upload section */}
+            <div className="mb-8">
+              <FileUpload />
+            </div>
+
+            {/* Dashboard section */}
+            <KPIDashboard />
+          </div>
+        )}
+
+        {/* Commercial Calculator Section */}
+        {activeSection === 'commercial-calculator' && (
+          <CommercialCalculator />
         )}
       </main>
 

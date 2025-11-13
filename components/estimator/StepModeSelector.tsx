@@ -1,26 +1,64 @@
 'use client'
 
-// Step 0: Program Selection - Three entry options
+// Step 0: Program Selection - Three entry options with Residential/Commercial selector
 
-import { Zap, BatteryCharging, ArrowRight, Sun } from 'lucide-react'
+import { useState } from 'react'
+import { Zap, BatteryCharging, ArrowRight, Sun, Home, Building2, X } from 'lucide-react'
 
 interface StepModeSelectorProps {
   onComplete: (data: any) => void
 }
 
 export function StepModeSelector({ onComplete }: StepModeSelectorProps) {
+  // State for lead type selection modal
+  const [showLeadTypeModal, setShowLeadTypeModal] = useState(false)
+  const [selectedProgram, setSelectedProgram] = useState<{ mode: 'easy' | 'detailed', programType: 'quick' | 'hrs_residential' } | null>(null)
+
+  // Handle program selection - show lead type selector for Quick Estimate and HRS Residential
+  const handleProgramSelect = (mode: 'easy' | 'detailed', programType: 'quick' | 'hrs_residential' | 'net_metering') => {
+    if (programType === 'net_metering') {
+      // Net Metering goes directly (coming soon, but if enabled later)
+      onComplete({ estimatorMode: mode, programType: 'net_metering', leadType: 'residential' })
+    } else {
+      // Quick Estimate and HRS Residential need lead type selection
+      setSelectedProgram({ mode, programType })
+      setShowLeadTypeModal(true)
+    }
+  }
+
+  // Handle lead type selection
+  const handleLeadTypeSelect = (leadType: 'residential' | 'commercial') => {
+    if (selectedProgram) {
+      if (leadType === 'commercial') {
+        // Commercial uses a different flow - set commercial mode
+        onComplete({
+          estimatorMode: 'commercial',
+          programType: 'commercial',
+          leadType: 'commercial'
+        })
+      } else {
+        // Residential uses existing flow
+        onComplete({
+          estimatorMode: selectedProgram.mode,
+          programType: selectedProgram.programType,
+          leadType: 'residential'
+        })
+      }
+      setShowLeadTypeModal(false)
+      setSelectedProgram(null)
+    }
+  }
+
   const selectQuickEstimate = () => {
-    onComplete({ estimatorMode: 'easy', programType: 'quick' })
+    handleProgramSelect('easy', 'quick')
   }
 
   const selectHrsResidential = () => {
-    // Use detailed flow for HRS Residential (most accurate and includes roof drawing)
-    onComplete({ estimatorMode: 'detailed', programType: 'hrs_residential' })
+    handleProgramSelect('detailed', 'hrs_residential')
   }
 
   const selectNetMetering = () => {
-    // Default to detailed flow for Net Metering as well
-    onComplete({ estimatorMode: 'detailed', programType: 'net_metering' })
+    handleProgramSelect('detailed', 'net_metering')
   }
 
   return (
@@ -200,8 +238,8 @@ export function StepModeSelector({ onComplete }: StepModeSelectorProps) {
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="text-left py-2 text-gray-600 font-semibold">Feature</th>
-                <th className="text-center py-2 text-red-600 font-semibold">Quick</th>
-                <th className="text-center py-2 text-navy-600 font-semibold">Detailed</th>
+                <th className="text-center py-2 text-red-600 font-semibold">Quick Estimate</th>
+                <th className="text-center py-2 text-navy-600 font-semibold">HRS Program</th>
               </tr>
             </thead>
             <tbody className="text-gray-700">
@@ -244,6 +282,134 @@ export function StepModeSelector({ onComplete }: StepModeSelectorProps) {
           </table>
         </div>
       </div>
+
+      {/* Lead Type Selection Modal */}
+      {showLeadTypeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full p-8 relative">
+            {/* Close button */}
+            <button
+              onClick={() => {
+                setShowLeadTypeModal(false)
+                setSelectedProgram(null)
+              }}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X size={24} />
+            </button>
+
+            {/* Header */}
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-navy-500 mb-2">
+                Select Property Type
+              </h2>
+              <p className="text-gray-600">
+                Choose whether this is a residential or commercial property
+              </p>
+            </div>
+
+            {/* Lead Type Options */}
+            <div className="grid md:grid-cols-2 gap-6 mb-6">
+              {/* Residential Option */}
+              <div
+                onClick={() => handleLeadTypeSelect('residential')}
+                className="card p-8 hover:shadow-xl transition-all cursor-pointer border-2 border-transparent hover:border-navy-500 group text-left"
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <div className="w-16 h-16 bg-gradient-to-br from-navy-500 to-blue-500 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Home className="text-white" size={32} />
+                  </div>
+                </div>
+
+                <h3 className="text-2xl font-bold text-navy-500 mb-3">
+                  Residential
+                </h3>
+                
+                <p className="text-gray-600 mb-6">
+                  For homes, townhouses, and residential properties
+                </p>
+
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <span className="text-sm text-gray-700">Single-family homes</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <span className="text-sm text-gray-700">Townhouses & condos</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <span className="text-sm text-gray-700">Up to $10,000 HRS rebate</span>
+                  </div>
+                </div>
+
+                <div className="bg-navy-500 hover:bg-navy-600 text-white font-semibold py-3 px-6 rounded-lg transition-all w-full group-hover:shadow-lg flex items-center justify-center gap-2">
+                  Select Residential
+                  <ArrowRight size={20} />
+                </div>
+              </div>
+
+              {/* Commercial Option - Moved to Admin Panel */}
+              <div
+                className="card p-8 opacity-60 border-2 border-dashed border-gray-300 cursor-not-allowed"
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <div className="w-16 h-16 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center">
+                    <Building2 className="text-white" size={32} />
+                  </div>
+                  <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
+                    ADMIN TOOL
+                  </span>
+                </div>
+
+                <h3 className="text-2xl font-bold text-gray-500 mb-3">
+                  Commercial
+                </h3>
+                
+                <p className="text-gray-500 mb-6">
+                  Demand charge calculator available in admin panel
+                </p>
+
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <span className="text-sm text-gray-500">Battery demand charge calculator</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <span className="text-sm text-gray-500">Available in admin dashboard</span>
+                  </div>
+                </div>
+
+                <button className="bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg w-full cursor-not-allowed" disabled>
+                  Admin Only
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

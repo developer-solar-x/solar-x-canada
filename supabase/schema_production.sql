@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS leads_v3 (
   estimator_mode TEXT,
   program_type TEXT,
   rate_plan TEXT,
+  lead_type TEXT CHECK (lead_type IN ('residential', 'commercial')) DEFAULT 'residential',
 
   -- Roof information
   roof_polygon JSONB,
@@ -184,6 +185,8 @@ CREATE INDEX IF NOT EXISTS idx_leads_v3_status ON leads_v3(status);
 CREATE INDEX IF NOT EXISTS idx_leads_v3_province ON leads_v3(province);
 CREATE INDEX IF NOT EXISTS idx_leads_v3_hubspot_synced ON leads_v3(hubspot_synced);
 CREATE INDEX IF NOT EXISTS idx_leads_v3_source ON leads_v3(source);
+CREATE INDEX IF NOT EXISTS idx_leads_v3_lead_type ON leads_v3(lead_type);
+CREATE INDEX IF NOT EXISTS idx_leads_v3_program_type ON leads_v3(program_type);
 
 -- Trigger function to auto-update updated_at for leads_v3
 CREATE OR REPLACE FUNCTION update_leads_v3_updated_at()
@@ -375,6 +378,131 @@ ALTER TABLE landing_interactions_v3 ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow public insert on landing_interactions_v3" ON landing_interactions_v3
   FOR INSERT
   WITH CHECK (true);
+
+-- ============================================================================
+-- 7. SALES KPI TABLES
+-- ============================================================================
+-- Tables for HubSpot Sales KPI Dashboard
+-- Tracks weekly sales performance metrics per agent and team
+
+-- Table: uploads - Track file uploads
+CREATE TABLE IF NOT EXISTS uploads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  filename TEXT NOT NULL,
+  file_url TEXT NOT NULL,
+  uploaded_at TIMESTAMPTZ DEFAULT NOW(),
+  uploaded_by UUID REFERENCES auth.users(id),
+  row_count INTEGER,
+  processing_status TEXT DEFAULT 'pending',
+  error_message TEXT
+);
+
+-- Table: leads (sales KPI) - Store processed lead data from HubSpot exports
+-- Note: This is separate from leads_v3 (estimator leads)
+CREATE TABLE IF NOT EXISTS sales_kpi_leads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  upload_id UUID REFERENCES uploads(id) ON DELETE CASCADE,
+  owner TEXT NOT NULL,
+  owner_assigned TIMESTAMPTZ NOT NULL,
+  pipeline_status TEXT NOT NULL,
+  original_source TEXT,
+  utm_ad TEXT,
+  effective_source TEXT,
+  create_date TIMESTAMPTZ,
+  first_conversion_date TIMESTAMPTZ,
+  week_start DATE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for sales_kpi_leads table
+CREATE INDEX IF NOT EXISTS idx_sales_kpi_leads_owner_week ON sales_kpi_leads(owner, week_start);
+CREATE INDEX IF NOT EXISTS idx_sales_kpi_leads_week ON sales_kpi_leads(week_start);
+CREATE INDEX IF NOT EXISTS idx_sales_kpi_leads_upload ON sales_kpi_leads(upload_id);
+
+-- Table: weekly_kpis - Store calculated KPIs per owner per week
+CREATE TABLE IF NOT EXISTS weekly_kpis (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  upload_id UUID REFERENCES uploads(id) ON DELETE CASCADE,
+  week_start DATE NOT NULL,
+  owner TEXT NOT NULL,
+  total_leads INTEGER NOT NULL,
+  qualified INTEGER NOT NULL,
+  proposal INTEGER NOT NULL,
+  closed INTEGER NOT NULL,
+  qualified_pct NUMERIC(5,1) NOT NULL,
+  proposal_pct NUMERIC(5,1) NOT NULL,
+  closed_pct NUMERIC(5,1) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(upload_id, week_start, owner)
+);
+
+-- Index for weekly_kpis table
+CREATE INDEX IF NOT EXISTS idx_weekly_kpis_week_owner ON weekly_kpis(week_start, owner);
+
+-- Table: weekly_rollup - Store aggregated KPIs per week (all owners combined)
+CREATE TABLE IF NOT EXISTS weekly_rollup (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  upload_id UUID REFERENCES uploads(id) ON DELETE CASCADE,
+  week_start DATE NOT NULL,
+  total_leads INTEGER NOT NULL,
+  qualified INTEGER NOT NULL,
+  proposal INTEGER NOT NULL,
+  closed INTEGER NOT NULL,
+  qualified_pct NUMERIC(5,1) NOT NULL,
+  proposal_pct NUMERIC(5,1) NOT NULL,
+  closed_pct NUMERIC(5,1) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(upload_id, week_start)
+);
+
+-- Enable Row Level Security for sales KPI tables
+ALTER TABLE uploads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sales_kpi_leads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE weekly_kpis ENABLE ROW LEVEL SECURITY;
+ALTER TABLE weekly_rollup ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies: Allow service role full access
+CREATE POLICY "Allow service role full access uploads" ON uploads
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Allow service role full access sales_kpi_leads" ON sales_kpi_leads
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Allow service role full access weekly_kpis" ON weekly_kpis
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Allow service role full access weekly_rollup" ON weekly_rollup
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+-- Create storage bucket for HubSpot uploads (if it doesn't exist)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('hubspot-uploads', 'hubspot-uploads', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Set up storage policies for hubspot-uploads bucket
+-- Drop policies if they exist (to allow re-running this script)
+DROP POLICY IF EXISTS "Allow authenticated uploads" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated reads" ON storage.objects;
+
+-- Allow authenticated users to upload files
+CREATE POLICY "Allow authenticated uploads"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'hubspot-uploads');
+
+-- Allow authenticated users to read their own uploads
+CREATE POLICY "Allow authenticated reads"
+ON storage.objects FOR SELECT
+TO authenticated
+USING (bucket_id = 'hubspot-uploads');
 
 -- ============================================================================
 -- CLEANUP FUNCTIONS

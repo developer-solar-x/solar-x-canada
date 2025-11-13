@@ -1,11 +1,13 @@
 // Starting the import area with a smile so future readers know this file is friendly
 import path from 'path' // Pulling in path helpers so we can build file locations without headaches
 import { promises as fs } from 'fs' // Inviting the file system promises so we can read uploads gently
-import * as XLSX from 'xlsx' // Bringing in the spreadsheet toolbox that will let us read the raw download
+// Bringing in the spreadsheet toolbox that will let us read the raw download
+// Using require for xlsx to avoid ESM/CJS compatibility issues
+const XLSX = require('xlsx') as typeof import('xlsx')
 import greenButtonLibrary from '@cityssm/green-button-parser' // Borrowing the official lookups so our labels sound official
 
-// Performing a tiny compatibility shim so both ESM and CJS flavors of xlsx feel welcome
-const XLSXLib: any = (XLSX as any).readFile ? XLSX : (XLSX as any).default // Choosing whichever export actually exposes readFile so runtime stays happy
+// Using XLSX directly since we're using require
+const XLSXLib: any = XLSX
 
 // Listing the overnight-friendly labels so time-of-use codes instantly make sense to humans
 const TOU_LABELS: Record<string, string> = {

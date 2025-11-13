@@ -24,13 +24,45 @@ import { StepDetails } from '@/components/estimator/StepDetails'
 import { StepDetailsSimple } from '@/components/estimator/StepDetailsSimple'
 import { StepReview } from '@/components/estimator/StepReview'
 import { StepContact } from '@/components/estimator/StepContact'
+import { StepCommercialTariff } from '@/components/estimator/StepCommercialTariff'
+import { StepCommercialPeakShaving } from '@/components/estimator/StepCommercialPeakShaving'
+import { StepCommercialBattery } from '@/components/estimator/StepCommercialBattery'
+import { StepCommercialCosts } from '@/components/estimator/StepCommercialCosts'
+import { StepCommercialGreenButton } from '@/components/estimator/StepCommercialGreenButton'
+import { StepCommercialResults } from '@/components/estimator/StepCommercialResults'
 
 // Estimator data type
 export interface EstimatorData {
   // Step 0: Mode selection
-  estimatorMode?: 'easy' | 'detailed'
+  estimatorMode?: 'easy' | 'detailed' | 'commercial'
   // Program selection
-  programType?: 'quick' | 'hrs_residential' | 'net_metering'
+  programType?: 'quick' | 'hrs_residential' | 'net_metering' | 'commercial'
+  // Lead type (residential or commercial)
+  leadType?: 'residential' | 'commercial'
+  
+  // Commercial-specific fields
+  billingMethod?: 'Per kVA' | 'Per kW' | 'Max(kW, 0.9×kVA)'
+  demandRatePerUnit30d?: number
+  measuredPeakKVA?: number
+  currentPF?: number
+  targetPF?: number
+  targetCapKW?: number
+  shaveKW?: number
+  peakDurationMin?: number
+  batteryCRate?: number
+  roundTripEff?: number
+  usableDOD?: number
+  installedCostTotal?: number
+  solarACElligibleKW?: number
+  rebateRatePerKW?: number
+  rebateCapDollar?: number
+  applySolar50Cap?: boolean
+  solarOnlyCost?: number
+  analysisYears?: number
+  annualEscalator?: number
+  greenButtonData?: any
+  intervalKW?: Array<{ ts: string; kW: number }>
+  commercialResults?: any
   
   // Step 1: Location
   address?: string
@@ -120,6 +152,20 @@ const detailedSteps = [
   { id: 8, name: 'Submit', component: StepContact },
 ]
 
+// Step definitions for Commercial Mode
+const commercialSteps = [
+  { id: 0, name: 'Program', component: StepModeSelector },
+  { id: 1, name: 'Location', component: StepLocation },
+  { id: 2, name: 'Draw Roof', component: StepDrawRoof },
+  { id: 3, name: 'Green Button', component: StepCommercialGreenButton, optional: true, comingSoon: true },
+  { id: 4, name: 'Tariff', component: StepCommercialTariff },
+  { id: 5, name: 'Peak Shaving', component: StepCommercialPeakShaving },
+  { id: 6, name: 'Battery Specs', component: StepCommercialBattery },
+  { id: 7, name: 'Costs & Rebate', component: StepCommercialCosts },
+  { id: 8, name: 'Results', component: StepCommercialResults },
+  { id: 9, name: 'Submit', component: StepContact },
+]
+
 export default function EstimatorPage() {
   // Current step state (starts at 0 for mode selector)
   const [currentStep, setCurrentStep] = useState(0)
@@ -141,12 +187,23 @@ export default function EstimatorPage() {
   const [isLoadingNextStep, setIsLoadingNextStep] = useState(false)
 
   // Get active step array based on mode
-  const steps = data.estimatorMode === 'easy' ? easySteps : data.estimatorMode === 'detailed' ? detailedSteps : [easySteps[0]]
+  const steps = data.estimatorMode === 'easy' 
+    ? easySteps 
+    : data.estimatorMode === 'detailed' 
+    ? detailedSteps 
+    : data.estimatorMode === 'commercial'
+    ? commercialSteps
+    : [easySteps[0]]
   
-  // Show Battery Savings step only for HRS program
+  // Filter steps based on mode and conditions
   const displaySteps = steps.filter(step => {
+    // Show Battery Savings step only for HRS program (residential)
     if (step.name === 'Battery Savings') {
       return data.programType === 'hrs_residential' || data.systemType === 'battery_system'
+    }
+    // For commercial mode, skip Green Button step if it's marked as coming soon
+    if (step.name === 'Green Button' && data.estimatorMode === 'commercial' && (step as any).comingSoon) {
+      return false // Hide coming soon steps
     }
     return true
   })
@@ -284,7 +341,13 @@ export default function EstimatorPage() {
     } else {
       // Get the correct steps array after data update
       const newMode = stepData.estimatorMode || data.estimatorMode
-      const nextSteps = newMode === 'easy' ? easySteps : newMode === 'detailed' ? detailedSteps : [easySteps[0]]
+      const nextSteps = newMode === 'easy' 
+        ? easySteps 
+        : newMode === 'detailed' 
+        ? detailedSteps 
+        : newMode === 'commercial'
+        ? commercialSteps
+        : [easySteps[0]]
       
       if (currentStep < nextSteps.length - 1) {
         let nextStep = currentStep + 1
@@ -349,7 +412,13 @@ export default function EstimatorPage() {
   // Go back to previous step
   const handleBack = () => {
     if (currentStep > 0) {
-      const stepsForMode = data.estimatorMode === 'easy' ? easySteps : data.estimatorMode === 'detailed' ? detailedSteps : easySteps
+      const stepsForMode = data.estimatorMode === 'easy' 
+        ? easySteps 
+        : data.estimatorMode === 'detailed' 
+        ? detailedSteps 
+        : data.estimatorMode === 'commercial'
+        ? commercialSteps
+        : easySteps
       let prevStep = currentStep - 1
 
       while (
@@ -479,11 +548,19 @@ export default function EstimatorPage() {
               <span className={`inline-block px-4 py-1 rounded-full text-xs font-bold ${
                 data.programType === 'hrs_residential'
                   ? 'bg-navy-100 text-navy-600'
+                  : data.estimatorMode === 'commercial'
+                  ? 'bg-blue-100 text-blue-600'
                   : data.estimatorMode === 'easy' 
                     ? 'bg-red-100 text-red-600' 
                     : 'bg-navy-100 text-navy-600'
               }`}>
-                {data.programType === 'hrs_residential' ? 'Solar HRS Program' : (data.estimatorMode === 'easy' ? 'Quick Estimate' : 'Detailed Analysis')}
+                {data.programType === 'hrs_residential' 
+                  ? 'Solar HRS Program' 
+                  : data.estimatorMode === 'commercial'
+                  ? 'Commercial Analysis'
+                  : data.estimatorMode === 'easy' 
+                    ? 'Quick Estimate' 
+                    : 'Detailed Analysis'}
               </span>
             </div>
 
@@ -575,7 +652,13 @@ export default function EstimatorPage() {
         {savedProgressData && (
           <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm font-semibold text-blue-800 mb-1">
-              {savedProgressData.data.programType === 'hrs_residential' ? 'Solar HRS Program' : (savedProgressData.data.estimatorMode === 'easy' ? 'Quick Estimate' : 'Detailed Analysis')}
+              {savedProgressData.data.programType === 'hrs_residential' 
+                ? 'Solar HRS Program' 
+                : savedProgressData.data.estimatorMode === 'commercial'
+                ? 'Commercial Analysis'
+                : savedProgressData.data.estimatorMode === 'easy' 
+                  ? 'Quick Estimate' 
+                  : 'Detailed Analysis'}
             </p>
             <p className="text-sm text-blue-600">
               Step {savedProgressData.currentStep}
