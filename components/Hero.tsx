@@ -106,6 +106,7 @@ export function Hero() {
                 fill
                 className="object-cover"
                 priority
+                fetchPriority="high"
                 sizes="(max-width: 1024px) 0vw, 50vw"
               />
               {/* Overlay gradient for better card visibility */}

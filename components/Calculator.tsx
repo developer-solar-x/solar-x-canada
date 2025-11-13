@@ -52,13 +52,18 @@ export function Calculator() {
               </div>
 
               {/* Slider input */}
+              <label htmlFor="monthly-bill-slider" className="sr-only">
+                Monthly electricity bill amount
+              </label>
               <input
+                id="monthly-bill-slider"
                 type="range"
                 min="50"
                 max="500"
                 step="10"
                 value={monthlyBill}
                 onChange={(e) => setMonthlyBill(Number(e.target.value))}
+                aria-label="Monthly electricity bill amount"
                 className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
                 style={{
                   background: `linear-gradient(to right, #DC143C 0%, #DC143C ${((monthlyBill - 50) / 450) * 100}%, #E2E8F0 ${((monthlyBill - 50) / 450) * 100}%, #E2E8F0 100%)`

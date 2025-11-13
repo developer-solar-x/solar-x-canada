@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import { PreconnectLinks } from '@/components/PreconnectLinks'
 
 // Metadata for SEO optimization - Optimized for Canadian solar market
 export const metadata: Metadata = {
@@ -75,6 +76,10 @@ export const metadata: Metadata = {
     // Add Google Search Console verification when available
     // google: 'your-verification-code',
   },
+  other: {
+    // Preconnect to external domains for faster loading
+    'dns-prefetch': 'https://images.unsplash.com',
+  },
 }
 
 // Viewport configuration (Next.js 15 requirement)
@@ -148,6 +153,8 @@ export default function RootLayout({
   return (
     <html lang="en-CA" className="scroll-smooth">
       <body className="antialiased">
+        {/* Preconnect links for performance - added early in body */}
+        <PreconnectLinks />
         {/* Structured Data for SEO (JSON-LD) - Valid in body for HTML5 */}
         <script
           type="application/ld+json"

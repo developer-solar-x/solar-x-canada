@@ -114,7 +114,7 @@ export function Footer() {
                 </span>
               </li>
             </ul>
-            <p className="text-gray-400 text-sm mt-4">
+            <p className="text-gray-200 text-sm mt-4">
               Mon-Fri: 8am-6pm EST
             </p>
           </div>
@@ -123,17 +123,17 @@ export function Footer() {
         {/* Bottom bar */}
         <div className="pt-8 border-t border-white/10">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-gray-400 text-sm">
+            <p className="text-gray-200 text-sm">
               © 2024 SolarX. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm">
-              <Link href="#" className="text-gray-400 hover:text-white transition-colors">
+              <Link href="#" className="text-gray-200 hover:text-white transition-colors">
                 Privacy Policy
               </Link>
-              <Link href="#" className="text-gray-400 hover:text-white transition-colors">
+              <Link href="#" className="text-gray-200 hover:text-white transition-colors">
                 Terms of Service
               </Link>
-              <Link href="#" className="text-gray-400 hover:text-white transition-colors">
+              <Link href="#" className="text-gray-200 hover:text-white transition-colors">
                 Accessibility
               </Link>
             </div>
