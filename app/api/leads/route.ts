@@ -284,6 +284,23 @@ export async function POST(request: Request) {
       }).catch(err => console.error('HubSpot sync queue error:', err))
     }
 
+    // Send estimate email to customer (async, don't wait for response)
+    if (email && estimateData) {
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/leads/send-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName,
+          email,
+          address,
+          estimate: estimateData,
+          peakShaving: body.peakShaving || null,
+          batteryDetails: body.batteryDetails || null,
+          leadId: lead.id,
+        }),
+      }).catch(err => console.error('Email send error:', err))
+    }
+
     // Return success with lead ID
     return NextResponse.json({
       success: true,

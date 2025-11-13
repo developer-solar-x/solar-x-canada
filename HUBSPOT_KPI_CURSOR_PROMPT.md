@@ -1140,3 +1140,5 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 - Performance is important - optimize for large datasets
 - Mobile-first responsive design
 
+
+

@@ -90,6 +90,10 @@ SolarX is a production-ready MVP solar rooftop estimator built with Next.js 15, 
    # HubSpot
    HUBSPOT_ACCESS_TOKEN=your_hubspot_token
 
+   # Gmail (for sending estimate emails)
+   GMAIL_USER=your-email@gmail.com
+   GMAIL_APP_PASSWORD=your_gmail_app_password
+
    # Admin
    ADMIN_PASSWORD=your_secure_password
 
@@ -149,6 +153,35 @@ The admin dashboard is protected by authentication. To access:
 3. Grant necessary scopes (contacts, deals, CRM)
 4. Generate access token
 5. Create custom properties as needed (see specification)
+
+### Gmail (for Estimate Emails)
+To send estimate emails via Gmail, you need to create a Gmail App Password:
+
+1. **Enable 2-Step Verification** (required for app passwords):
+   - Go to your Google Account: [myaccount.google.com](https://myaccount.google.com)
+   - Navigate to Security > 2-Step Verification
+   - Follow the prompts to enable it
+
+2. **Generate App Password**:
+   - Go to Security > 2-Step Verification
+   - Scroll down to "App passwords"
+   - Click "App passwords"
+   - Select "Mail" and "Other (Custom name)"
+   - Enter "SolarX Estimator" as the name
+   - Click "Generate"
+   - Copy the 16-character password (it will look like: `abcd efgh ijkl mnop`)
+
+3. **Add to Environment Variables**:
+   ```env
+   GMAIL_USER=your-email@gmail.com
+   GMAIL_APP_PASSWORD=abcdefghijklmnop  # Use the 16-character app password (no spaces)
+   ```
+
+**Important Notes**:
+- Use the **App Password**, not your regular Gmail password
+- Remove spaces from the app password when adding to `.env.local`
+- The `GMAIL_USER` should be your full Gmail address
+- For Google Workspace accounts, you may need to enable "Less secure app access" or use OAuth2 instead
 
 ## Project Structure
 
@@ -217,6 +250,8 @@ Required environment variables for production:
 | `NEXT_PUBLIC_MAPBOX_TOKEN` | Mapbox access token | Mapbox Account > Tokens |
 | `NREL_API_KEY` | NREL API key | developer.nrel.gov |
 | `HUBSPOT_ACCESS_TOKEN` | HubSpot API token | HubSpot > Private Apps |
+| `GMAIL_USER` | Gmail address for sending emails | Your Gmail account |
+| `GMAIL_APP_PASSWORD` | Gmail app password | Google Account > Security > App Passwords |
 | `ADMIN_PASSWORD` | Admin dashboard password | Set your own |
 | `NEXT_PUBLIC_APP_URL` | Production URL | Your domain |
 

@@ -3,7 +3,7 @@
 // Step 4: Review estimate and results
 
 import { useState, useEffect } from 'react'
-import { Zap, DollarSign, TrendingUp, TrendingDown, Loader2, Leaf, CreditCard, MapPin, Home, Compass, Building, Gauge, Sun, Calendar, Droplets, Bolt, Battery, Moon } from 'lucide-react'
+import { Zap, DollarSign, TrendingUp, TrendingDown, Loader2, Leaf, CreditCard, MapPin, Home, Compass, Building, Gauge, Sun, Calendar, Droplets, Bolt, Battery, Moon, Info } from 'lucide-react'
 import { formatCurrency, formatKw, formatNumber } from '@/lib/utils'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { FINANCING_OPTIONS, calculateFinancing } from '@/config/provinces'
@@ -648,14 +648,21 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
 
           {/* Monthly Savings */}
           {(() => {
-            // Calculate TOU and ULO monthly savings if both plans exist
+            // Get TOU and ULO monthly savings from Plan Comparison combined data
             let touMonthly = combinedMonthlySavings
             let uloMonthly = combinedMonthlySavings
             if (tou && ulo && includeBattery) {
-              const touAnnual = (tou?.result?.annualSavings || 0) + (estimate.savings?.annualSavings || 0)
-              const uloAnnual = (ulo?.result?.annualSavings || 0) + (estimate.savings?.annualSavings || 0)
-              touMonthly = Math.round(touAnnual / 12)
-              uloMonthly = Math.round(uloAnnual / 12)
+              // Use combined monthly savings from Plan Comparison (same source as Plan Comparison table)
+              const touCombined = (data.peakShaving as any)?.tou?.allResults?.combined?.combined || 
+                                 (data.peakShaving as any)?.tou?.combined?.combined ||
+                                 (data.peakShaving as any)?.tou?.combined
+              const uloCombined = (data.peakShaving as any)?.ulo?.allResults?.combined?.combined || 
+                                 (data.peakShaving as any)?.ulo?.combined?.combined ||
+                                 (data.peakShaving as any)?.ulo?.combined
+              
+              // Use monthly from combined data (matches Plan Comparison)
+              touMonthly = touCombined?.monthly || Math.round((touCombined?.annual || 0) / 12) || combinedMonthlySavings
+              uloMonthly = uloCombined?.monthly || Math.round((uloCombined?.annual || 0) / 12) || combinedMonthlySavings
             }
             
             return (
@@ -843,138 +850,170 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
           </div>
         )}
 
-        {/* TOU vs ULO Comparison Card - Use final results from StepBatteryPeakShavingSimple */}
-        {tou && ulo && (() => {
-          if (!includeBattery) return null
-          // Prefer the combined results computed in StepBatteryPeakShavingSimple, fallback to re-deriving
-          const touCombined = (data.peakShaving as any)?.tou?.combined
-          const uloCombined = (data.peakShaving as any)?.ulo?.combined
+        {/* Plan Comparison (TOU vs ULO) - From StepBatteryPeakShavingSimple */}
+        {tou && ulo && includeBattery && (() => {
+          // Access combined data from allResults (Map converted to object)
+          // Structure: allResults.combined.combined (first 'combined' is the Map key, second is the property)
+          const touCombined = (data.peakShaving as any)?.tou?.allResults?.combined?.combined || 
+                             (data.peakShaving as any)?.tou?.combined?.combined ||
+                             (data.peakShaving as any)?.tou?.combined
+          const uloCombined = (data.peakShaving as any)?.ulo?.allResults?.combined?.combined || 
+                             (data.peakShaving as any)?.ulo?.combined?.combined ||
+                             (data.peakShaving as any)?.ulo?.combined
           
-          let touCombinedAnnual = touCombined?.annual || 0
-          let touCombinedNet = touCombined?.netCost || 0
-          let touCombinedProfit = touCombined?.projection?.netProfit25Year || 0
-          let uloCombinedAnnual = uloCombined?.annual || 0
-          let uloCombinedNet = uloCombined?.netCost || 0
-          let uloCombinedProfit = uloCombined?.projection?.netProfit25Year || 0
+          // Get baseline and final values
+          const touBaseline = touCombined?.baselineAnnualBillEnergyOnly || 0
+          const touFinal = touCombined?.postSolarBatteryAnnualBillEnergyOnly || 0
+          const uloBaseline = uloCombined?.baselineAnnualBillEnergyOnly || 0
+          const uloFinal = uloCombined?.postSolarBatteryAnnualBillEnergyOnly || 0
           
-          if (!(touCombined && uloCombined)) {
-            // Fallback: derive from estimate and battery savings if combined missing
-            const solarAnnual = estimate.savings?.annualSavings || 0
-            const solarNet = estimate.costs?.netCost || 0
-            const touAnnual = (tou?.result?.annualSavings || 0) + solarAnnual
-            const uloAnnual = (ulo?.result?.annualSavings || 0) + solarAnnual
-            const batteryNet = Math.max(0, (batteryPrice || 0) - (batteryProgramRebate || 0))
-            const touNet = Math.max(0, solarNet + batteryNet)
-            const uloNet = Math.max(0, solarNet + batteryNet)
-            touCombinedAnnual = touAnnual
-            uloCombinedAnnual = uloAnnual
-            touCombinedNet = touNet
-            uloCombinedNet = uloNet
-            touCombinedProfit = calculateSimpleMultiYear({ annualSavings: touAnnual } as any, touNet, 0.05, 25).netProfit25Year
-            uloCombinedProfit = calculateSimpleMultiYear({ annualSavings: uloAnnual } as any, uloNet, 0.05, 25).netProfit25Year
+          // Get combined annual and monthly savings
+          const touCombinedAnnual = touCombined?.annual || 0
+          const touCombinedMonthly = touCombined?.monthly || 0
+          const uloCombinedAnnual = uloCombined?.annual || 0
+          const uloCombinedMonthly = uloCombined?.monthly || 0
+          
+          // Get payback and profit from projections
+          // Projection is nested: combined.projection
+          const touPaybackYears = touCombined?.projection?.paybackYears
+          const uloPaybackYears = uloCombined?.projection?.paybackYears
+          const touProfit25 = touCombined?.projection?.netProfit25Year ?? 0
+          const uloProfit25 = uloCombined?.projection?.netProfit25Year ?? 0
+          
+          // Debug: Log if data is missing
+          if (!touCombined || !uloCombined) {
+            console.warn('Plan Comparison: Missing combined data', {
+              tou: !!touCombined,
+              ulo: !!uloCombined,
+              touPath: (data.peakShaving as any)?.tou?.allResults,
+              uloPath: (data.peakShaving as any)?.ulo?.allResults,
+            })
           }
           
-          const touPayback = touCombinedNet <= 0 ? 0 : (touCombinedAnnual > 0 ? touCombinedNet / touCombinedAnnual : Infinity)
-          const uloPayback = uloCombinedNet <= 0 ? 0 : (uloCombinedAnnual > 0 ? uloCombinedNet / uloCombinedAnnual : Infinity)
-          
           return (
-            <div className="card p-6 bg-gradient-to-br from-white to-gray-50 border-2 border-navy-300 shadow-lg">
-              <div className="flex items-center justify-center gap-2 mb-6">
-                <div className="p-2 bg-gradient-to-br from-navy-500 to-navy-600 rounded-lg shadow-md">
-                  <TrendingUp className="text-white" size={24} />
-                </div>
-                <h3 className="text-2xl font-bold text-navy-500">
-                  Rate Plan Comparison
-                </h3>
-              </div>
-              
-              {/* Compact Comparison - 3 Metrics */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Annual Savings */}
-                <div className="bg-white rounded-xl p-5 shadow-md border-2 border-gray-200 hover:border-red-300 transition-all">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="p-1.5 bg-red-100 rounded-lg">
-                      <DollarSign className="text-red-500" size={18} />
+            <div className="mb-8">
+              {/* Single unified card containing all metrics */}
+              <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-200">
+                {/* Header area */}
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+                  {/* Title */}
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-red-100 rounded-lg">
+                      <TrendingUp className="text-red-500" size={22} />
                     </div>
-                    <div className="text-sm font-bold text-gray-600 uppercase tracking-wide">Annual Savings</div>
+                    <h4 className="text-lg font-bold text-gray-700">Plan Comparison (TOU vs ULO)</h4>
                   </div>
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex items-center gap-1 mb-1">
-                        <Sun size={12} className="text-navy-400" />
-                        <div className="text-xs text-gray-600 font-medium">TOU Plan</div>
-                      </div>
-                      <div className="text-xl font-bold text-red-600">
+                  {/* Subtitle note */}
+                  <p className="text-xs text-gray-500">
+                    These results include both solar production and battery dispatch for each utility rate plan.
+                  </p>
+                </div>
+
+                {/* Energy-only note */}
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-xs text-blue-700">
+                    <strong>Note:</strong> Costs shown are energy charges only (excluding HST, delivery, and fixed fees) to match maximum savings calculation.
+                  </p>
+                </div>
+
+                {/* Unified table with all metrics */}
+                <div className="overflow-hidden border border-gray-200 rounded-xl">
+                  {/* Column headers */}
+                  <div className="grid grid-cols-[1.2fr_1fr_1fr] bg-gray-50 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                    <div className="px-4 py-3">Metric</div>
+                    <div className="px-4 py-3 text-center text-blue-600">
+                      <Sun className="inline mr-1" size={14} />
+                      TOU Plan
+                    </div>
+                    <div className="px-4 py-3 text-center text-amber-600">
+                      <Moon className="inline mr-1" size={14} />
+                      ULO Plan
+                    </div>
+                  </div>
+
+                  {/* Baseline (No System) row */}
+                  <div className="grid grid-cols-[1.2fr_1fr_1fr] border-t border-gray-200 bg-gray-50">
+                    <div className="px-4 py-3">
+                      <span className="text-sm font-semibold text-gray-700">Baseline (No System)</span>
+                    </div>
+                    <div className="px-4 py-3 text-center">
+                      <div className="text-lg font-bold text-gray-800">${Math.round(touBaseline).toLocaleString()}/yr</div>
+                    </div>
+                    <div className="px-4 py-3 text-center">
+                      <div className="text-lg font-bold text-gray-800">${Math.round(uloBaseline).toLocaleString()}/yr</div>
+                    </div>
+                  </div>
+
+                  {/* After Solar + Battery row */}
+                  <div className="grid grid-cols-[1.2fr_1fr_1fr] border-t border-gray-200">
+                    <div className="px-4 py-3">
+                      <span className="text-sm font-semibold text-gray-700">After Solar + Battery</span>
+                    </div>
+                    <div className="px-4 py-3 text-center">
+                      <div className="text-lg font-bold text-green-600">${Math.round(touFinal).toLocaleString()}/yr</div>
+                    </div>
+                    <div className="px-4 py-3 text-center">
+                      <div className="text-lg font-bold text-green-600">${Math.round(uloFinal).toLocaleString()}/yr</div>
+                    </div>
+                  </div>
+
+                  {/* Annual savings row */}
+                  <div className="grid grid-cols-[1.2fr_1fr_1fr] border-t border-gray-200 bg-green-50">
+                    <div className="px-4 py-4 flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-gray-700">Annual Savings</span>
+                    </div>
+                    <div className="px-4 py-4 text-center">
+                      <div className="text-2xl font-bold text-red-600">
                         ${Math.round(touCombinedAnnual).toLocaleString()}
                       </div>
-                    </div>
-                    <div className="border-t border-gray-200 pt-2">
-                      <div className="flex items-center gap-1 mb-1">
-                        <Moon size={12} className="text-navy-400" />
-                        <div className="text-xs text-gray-600 font-medium">ULO Plan</div>
+                      <div className="text-xs text-gray-600">
+                        ${Math.round(touCombinedMonthly).toLocaleString()}/month
                       </div>
-                      <div className="text-xl font-bold text-red-600">
+                    </div>
+                    <div className="px-4 py-4 text-center">
+                      <div className="text-2xl font-bold text-red-600">
                         ${Math.round(uloCombinedAnnual).toLocaleString()}
                       </div>
+                      <div className="text-xs text-gray-600">
+                        ${Math.round(uloCombinedMonthly).toLocaleString()}/month
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Payback Period */}
-                <div className="bg-white rounded-xl p-5 shadow-md border-2 border-gray-200 hover:border-navy-300 transition-all">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="p-1.5 bg-navy-100 rounded-lg">
-                      <Calendar className="text-navy-500" size={18} />
+                  {/* Payback period row */}
+                  <div className="grid grid-cols-[1.2fr_1fr_1fr] border-t border-gray-200">
+                    <div className="px-4 py-4 flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-gray-700">Payback Period (Full System)</span>
                     </div>
-                    <div className="text-sm font-bold text-gray-600 uppercase tracking-wide">Payback Period</div>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex items-center gap-1 mb-1">
-                        <Sun size={12} className="text-navy-400" />
-                        <div className="text-xs text-gray-600 font-medium">TOU Plan</div>
-                      </div>
-                      <div className="text-xl font-bold text-navy-600">
-                        {touPayback === Infinity ? 'N/A' : `${touPayback.toFixed(1)} years`}
+                    <div className="px-4 py-4 text-center">
+                      <div className="text-2xl font-bold text-navy-600">
+                        {touPaybackYears == null || touPaybackYears === Number.POSITIVE_INFINITY
+                          ? 'N/A'
+                          : `${touPaybackYears.toFixed(1)} years`}
                       </div>
                     </div>
-                    <div className="border-t border-gray-200 pt-2">
-                      <div className="flex items-center gap-1 mb-1">
-                        <Moon size={12} className="text-navy-400" />
-                        <div className="text-xs text-gray-600 font-medium">ULO Plan</div>
-                      </div>
-                      <div className="text-xl font-bold text-navy-600">
-                        {uloPayback === Infinity ? 'N/A' : `${uloPayback.toFixed(1)} years`}
+                    <div className="px-4 py-4 text-center">
+                      <div className="text-2xl font-bold text-navy-600">
+                        {uloPaybackYears == null || uloPaybackYears === Number.POSITIVE_INFINITY
+                          ? 'N/A'
+                          : `${uloPaybackYears.toFixed(1)} years`}
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* 25-Year Profit */}
-                <div className="bg-white rounded-xl p-5 shadow-md border-2 border-gray-200 hover:border-green-300 transition-all">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="p-1.5 bg-green-100 rounded-lg">
-                      <TrendingUp className="text-green-600" size={18} />
+                  {/* 25-year profit row */}
+                  <div className="grid grid-cols-[1.2fr_1fr_1fr] border-t border-gray-200">
+                    <div className="px-4 py-4 flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-gray-700">25-Year Profit</span>
                     </div>
-                    <div className="text-sm font-bold text-gray-600 uppercase tracking-wide">25-Year Profit</div>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex items-center gap-1 mb-1">
-                        <Sun size={12} className="text-navy-400" />
-                        <div className="text-xs text-gray-600 font-medium">TOU Plan</div>
-                      </div>
-                      <div className="text-xl font-bold text-green-600">
-                        ${Math.round(touCombinedProfit).toLocaleString()}
+                    <div className="px-4 py-4 text-center">
+                      <div className="text-2xl font-bold text-green-600">
+                        ${Math.round(touProfit25).toLocaleString()}
                       </div>
                     </div>
-                    <div className="border-t border-gray-200 pt-2">
-                      <div className="flex items-center gap-1 mb-1">
-                        <Moon size={12} className="text-navy-400" />
-                        <div className="text-xs text-gray-600 font-medium">ULO Plan</div>
-                      </div>
-                      <div className="text-xl font-bold text-green-600">
-                        ${Math.round(uloCombinedProfit).toLocaleString()}
+                    <div className="px-4 py-4 text-center">
+                      <div className="text-2xl font-bold text-green-600">
+                        ${Math.round(uloProfit25).toLocaleString()}
                       </div>
                     </div>
                   </div>

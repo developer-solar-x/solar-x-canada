@@ -2,7 +2,10 @@ import { MetadataRoute } from 'next'
 
 // Generate sitemap for search engines to discover all pages
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://www.solarcalculatorcanada.org'
+  // Use environment variable if available, otherwise fallback to production domain
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                 (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 
+                 'https://www.solarcalculatorcanada.org')
   
   return [
     {
@@ -25,6 +28,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
   ]
 }
+
+
 
 
 
