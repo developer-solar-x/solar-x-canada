@@ -26,6 +26,16 @@ export const DEFAULT_ULO_DISTRIBUTION: UsageDistribution = {
   ultraLowPercent: 26 // Overnight ultra-low share used in the email baseline
 }
 
+// FRD Section 5.2: Day/Night split constants (default 50/50)
+// These are adjustable constants for future rate-plan or province expansion
+export const DEFAULT_DAY_NIGHT_SPLIT = {
+  p_day: 0.5,    // 50% of usage during daytime
+  p_night: 0.5   // 50% of usage during nighttime
+}
+
+// FRD Section 5.1: Battery constants
+export const CMAX = 365  // Maximum cycles per year
+
 // Simple peak-shaving calculation result
 export interface SimplePeakShavingResult {
   // Usage breakdown
@@ -81,6 +91,303 @@ export interface SimplePeakShavingResult {
       offPeak: number
       midPeak: number
       onPeak: number
+    }
+  }
+}
+
+// FRD-compliant calculation result with detailed breakdown
+export interface FRDPeakShavingResult {
+  // Step A: Day/Night split
+  dayLoad: number
+  nightLoad: number
+  
+  // Step B: Solar allocation
+  solarToDay: number
+  solarExcess: number
+  dayGridAfterSolar: number
+  
+  // Step C: Battery charging
+  battSolarCharged: number
+  battGridCharged: number
+  battTotal: number
+  
+  // Step D: Battery discharge allocation
+  batteryDischargeByBucket: {
+    ultraLow?: number
+    offPeak: number
+    midPeak: number
+    onPeak: number
+  }
+  
+  // Step E: Edge case handling
+  edgeCase: 'none' | 'high_usage' | 'high_capacity'
+  battTotalEffective: number
+  effectiveCycles: number
+  solarUnused: number
+  
+  // Step F: Final savings
+  gridKWhByBucket: {
+    ultraLow?: number
+    offPeak: number
+    midPeak: number
+    onPeak: number
+  }
+  annualCostAfter: number
+  annualSavings: number
+  monthlySavings: number
+  
+  // Offset percentages for display
+  offsetPercentages: {
+    solarDirect: number
+    solarChargedBattery: number
+    uloChargedBattery: number
+    gridRemaining: number
+  }
+}
+
+// FRD-compliant calculation following Step A-F structure
+export function calculateFRDPeakShaving(
+  annualUsageKwh: number,      // U
+  solarProductionKwh: number,   // S
+  battery: BatterySpec,          // B (usable kWh)
+  ratePlan: RatePlan,
+  distribution?: UsageDistribution,
+  aiMode: boolean = false,       // AI Optimization Mode (default OFF)
+  dayNightSplit = DEFAULT_DAY_NIGHT_SPLIT
+): FRDPeakShavingResult {
+  // Safety checks: prevent division by zero and negative values
+  const U = Math.max(0, annualUsageKwh || 0)
+  const S = Math.max(0, solarProductionKwh || 0)
+  const B = Math.max(0, battery.usableKwh || 0)
+  
+  if (U <= 0) {
+    throw new Error('Annual usage must be greater than zero')
+  }
+  
+  // Extract rates
+  const rates = { ultraLow: 0, offPeak: 0, midPeak: 0, onPeak: 0 }
+  ratePlan.periods.forEach(period => {
+    const rateInDollars = period.rate / 100
+    if (period.period === 'ultra-low') rates.ultraLow = rateInDollars
+    if (period.period === 'off-peak') rates.offPeak = rateInDollars
+    if (period.period === 'mid-peak') rates.midPeak = rateInDollars
+    if (period.period === 'on-peak') rates.onPeak = rateInDollars
+  })
+  if (rates.offPeak === 0 && ratePlan.weekendRate) {
+    rates.offPeak = ratePlan.weekendRate / 100
+  }
+  
+  // Use default distribution if not provided
+  const dist = distribution || (
+    ratePlan.id === 'ulo' ? DEFAULT_ULO_DISTRIBUTION : DEFAULT_TOU_DISTRIBUTION
+  )
+  
+  // Calculate usage by period
+  const usageByPeriod = {
+    ultraLow: dist.ultraLowPercent ? (U * dist.ultraLowPercent / 100) : 0,
+    offPeak: U * dist.offPeakPercent / 100,
+    midPeak: U * dist.midPeakPercent / 100,
+    onPeak: U * dist.onPeakPercent / 100,
+  }
+  
+  // Calculate baseline cost
+  const baselineCost = 
+    (usageByPeriod.ultraLow || 0) * rates.ultraLow +
+    usageByPeriod.offPeak * rates.offPeak +
+    usageByPeriod.midPeak * rates.midPeak +
+    usageByPeriod.onPeak * rates.onPeak
+  
+  // ============================================
+  // STEP A: Split Load Into Day/Night
+  // ============================================
+  const dayLoad = U * dayNightSplit.p_day
+  const nightLoad = U * dayNightSplit.p_night
+  
+  // ============================================
+  // STEP B: Solar Allocation
+  // ============================================
+  // Solar may NOT exceed dayLoad (FRD requirement)
+  const solarToDay = Math.min(S, dayLoad)
+  const solarExcess = Math.max(S - dayLoad, 0)
+  const dayGridAfterSolar = Math.max(dayLoad - solarToDay, 0)
+  
+  // ============================================
+  // STEP C: Battery Charging
+  // ============================================
+  const maxBattKWh = B * CMAX  // Annual maximum battery discharge
+  
+  // C1: Solar → Battery
+  const battSolarCharged = Math.min(solarExcess, maxBattKWh, nightLoad)
+  
+  // C2: Grid → Battery (ULO + AI Mode only)
+  let battGridCharged = 0
+  if (aiMode && (ratePlan.id === 'ulo' || ratePlan.id === 'ulo-solar-battery')) {
+    const battHeadroom = Math.max(maxBattKWh - battSolarCharged, 0)
+    battGridCharged = Math.min(
+      battHeadroom,
+      nightLoad - battSolarCharged
+    )
+  }
+  
+  // C3: Total available battery discharge
+  const battTotal = battSolarCharged + battGridCharged
+  
+  // ============================================
+  // STEP D: Battery Discharge Allocation
+  // ============================================
+  // Priority order: On-peak > Mid-peak > Off-peak > ULO
+  const batteryDischargeByBucket = {
+    ultraLow: 0,
+    offPeak: 0,
+    midPeak: 0,
+    onPeak: 0
+  }
+  
+  let battRemaining = battTotal
+  
+  // On-peak first
+  const onPeakDischarge = Math.min(usageByPeriod.onPeak, battRemaining)
+  batteryDischargeByBucket.onPeak = onPeakDischarge
+  battRemaining -= onPeakDischarge
+  
+  // Mid-peak second
+  if (battRemaining > 0) {
+    const midPeakDischarge = Math.min(usageByPeriod.midPeak, battRemaining)
+    batteryDischargeByBucket.midPeak = midPeakDischarge
+    battRemaining -= midPeakDischarge
+  }
+  
+  // Off-peak third
+  if (battRemaining > 0) {
+    const offPeakDischarge = Math.min(usageByPeriod.offPeak, battRemaining)
+    batteryDischargeByBucket.offPeak = offPeakDischarge
+    battRemaining -= offPeakDischarge
+  }
+  
+  // ULO last (only for ULO plans)
+  if (battRemaining > 0 && usageByPeriod.ultraLow > 0) {
+    const ultraLowDischarge = Math.min(usageByPeriod.ultraLow, battRemaining)
+    batteryDischargeByBucket.ultraLow = ultraLowDischarge
+    battRemaining -= ultraLowDischarge
+  }
+  
+  // Calculate remaining grid usage after solar and battery discharge
+  // Battery discharge offsets grid usage, so we subtract it
+  const gridKWhByBucket = {
+    ultraLow: Math.max(0, (usageByPeriod.ultraLow || 0) - (batteryDischargeByBucket.ultraLow || 0)),
+    offPeak: Math.max(0, usageByPeriod.offPeak - batteryDischargeByBucket.offPeak),
+    midPeak: Math.max(0, usageByPeriod.midPeak - batteryDischargeByBucket.midPeak),
+    onPeak: Math.max(0, usageByPeriod.onPeak - batteryDischargeByBucket.onPeak)
+  }
+  
+  // Add battery charging cost (only for grid-charged battery energy)
+  // When AI Mode is ON and battery is grid-charged, we need to add that charging cost
+  if (battGridCharged > 0) {
+    if (rates.ultraLow > 0) {
+      // ULO plan: charge at ultra-low rate
+      gridKWhByBucket.ultraLow = (gridKWhByBucket.ultraLow || 0) + battGridCharged
+    } else {
+      // TOU plan: charge at off-peak rate (shouldn't happen with AI Mode, but handle it)
+      gridKWhByBucket.offPeak = gridKWhByBucket.offPeak + battGridCharged
+    }
+  }
+  // Solar-charged battery: no charging cost (already accounted for in solar allocation)
+  
+  // ============================================
+  // STEP E: Edge Case Handling
+  // ============================================
+  let edgeCase: 'none' | 'high_usage' | 'high_capacity' = 'none'
+  let battTotalEffective = battTotal
+  let effectiveCycles = battTotal > 0 && B > 0 ? battTotal / B : 0
+  let solarUnused = 0
+  
+  // Case 1: Usage >> Solar + Battery Capacity
+  if (U > S + maxBattKWh) {
+    edgeCase = 'high_usage'
+    // Battery and solar run normally, remaining load stays proportional
+    // Already handled above
+  }
+  
+  // Case 2: Solar + Battery Capacity >> Usage
+  if (S + maxBattKWh > U) {
+    edgeCase = 'high_capacity'
+    
+    // Cap total energy offset at U
+    const totalOffset = solarToDay + battTotal
+    if (totalOffset > U) {
+      // Cap battery discharge based on available high-priced loads
+      const totalPeakMidNightLoads = 
+        usageByPeriod.onPeak + 
+        usageByPeriod.midPeak + 
+        (usageByPeriod.ultraLow || 0) + 
+        usageByPeriod.offPeak
+      
+      battTotalEffective = Math.min(battTotal, totalPeakMidNightLoads)
+      effectiveCycles = battTotalEffective > 0 && B > 0 ? battTotalEffective / B : 0
+    }
+    
+    // Excess solar
+    solarUnused = Math.max(S - solarToDay - battSolarCharged, 0)
+    // If zero-export mode → treat as spilled (already handled by capping)
+    // If net-metering → count export separately (optional, not implemented)
+  }
+  
+  // ============================================
+  // STEP F: Final Savings Calculation
+  // ============================================
+  // F1: kWh still bought from grid
+  const totalGridKWh = 
+    (gridKWhByBucket.ultraLow || 0) +
+    gridKWhByBucket.offPeak +
+    gridKWhByBucket.midPeak +
+    gridKWhByBucket.onPeak
+  
+  // F2: Annual energy cost after system
+  const annualCostAfter = 
+    (gridKWhByBucket.ultraLow || 0) * rates.ultraLow +
+    gridKWhByBucket.offPeak * rates.offPeak +
+    gridKWhByBucket.midPeak * rates.midPeak +
+    gridKWhByBucket.onPeak * rates.onPeak
+  
+  // F3: Baseline cost (already calculated)
+  // F4: Savings
+  const annualSavings = baselineCost - annualCostAfter
+  const monthlySavings = annualSavings / 12
+  
+  // Calculate offset percentages for display
+  // Percentages should represent what portion of total usage is covered by each source
+  const solarDirectPercent = U > 0 ? (solarToDay / U) * 100 : 0
+  const solarChargedBatteryPercent = U > 0 ? (battSolarCharged / U) * 100 : 0
+  const uloChargedBatteryPercent = U > 0 ? (battGridCharged / U) * 100 : 0
+  // Grid remaining = total usage - solar direct - battery discharge
+  // Battery discharge offsets grid usage, so we subtract it
+  const totalOffset = solarToDay + battTotalEffective
+  const gridRemainingKWh = Math.max(0, U - totalOffset)
+  const gridRemainingPercent = U > 0 ? (gridRemainingKWh / U) * 100 : 0
+  
+  return {
+    dayLoad,
+    nightLoad,
+    solarToDay,
+    solarExcess,
+    dayGridAfterSolar,
+    battSolarCharged,
+    battGridCharged,
+    battTotal: battTotalEffective,
+    batteryDischargeByBucket,
+    edgeCase,
+    battTotalEffective,
+    effectiveCycles,
+    solarUnused,
+    gridKWhByBucket,
+    annualCostAfter,
+    annualSavings,
+    monthlySavings,
+    offsetPercentages: {
+      solarDirect: solarDirectPercent,
+      solarChargedBattery: solarChargedBatteryPercent,
+      uloChargedBattery: uloChargedBatteryPercent,
+      gridRemaining: gridRemainingPercent
     }
   }
 }
@@ -433,7 +740,8 @@ export function calculateSolarBatteryCombined(
   battery: BatterySpec,
   ratePlan: RatePlan,
   distribution?: UsageDistribution,
-  offsetCapFraction?: number
+  offsetCapFraction?: number,
+  aiMode: boolean = false  // AI Optimization Mode (default OFF)
 ) {
   // Use the same distribution logic so numbers match the other helpers
   const dist = distribution || (ratePlan.id === 'ulo' ? DEFAULT_ULO_DISTRIBUTION : DEFAULT_TOU_DISTRIBUTION)
@@ -524,10 +832,24 @@ export function calculateSolarBatteryCombined(
 
     const postSolarAnnualBill = costFromUsage(usageAfterSolar)
 
-    // Battery covers the remaining expensive periods (on, then mid, then weekend/off-peak) using annual usable energy
+    // Battery covers the remaining expensive periods (on, then mid, then weekend/off-peak)
     const usageAfterBattery = { ...usageAfterSolar }
     const batteryOffsets = { ultraLow: 0, offPeak: 0, midPeak: 0, onPeak: 0 }
-    let remainingBattery = Math.max(0, battery.usableKwh) * 365
+    
+    // Calculate solar excess available for battery charging
+    const solarUsedForLoad = solarAllocation.midPeak + solarAllocation.onPeak + solarAllocation.offPeak + (solarAllocation.ultraLow || 0)
+    const solarExcess = Math.max(0, solarCap - solarUsedForLoad)
+    
+    // Battery capacity from solar excess (free charging)
+    const batteryFromSolar = Math.min(solarExcess, battery.usableKwh * 365)
+    
+    // When AI Mode is ON, battery can charge from grid, allowing more discharge capacity
+    // Battery total capacity = solar-charged + grid-charged (if AI Mode ON)
+    const maxBatteryDischarge = aiMode 
+      ? battery.usableKwh * 365  // Can use full capacity with grid charging
+      : batteryFromSolar          // Limited to solar excess only
+    
+    let remainingBattery = maxBatteryDischarge
     const batteryDischargeOrder: Array<'midPeak' | 'onPeak' | 'offPeak'> = ['onPeak', 'midPeak', 'offPeak']
 
     for (const key of batteryDischargeOrder) {
@@ -540,9 +862,22 @@ export function calculateSolarBatteryCombined(
       remainingBattery -= applied
     }
 
-    // Battery charges during ultra-low overnight hours
+    // Calculate grid-charged battery correctly (only the portion not covered by solar excess)
     const batteryChargeRequired = batteryOffsets.midPeak + batteryOffsets.onPeak + batteryOffsets.offPeak
-    usageAfterBattery.ultraLow = (usageAfterBattery.ultraLow || 0) + batteryChargeRequired
+    let gridChargedBattery = 0
+    
+    if (aiMode) {
+      // AI Mode ON: Calculate how much battery is charged from grid vs solar excess
+      // Battery charged from solar excess (free)
+      const batterySolarCharged = Math.min(solarExcess, batteryChargeRequired)
+      
+      // Battery charged from grid (only if there's a deficit after solar)
+      gridChargedBattery = Math.max(0, batteryChargeRequired - batterySolarCharged)
+      
+      // Only add grid-charged portion to ultra-low usage cost
+      usageAfterBattery.ultraLow = (usageAfterBattery.ultraLow || 0) + gridChargedBattery
+    }
+    // If AI Mode OFF: Battery only charges from solar excess (no grid charging cost)
 
     const postSolarBatteryAnnualBill = costFromUsage(usageAfterBattery)
     const adjustedPostSolarBatteryBill = postSolarBatteryAnnualBill // already includes charge energy at ultra-low pricing

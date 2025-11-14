@@ -1,0 +1,91 @@
+SCENARIO 2 VERIFICATION - AI Mode Impact on Savings (ULO Plan)
+
+Test Inputs:
+- Annual Usage: 10,000 kWh
+- Solar Production: 3,000 kWh
+- Battery: Renon 16 kWh
+- Rate Plan: ULO
+- AI Mode: ON
+
+═══════════════════════════════════════════════════════════════════════════════
+
+RESULTS ANALYSIS:
+
+TOU PLAN (for comparison):
+───────────────────────────────────────────────────────────────────────────────
+✓ Annual Savings: $794
+✓ Solar Direct: 30.0% (3,000 kWh / 10,000 kWh = 30%)
+✓ Solar→Battery: 0.0% (no solar excess - all solar used for day load)
+✓ Grid: 70.0% (remaining usage from grid)
+
+ULO PLAN (with AI Mode ON):
+───────────────────────────────────────────────────────────────────────────────
+✓ Annual Savings: $1,697 (much higher than TOU - AI Mode working!)
+✓ Solar Direct: 30.0% (same as TOU - 3,000 kWh directly offsets day load)
+✓ Solar→Battery: 0.0% (correct - no solar excess because solar = 30% of usage, dayLoad = 50%, so all solar goes to day load, leaving 0 excess)
+✓ ULO→Battery: 50.0% (AI Mode enabled - battery charges from grid at ULO rate!)
+✓ Grid: 20.0% (much lower than TOU - AI Mode significantly reduces grid usage)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+VERIFICATION:
+
+Why Solar→Battery is 0%:
+───────────────────────────────────────────────────────────────────────────────
+- Day Load = 10,000 kWh × 50% = 5,000 kWh
+- Solar Production = 3,000 kWh
+- Solar to Day = min(3,000, 5,000) = 3,000 kWh (all solar used)
+- Solar Excess = max(3,000 - 5,000, 0) = 0 kWh
+- Therefore: No solar excess available to charge battery
+- This is CORRECT behavior per FRD Step B
+
+Why ULO→Battery is 50%:
+───────────────────────────────────────────────────────────────────────────────
+- With AI Mode ON, battery can charge from grid at ULO rate
+- Night Load = 10,000 kWh × 50% = 5,000 kWh
+- Battery can charge up to 5,000 kWh from grid (limited by nightLoad)
+- Battery discharges to offset expensive periods
+- 50% of usage offset by ULO-charged battery = 5,000 kWh / 10,000 kWh
+- This is CORRECT behavior per FRD Step C (C2: Grid → Battery)
+
+Why Savings are Higher with AI Mode:
+───────────────────────────────────────────────────────────────────────────────
+- TOU: $794 savings (battery only charges from solar, limited capacity)
+- ULO + AI Mode: $1,697 savings (battery charges from grid at cheap ULO rate, full capacity)
+- Difference: $903 extra savings from AI Mode
+- This makes sense because AI Mode enables full battery utilization
+
+Why Grid Remaining is Lower:
+───────────────────────────────────────────────────────────────────────────────
+- TOU: 70% grid (only 30% solar offset, no battery grid charging)
+- ULO + AI Mode: 20% grid (30% solar + 50% battery = 80% offset)
+- This is CORRECT - AI Mode significantly reduces grid dependency
+
+═══════════════════════════════════════════════════════════════════════════════
+
+PERCENTAGE VERIFICATION:
+───────────────────────────────────────────────────────────────────────────────
+TOU Plan:
+  30.0% (Solar Direct) + 0.0% (Solar→Battery) + 70.0% (Grid) = 100.0% ✓
+
+ULO Plan:
+  30.0% (Solar Direct) + 0.0% (Solar→Battery) + 50.0% (ULO→Battery) + 20.0% (Grid) = 100.0% ✓
+
+All percentages sum correctly!
+
+═══════════════════════════════════════════════════════════════════════════════
+
+CONCLUSION:
+───────────────────────────────────────────────────────────────────────────────
+✅ All results are CORRECT and match FRD requirements!
+
+Key Observations:
+1. AI Mode is working correctly - enables grid charging on ULO plan
+2. ULO→Battery percentage (50%) shows AI Mode is active
+3. Savings are significantly higher with AI Mode ($1,697 vs $794)
+4. Grid dependency reduced from 70% to 20% with AI Mode
+5. Solar→Battery is 0% because all solar is used for day load (no excess)
+6. All percentages sum to 100% correctly
+
+The implementation is working as designed per the FRD specification!
+

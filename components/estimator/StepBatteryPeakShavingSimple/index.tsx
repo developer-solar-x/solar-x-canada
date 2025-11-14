@@ -19,11 +19,13 @@ import {
   calculateSimpleMultiYear,
   calculateCombinedMultiYear,
   calculateSolarBatteryCombined,
+  calculateFRDPeakShaving,
   UsageDistribution,
   DEFAULT_TOU_DISTRIBUTION,
   DEFAULT_ULO_DISTRIBUTION,
   SimplePeakShavingResult,
   computeSolarBatteryOffsetCap,
+  FRDPeakShavingResult,
 } from '@/lib/simple-peak-shaving'
 import type { CombinedPlanResult, StepBatteryPeakShavingSimpleProps, PlanResultMap } from './types'
 import {
@@ -108,7 +110,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
   const [showTouInfo, setShowTouInfo] = useState(false)
   const [showUloInfo, setShowUloInfo] = useState(false)
   const [showPaybackInfo, setShowPaybackInfo] = useState(false)
-  const [showCostTables, setShowCostTables] = useState(true) // Simple toggle so readers can hide the detailed cost tables
+  const [showCostTables, setShowCostTables] = useState(false) // Simple toggle so readers can show/hide the detailed cost tables (hidden by default)
   // Check if estimate is being loaded (solar system size needed for rebate calculation)
   const [estimateLoading, setEstimateLoading] = useState(!data.estimate?.system?.sizeKw)
   
@@ -211,6 +213,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
   const [showUloSavingsSectionInfo, setShowUloSavingsSectionInfo] = useState(false)
   // This state toggles the 25-year profit explainer so folks can explore the long-term story when they are ready
   const [showProfitInfo, setShowProfitInfo] = useState(false)
+  // AI Optimization Mode state (default OFF) - allows grid charging at ULO rate when enabled
+  const [aiMode, setAiMode] = useState(false)
   // Hydrate annual usage from storage after mount (both standalone and estimator)
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -490,7 +494,8 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
         battery,
         touRatePlan,
         touDistribution,
-        offsetCapInfo.capFraction
+        offsetCapInfo.capFraction,
+        false  // AI Mode only applies to ULO plans
       )
       const combinedAnnualRaw = combinedModel.combinedAnnualSavings
       // Clamp savings so they never exceed the current bill the homeowner is paying today
@@ -602,7 +607,8 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
         battery,
         uloRatePlan,
         uloDistribution,
-        offsetCapInfo.capFraction
+        offsetCapInfo.capFraction,
+        aiMode  // AI Mode applies to ULO plans
       )
       const combinedAnnualRaw = combinedModel.combinedAnnualSavings
       // Clamp to keep savings realistic relative to today’s bill
@@ -661,7 +667,52 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
     }
 
     setUloResults(newResults)
-  }, [annualUsageInput, selectedBatteries, uloDistribution, customRates.ulo, data.estimate, systemSizeKwOverride, overrideEstimate, effectiveSolarProductionKwh, offsetCapInfo.capFraction])
+  }, [annualUsageInput, selectedBatteries, uloDistribution, customRates.ulo, data.estimate, systemSizeKwOverride, overrideEstimate, effectiveSolarProductionKwh, offsetCapInfo.capFraction, aiMode])
+
+  // Calculate FRD results for offset percentage display
+  const frdResults = useMemo(() => {
+    if (!annualUsageKwh || annualUsageKwh <= 0) return { tou: null, ulo: null }
+    
+    const batteries = selectedBatteries.map(id => BATTERY_SPECS.find(b => b.id === id)).filter(Boolean) as BatterySpec[]
+    if (batteries.length === 0) return { tou: null, ulo: null }
+    
+    const battery = batteries.reduce((combined, current, idx) => {
+      if (idx === 0) return { ...current }
+      return {
+        ...combined,
+        nominalKwh: combined.nominalKwh + current.nominalKwh,
+        usableKwh: combined.usableKwh + current.usableKwh,
+        price: combined.price + current.price
+      }
+    }, batteries[0])
+    
+    try {
+      const touResult = calculateFRDPeakShaving(
+        annualUsageKwh,
+        effectiveSolarProductionKwh,
+        battery,
+        getCustomTouRatePlan(),
+        touDistribution,
+        false, // AI Mode only for ULO
+        { p_day: 0.5, p_night: 0.5 }
+      )
+      
+      const uloResult = calculateFRDPeakShaving(
+        annualUsageKwh,
+        effectiveSolarProductionKwh,
+        battery,
+        getCustomUloRatePlan(),
+        uloDistribution,
+        aiMode, // AI Mode for ULO
+        { p_day: 0.5, p_night: 0.5 }
+      )
+      
+      return { tou: touResult, ulo: uloResult }
+    } catch (e) {
+      console.warn('FRD calculation error:', e)
+      return { tou: null, ulo: null }
+    }
+  }, [annualUsageKwh, effectiveSolarProductionKwh, selectedBatteries, touDistribution, uloDistribution, customRates.tou, customRates.ulo, aiMode])
 
   const handleComplete = () => {
     const selectedTouResult = touResults.get('combined')
@@ -839,7 +890,11 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
               ref={annualUsageInputRef}
               value={annualUsageInput}
               onChange={(e) => handleAnnualUsageChange(e.target.value)}
-              className="w-full px-4 py-4 pr-16 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 text-lg font-bold text-navy-600 shadow-sm transition-all"
+              className={`w-full px-4 py-4 pr-16 border-2 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 text-lg font-bold text-navy-600 shadow-sm transition-all ${
+                annualUsageKwh <= 0 && annualUsageInput !== '' 
+                  ? 'border-red-400 bg-red-50' 
+                  : 'border-gray-300'
+              }`}
               min="0"
               step="100"
             />
@@ -847,6 +902,14 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
               kWh
             </div>
           </div>
+          {annualUsageKwh <= 0 && annualUsageInput !== '' && (
+            <div className="mt-2 flex items-start gap-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+              <AlertTriangle className="text-red-500 flex-shrink-0 mt-0.5" size={16} />
+              <p className="text-xs text-red-700">
+                <strong>Invalid input:</strong> Annual energy usage must be greater than 0 kWh to calculate savings. Please enter a valid value.
+              </p>
+            </div>
+          )}
         </div>
 
          {/* Rate Plan Info */}
@@ -855,6 +918,47 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
              <BarChart3 className="text-red-500" size={18} />
              Compare Savings by Rate Plan
            </label>
+           
+           {/* AI Optimization Mode Toggle - Shared for both plans */}
+           <div className="mb-4 p-4 bg-gradient-to-br from-blue-50 to-white border-2 border-blue-200 rounded-xl shadow-sm">
+             <label className="flex items-center justify-between cursor-pointer group">
+               <div className="flex items-center gap-3">
+                 <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-navy-600">
+                   <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                   </svg>
+                 </div>
+                 <div>
+                   <div className="text-sm font-semibold text-navy-600">AI Optimization Mode</div>
+                   <div className="text-xs text-gray-600">Enable grid charging at ULO rate (affects ULO plan only)</div>
+                 </div>
+               </div>
+               <button
+                 type="button"
+                 onClick={() => setAiMode(!aiMode)}
+                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 ${
+                   aiMode ? 'bg-red-500' : 'bg-gray-300'
+                 }`}
+                 role="switch"
+                 aria-checked={aiMode}
+                 aria-label="Toggle AI Optimization Mode"
+               >
+                 <span
+                   className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                     aiMode ? 'translate-x-6' : 'translate-x-1'
+                   }`}
+                 />
+               </button>
+             </label>
+             {aiMode && (
+               <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                 <p className="text-xs text-blue-800">
+                   <strong>AI EMC Active:</strong> The Energy Management Controller automatically fills your battery at cheap ULO rates (11 PM - 7 AM) and discharges during expensive peak hours to maximize savings. <strong>This feature only affects the ULO plan.</strong>
+                 </p>
+               </div>
+             )}
+           </div>
+
            <div className="grid md:grid-cols-2 gap-4">
              <div className="p-5 bg-gradient-to-br from-gray-50 to-white border-2 border-gray-300 rounded-xl shadow-sm hover:shadow-md transition-shadow">
                <div className="flex items-center justify-between mb-2">
@@ -1418,11 +1522,43 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
            
           {/* Combined TOU vs ULO comparison card - All metrics in one table */}
           {(() => {
+            // Show message if annual usage is invalid
+            if (!annualUsageKwh || annualUsageKwh <= 0) {
+              return (
+                <div className="mb-8 p-6 bg-yellow-50 border-2 border-yellow-200 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="text-yellow-600 flex-shrink-0 mt-0.5" size={24} />
+                    <div>
+                      <h4 className="text-lg font-semibold text-yellow-800 mb-2">Enter Annual Energy Usage</h4>
+                      <p className="text-sm text-yellow-700">
+                        Please enter a valid annual energy usage value (greater than 0 kWh) above to see your savings comparison. 
+                        The calculator needs your energy consumption data to calculate potential savings from solar and battery systems.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+            
             // Pre-calculate all breakdown and offset data for the unified table
             const touBreakdown = touData.combined?.breakdown
             const uloBreakdown = uloData.combined?.breakdown
             
-            if (!touBreakdown || !uloBreakdown) return null
+            if (!touBreakdown || !uloBreakdown) {
+              return (
+                <div className="mb-8 p-6 bg-blue-50 border-2 border-blue-200 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={24} />
+                    <div>
+                      <h4 className="text-lg font-semibold text-blue-800 mb-2">Calculating Results...</h4>
+                      <p className="text-sm text-blue-700">
+                        Please wait while we calculate your savings comparison. Make sure you have entered valid values for annual usage, solar production, and selected a battery.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )
+            }
 
             // Calculate total offset: solar directly consumed + battery discharge
             const touSolarOffset = Object.values(touBreakdown.solarAllocation || {}).reduce((sum, v) => sum + (v || 0), 0)
@@ -1539,6 +1675,67 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                     </div>
                   </div>
                 </div>
+
+                {/* Offset & Allocation row - Only show if we have valid results and usage > 0 */}
+                {annualUsageKwh > 0 && (frdResults.tou || frdResults.ulo) ? (
+                  <div className="grid grid-cols-[1.2fr_1fr_1fr] border-t border-gray-200 bg-blue-50">
+                    <div className="px-4 py-4">
+                      <span className="text-sm font-semibold text-gray-700">Energy Offset & Allocation</span>
+                      <div className="mt-2 space-y-1 text-xs text-gray-600">
+                        <div>• Powered by solar</div>
+                        <div>• Powered by solar-charged battery</div>
+                        {aiMode && <div>• Powered by ULO-charged battery (AI Mode)</div>}
+                        <div>• Remaining from grid</div>
+                      </div>
+                    </div>
+                    <div className="px-4 py-4 space-y-2">
+                      {frdResults.tou ? (
+                        <>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-600">Solar Direct:</span>
+                            <span className="font-bold text-green-600">{frdResults.tou.offsetPercentages.solarDirect.toFixed(1)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-600">Solar→Battery:</span>
+                            <span className="font-bold text-blue-600">{frdResults.tou.offsetPercentages.solarChargedBattery.toFixed(1)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-600">Grid:</span>
+                            <span className="font-bold text-gray-600">{frdResults.tou.offsetPercentages.gridRemaining.toFixed(1)}%</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-gray-400 italic">Not available</div>
+                      )}
+                    </div>
+                    <div className="px-4 py-4 space-y-2">
+                      {frdResults.ulo ? (
+                        <>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-600">Solar Direct:</span>
+                            <span className="font-bold text-green-600">{frdResults.ulo.offsetPercentages.solarDirect.toFixed(1)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-600">Solar→Battery:</span>
+                            <span className="font-bold text-blue-600">{frdResults.ulo.offsetPercentages.solarChargedBattery.toFixed(1)}%</span>
+                          </div>
+                          {aiMode && (
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-600">ULO→Battery:</span>
+                              <span className="font-bold text-amber-600">{frdResults.ulo.offsetPercentages.uloChargedBattery.toFixed(1)}%</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-600">Grid:</span>
+                            <span className="font-bold text-gray-600">{frdResults.ulo.offsetPercentages.gridRemaining.toFixed(1)}%</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-gray-400 italic">Not available</div>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
 
                 {/* Payback period row */}
                 <div className="grid grid-cols-[1.2fr_1fr_1fr] border-t border-gray-200">
@@ -1736,7 +1933,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                       <span>${touAfterDisplay.total.toFixed(2)}</span>
                      </div>
                     <div className="text-[11px] text-gray-500 italic">
-                      Battery-charged kilowatt-hours settle into the off-peak bucket, so weekday mid/on-peak line items fall to $0.
+                      Battery (charged from solar excess) discharges during peak hours, eliminating mid/on-peak costs. Remaining grid usage is allocated to off-peak rates.
                     </div>
                    </div>
                  </div>
@@ -1899,7 +2096,6 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                         <th className="px-4 py-3 text-left text-xs font-bold text-blue-800 uppercase tracking-wide">Annual Usage</th>
                         <th className="px-4 py-3 text-left text-xs font-bold text-blue-800 uppercase tracking-wide">Solar Allocation</th>
                         <th className="px-4 py-3 text-left text-xs font-bold text-blue-800 uppercase tracking-wide">Left After Solar</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-blue-800 uppercase tracking-wide">Battery Applied</th>
                         <th className="px-4 py-3 text-left text-xs font-bold text-blue-800 uppercase tracking-wide">Grid After Solar + Battery</th>
                       </tr>
                     </thead>
@@ -1908,7 +2104,6 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                         const original = breakdown.originalUsage[period.key] || 0
                         const solar = breakdown.solarAllocation?.[period.key] ?? 0
                         const leftoverSolar = breakdown.usageAfterSolar[period.key] || 0
-                        const batteryApplied = breakdown.batteryOffsets[period.key] || 0
                         const gridAfterBattery = breakdown.usageAfterBattery[period.key] || 0
                         const usagePercent = totalUsage > 0 ? original / totalUsage : 0
                         const solarPercent = solarCapKwh > 0 ? solar / solarCapKwh : 0
@@ -1930,10 +2125,6 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                             <td className="px-4 py-3 text-sm text-gray-700">
                               <div className="font-bold text-gray-800">{formatKwh(leftoverSolar)}</div>
                               <div className="text-[11px] text-gray-500">After solar only</div>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-700">
-                              <div className="font-bold text-navy-600">{formatKwh(batteryApplied)}</div>
-                              <div className="text-[11px] text-gray-500">Battery discharge</div>
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-700">
                               <div className="font-bold text-red-600">{formatKwh(gridAfterBattery)}</div>
@@ -1995,7 +2186,6 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                         <th className="px-4 py-3 text-left text-xs font-bold text-amber-800 uppercase tracking-wide">Annual Usage</th>
                         <th className="px-4 py-3 text-left text-xs font-bold text-amber-800 uppercase tracking-wide">Solar Allocation</th>
                         <th className="px-4 py-3 text-left text-xs font-bold text-amber-800 uppercase tracking-wide">Left After Solar</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-amber-800 uppercase tracking-wide">Battery Applied</th>
                         <th className="px-4 py-3 text-left text-xs font-bold text-amber-800 uppercase tracking-wide">Grid After Solar + Battery</th>
                       </tr>
                     </thead>
@@ -2004,7 +2194,6 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                         const original = breakdown.originalUsage[period.key] || 0
                         const solar = breakdown.solarAllocation?.[period.key] ?? 0
                         const leftoverSolar = breakdown.usageAfterSolar[period.key] || 0
-                        const batteryApplied = breakdown.batteryOffsets[period.key] || 0
                         const gridAfterBattery = breakdown.usageAfterBattery[period.key] || 0
                         const usagePercent = totalUsage > 0 ? original / totalUsage : 0
                         const solarPercent = solarCapKwh > 0 ? solar / solarCapKwh : 0
@@ -2025,10 +2214,6 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                             <td className="px-4 py-3 text-sm text-gray-700">
                               <div className="font-bold text-gray-800">{formatKwh(leftoverSolar)}</div>
                               <div className="text-[11px] text-gray-500">After solar only</div>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-700">
-                              <div className="font-bold text-navy-600">{formatKwh(batteryApplied)}</div>
-                              <div className="text-[11px] text-gray-500">Battery discharge</div>
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-700">
                               <div className="font-bold text-red-600">{formatKwh(gridAfterBattery)}</div>
@@ -2063,97 +2248,69 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                <div className="grid md:grid-cols-2 gap-6">
                  {/* TOU Calculation Card */}
                  {(() => {
-                  // Friendly reminder that we anchor the solar production number
-                  const solarProductionKwh = effectiveSolarProductionKwh
-                  
-                  // Gentle explanation: aim to cover half the year with daytime panels but cap at true production
-                  const daytimeTargetKwh = annualUsageKwh * 0.5
-                  const solarOffsetKwh = Math.min(daytimeTargetKwh, solarProductionKwh)
-                  const solarOffsetPercent = annualUsageKwh > 0 ? (solarOffsetKwh / annualUsageKwh) * 100 : 0
-                  
-                  // Easy-to-read total battery capacity used across periods
-                  const touBatteryOffsetKwh = touData.result.batteryOffsets.onPeak + 
-                                             touData.result.batteryOffsets.midPeak + 
-                                             touData.result.batteryOffsets.offPeak + 
-                                             (touData.result.batteryOffsets.ultraLow || 0)
-                  
-                  // Simple leftover solar number after daytime needs are met
-                  const touSolarLeftover = Math.max(0, solarProductionKwh - solarOffsetKwh)
-                  
-                  // Remaining energy after panels work during the day
-                  const touRemainingAfterDay = Math.max(0, annualUsageKwh - solarOffsetKwh)
-                  
-                  // Stored-solar-at-night calculation keeps friendly language
-                  const nightTimeOffsetTou = Math.min(touRemainingAfterDay, touSolarLeftover, touBatteryOffsetKwh)
-                  const nightTimeOffsetTouPercent = annualUsageKwh > 0 ? (nightTimeOffsetTou / annualUsageKwh) * 100 : 0
-                  
-                  // Visual number showing how much solar actually makes it into the battery
-                  const touBatteryUsedBySolar = Math.min(touSolarLeftover, nightTimeOffsetTou)
-                  
-                  // Capacity left in the battery that the grid can top up
-                  const touBatteryCapacityAfterSolar = Math.max(0, touBatteryOffsetKwh - touBatteryUsedBySolar)
-                  
-                  // Remaining load after daytime solar and stored solar lighten the bill
-                  const touRemainingAfterSolar = Math.max(0, annualUsageKwh - solarOffsetKwh - nightTimeOffsetTou)
-                  
-                  // Grid top-up sized to whatever space remains in the battery and the home load
-                  const touGridChargeUsed = Math.min(touBatteryCapacityAfterSolar, touRemainingAfterSolar)
-                  const touTopUpPercent = annualUsageKwh > 0 ? (touGridChargeUsed / annualUsageKwh) * 100 : 0
-                  
-                  // Final sliver of usage not covered by solar or battery support
-                  const touActualLeftoverAfterFullBattery = Math.max(0, annualUsageKwh - (solarOffsetKwh + nightTimeOffsetTou + touGridChargeUsed))
-                  const touActualLeftoverPercent = annualUsageKwh > 0 ? (touActualLeftoverAfterFullBattery / annualUsageKwh) * 100 : 0
-                  const touRemainderPercent = touActualLeftoverPercent
+                 // Use FRD results for consistent calculations
+                 const touFrd = frdResults.tou
+                 if (!touFrd) return null
+                 
+                 // FRD-based offset percentages and kWh values
+                 const solarDirectPercent = touFrd.offsetPercentages.solarDirect
+                 const solarDirectKwh = (solarDirectPercent / 100) * annualUsageKwh
+                 
+                 const solarBatteryPercent = touFrd.offsetPercentages.solarChargedBattery
+                 const solarBatteryKwh = (solarBatteryPercent / 100) * annualUsageKwh
+                 
+                 // Battery top-up from grid (should be 0 for TOU, but use FRD value for consistency)
+                 const touChargedBatteryKwh = touFrd.battGridCharged || 0
+                 
+                 const gridRemainingPercent = touFrd.offsetPercentages.gridRemaining
+                 const gridRemainingKwh = (gridRemainingPercent / 100) * annualUsageKwh
+                 
+                 // Combined offset (solar direct + solar-charged battery)
+                 const touCombinedOffsetPercent = solarDirectPercent + solarBatteryPercent
+                 const touCombinedOffset = solarDirectKwh + solarBatteryKwh
+                 
+                 const solarProductionKwh = effectiveSolarProductionKwh
+                 
+                 // Battery totals from FRD
+                 const touBatteryOffsetKwh = touData.result.batteryOffsets.onPeak + 
+                                            touData.result.batteryOffsets.midPeak + 
+                                            touData.result.batteryOffsets.offPeak + 
+                                            (touData.result.batteryOffsets.ultraLow || 0)
+                 
+                 // For display purposes
+                 const touActualLeftoverAfterFullBattery = gridRemainingKwh
+                 const touRemainderPercent = gridRemainingPercent
+                 
+                 // Check if offset is capped
+                 const touOffsetCapped = touCombinedOffsetPercent < offsetCapPercent - 0.1
+
+                 // Grid energy breakdown (no grid charging for TOU from battery perspective)
+                 const touShownGridKwh = gridRemainingKwh
+                 const touShownGridPercent = gridRemainingPercent
                    
-                  // Combined offset number before any realistic cap is applied
-                  const touCombinedOffsetRaw = solarOffsetKwh + nightTimeOffsetTou
-                  const touCombinedOffsetMaxKwh = Math.min(touCombinedOffsetRaw, annualUsageKwh)
-                  const touCombinedOffsetPercentRaw = annualUsageKwh > 0 ? (touCombinedOffsetMaxKwh / annualUsageKwh) * 100 : 0
-                  const touCombinedOffsetPercent = Math.min(touCombinedOffsetPercentRaw, offsetCapPercent)
-                  const touCombinedOffset = (touCombinedOffsetPercent / 100) * annualUsageKwh
-                  const touOffsetCapped = touCombinedOffsetPercent < touCombinedOffsetPercentRaw - 0.1
-
-                  // Covered energy after cap plus the matching remainder helps explain the realistic limit
-                  const touCappedCoveredKwh = touCombinedOffset
-                  const touCappedRemainderKwh = Math.max(0, annualUsageKwh - touCappedCoveredKwh)
-                  const touCappedRemainderPercent = annualUsageKwh > 0 ? (touCappedRemainderKwh / annualUsageKwh) * 100 : 0
-
-                  // Keep proportional reductions gentle when the cap activates
-                  let adjustedNightTimeOffsetTou = nightTimeOffsetTou
-                  let adjustedGridChargeTou = touGridChargeUsed
-                  if (touOffsetCapped && touCombinedOffsetPercentRaw > 0) {
-                    const reductionFraction = touCombinedOffsetPercent / touCombinedOffsetPercentRaw
-                    adjustedNightTimeOffsetTou = nightTimeOffsetTou * reductionFraction
-                    adjustedGridChargeTou = Math.min(touGridChargeUsed * reductionFraction, touBatteryCapacityAfterSolar)
-                  }
-
-                  // Show the small shifts caused by the cap so customers track the story
-                  const touSolarBatteryReduction = Math.max(0, nightTimeOffsetTou - adjustedNightTimeOffsetTou)
-                  const touAdjustedGridCharge = adjustedGridChargeTou
-                  const touAdjustedLeftover = Math.max(0, touActualLeftoverAfterFullBattery + touSolarBatteryReduction)
-                  const touShownGridKwh = touAdjustedGridCharge + touAdjustedLeftover
-                  const touShownGridPercent = annualUsageKwh > 0 ? (touShownGridKwh / annualUsageKwh) * 100 : 0
+                 // Get savings from FRD results
+                 const touOriginalBill = touData.result.originalCost.total || 1
+                 const touNewBill = touData.result.newCost.total || 0
+                 const touBillSavings = Math.max(0, touOriginalBill - touNewBill)
+                 const touTotalSavingsPercent = touOriginalBill > 0 ? (touBillSavings / touOriginalBill) * 100 : 0
                    
-                  // Get TOU rates first (needed for calculations below)
+                 // Get TOU rates for display
                   const touRatePlan = getCustomTouRatePlan()
-                  const touOnPeakRate = touRatePlan.periods.find(p => p.period === 'on-peak')?.rate || 20.3
-                  const touOffPeakRate = touRatePlan.periods.find(p => p.period === 'off-peak')?.rate ?? touRatePlan.periods[0]?.rate ?? 7.4
-                  const touMidPeakRate = touRatePlan.periods.find(p => p.period === 'mid-peak')?.rate ?? 10.2
-                  
-                  // Customer-friendly bucket of cheap energy from the grid
-                  const touLeftoverKwh = Math.max(0, touActualLeftoverAfterFullBattery + touSolarBatteryReduction)
+                 const touOffPeakRate = touRatePlan.periods.find(p => p.period === 'off-peak')?.rate ?? touRatePlan.periods[0]?.rate ?? 9.8
                   const touLeftoverRate = touData.result.leftoverEnergy.ratePerKwh
-                  const touLowRateEnergyKwh = touAdjustedGridCharge + touLeftoverKwh
-                  const touLowRatePercent = touShownGridPercent
-                  const touOriginalBill = touData.result.originalCost.total || 1
+                 const touLeftoverKwh = gridRemainingKwh
+                 const touAdjustedGridCharge = 0 // No grid charging for TOU (battery only charges from solar)
                   
-                  // Calculate correct blended rate: battery charges at off-peak, remainder uses blended rate
+                 // Calculate correct blended rate for TOU
+                 const touOnPeakRate = touRatePlan.periods.find(p => p.period === 'on-peak')?.rate || 20.3
                   const touBatteryChargingCost = touAdjustedGridCharge * (touOffPeakRate / 100)
                   const touLeftoverCost = touLeftoverKwh * touLeftoverRate
                   const touTotalGridCost = touBatteryChargingCost + touLeftoverCost
+                 const touLowRateEnergyKwh = touAdjustedGridCharge + touLeftoverKwh
+                 const touLowRatePercent = gridRemainingPercent // Grid remaining percentage
                   const touCorrectBlendedRate = touLowRateEnergyKwh > 0 ? touTotalGridCost / touLowRateEnergyKwh : 0
-                  const touLeftoverCostPercent = (touTotalGridCost / touOriginalBill) * 100
-                  const touTotalSavingsPercent = Math.max(0, 100 - touLeftoverCostPercent)
+                 // Use touNewBill instead of touTotalGridCost to ensure percentages add to 100%
+                 const touLeftoverCostPercent = touOriginalBill > 0 ? (touNewBill / touOriginalBill) * 100 : 0
                   
                   // Keep the storytelling grounded by anchoring to the original peak-priced usage
                   const touPeakPricedUsageKwh =
@@ -2173,18 +2330,41 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                     touLeftoverKwh,
                     touOffPeakRoomForRemainder + (annualUsageKwh * 0.05)
                   )
-                  const touLeftoverBreakdown = clampBreakdown(
-                    touData.result.leftoverEnergy.breakdown,
-                    touLeftoverKwh,
-                    ['offPeak', 'midPeak', 'onPeak'],
-                    { offPeak: touOffPeakCap }
-                  )
+                  // Use FRD gridKWhByBucket for accurate breakdown (matches FRD calculation)
+                  let touLeftoverBreakdown: LeftoverBreakdown
+                  if (touFrd?.gridKWhByBucket) {
+                    const rawBreakdown = {
+                      offPeak: touFrd.gridKWhByBucket.offPeak || 0,
+                      midPeak: touFrd.gridKWhByBucket.midPeak || 0,
+                      onPeak: touFrd.gridKWhByBucket.onPeak || 0,
+                      ultraLow: 0
+                    }
+                    const rawTotal = rawBreakdown.offPeak + rawBreakdown.midPeak + rawBreakdown.onPeak
+                    
+                    // Scale breakdown to match touLeftoverKwh if totals don't match
+                    if (rawTotal > 0 && Math.abs(rawTotal - touLeftoverKwh) > 0.01) {
+                      const scale = touLeftoverKwh / rawTotal
+                      touLeftoverBreakdown = {
+                        offPeak: rawBreakdown.offPeak * scale,
+                        midPeak: rawBreakdown.midPeak * scale,
+                        onPeak: rawBreakdown.onPeak * scale,
+                        ultraLow: 0
+                      }
+                    } else {
+                      touLeftoverBreakdown = rawBreakdown
+                    }
+                  } else {
+                    touLeftoverBreakdown = clampBreakdown(
+                      touData.result.leftoverEnergy.breakdown,
+                      touLeftoverKwh,
+                      ['offPeak', 'midPeak', 'onPeak'],
+                      { offPeak: touOffPeakCap }
+                    )
+                  }
                   
                   // Easy comparables for average bill rate before and after battery support
                   const touOriginalEffectiveRate = annualUsageKwh > 0 ? (touOriginalBill / annualUsageKwh) * 100 : 0
-                  const touNewBill = touData.result.newCost.total || 0
                   const touNewEffectiveRate = annualUsageKwh > 0 ? (touNewBill / annualUsageKwh) * 100 : 0
-                  const touBillSavings = Math.max(0, touOriginalBill - touNewBill)
                    
                    return (
                      <div className="bg-gradient-to-br from-navy-50 to-white rounded-2xl border-2 border-navy-300 shadow-lg p-6">
@@ -2222,7 +2402,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                             <div className="h-px flex-1 bg-gradient-to-r from-navy-200 to-transparent" />
                           </div>
 
-                          {/* Gentle card that explains how daylight solar trims the bill */}
+                         {/* FRD: Solar Direct - energy covered directly by solar */}
                           <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-200">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
@@ -2230,14 +2410,14 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                                 <span className="font-bold text-gray-700">Daytime covered by solar</span>
                               </div>
                               <div className="text-right">
-                                <div className="text-2xl font-bold text-green-600">{solarOffsetPercent.toFixed(2)}%</div>
-                                <div className="text-xs text-gray-600">{solarOffsetKwh.toFixed(0)} kWh/year</div>
+                               <div className="text-2xl font-bold text-green-600">{solarDirectPercent.toFixed(2)}%</div>
+                               <div className="text-xs text-gray-600">{solarDirectKwh.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
                             <div className="text-xs text-gray-600 pl-7">Energy your panels cover during the day</div>
                           </div>
 
-                          {/* Simple card sharing how the battery stretches solar into the night */}
+                         {/* Nighttime covered by battery - combines Solar→Battery + Grid top-up */}
                           <div className="bg-gradient-to-r from-navy-50 to-blue-50 rounded-xl p-4 border-2 border-navy-200">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
@@ -2245,15 +2425,19 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                                 <span className="font-bold text-gray-700">Nighttime covered by battery</span>
                               </div>
                               <div className="text-right">
-                                <div className="text-2xl font-bold text-navy-600">{nightTimeOffsetTouPercent.toFixed(2)}%</div>
-                                <div className="text-xs text-gray-600">{nightTimeOffsetTou.toFixed(0)} kWh/year</div>
+                               <div className="text-2xl font-bold text-navy-600">{solarBatteryPercent.toFixed(2)}%</div>
+                               <div className="text-xs text-gray-600">{solarBatteryKwh.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
                             <div className="text-xs text-gray-600 pl-7">Stored solar used at night (excludes grid top-up in total %)</div>
                             <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-gray-600 pl-7">
-                              <div>Solar → Battery: <span className="font-semibold text-navy-600">{touBatteryUsedBySolar.toFixed(0)} kWh</span></div>
-                              <div>Battery top-up (cheap grid): <span className="font-semibold text-navy-600">{touAdjustedGridCharge.toFixed(0)} kWh</span></div>
-                              <div>Small remainder (still from grid): <span className="font-semibold text-navy-600">{touActualLeftoverAfterFullBattery.toFixed(0)} kWh</span></div>
+                             <div>Solar → Battery: <span className="font-semibold text-navy-600">{solarBatteryKwh.toFixed(0)} kWh</span></div>
+                             {touChargedBatteryKwh > 0 ? (
+                               <div>Battery top-up (cheap grid): <span className="font-semibold text-navy-600">{touChargedBatteryKwh.toFixed(0)} kWh</span></div>
+                             ) : (
+                               <div>Battery top-up: <span className="font-semibold text-navy-600">Not available (TOU plan)</span></div>
+                             )}
+                             <div>Remainder (still from grid): <span className="font-semibold text-navy-600">{touActualLeftoverAfterFullBattery.toFixed(0)} kWh</span></div>
                             </div>
                           </div>
 
@@ -2317,7 +2501,13 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                                 <div className="text-xs text-gray-600">{touLowRateEnergyKwh.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-7">Battery top-up {touAdjustedGridCharge.toFixed(0)} kWh + small remainder {touLeftoverKwh.toFixed(0)} kWh</div>
+                            <div className="text-xs text-gray-600 pl-7">
+                              {touAdjustedGridCharge > 0 ? (
+                                <>Battery top-up {touAdjustedGridCharge.toFixed(0)} kWh + remainder {touLeftoverKwh.toFixed(0)} kWh</>
+                              ) : (
+                                <>Remainder {touLeftoverKwh.toFixed(0)} kWh (no grid charging for TOU)</>
+                              )}
+                            </div>
                             <div className="text-[11px] text-gray-500 pl-7">
                               Blended rate {(touCorrectBlendedRate * 100).toFixed(2)}¢/kWh • Remainder {touLeftoverKwh.toFixed(0)} kWh allocated:
                               {touLeftoverBreakdown.offPeak > 0 && ` ${touLeftoverBreakdown.offPeak.toFixed(0)} kWh off-peak`}
@@ -2367,96 +2557,70 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                  
                  {/* ULO Calculation Card */}
                  {(() => {
-                  // Friendly reminder that we anchor the solar production number
-                  const solarProductionKwh = effectiveSolarProductionKwh
-                  
-                  // Gentle explanation: aim to cover half the year with daytime panels but cap at true production
-                  const daytimeTargetKwh = annualUsageKwh * 0.5
-                  const solarOffsetKwh = Math.min(daytimeTargetKwh, solarProductionKwh)
-                  const solarOffsetPercent = annualUsageKwh > 0 ? (solarOffsetKwh / annualUsageKwh) * 100 : 0
-                  
-                  // Easy-to-read total battery capacity used across periods
-                  const uloBatteryOffsetKwh = uloData.result.batteryOffsets.onPeak + 
-                                             uloData.result.batteryOffsets.midPeak + 
-                                             uloData.result.batteryOffsets.offPeak + 
-                                             (uloData.result.batteryOffsets.ultraLow || 0)
-                  
-                  // Simple leftover solar number after daytime needs are met
-                  const uloSolarLeftover = Math.max(0, solarProductionKwh - solarOffsetKwh)
-                  
-                  // Remaining energy after panels work during the day
-                  const uloRemainingAfterDay = Math.max(0, annualUsageKwh - solarOffsetKwh)
-                  
-                  // Stored-solar-at-night calculation keeps friendly language
-                  const nightTimeOffsetUlo = Math.min(uloRemainingAfterDay, uloSolarLeftover, uloBatteryOffsetKwh)
-                  const nightTimeOffsetUloPercent = annualUsageKwh > 0 ? (nightTimeOffsetUlo / annualUsageKwh) * 100 : 0
-                  
-                  // Visual number showing how much solar actually makes it into the battery
-                  const uloBatteryUsedBySolar = Math.min(uloSolarLeftover, nightTimeOffsetUlo)
-                  
-                  // Capacity left in the battery that the grid can top up
-                  const uloBatteryCapacityAfterSolar = Math.max(0, uloBatteryOffsetKwh - uloBatteryUsedBySolar)
-                  
-                  // Remaining load after daytime solar and stored solar lighten the bill
-                  const uloRemainingAfterSolar = Math.max(0, annualUsageKwh - solarOffsetKwh - nightTimeOffsetUlo)
-                  
-                  // Grid top-up sized to whatever space remains in the battery and the home load
-                  const uloGridChargeUsed = Math.min(uloBatteryCapacityAfterSolar, uloRemainingAfterSolar)
-                  const uloTopUpPercent = annualUsageKwh > 0 ? (uloGridChargeUsed / annualUsageKwh) * 100 : 0
-                  
-                  // Final sliver of usage not covered by solar or battery support
-                  const uloActualLeftoverAfterFullBattery = Math.max(0, annualUsageKwh - (solarOffsetKwh + nightTimeOffsetUlo + uloGridChargeUsed))
-                  const uloActualLeftoverPercent = annualUsageKwh > 0 ? (uloActualLeftoverAfterFullBattery / annualUsageKwh) * 100 : 0
-                  const uloRemainderPercent = uloActualLeftoverPercent
+                 // Use FRD results for consistent calculations
+                 const uloFrd = frdResults.ulo
+                 if (!uloFrd) return null
+                 
+                 // FRD-based offset percentages and kWh values
+                 const solarDirectPercent = uloFrd.offsetPercentages.solarDirect
+                 const solarDirectKwh = (solarDirectPercent / 100) * annualUsageKwh
+                 
+                 const solarBatteryPercent = uloFrd.offsetPercentages.solarChargedBattery
+                 const solarBatteryKwh = (solarBatteryPercent / 100) * annualUsageKwh
+                 
+                 const uloChargedBatteryPercent = uloFrd.offsetPercentages.uloChargedBattery || 0
+                 const uloChargedBatteryKwh = (uloChargedBatteryPercent / 100) * annualUsageKwh
+                 
+                 const gridRemainingPercent = uloFrd.offsetPercentages.gridRemaining
+                 const gridRemainingKwh = (gridRemainingPercent / 100) * annualUsageKwh
+                 
+                 // Combined offset (solar direct + all battery sources)
+                 const uloCombinedOffsetPercent = solarDirectPercent + solarBatteryPercent + uloChargedBatteryPercent
+                 const uloCombinedOffset = solarDirectKwh + solarBatteryKwh + uloChargedBatteryKwh
+                 
+                 const solarProductionKwh = effectiveSolarProductionKwh
+                 
+                 // Battery totals from data
+                 const uloBatteryOffsetKwh = uloData.result.batteryOffsets.onPeak + 
+                                            uloData.result.batteryOffsets.midPeak + 
+                                            uloData.result.batteryOffsets.offPeak + 
+                                            (uloData.result.batteryOffsets.ultraLow || 0)
+                 
+                 // For display purposes
+                 const uloActualLeftoverAfterFullBattery = gridRemainingKwh
+                 const uloRemainderPercent = gridRemainingPercent
+                 
+                 // Check if offset is capped
+                 const uloOffsetCapped = uloCombinedOffsetPercent < offsetCapPercent - 0.1
+
+                 // Grid energy breakdown  
+                 const uloShownGridKwh = gridRemainingKwh
+                 const uloShownGridPercent = gridRemainingPercent
+                 
+                 // Get savings from combined results (includes AI Mode effects)
+                 // Use combined results which account for AI Mode, fallback to result if combined not available
+                 const uloOriginalBill = uloData.combined?.baselineAnnualBillEnergyOnly || uloData.result.originalCost.total || 1
+                 const uloNewBill = uloData.combined?.postSolarBatteryAnnualBillEnergyOnly || uloData.result.newCost.total || 0
+                 const uloBillSavings = Math.max(0, uloOriginalBill - uloNewBill)
+                 const uloTotalSavingsPercent = uloOriginalBill > 0 ? (uloBillSavings / uloOriginalBill) * 100 : 0
                    
-                  // Combined offset number before any realistic cap is applied
-                  const uloCombinedOffsetRaw = solarOffsetKwh + nightTimeOffsetUlo
-                  const uloCombinedOffsetMaxKwh = Math.min(uloCombinedOffsetRaw, annualUsageKwh)
-                  const uloCombinedOffsetPercentRaw = annualUsageKwh > 0 ? (uloCombinedOffsetMaxKwh / annualUsageKwh) * 100 : 0
-                  const uloCombinedOffsetPercent = Math.min(uloCombinedOffsetPercentRaw, offsetCapPercent)
-                  const uloCombinedOffset = (uloCombinedOffsetPercent / 100) * annualUsageKwh
-                  const uloOffsetCapped = uloCombinedOffsetPercent < uloCombinedOffsetPercentRaw - 0.1
-
-                  // Covered energy after cap plus the matching remainder helps explain the realistic limit
-                  const uloCappedCoveredKwh = uloCombinedOffset
-                  const uloCappedRemainderKwh = Math.max(0, annualUsageKwh - uloCappedCoveredKwh)
-                  const uloCappedRemainderPercent = annualUsageKwh > 0 ? (uloCappedRemainderKwh / annualUsageKwh) * 100 : 0
-
-                  let adjustedNightTimeOffsetUlo = nightTimeOffsetUlo
-                  let adjustedGridChargeUlo = uloGridChargeUsed
-                  if (uloOffsetCapped && uloCombinedOffsetPercentRaw > 0) {
-                    const reductionFraction = uloCombinedOffsetPercent / uloCombinedOffsetPercentRaw
-                    adjustedNightTimeOffsetUlo = nightTimeOffsetUlo * reductionFraction
-                    adjustedGridChargeUlo = Math.min(uloGridChargeUsed * reductionFraction, uloBatteryCapacityAfterSolar)
-                  }
-
-                  const uloSolarBatteryReduction = Math.max(0, nightTimeOffsetUlo - adjustedNightTimeOffsetUlo)
-                  const uloAdjustedGridCharge = adjustedGridChargeUlo
-                  const uloAdjustedLeftover = Math.max(0, uloActualLeftoverAfterFullBattery + uloSolarBatteryReduction)
-                  const uloShownGridKwh = uloAdjustedGridCharge + uloAdjustedLeftover
-                  const uloShownGridPercent = annualUsageKwh > 0 ? (uloShownGridKwh / annualUsageKwh) * 100 : 0
-                   
-                  // Get ULO rates first (needed for calculations below)
+                 // Get ULO rates for display
                   const uloRatePlan = getCustomUloRatePlan()
+                 const uloLeftoverRate = uloData.result.leftoverEnergy.ratePerKwh
+                 const uloLeftoverKwh = gridRemainingKwh
+                 const uloUltraLowRate = uloRatePlan.periods.find(p => p.period === 'ultra-low')?.rate ?? 3.9
                   const uloOnPeakRate = uloRatePlan.periods.find(p => p.period === 'on-peak')?.rate || 39.1
-                  const uloMidPeakRate = uloRatePlan.periods.find(p => p.period === 'mid-peak')?.rate ?? 17.1
-                  const uloOffPeakRate = uloRatePlan.periods.find(p => p.period === 'off-peak')?.rate ?? 10.0
-                  const uloUltraLowRate = uloRatePlan.periods.find(p => p.period === 'ultra-low')?.rate ?? 2.4
-                  
-                  // ULO: low-rate energy bucket (battery top-up + still from grid)
-                  const uloLeftoverKwh = uloAdjustedLeftover
-                  const uloLeftoverRate = uloData.result.leftoverEnergy.ratePerKwh
-                  const uloLowRateEnergyKwh = uloAdjustedGridCharge + uloLeftoverKwh
-                  const uloLowRatePercent = uloShownGridPercent
-                  const uloOriginalBill = uloData.result.originalCost.total || 1
-                  
-                  // Calculate correct blended rate: battery charges at ultra-low, remainder uses blended rate
-                  const uloBatteryChargingCost = uloAdjustedGridCharge * (uloUltraLowRate / 100)
+                 
+                 // Grid energy display values (battery top-up + remainder)
+                 const uloAdjustedGridCharge = uloChargedBatteryKwh // Battery charged from grid at ULO rate (AI Mode)
+                 const uloLowRateEnergyKwh = uloAdjustedGridCharge + uloLeftoverKwh // Total energy from grid
+                 const uloLowRatePercent = annualUsageKwh > 0 ? (uloLowRateEnergyKwh / annualUsageKwh) * 100 : 0
+                 const uloBatteryChargingCost = uloChargedBatteryKwh * (uloUltraLowRate / 100)
                   const uloLeftoverCost = uloLeftoverKwh * uloLeftoverRate
                   const uloTotalGridCost = uloBatteryChargingCost + uloLeftoverCost
                   const uloCorrectBlendedRate = uloLowRateEnergyKwh > 0 ? uloTotalGridCost / uloLowRateEnergyKwh : 0
-                  const uloLeftoverCostPercent = (uloTotalGridCost / uloOriginalBill) * 100
-                  const uloTotalSavingsPercent = Math.max(0, 100 - uloLeftoverCostPercent)
+                 // Use uloNewBill instead of uloTotalGridCost to ensure percentages add to 100%
+                 const uloLeftoverCostPercent = uloOriginalBill > 0 ? (uloNewBill / uloOriginalBill) * 100 : 0
                   
                   // Keep the storytelling grounded by anchoring to the original peak-priced usage
                   const uloPeakPricedUsageKwh =
@@ -2473,9 +2637,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                   
                   // Easy comparables for average bill rate before and after battery support
                   const uloOriginalEffectiveRate = annualUsageKwh > 0 ? (uloOriginalBill / annualUsageKwh) * 100 : 0
-                  const uloNewBill = uloData.result.newCost.total || 0
                   const uloNewEffectiveRate = annualUsageKwh > 0 ? (uloNewBill / annualUsageKwh) * 100 : 0
-                  const uloBillSavings = Math.max(0, uloOriginalBill - uloNewBill)
                    
                    return (
                      <div className="bg-gradient-to-br from-red-50 to-white rounded-2xl border-2 border-red-300 shadow-lg p-6">
@@ -2513,7 +2675,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                             <div className="h-px flex-1 bg-gradient-to-r from-red-200 to-transparent" />
                           </div>
 
-                          {/* Gentle card that explains how daylight solar trims the bill */}
+                         {/* FRD: Solar Direct - energy covered directly by solar */}
                           <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-200">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
@@ -2521,14 +2683,14 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                                 <span className="font-bold text-gray-700">Daytime covered by solar</span>
                               </div>
                               <div className="text-right">
-                                <div className="text-2xl font-bold text-green-600">{solarOffsetPercent.toFixed(2)}%</div>
-                                <div className="text-xs text-gray-600">{solarOffsetKwh.toFixed(0)} kWh/year</div>
+                               <div className="text-2xl font-bold text-green-600">{solarDirectPercent.toFixed(2)}%</div>
+                               <div className="text-xs text-gray-600">{solarDirectKwh.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
                             <div className="text-xs text-gray-600 pl-7">Energy your panels cover during the day</div>
                           </div>
 
-                          {/* Simple card sharing how the battery stretches solar into the night */}
+                         {/* Nighttime covered by battery - combines Solar→Battery + Grid top-up (ULO→Battery) */}
                           <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border-2 border-red-200">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
@@ -2536,15 +2698,15 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                                 <span className="font-bold text-gray-700">Nighttime covered by battery</span>
                               </div>
                               <div className="text-right">
-                                <div className="text-2xl font-bold text-red-600">{nightTimeOffsetUloPercent.toFixed(2)}%</div>
-                                <div className="text-xs text-gray-600">{nightTimeOffsetUlo.toFixed(0)} kWh/year</div>
+                               <div className="text-2xl font-bold text-red-600">{solarBatteryPercent.toFixed(2)}%</div>
+                               <div className="text-xs text-gray-600">{solarBatteryKwh.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
                             <div className="text-xs text-gray-600 pl-7">Stored solar used at night (excludes grid top-up in total %)</div>
                             <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-gray-600 pl-7">
-                              <div>Solar → Battery: <span className="font-semibold text-red-600">{uloBatteryUsedBySolar.toFixed(0)} kWh</span></div>
-                              <div>Battery top-up (cheap grid): <span className="font-semibold text-red-600">{uloAdjustedGridCharge.toFixed(0)} kWh</span></div>
-                              <div>Small remainder (still from grid): <span className="font-semibold text-red-600">{uloActualLeftoverAfterFullBattery.toFixed(0)} kWh</span></div>
+                             <div>Solar → Battery: <span className="font-semibold text-red-600">{solarBatteryKwh.toFixed(0)} kWh</span></div>
+                             <div>Battery top-up (cheap grid): <span className="font-semibold text-red-600">{uloChargedBatteryKwh.toFixed(0)} kWh</span></div>
+                             <div>Remainder (still from grid): <span className="font-semibold text-red-600">{uloActualLeftoverAfterFullBattery.toFixed(0)} kWh</span></div>
                             </div>
                           </div>
 

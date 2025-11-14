@@ -1,0 +1,427 @@
+FRD Peak Shaving Calculator - Client Testing Scenarios
+
+Please test the following scenarios to verify all new features are working correctly:
+
+═══════════════════════════════════════════════════════════════════════════════
+
+SCENARIO 1: AI Mode Toggle (Basic Functionality)
+───────────────────────────────────────────────────────────────────────────────
+1. Navigate to Peak Shaving Calculator page
+2. Scroll to the "Compare Savings by Rate Plan" section
+3. Look for "AI Optimization Mode" toggle above the TOU and ULO rate plan cards
+   - The toggle should be in a blue-bordered box above both rate plan cards
+   - It should be visible regardless of which plan you're viewing
+4. Toggle AI Mode ON - you should see:
+   ✓ Toggle switches to ON (red background)
+   ✓ Blue explanation box appears: "AI EMC Active: The Energy Management Controller automatically fills your battery at cheap ULO rates... This feature only affects the ULO plan."
+5. Toggle AI Mode OFF - explanation box should disappear
+6. Verify toggle works smoothly
+7. Note: The toggle description says "(affects ULO plan only)" - this is correct
+8. Scroll to "Full Offset Calculation Breakdown" section
+9. Verify breakdown section shows Solar Direct and Solar→Battery cards for both plans
+10. Note: ULO→Battery percentage is shown in the comparison table but not as a separate card in the breakdown section
+
+Expected: Toggle appears above both rate plan cards, works correctly, explanation shows/hides properly, clearly indicates it only affects ULO plan, and breakdown section reflects AI Mode state
+
+═══════════════════════════════════════════════════════════════════════════════
+
+SCENARIO 2: AI Mode Impact on Savings (ULO Plan)
+───────────────────────────────────────────────────────────────────────────────
+Test Setup:
+- Annual Usage: 10,000 kWh
+- Solar Production: 3,000 kWh
+- Battery: Renon 16 kWh
+- Rate Plan: ULO
+
+Test Steps:
+1. Set inputs above
+2. With AI Mode OFF:
+   - Note the Annual Savings amount (should be low, around $0-200)
+   - Check "Offset & Allocation" section
+   - Verify "ULO→Battery" percentage is 0% or not shown
+   - Verify "Solar→Battery" is 0% (no solar excess with this setup)
+   - Verify "Remaining from Grid" is high (~70% or more)
+3. Toggle AI Mode ON:
+   - Note the new Annual Savings amount (should be significantly higher)
+   - Expected: Annual Savings should be around $1,697 (much higher than OFF)
+   - Check "Offset & Allocation" section
+   - Verify "ULO→Battery" percentage is now ~50% (AI Mode enabled!)
+   - Verify "Solar Direct" is ~30% (3,000 kWh / 10,000 kWh)
+   - Verify "Solar→Battery" is 0% (no solar excess - all solar used for day load)
+   - Verify "Remaining from Grid" decreased to ~20% (much lower than OFF)
+   - Verify all percentages sum to 100%
+
+Expected Results (AI Mode ON):
+- Annual Savings: ~$1,697 (vs ~$794 for TOU plan)
+- Solar Direct: ~30.0%
+- Solar→Battery: 0.0% (correct - no solar excess)
+- ULO→Battery: ~50.0% (AI Mode working!)
+- Grid: ~20.0%
+- Total: 100.0%
+
+Why Solar→Battery is 0%: This is correct! With 3,000 kWh solar and 10,000 kWh usage, the day load is 5,000 kWh (50%). All 3,000 kWh solar goes to day load, leaving 0 excess for battery charging. AI Mode enables grid charging instead.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+SCENARIO 3: AI Mode on TOU Plan (Should Have No Effect)
+───────────────────────────────────────────────────────────────────────────────
+Test Setup:
+- Annual Usage: 10,000 kWh
+- Solar Production: 3,000 kWh
+- Battery: Renon 16 kWh
+- Rate Plan: TOU
+
+Test Steps:
+1. Set inputs above
+2. Note the Annual Savings amount for TOU plan
+3. The AI Mode toggle should be visible above both rate plan cards (shared location)
+4. Toggle AI Mode ON/OFF
+5. Verify TOU plan savings amount does NOT change (should remain the same)
+6. Verify no "ULO→Battery" percentage appears in TOU plan results
+7. Verify no grid charging occurs for TOU plan (AI Mode only works for ULO)
+8. Check that the toggle description says "(affects ULO plan only)" - confirming it's for ULO only
+
+Expected: AI Mode toggle is visible for both plans, but has no effect on TOU plan calculations. Only ULO plan results change when toggling AI Mode.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+SCENARIO 4: Offset Percentages Display (Comparison Table & Breakdown)
+───────────────────────────────────────────────────────────────────────────────
+Test Setup:
+- Annual Usage: 14,000 kWh
+- Solar Production: 8,000 kWh
+- Battery: Renon 16 kWh
+- Rate Plan: ULO
+- AI Mode: ON
+
+Test Steps:
+1. Set inputs above
+2. Scroll to "Plan Comparison (TOU vs ULO)" table
+3. Find the "Energy Offset & Allocation" row
+4. Verify you see these percentages for ULO column:
+   ✓ Solar Direct: 50.0%
+   ✓ Solar→Battery: 7.1%
+   ✓ ULO→Battery: 30.4% (only when AI Mode ON)
+   ✓ Grid: 12.5%
+5. Verify all percentages sum to 100%
+6. For TOU column, verify:
+   ✓ Solar Direct: 50.0%
+   ✓ Solar→Battery: 7.1%
+   ✓ Grid: 42.9%
+   ✓ NO "ULO→Battery" percentage (AI Mode doesn't affect TOU)
+7. Scroll down to "Full Offset Calculation Breakdown" section
+8. Verify the breakdown section shows the offset percentages:
+   ✓ TOU Plan breakdown shows: "Powered by Solar (Direct)" = 50.0%
+   ✓ TOU Plan breakdown shows: "Powered by Solar→Battery" = 7.1%
+   ✓ TOU Plan breakdown shows: Grid remaining = 42.9%
+   ✓ ULO Plan breakdown shows: "Powered by Solar (Direct)" = 50.0%
+   ✓ ULO Plan breakdown shows: "Powered by Solar→Battery" = 7.1%
+   ✓ ULO Plan breakdown shows: Grid remaining = 12.5%
+   ✓ ULO Plan "Total Offset" includes ULO→Battery in the total (but not shown as separate card)
+9. Note: The breakdown section shows Solar Direct and Solar→Battery separately, but ULO→Battery is included in the total offset calculation (not shown as a separate card)
+
+Expected Results (Verified):
+───────────────────────────────────────────────────────────────────────────────
+TOU PLAN:
+- Solar Direct: 50.0%
+- Solar→Battery: 7.1%
+- Grid: 42.9%
+- Total: 100.0%
+
+ULO PLAN (AI Mode ON):
+- Solar Direct: 50.0%
+- Solar→Battery: 7.1%
+- ULO→Battery: 30.4% (AI Mode working!)
+- Grid: 12.5%
+- Total: 100.0%
+
+Expected: All offset percentages displayed correctly in BOTH the comparison table AND the breakdown section, they should match exactly, sum to 100%, and AI Mode only affects ULO plan
+
+═══════════════════════════════════════════════════════════════════════════════
+
+SCENARIO 5: High Usage Edge Case
+───────────────────────────────────────────────────────────────────────────────
+Test Setup:
+- Annual Usage: 30,000 kWh
+- Solar Production: 8,000 kWh
+- Battery: Renon 16 kWh
+- Rate Plan: TOU
+- AI Mode: OFF
+
+Test Steps:
+1. Set inputs above
+2. Check results:
+   - Verify "Remaining from Grid" percentage is high (> 50%)
+   - Verify savings are still calculated correctly
+   - Verify no errors occur
+   - Verify battery still operates normally (if solar excess exists)
+3. Check "Energy Offset & Allocation" section:
+   - Verify percentages are displayed
+   - Verify all percentages sum to 100%
+
+Expected Results:
+───────────────────────────────────────────────────────────────────────────────
+TOU PLAN:
+- Solar Direct: ~26.7% (8,000 kWh / 30,000 kWh, capped at day load ~50%)
+- Solar→Battery: ~0.0% (likely no solar excess with high usage)
+- Grid: ~73.3% (high usage means most energy from grid)
+- Total: 100.0%
+
+Financial Results:
+- Annual Savings: Lower than typical (high usage, limited solar offset)
+- Payback Period: Longer due to lower savings
+- System handles high usage gracefully, no crashes, realistic results
+
+═══════════════════════════════════════════════════════════════════════════════
+
+SCENARIO 6: High Solar/Capacity Edge Case
+───────────────────────────────────────────────────────────────────────────────
+Test Setup:
+- Annual Usage: 10,000 kWh
+- Solar Production: 15,000 kWh
+- Battery: Renon 32 kWh
+- Rate Plan: TOU
+- AI Mode: OFF
+
+Test Steps:
+1. Set inputs above
+2. Check results:
+   - Verify total offset does not exceed 100%
+   - Verify "Solar Direct" + "Solar→Battery" ≤ 100%
+   - Verify "Remaining from Grid" ≥ 0%
+   - Verify excess solar is handled (not causing errors)
+3. Check "Energy Offset & Allocation" section:
+   - Verify percentages are displayed
+   - Verify all percentages sum to 100%
+   - Verify offset is capped at 92% (winter limits note)
+
+Expected Results:
+───────────────────────────────────────────────────────────────────────────────
+TOU PLAN:
+- Solar Direct: ~50.0% (capped at day load, which is 50% of usage = 5,000 kWh)
+- Solar→Battery: ~42.0% (solar excess charges battery, limited by battery capacity and usage)
+- Grid: ~8.0% (minimal grid usage due to high solar)
+- Total: 100.0% (capped appropriately)
+
+Financial Results:
+- Annual Savings: High (significant solar offset)
+- Payback Period: Shorter due to high savings
+- System caps offsets at usage, handles excess capacity correctly
+- Note: "Capped at 92% to reflect winter limits" may appear in breakdown
+
+═══════════════════════════════════════════════════════════════════════════════
+
+SCENARIO 7: Typical Residential - Full System
+───────────────────────────────────────────────────────────────────────────────
+Test Setup:
+- Annual Usage: 14,000 kWh
+- Solar Production: 8,000 kWh
+- Battery: Renon 16 kWh
+- Rate Plan: ULO
+- AI Mode: ON
+
+Test Steps:
+1. Set inputs above
+2. Verify all sections display correctly:
+   ✓ Annual Savings shown
+   ✓ Monthly Savings shown
+   ✓ Payback Period calculated
+   ✓ 25-Year Profit shown
+   ✓ Offset percentages displayed
+   ✓ TOU vs ULO comparison works
+3. Toggle AI Mode OFF and verify savings decrease
+4. Toggle back ON and verify savings increase
+5. Check "Full Offset Calculation Breakdown" section:
+   - Verify TOU breakdown shows correct percentages
+   - Verify ULO breakdown shows correct percentages
+   - Verify "Battery top-up" shows 0 kWh for TOU
+   - Verify "Battery top-up" shows actual value for ULO when AI Mode ON
+
+Expected Results (AI Mode ON):
+───────────────────────────────────────────────────────────────────────────────
+ULO PLAN:
+- Solar Direct: 50.0%
+- Solar→Battery: 7.1%
+- ULO→Battery: 30.4% (AI Mode working!)
+- Grid: 12.5%
+- Total: 100.0%
+
+Financial Results:
+- Annual Savings: ~$3,381 (ULO plan with AI Mode ON)
+- Monthly Savings: ~$282/month
+- Payback Period: ~5.1 years (ULO plan)
+- 25-Year Profit: ~$131,258 (ULO plan)
+- All financial metrics calculate correctly, AI Mode affects savings
+
+When AI Mode OFF:
+- Annual Savings: Lower (battery only charges from solar excess)
+- ULO→Battery: 0% (no grid charging)
+- Grid: Higher percentage (~42.9%)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+SCENARIO 8: Custom Rates with AI Mode
+───────────────────────────────────────────────────────────────────────────────
+Test Setup:
+- Annual Usage: 10,000 kWh
+- Solar Production: 5,000 kWh
+- Battery: Renon 16 kWh
+- Rate Plan: ULO
+- AI Mode: ON
+
+Test Steps:
+1. Set inputs above
+2. Note baseline Annual Savings with default rates
+3. Click "Edit Custom Rates"
+4. Modify ULO rates (e.g., change Ultra-Low from 3.9¢ to 4.5¢/kWh)
+5. Verify calculations update automatically
+6. Verify AI Mode still works with custom rates
+7. Verify grid charging uses the custom Ultra-Low rate
+8. Check "Battery top-up" in breakdown - should show custom rate
+9. Verify savings change when rates change
+
+Expected Results:
+───────────────────────────────────────────────────────────────────────────────
+Before Custom Rates:
+- Annual Savings: Baseline amount
+- Battery top-up charged at: 3.9¢/kWh (default Ultra-Low rate)
+
+After Custom Rates (Ultra-Low = 4.5¢/kWh):
+- Annual Savings: Slightly lower (higher charging cost)
+- Battery top-up charged at: 4.5¢/kWh (custom rate)
+- All calculations update in real-time
+- AI Mode still functions correctly
+- Grid charging cost reflects custom rate
+
+Verification:
+- "Bought from the grid" section shows custom rate in breakdown
+- "Cost of energy bought from grid" reflects custom rate
+- Savings percentages recalculate automatically
+- Custom rates work correctly with AI Mode, calculations update in real-time
+
+═══════════════════════════════════════════════════════════════════════════════
+
+SCENARIO 9: Low Solar with AI Mode (Best Case for AI Mode)
+───────────────────────────────────────────────────────────────────────────────
+Test Setup:
+- Annual Usage: 10,000 kWh
+- Solar Production: 2,000 kWh (very low)
+- Battery: Renon 16 kWh
+- Rate Plan: ULO
+
+Test Steps:
+1. Set inputs above
+2. With AI Mode OFF:
+   - Note Annual Savings (should be low, maybe $0-200)
+   - Battery likely not charging (no solar excess)
+   - Check "Energy Offset & Allocation":
+     * Solar Direct: ~20.0% (2,000 kWh / 10,000 kWh)
+     * Solar→Battery: 0.0% (no solar excess)
+     * ULO→Battery: 0.0% (AI Mode OFF)
+     * Grid: ~80.0%
+3. Toggle AI Mode ON:
+   - Note Annual Savings (should increase significantly)
+   - Verify "ULO→Battery" percentage is high (> 40%)
+   - Verify battery can now charge from grid
+   - Check "Energy Offset & Allocation":
+     * Solar Direct: ~20.0%
+     * Solar→Battery: 0.0% (still no solar excess)
+     * ULO→Battery: ~50.0% (AI Mode enables grid charging!)
+     * Grid: ~30.0% (much lower than OFF)
+
+Expected Results:
+───────────────────────────────────────────────────────────────────────────────
+AI Mode OFF:
+- Solar Direct: ~20.0%
+- Solar→Battery: 0.0%
+- ULO→Battery: 0.0%
+- Grid: ~80.0%
+- Annual Savings: Low (~$0-200)
+
+AI Mode ON:
+- Solar Direct: ~20.0%
+- Solar→Battery: 0.0%
+- ULO→Battery: ~50.0% (AI Mode makes huge difference!)
+- Grid: ~30.0%
+- Annual Savings: Significantly higher (~$1,500-1,700)
+
+Key Observation:
+- AI Mode makes a big difference when solar is low
+- Enables grid charging when solar excess is insufficient
+- Battery can now discharge to avoid peak rates, dramatically increasing savings
+
+═══════════════════════════════════════════════════════════════════════════════
+
+SCENARIO 10: Validation Checks
+───────────────────────────────────────────────────────────────────────────────
+Test these edge cases to ensure no crashes:
+
+1. Zero Usage:
+   - Try setting Annual Usage to 0
+   - Expected: 
+     ✓ Red error message appears below input: "Invalid input: Annual energy usage must be greater than 0 kWh..."
+     ✓ Input field shows red border/background
+     ✓ Yellow warning box appears in results area: "Enter Annual Energy Usage"
+     ✓ Comparison table is hidden
+     ✓ Breakdown section is hidden
+     ✓ No crashes or blank screens
+
+2. Very Large Numbers:
+   - Try Annual Usage: 100,000 kWh
+   - Expected: 
+     ✓ System handles it, no crashes
+     ✓ Calculations complete successfully
+     ✓ Percentages still sum to 100%
+     ✓ Financial metrics calculate correctly
+     ✓ Offset percentages scale appropriately
+
+3. Rapid Toggling:
+   - Quickly toggle AI Mode ON/OFF multiple times
+   - Expected: 
+     ✓ No errors, calculations update smoothly
+     ✓ Final state matches toggle position
+     ✓ ULO plan savings change with each toggle
+     ✓ TOU plan savings remain unchanged
+     ✓ No UI glitches or frozen states
+
+4. Change Multiple Inputs:
+   - Change usage, solar, battery, and AI Mode all at once
+   - Expected: 
+     ✓ All calculations update correctly
+     ✓ Percentages recalculate properly
+     ✓ Financial metrics update in real-time
+     ✓ No calculation errors or inconsistencies
+     ✓ All sections reflect new inputs
+
+═══════════════════════════════════════════════════════════════════════════════
+
+QUICK CHECKLIST:
+───────────────────────────────────────────────────────────────────────────────
+□ AI Mode toggle visible above both rate plan cards (shared location)
+□ AI Mode toggle description says "(affects ULO plan only)"
+□ AI Mode toggle works (ON/OFF)
+□ AI Mode explanation appears when ON
+□ AI Mode increases savings on ULO plan
+□ AI Mode has no effect on TOU plan (savings stay the same)
+□ Offset percentages displayed correctly in comparison table
+□ Offset percentages displayed correctly in breakdown section
+□ ULO→Battery % shows when AI Mode ON (ULO plan only) in comparison table
+□ Breakdown section shows Solar Direct and Solar→Battery cards (ULO→Battery included in total, not separate card)
+□ All percentages sum to 100%
+□ No negative values displayed
+□ Calculations update in real-time
+□ Custom rates work with AI Mode
+□ Edge cases handled gracefully
+□ Zero usage shows error message (not blank)
+□ No crashes or errors
+
+═══════════════════════════════════════════════════════════════════════════════
+
+If you find any issues, please note:
+- Which scenario failed
+- What you expected vs what happened
+- Any error messages
+- Screenshots if possible
+
+Thank you for testing!
+
