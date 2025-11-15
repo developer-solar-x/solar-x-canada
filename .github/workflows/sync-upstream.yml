@@ -52,82 +52,89 @@ jobs:
             echo "SSH key not found (UPSTREAM_SSH_KEY secret is not set), will use HTTPS with token"
           fi
       
-      - name: Add upstream remote
+      - name: Check authentication secrets
+        id: check-auth
         env:
           UPSTREAM_SSH_KEY: ${{ secrets.UPSTREAM_SSH_KEY }}
           UPSTREAM_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
         run: |
-          # Debug: Check which secrets are available (without exposing values)
-          echo "Checking available authentication methods..."
+          echo "=== Checking authentication secrets ==="
           if [ -n "$UPSTREAM_SSH_KEY" ]; then
-            echo "✓ UPSTREAM_SSH_KEY secret is set"
-            UPSTREAM_URL="git@github.com:tayawaaean/solar-x.git"
-            echo "Using SSH for upstream repository: $UPSTREAM_URL"
+            echo "AUTH_METHOD=ssh" >> $GITHUB_OUTPUT
+            echo "✓ UPSTREAM_SSH_KEY secret is set (length: ${#UPSTREAM_SSH_KEY})"
           elif [ -n "$UPSTREAM_TOKEN" ]; then
-            echo "✓ UPSTREAM_SYNC_TOKEN secret is set"
-            UPSTREAM_URL="https://$UPSTREAM_TOKEN@github.com/tayawaaean/solar-x.git"
-            echo "Using HTTPS with Personal Access Token for upstream repository"
+            echo "AUTH_METHOD=token" >> $GITHUB_OUTPUT
+            echo "✓ UPSTREAM_SYNC_TOKEN secret is set (length: ${#UPSTREAM_TOKEN})"
+            echo "Token preview: ${UPSTREAM_TOKEN:0:7}..."
           else
-            echo "✗ No authentication secrets found"
+            echo "AUTH_METHOD=none" >> $GITHUB_OUTPUT
+            echo "✗ No authentication secrets found!"
             echo "::error::Neither UPSTREAM_SSH_KEY nor UPSTREAM_SYNC_TOKEN secrets are set"
-            UPSTREAM_URL="https://github.com/tayawaaean/solar-x.git"
-            echo "::warning::No authentication method configured. This will fail for private repositories."
+            exit 1
+          fi
+          echo "========================================"
+      
+      - name: Add upstream remote
+        env:
+          UPSTREAM_SSH_KEY: ${{ secrets.UPSTREAM_SSH_KEY }}
+          UPSTREAM_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+          AUTH_METHOD: ${{ steps.check-auth.outputs.AUTH_METHOD }}
+        run: |
+          echo "Adding upstream remote using method: $AUTH_METHOD"
+          if [ "$AUTH_METHOD" = "ssh" ]; then
+            UPSTREAM_URL="git@github.com:tayawaaean/solar-x.git"
+            echo "Using SSH: $UPSTREAM_URL"
+          elif [ "$AUTH_METHOD" = "token" ]; then
+            UPSTREAM_URL="https://$UPSTREAM_TOKEN@github.com/tayawaaean/solar-x.git"
+            echo "Using HTTPS with token (token hidden)"
+          else
+            echo "::error::No authentication method available"
+            exit 1
           fi
           
           git remote add upstream $UPSTREAM_URL 2>/dev/null || git remote set-url upstream $UPSTREAM_URL
-          echo "Current remote configuration:"
+          echo "Remote configured. Current remotes:"
           git remote -v
       
       - name: Fetch upstream changes
         env:
           UPSTREAM_SSH_KEY: ${{ secrets.UPSTREAM_SSH_KEY }}
           UPSTREAM_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+          AUTH_METHOD: ${{ steps.check-auth.outputs.AUTH_METHOD }}
         run: |
-          # Configure authentication based on available method
-          if [ -n "$UPSTREAM_SSH_KEY" ]; then
-            echo "Fetching from upstream using SSH..."
+          echo "Fetching from upstream using method: $AUTH_METHOD"
+          
+          if [ "$AUTH_METHOD" = "ssh" ]; then
+            echo "Fetching using SSH..."
             GIT_SSH_COMMAND="ssh -i ~/.ssh/upstream_key -o IdentitiesOnly=yes" git fetch upstream || {
               echo "::error::Failed to fetch from upstream repository using SSH"
-              echo ""
-              echo "Possible causes:"
-              echo "1. The UPSTREAM_SSH_KEY secret is invalid or incorrectly formatted"
-              echo "2. The SSH key is not added as a deploy key to tayawaaean/solar-x"
-              echo "3. The deploy key doesn't have read access"
-              echo ""
-              echo "See .github/workflows/README.md for SSH key setup instructions"
               exit 1
             }
-          elif [ -n "$UPSTREAM_TOKEN" ]; then
-            echo "Fetching from upstream using HTTPS with token..."
-            # Configure credential helper for HTTPS
+          elif [ "$AUTH_METHOD" = "token" ]; then
+            echo "Fetching using HTTPS with token..."
+            # Ensure remote URL has token embedded
+            git remote set-url upstream https://$UPSTREAM_TOKEN@github.com/tayawaaean/solar-x.git
+            # Configure credential helper as backup
             git config credential.helper store
             echo "https://$UPSTREAM_TOKEN@github.com" > ~/.git-credentials
             chmod 600 ~/.git-credentials
+            # Verify remote URL (mask token)
+            echo "Remote URL configured:"
+            git remote get-url upstream | sed 's/ghp_[^@]*/ghp_***HIDDEN***/g'
+            # Fetch from upstream
+            echo "Executing: git fetch upstream"
             git fetch upstream || {
-              echo "::error::Failed to fetch from upstream repository using HTTPS"
-              echo ""
-              echo "Possible causes:"
-              echo "1. The UPSTREAM_SYNC_TOKEN secret is not set or is invalid"
-              echo "2. The token doesn't have 'repo' scope"
-              echo "3. The token doesn't have access to the upstream repository"
-              echo "4. The repository URL is incorrect"
-              echo ""
-              echo "See .github/workflows/README.md for token setup instructions"
+              echo "::error::Failed to fetch from upstream repository"
+              echo "Token length: ${#UPSTREAM_TOKEN}"
+              echo "Verify the UPSTREAM_SYNC_TOKEN secret is set correctly"
               exit 1
             }
           else
-            echo "::error::No authentication method configured"
-            echo "The upstream repository is private and requires authentication."
-            echo ""
-            echo "Please configure either:"
-            echo "1. UPSTREAM_SSH_KEY secret (recommended for private repos)"
-            echo "2. UPSTREAM_SYNC_TOKEN secret (Personal Access Token)"
-            echo ""
-            echo "See .github/workflows/README.md for detailed instructions"
+            echo "::error::No authentication method available"
             exit 1
           fi
           
-          echo "Successfully fetched from upstream"
+          echo "✓ Successfully fetched from upstream"
           git fetch origin
       
       - name: Check for upstream changes
