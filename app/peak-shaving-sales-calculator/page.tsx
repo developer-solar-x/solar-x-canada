@@ -53,12 +53,12 @@ export default function Page() {
     solarOverride: undefined
   }), [persisted])
 
-  // Render the bento grid calculator
+  // Render the FRD-compliant calculator
   return (
-    <section className="h-screen bg-gradient-to-br from-blue-50 via-white to-amber-50 flex flex-col overflow-hidden">
-      <div className="max-w-[1920px] mx-auto w-full h-full flex flex-col px-2 py-2 md:px-4 md:py-2">
+    <section className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-amber-50">
+      <div className="max-w-[1920px] mx-auto w-full">
         {/* Compact Header with back button and title - Responsive */}
-        <div className="flex items-center justify-between mb-2 flex-shrink-0 gap-2">
+        <div className="flex items-center justify-between p-4 md:p-6 gap-2">
           <button
             onClick={() => router.push('/')}
             className="inline-flex items-center gap-1 px-2 py-1.5 md:px-2 md:py-1 rounded-full border border-navy-300 text-navy-600 bg-white hover:bg-navy-50 active:bg-navy-100 transition-colors text-xs md:text-xs font-semibold touch-manipulation"
@@ -83,15 +83,13 @@ export default function Page() {
           </div>
         </div>
         
-        {/* Bento Grid Calculator - Takes remaining space */}
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <PeakShavingSalesCalculator
-            data={data}
-            onComplete={() => { /* no-op in manual clone */ }}
-            onBack={() => router.push('/')}
-            manualMode
-          />
-        </div>
+        {/* FRD Calculator - Scrollable on mobile, full screen on wide screen */}
+        <PeakShavingSalesCalculator
+          data={data}
+          onComplete={() => { /* no-op in manual clone */ }}
+          onBack={() => router.push('/')}
+          manualMode
+        />
       </div>
     </section>
   )

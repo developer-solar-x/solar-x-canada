@@ -1,4 +1,4 @@
-FRD Peak Shaving Calculator - Client Testing Scenarios
+FRD Peak Shaving Calculator - Testing Scenarios
 
 Please test the following scenarios to verify all new features are working correctly:
 

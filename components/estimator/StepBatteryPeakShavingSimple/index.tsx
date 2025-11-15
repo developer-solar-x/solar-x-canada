@@ -213,8 +213,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
   const [showUloSavingsSectionInfo, setShowUloSavingsSectionInfo] = useState(false)
   // This state toggles the 25-year profit explainer so folks can explore the long-term story when they are ready
   const [showProfitInfo, setShowProfitInfo] = useState(false)
-  // AI Optimization Mode state (default OFF) - allows grid charging at ULO rate when enabled
-  const [aiMode, setAiMode] = useState(false)
+  // AI Optimization Mode state (always ON, hidden from user) - allows grid charging at cheap rates
+  const [aiMode, setAiMode] = useState(true)
   // Hydrate annual usage from storage after mount (both standalone and estimator)
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -495,7 +495,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
         touRatePlan,
         touDistribution,
         offsetCapInfo.capFraction,
-        false  // AI Mode only applies to ULO plans
+        aiMode  // AI Mode enables battery grid charging for arbitrage (both TOU and ULO)
       )
       const combinedAnnualRaw = combinedModel.combinedAnnualSavings
       // Clamp savings so they never exceed the current bill the homeowner is paying today
@@ -537,10 +537,12 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
           monthly: combinedMonthly,
           projection: combinedProjection,
           netCost: combinedNet,
-          baselineAnnualBill: baselineAnnualDisplay, // Includes delivery/fixed fees for display
+          baselineAnnualBill: combinedModel.baselineAnnualBill, // Use actual rate-based calculation for accurate savings percentage
           postAnnualBill: newBillAnnual, // Includes delivery/fixed fees for display
           baselineAnnualBillEnergyOnly: combinedModel.baselineAnnualBill, // Energy-only baseline (matches ChatGPT)
           postSolarBatteryAnnualBillEnergyOnly: combinedModel.postSolarBatteryAnnualBill, // Energy-only final (matches ChatGPT)
+          postSolarBatteryAnnualBill: combinedModel.postSolarBatteryAnnualBill, // For savings calculation
+          uncappedAnnualSavings: combinedModel.uncappedAnnualSavings, // For accurate savings percentage with arbitrage
           solarOnlyAnnual: solarScaled,
           batteryAnnual: batteryScaled,
           solarNetCost: solarNet,
@@ -555,7 +557,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
     }
 
     setTouResults(newResults)
-  }, [annualUsageInput, selectedBatteries, touDistribution, customRates.tou, data.estimate, systemSizeKwOverride, overrideEstimate, effectiveSolarProductionKwh, offsetCapInfo.capFraction])
+  }, [annualUsageInput, selectedBatteries, touDistribution, customRates.tou, data.estimate, systemSizeKwOverride, overrideEstimate, effectiveSolarProductionKwh, offsetCapInfo.capFraction, aiMode])
 
   // Calculate ULO results for selected batteries
   useEffect(() => {
@@ -649,10 +651,12 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
           monthly: combinedMonthly,
           projection: combinedProjection,
           netCost: combinedNet,
-          baselineAnnualBill: baselineAnnualDisplay, // Includes delivery/fixed fees for display
+          baselineAnnualBill: combinedModel.baselineAnnualBill, // Use actual rate-based calculation for accurate savings percentage
           postAnnualBill: newBillAnnual, // Includes delivery/fixed fees for display
           baselineAnnualBillEnergyOnly: combinedModel.baselineAnnualBill, // Energy-only baseline (matches ChatGPT)
           postSolarBatteryAnnualBillEnergyOnly: combinedModel.postSolarBatteryAnnualBill, // Energy-only final (matches ChatGPT)
+          postSolarBatteryAnnualBill: combinedModel.postSolarBatteryAnnualBill, // For savings calculation
+          uncappedAnnualSavings: combinedModel.uncappedAnnualSavings, // For accurate savings percentage with arbitrage
           solarOnlyAnnual: solarScaled,
           batteryAnnual: batteryScaled,
           solarNetCost: solarNet,
@@ -693,7 +697,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
         battery,
         getCustomTouRatePlan(),
         touDistribution,
-        false, // AI Mode only for ULO
+        aiMode, // AI Mode now works for both TOU and ULO plans
         { p_day: 0.5, p_night: 0.5 }
       )
       
@@ -703,7 +707,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
         battery,
         getCustomUloRatePlan(),
         uloDistribution,
-        aiMode, // AI Mode for ULO
+        aiMode, // AI Mode now works for both TOU and ULO plans
         { p_day: 0.5, p_night: 0.5 }
       )
       
@@ -919,45 +923,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
              Compare Savings by Rate Plan
            </label>
            
-           {/* AI Optimization Mode Toggle - Shared for both plans */}
-           <div className="mb-4 p-4 bg-gradient-to-br from-blue-50 to-white border-2 border-blue-200 rounded-xl shadow-sm">
-             <label className="flex items-center justify-between cursor-pointer group">
-               <div className="flex items-center gap-3">
-                 <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-navy-600">
-                   <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                   </svg>
-                 </div>
-                 <div>
-                   <div className="text-sm font-semibold text-navy-600">AI Optimization Mode</div>
-                   <div className="text-xs text-gray-600">Enable grid charging at ULO rate (affects ULO plan only)</div>
-                 </div>
-               </div>
-               <button
-                 type="button"
-                 onClick={() => setAiMode(!aiMode)}
-                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 ${
-                   aiMode ? 'bg-red-500' : 'bg-gray-300'
-                 }`}
-                 role="switch"
-                 aria-checked={aiMode}
-                 aria-label="Toggle AI Optimization Mode"
-               >
-                 <span
-                   className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                     aiMode ? 'translate-x-6' : 'translate-x-1'
-                   }`}
-                 />
-               </button>
-             </label>
-             {aiMode && (
-               <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                 <p className="text-xs text-blue-800">
-                   <strong>AI EMC Active:</strong> The Energy Management Controller automatically fills your battery at cheap ULO rates (11 PM - 7 AM) and discharges during expensive peak hours to maximize savings. <strong>This feature only affects the ULO plan.</strong>
-                 </p>
-               </div>
-             )}
-           </div>
+           {/* AI Optimization Mode is always ON (hidden from user) */}
 
            <div className="grid md:grid-cols-2 gap-4">
              <div className="p-5 bg-gradient-to-br from-gray-50 to-white border-2 border-gray-300 rounded-xl shadow-sm hover:shadow-md transition-shadow">
@@ -1684,7 +1650,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                       <div className="mt-2 space-y-1 text-xs text-gray-600">
                         <div>• Powered by solar</div>
                         <div>• Powered by solar-charged battery</div>
-                        {aiMode && <div>• Powered by ULO-charged battery (AI Mode)</div>}
+                        {aiMode && <div>• Powered by grid-charged battery (AI Mode)</div>}
                         <div>• Remaining from grid</div>
                       </div>
                     </div>
@@ -1699,6 +1665,12 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                             <span className="text-gray-600">Solar→Battery:</span>
                             <span className="font-bold text-blue-600">{frdResults.tou.offsetPercentages.solarChargedBattery.toFixed(1)}%</span>
                           </div>
+                          {aiMode && frdResults.tou.offsetPercentages.uloChargedBattery > 0 && (
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-600">Off-peak→Battery:</span>
+                              <span className="font-bold text-amber-600">{frdResults.tou.offsetPercentages.uloChargedBattery.toFixed(1)}%</span>
+                            </div>
+                          )}
                           <div className="flex items-center justify-between text-xs">
                             <span className="text-gray-600">Grid:</span>
                             <span className="font-bold text-gray-600">{frdResults.tou.offsetPercentages.gridRemaining.toFixed(1)}%</span>
@@ -2259,7 +2231,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                  const solarBatteryPercent = touFrd.offsetPercentages.solarChargedBattery
                  const solarBatteryKwh = (solarBatteryPercent / 100) * annualUsageKwh
                  
-                 // Battery top-up from grid (should be 0 for TOU, but use FRD value for consistency)
+                 // Battery top-up from grid (AI Mode enables grid charging at off-peak rate for TOU)
                  const touChargedBatteryKwh = touFrd.battGridCharged || 0
                  
                  const gridRemainingPercent = touFrd.offsetPercentages.gridRemaining
@@ -2284,14 +2256,20 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                  // Check if offset is capped
                  const touOffsetCapped = touCombinedOffsetPercent < offsetCapPercent - 0.1
 
-                 // Grid energy breakdown (no grid charging for TOU from battery perspective)
-                 const touShownGridKwh = gridRemainingKwh
-                 const touShownGridPercent = gridRemainingPercent
+                 // Grid energy breakdown (includes grid charging when AI Mode is ON)
+                 const touShownGridKwh = gridRemainingKwh + touChargedBatteryKwh
+                 const touShownGridPercent = touShownGridKwh > 0 ? (touShownGridKwh / annualUsageKwh) * 100 : 0
                    
-                 // Get savings from FRD results
-                 const touOriginalBill = touData.result.originalCost.total || 1
-                 const touNewBill = touData.result.newCost.total || 0
-                 const touBillSavings = Math.max(0, touOriginalBill - touNewBill)
+                 // Get savings from combined calculation (properly accounts for grid charging arbitrage)
+                 // Use combined calculation if available, fallback to FRD result
+                 // Use UNCAPPED savings for accurate savings percentage (cap only affects offset display, not savings)
+                 const touOriginalBill = touData.combined?.baselineAnnualBill || touData.result.originalCost.total || 1
+                 const touNewBill = touData.combined?.postSolarBatteryAnnualBill || touData.result.newCost.total || 0
+                 // Use uncapped savings if available (more accurate for savings percentage with arbitrage)
+                 const touUncappedSavings = touData.combined?.uncappedAnnualSavings
+                 const touCombinedSavings = touData.combined?.combinedAnnualSavings
+                 // Prefer uncapped savings for accurate percentage, fallback to capped if uncapped not available
+                 const touBillSavings = touUncappedSavings || touCombinedSavings || Math.max(0, touOriginalBill - touNewBill)
                  const touTotalSavingsPercent = touOriginalBill > 0 ? (touBillSavings / touOriginalBill) * 100 : 0
                    
                  // Get TOU rates for display
@@ -2299,7 +2277,8 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                  const touOffPeakRate = touRatePlan.periods.find(p => p.period === 'off-peak')?.rate ?? touRatePlan.periods[0]?.rate ?? 9.8
                   const touLeftoverRate = touData.result.leftoverEnergy.ratePerKwh
                  const touLeftoverKwh = gridRemainingKwh
-                 const touAdjustedGridCharge = 0 // No grid charging for TOU (battery only charges from solar)
+                 // Use actual grid-charged battery value from FRD calculation (AI Mode enables grid charging)
+                 const touAdjustedGridCharge = touChargedBatteryKwh
                   
                  // Calculate correct blended rate for TOU
                  const touOnPeakRate = touRatePlan.periods.find(p => p.period === 'on-peak')?.rate || 20.3
@@ -2435,7 +2414,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                              {touChargedBatteryKwh > 0 ? (
                                <div>Battery top-up (cheap grid): <span className="font-semibold text-navy-600">{touChargedBatteryKwh.toFixed(0)} kWh</span></div>
                              ) : (
-                               <div>Battery top-up: <span className="font-semibold text-navy-600">Not available (TOU plan)</span></div>
+                               <div>Battery top-up: <span className="font-semibold text-navy-600">0 kWh (no grid charging needed)</span></div>
                              )}
                              <div>Remainder (still from grid): <span className="font-semibold text-navy-600">{touActualLeftoverAfterFullBattery.toFixed(0)} kWh</span></div>
                             </div>
@@ -2453,7 +2432,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                                 <div className="text-xs text-gray-600">{touCombinedOffset.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-7">Everything you don't need to buy from the grid</div>
+                            <div className="text-xs text-gray-600 pl-7">Solar energy that offsets your grid usage (excludes grid-charged battery)</div>
                             {touOffsetCapped && (
                               <div className="text-[11px] text-amber-600 pl-7 mt-1">
                                 Capped at {offsetCapPercent.toFixed(0)}% to reflect winter limits
@@ -2503,9 +2482,9 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                             </div>
                             <div className="text-xs text-gray-600 pl-7">
                               {touAdjustedGridCharge > 0 ? (
-                                <>Battery top-up {touAdjustedGridCharge.toFixed(0)} kWh + remainder {touLeftoverKwh.toFixed(0)} kWh</>
+                                <>Battery top-up {touAdjustedGridCharge.toFixed(0)} kWh (charged at off-peak rate) + remainder {touLeftoverKwh.toFixed(0)} kWh</>
                               ) : (
-                                <>Remainder {touLeftoverKwh.toFixed(0)} kWh (no grid charging for TOU)</>
+                                <>Remainder {touLeftoverKwh.toFixed(0)} kWh</>
                               )}
                             </div>
                             <div className="text-[11px] text-gray-500 pl-7">
@@ -2575,8 +2554,10 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                  const gridRemainingKwh = (gridRemainingPercent / 100) * annualUsageKwh
                  
                  // Combined offset (solar direct + all battery sources)
-                 const uloCombinedOffsetPercent = solarDirectPercent + solarBatteryPercent + uloChargedBatteryPercent
-                 const uloCombinedOffset = solarDirectKwh + solarBatteryKwh + uloChargedBatteryKwh
+                 // Combined offset (solar direct + solar-charged battery only, NOT grid-charged battery)
+                 // Grid-charged battery top-up is purchased from the grid, so it doesn't count as "offset"
+                 const uloCombinedOffsetPercent = solarDirectPercent + solarBatteryPercent
+                 const uloCombinedOffset = solarDirectKwh + solarBatteryKwh
                  
                  const solarProductionKwh = effectiveSolarProductionKwh
                  
@@ -2597,12 +2578,17 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                  const uloShownGridKwh = gridRemainingKwh
                  const uloShownGridPercent = gridRemainingPercent
                  
-                 // Get savings from combined results (includes AI Mode effects)
-                 // Use combined results which account for AI Mode, fallback to result if combined not available
-                 const uloOriginalBill = uloData.combined?.baselineAnnualBillEnergyOnly || uloData.result.originalCost.total || 1
-                 const uloNewBill = uloData.combined?.postSolarBatteryAnnualBillEnergyOnly || uloData.result.newCost.total || 0
-                 const uloBillSavings = Math.max(0, uloOriginalBill - uloNewBill)
-                 const uloTotalSavingsPercent = uloOriginalBill > 0 ? (uloBillSavings / uloOriginalBill) * 100 : 0
+                // Get savings from combined results (includes AI Mode effects)
+                // Use combined results which account for AI Mode, fallback to result if combined not available
+                // Use UNCAPPED savings for accurate savings percentage (cap only affects offset display, not savings)
+                const uloOriginalBill = uloData.combined?.baselineAnnualBill || uloData.result.originalCost.total || 1
+                const uloNewBill = uloData.combined?.postSolarBatteryAnnualBill || uloData.result.newCost.total || 0
+                // Use uncapped savings if available (more accurate for savings percentage with arbitrage)
+                const uloUncappedSavings = uloData.combined?.uncappedAnnualSavings
+                const uloCombinedSavings = uloData.combined?.combinedAnnualSavings
+                // Prefer uncapped savings for accurate percentage, fallback to capped if uncapped not available
+                const uloBillSavings = uloUncappedSavings || uloCombinedSavings || Math.max(0, uloOriginalBill - uloNewBill)
+                const uloTotalSavingsPercent = uloOriginalBill > 0 ? (uloBillSavings / uloOriginalBill) * 100 : 0
                    
                  // Get ULO rates for display
                   const uloRatePlan = getCustomUloRatePlan()
@@ -2690,39 +2676,51 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                             <div className="text-xs text-gray-600 pl-7">Energy your panels cover during the day</div>
                           </div>
 
-                         {/* Nighttime covered by battery - combines Solar→Battery + Grid top-up (ULO→Battery) */}
-                          <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border-2 border-red-200">
+                         {/* FRD: Solar-charged battery coverage - separate card per FRD section 6 */}
+                          <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border-2 border-blue-200">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
-                                <Moon className="text-red-600" size={20} />
-                                <span className="font-bold text-gray-700">Nighttime covered by battery</span>
+                                <Battery className="text-blue-600" size={20} />
+                                <span className="font-bold text-gray-700">Solar-charged battery coverage</span>
                               </div>
                               <div className="text-right">
-                               <div className="text-2xl font-bold text-red-600">{solarBatteryPercent.toFixed(2)}%</div>
+                               <div className="text-2xl font-bold text-blue-600">{solarBatteryPercent.toFixed(2)}%</div>
                                <div className="text-xs text-gray-600">{solarBatteryKwh.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-7">Stored solar used at night (excludes grid top-up in total %)</div>
-                            <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-gray-600 pl-7">
-                             <div>Solar → Battery: <span className="font-semibold text-red-600">{solarBatteryKwh.toFixed(0)} kWh</span></div>
-                             <div>Battery top-up (cheap grid): <span className="font-semibold text-red-600">{uloChargedBatteryKwh.toFixed(0)} kWh</span></div>
-                             <div>Remainder (still from grid): <span className="font-semibold text-red-600">{uloActualLeftoverAfterFullBattery.toFixed(0)} kWh</span></div>
-                            </div>
+                            <div className="text-xs text-gray-600 pl-7">Stored solar energy used to offset grid usage</div>
                           </div>
 
-                          {/* Summary card bundling the full offset picture in one spot */}
+                         {/* FRD: ULO-charged battery coverage - separate card per FRD section 6 */}
+                          {aiMode && uloChargedBatteryKwh > 0 && (
+                            <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border-2 border-amber-200">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <Battery className="text-amber-600" size={20} />
+                                  <span className="font-bold text-gray-700">ULO-charged battery coverage</span>
+                                </div>
+                                <div className="text-right">
+                                 <div className="text-2xl font-bold text-amber-600">{uloChargedBatteryPercent.toFixed(2)}%</div>
+                                 <div className="text-xs text-gray-600">{uloChargedBatteryKwh.toFixed(0)} kWh/year</div>
+                                </div>
+                              </div>
+                              <div className="text-xs text-gray-600 pl-7">Battery charged from ultra-low overnight grid rates (AI Mode)</div>
+                            </div>
+                          )}
+
+                          {/* FRD: Total Energy Offset - per FRD section 6 */}
                           <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-300">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
                                 <BarChart3 className="text-green-600" size={20} />
-                                <span className="font-bold text-gray-700">Total Offset by Solar + Battery</span>
+                                <span className="font-bold text-gray-700">Total Energy Offset</span>
                               </div>
                               <div className="text-right">
                                 <div className="text-2xl font-bold text-green-600">{uloCombinedOffsetPercent.toFixed(2)}%</div>
                                 <div className="text-xs text-gray-600">{uloCombinedOffset.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-7">Everything you don't need to buy from the grid</div>
+                            <div className="text-xs text-gray-600 pl-7">Solar energy that offsets your grid usage (excludes grid-charged battery)</div>
                             {uloOffsetCapped && (
                               <div className="text-[11px] text-amber-600 pl-7 mt-1">
                                 Capped at {offsetCapPercent.toFixed(0)}% to reflect winter limits
@@ -2758,12 +2756,12 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                           </div>
                           <p className="text-[11px] text-gray-600 pl-1">Savings = 100% − Cost of energy bought from the grid.</p>
 
-                          {/* Straightforward card spelling out what still comes from the grid */}
+                          {/* FRD: Remaining purchased from grid (ULO rate) - per FRD section 6 */}
                           <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border-2 border-red-200 space-y-2">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
                                 <AlertTriangle className="text-red-600" size={20} />
-                                <span className="font-bold text-gray-700">Bought from the grid (cheap hours)</span>
+                                <span className="font-bold text-gray-700">Remaining purchased from grid (ULO rate)</span>
                               </div>
                               <div className="text-right">
                                 <div className="text-2xl font-bold text-red-600">{uloLowRatePercent.toFixed(2)}%</div>
@@ -2798,10 +2796,10 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                             </div>
                           </div>
 
-                          {/* Calm card sharing how the savings show up on the bill */}
+                          {/* FRD: Total Bill Savings - per FRD section 6 */}
                           <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-4 border-2 border-gray-300 space-y-2">
                             <div className="flex items-center justify-between mb-2">
-                              <span className="font-bold text-gray-700">Total savings</span>
+                              <span className="font-bold text-gray-700">Total Bill Savings</span>
                               <div className="text-right">
                                 <div className="text-2xl font-bold text-green-600">{uloTotalSavingsPercent.toFixed(2)}%</div>
                                 <div className="text-xs text-gray-600">Equivalent to {uloSavingsKwhEquivalent.toFixed(0)} kWh/year of peak-priced energy avoided</div>

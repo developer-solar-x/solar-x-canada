@@ -16,6 +16,9 @@ export type CombinedPlanResult = {
   postAnnualBill?: number
   baselineAnnualBillEnergyOnly?: number
   postSolarBatteryAnnualBillEnergyOnly?: number
+  postSolarBatteryAnnualBill?: number
+  uncappedAnnualSavings?: number
+  combinedAnnualSavings?: number
   solarOnlyAnnual?: number
   batteryAnnual?: number
   solarNetCost?: number
