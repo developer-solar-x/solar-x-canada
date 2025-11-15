@@ -33,37 +33,60 @@ jobs:
         env:
           UPSTREAM_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
         run: |
-          # Construct URL with token for authentication if PAT is provided
-          if [ -n "$UPSTREAM_TOKEN" ]; then
-            UPSTREAM_URL="https://$UPSTREAM_TOKEN@github.com/tayawaaean/solar-x.git"
-            echo "Using Personal Access Token for upstream access"
-          else
-            UPSTREAM_URL="https://github.com/tayawaaean/solar-x.git"
-            echo "Using public access (no token)"
+          # Check if token is available
+          if [ -z "$UPSTREAM_TOKEN" ]; then
+            echo "::warning::UPSTREAM_SYNC_TOKEN secret is not set"
+            echo "The upstream repository appears to be private. Please add a Personal Access Token."
+            echo "See .github/workflows/README.md for instructions"
           fi
-          git remote add upstream $UPSTREAM_URL || git remote set-url upstream $UPSTREAM_URL
+          
+          # Add upstream remote (we'll configure auth in the next step)
+          git remote add upstream https://github.com/tayawaaean/solar-x.git 2>/dev/null || git remote set-url upstream https://github.com/tayawaaean/solar-x.git
           git remote -v
       
       - name: Fetch upstream changes
         env:
           UPSTREAM_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
         run: |
-          # Configure credential helper if PAT is available
+          # Configure authentication for private upstream repository
           if [ -n "$UPSTREAM_TOKEN" ]; then
+            echo "Configuring authentication with Personal Access Token"
+            # Update remote URL to include token
+            git remote set-url upstream https://$UPSTREAM_TOKEN@github.com/tayawaaean/solar-x.git
+            # Also configure credential helper as backup
             git config credential.helper store
             echo "https://$UPSTREAM_TOKEN@github.com" > ~/.git-credentials
+            chmod 600 ~/.git-credentials
+            echo "Authentication configured"
+          else
+            echo "::error::UPSTREAM_SYNC_TOKEN secret is not set"
+            echo "The upstream repository is private and requires authentication."
+            echo ""
+            echo "To fix this:"
+            echo "1. Create a Personal Access Token with 'repo' scope"
+            echo "2. Add it as a secret named 'UPSTREAM_SYNC_TOKEN' in your repository"
+            echo "3. See .github/workflows/README.md for detailed instructions"
+            exit 1
           fi
+          
+          # Fetch from upstream
+          echo "Fetching from upstream repository..."
           git fetch upstream || {
             echo "::error::Failed to fetch from upstream repository"
-            echo "This could mean:"
-            echo "1. The repository is private and requires a Personal Access Token"
-            echo "2. The repository URL is incorrect"
-            echo "3. The token doesn't have access to the upstream repository"
             echo ""
-            echo "Please add a Personal Access Token with 'repo' scope as UPSTREAM_SYNC_TOKEN secret"
-            echo "See .github/workflows/README.md for detailed instructions"
+            echo "Possible causes:"
+            echo "1. The UPSTREAM_SYNC_TOKEN secret is not set or is invalid"
+            echo "2. The token doesn't have 'repo' scope"
+            echo "3. The token doesn't have access to the upstream repository"
+            echo "4. The repository URL is incorrect: https://github.com/tayawaaean/solar-x.git"
+            echo ""
+            echo "To verify:"
+            echo "- Check that the secret 'UPSTREAM_SYNC_TOKEN' exists in Settings > Secrets and variables > Actions"
+            echo "- Ensure the token has 'repo' scope and access to the upstream repository"
             exit 1
           }
+          
+          echo "Successfully fetched from upstream"
           git fetch origin
       
       - name: Check for upstream changes
