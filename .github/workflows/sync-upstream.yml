@@ -5,9 +5,9 @@ name: Sync Upstream Repository
 # Pushing changes triggers Vercel deployment automatically
 
 on:
-  # Run every hour to check for upstream updates
+  # Run every 5 minutes to check for upstream updates
   schedule:
-    - cron: '0 * * * *'
+    - cron: '*/5 * * * *'
   # Allow manual triggering from GitHub Actions UI
   workflow_dispatch:
 
