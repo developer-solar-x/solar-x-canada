@@ -6,7 +6,7 @@ import { PreconnectLinks } from '@/components/PreconnectLinks'
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.solarcalculatorcanada.org'),
   title: 'Free Solar Calculator Canada | Solar Panel Cost & Savings Estimate 2025',
-  description: 'Get your free solar panel estimate for Canada. Calculate solar costs, savings, and ROI instantly. Compare with OpenSolar, Sunly, and WOWA. Get accurate quotes for Ontario, BC, Alberta & all provinces. No commitment required.',
+  description: 'Get your free solar panel estimate for Canada. Calculate solar costs, savings, and ROI instantly. Get accurate quotes for Ontario, BC, Alberta & all provinces. No commitment required.',
   keywords: [
     // Primary keywords
     'solar calculator canada',
@@ -22,10 +22,7 @@ export const metadata: Metadata = {
     'solar panels edmonton',
     'solar panels montreal',
     'solar panels ottawa',
-    // Competitor comparison keywords
-    'solar calculator vs opensolar',
-    'solar calculator vs sunly',
-    'solar calculator vs wowa',
+    // Quality keywords
     'best solar calculator canada',
     // Service keywords
     'solar installation canada',
@@ -53,7 +50,7 @@ export const metadata: Metadata = {
     url: 'https://www.solarcalculatorcanada.org',
     siteName: 'SolarX - Free Solar Calculator Canada',
     title: 'Free Solar Calculator Canada | Solar Panel Cost & Savings Estimate 2025',
-    description: 'Get your free solar panel estimate for Canada. Calculate solar costs, savings, and ROI instantly. Compare with OpenSolar, Sunly, and WOWA. No commitment required.',
+    description: 'Get your free solar panel estimate for Canada. Calculate solar costs, savings, and ROI instantly. No commitment required.',
     countryName: 'Canada',
   },
   twitter: {

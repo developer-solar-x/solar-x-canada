@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 // Page-specific metadata for SEO
 export const metadata: Metadata = {
   title: 'Solar Panel Estimator Canada | Free Solar Quote & Cost Calculator',
-  description: 'Get your free solar panel estimate in Canada. Calculate solar installation costs, savings, ROI, and payback period. Compare with OpenSolar, Sunly, WOWA. Instant quotes for Ontario, BC, Alberta & all provinces.',
+    description: 'Get your free solar panel estimate in Canada. Calculate solar installation costs, savings, ROI, and payback period. Instant quotes for Ontario, BC, Alberta & all provinces.',
   keywords: [
     'solar panel estimator canada',
     'solar quote canada',
