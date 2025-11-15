@@ -1,0 +1,73 @@
+name: Sync Upstream Repository
+
+# Workflow to automatically sync fork with upstream repository
+# Fetches changes from upstream and merges them into the fork
+# Pushing changes triggers Vercel deployment automatically
+
+on:
+  # Run every hour to check for upstream updates
+  schedule:
+    - cron: '0 * * * *'
+  # Allow manual triggering from GitHub Actions UI
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout fork repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/tayawaaean/solar-x.git || git remote set-url upstream https://github.com/tayawaaean/solar-x.git
+          git remote -v
+      
+      - name: Fetch upstream changes
+        run: |
+          git fetch upstream
+          git fetch origin
+      
+      - name: Check for upstream changes
+        id: check-changes
+        run: |
+          CURRENT_BRANCH=$(git branch --show-current)
+          echo "Current branch: $CURRENT_BRANCH"
+          UPSTREAM_COMMITS=$(git rev-list HEAD..upstream/$CURRENT_BRANCH --count || echo "0")
+          echo "Upstream commits ahead: $UPSTREAM_COMMITS"
+          echo "has_changes=$([ "$UPSTREAM_COMMITS" -gt 0 ] && echo "true" || echo "false")" >> $GITHUB_OUTPUT
+          echo "commit_count=$UPSTREAM_COMMITS" >> $GITHUB_OUTPUT
+      
+      - name: Merge upstream changes
+        if: steps.check-changes.outputs.has_changes == 'true'
+        run: |
+          CURRENT_BRANCH=$(git branch --show-current)
+          echo "Merging upstream/$CURRENT_BRANCH into $CURRENT_BRANCH"
+          git merge upstream/$CURRENT_BRANCH --no-edit --no-ff || exit 1
+      
+      - name: Push changes to fork
+        if: steps.check-changes.outputs.has_changes == 'true'
+        run: |
+          CURRENT_BRANCH=$(git branch --show-current)
+          echo "Pushing merged changes to origin/$CURRENT_BRANCH"
+          git push origin $CURRENT_BRANCH
+      
+      - name: Report status
+        run: |
+          if [ "${{ steps.check-changes.outputs.has_changes }}" == "true" ]; then
+            echo "Successfully synced ${{ steps.check-changes.outputs.commit_count }} commit(s) from upstream"
+            echo "Vercel deployment should be triggered automatically"
+          else
+            echo "No new changes from upstream. Fork is up to date."
+          fi
