@@ -82,10 +82,10 @@ jobs:
         run: |
           echo "Adding upstream remote using method: $AUTH_METHOD"
           if [ "$AUTH_METHOD" = "ssh" ]; then
-            UPSTREAM_URL="git@github.com:tayawaaean/solar-x.git"
+            UPSTREAM_URL="git@github.com:developersolarx/solar-x.git"
             echo "Using SSH: $UPSTREAM_URL"
           elif [ "$AUTH_METHOD" = "token" ]; then
-            UPSTREAM_URL="https://$UPSTREAM_TOKEN@github.com/tayawaaean/solar-x.git"
+            UPSTREAM_URL="https://$UPSTREAM_TOKEN@github.com/developersolarx/solar-x.git"
             echo "Using HTTPS with token (token hidden)"
           else
             echo "::error::No authentication method available"
@@ -113,7 +113,7 @@ jobs:
           elif [ "$AUTH_METHOD" = "token" ]; then
             echo "Fetching using HTTPS with token..."
             # Ensure remote URL has token embedded
-            git remote set-url upstream https://$UPSTREAM_TOKEN@github.com/tayawaaean/solar-x.git
+            git remote set-url upstream https://$UPSTREAM_TOKEN@github.com/developersolarx/solar-x.git
             # Configure credential helper as backup
             git config credential.helper store
             echo "https://$UPSTREAM_TOKEN@github.com" > ~/.git-credentials

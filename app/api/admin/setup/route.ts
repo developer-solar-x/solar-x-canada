@@ -72,9 +72,8 @@ export async function POST(request: Request) {
         success: true,
         message: 'Admin user record created for existing auth user',
         data: {
-          email: userEmail,
+          ...newAdminUser,
           role: 'superadmin',
-          ...newAdminUser
         }
       })
     }
@@ -96,12 +95,14 @@ export async function POST(request: Request) {
         console.log('User already exists in auth, attempting to create admin_users record')
         
         // If we have the existing auth user from earlier check, use that
-        if (existingAuthUser) {
-          // This case is already handled above, but if we reach here, try again
+        // Note: This is a fallback case - if existingAuthUser was found above, we would have already returned
+        // This handles edge cases where the user exists but wasn't found in the initial listUsers call
+        if (existingAuthUser && 'id' in existingAuthUser) {
+          const authUserId = (existingAuthUser as { id: string }).id
           const { data: retryAdminUser, error: retryError } = await supabase
             .from('admin_users')
             .insert({
-              id: existingAuthUser.id,
+              id: authUserId,
               email: userEmail,
               full_name: userName,
               role: 'superadmin',
@@ -115,9 +116,8 @@ export async function POST(request: Request) {
               success: true,
               message: 'Admin user record created for existing auth user',
               data: {
-                email: userEmail,
+                ...retryAdminUser,
                 role: 'superadmin',
-                ...retryAdminUser
               }
             })
           }
@@ -172,10 +172,9 @@ export async function POST(request: Request) {
       success: true,
       message: 'Superadmin user created successfully',
       data: {
-        email: userEmail,
+        ...newUser,
         password: userPassword,
         role: 'superadmin',
-        ...newUser
       }
     })
 

@@ -384,7 +384,7 @@ export function PartialLeadDetailView({
                       <div className="bg-blue-50 rounded-lg p-3">
                         <div className="text-xs text-gray-600 mb-1">Area</div>
                         <div className="text-lg font-bold text-navy-500">
-                          {partialLead.estimator_data.roofAreaSqft.toLocaleString()} sq ft
+                          {partialLead.estimator_data.roofAreaSqft?.toLocaleString() ?? 'N/A'} sq ft
                         </div>
                       </div>
                       {partialLead.estimator_data.roofType && (

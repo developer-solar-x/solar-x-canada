@@ -1105,7 +1105,7 @@ export function LeadDetailView({ lead, onClose, onStatusChange }: LeadDetailView
                         Selected Add-ons
                       </h3>
                       <div className="flex flex-wrap gap-2">
-                        {lead.selected_add_ons.map((addOn, index) => (
+                        {lead.selected_add_ons.map((addOn: string, index: number) => (
                           <div
                             key={index}
                             className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-full text-sm font-semibold"

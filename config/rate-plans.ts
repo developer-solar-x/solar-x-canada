@@ -2,16 +2,18 @@
 // Effective November 1, 2025
 // All rates in cents per kWh
 
-// Day of week enum for clarity
-export enum DayOfWeek {
-  SUNDAY = 0,
-  MONDAY = 1,
-  TUESDAY = 2,
-  WEDNESDAY = 3,
-  THURSDAY = 4,
-  FRIDAY = 5,
-  SATURDAY = 6
-}
+// Day of week constants for clarity
+export const DayOfWeek = {
+  SUNDAY: 0,
+  MONDAY: 1,
+  TUESDAY: 2,
+  WEDNESDAY: 3,
+  THURSDAY: 4,
+  FRIDAY: 5,
+  SATURDAY: 6,
+} as const
+
+export type DayOfWeek = typeof DayOfWeek[keyof typeof DayOfWeek]
 
 // Rate period types
 export type RatePeriod = 'ultra-low' | 'off-peak' | 'mid-peak' | 'on-peak'
@@ -20,7 +22,7 @@ export type RatePeriod = 'ultra-low' | 'off-peak' | 'mid-peak' | 'on-peak'
 export interface TimePeriod {
   startHour: number // 24-hour format (0-23)
   endHour: number // 24-hour format (0-23)
-  days: DayOfWeek[] // Days this period applies to
+  days: number[] // Days this period applies to (0 = Sunday, 6 = Saturday)
   rate: number // Rate in cents per kWh
   period: RatePeriod
 }

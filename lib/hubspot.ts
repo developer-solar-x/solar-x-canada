@@ -50,6 +50,11 @@ export async function syncLeadToHubSpot(lead: Lead) {
       landing_page_source: lead.source,
     }
 
+    // Filter out undefined values from contactProperties
+    const filteredContactProperties: { [key: string]: string } = Object.fromEntries(
+      Object.entries(contactProperties).filter(([_, value]) => value !== undefined)
+    ) as { [key: string]: string }
+
     // Search for existing contact by email
     const searchResponse = await client.crm.contacts.searchApi.doSearch({
       filterGroups: [{
@@ -72,12 +77,12 @@ export async function syncLeadToHubSpot(lead: Lead) {
       // Update existing contact
       contactId = searchResponse.results[0].id
       await client.crm.contacts.basicApi.update(contactId, {
-        properties: contactProperties
+        properties: filteredContactProperties
       })
     } else {
       // Create new contact
       const newContact = await client.crm.contacts.basicApi.create({
-        properties: contactProperties,
+        properties: filteredContactProperties,
         associations: []
       })
       contactId = newContact.id
@@ -96,8 +101,13 @@ export async function syncLeadToHubSpot(lead: Lead) {
       closedate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
     }
 
+    // Filter out undefined values from dealProperties
+    const filteredDealProperties: { [key: string]: string } = Object.fromEntries(
+      Object.entries(dealProperties).filter(([_, value]) => value !== undefined)
+    ) as { [key: string]: string }
+
     const deal = await client.crm.deals.basicApi.create({
-      properties: dealProperties,
+      properties: filteredDealProperties,
       associations: [{
         to: { id: contactId },
         types: [{

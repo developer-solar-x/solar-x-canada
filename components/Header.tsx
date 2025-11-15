@@ -23,6 +23,16 @@ export function Header() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
+  // Handle mobile menu toggle
+  const handleToggleMenu = () => {
+    setMobileMenuOpen(!mobileMenuOpen)
+  }
+
+  // Handle mobile menu close
+  const handleCloseMenu = () => {
+    setMobileMenuOpen(false)
+  }
+
   // Navigation links
   const navLinks = [
     { href: '#home', label: 'Home' },
@@ -83,7 +93,7 @@ export function Header() {
               className={`md:hidden p-2 rounded-lg transition-colors ${
                 scrolled ? 'text-gray-700 hover:bg-gray-100' : 'text-white hover:bg-white/10'
               }`}
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              onClick={handleToggleMenu}
               aria-label="Toggle menu"
             >
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -98,7 +108,7 @@ export function Header() {
           {/* Dark overlay behind menu */}
           <div
             className="absolute inset-0 bg-black/50"
-            onClick={() => setMobileMenuOpen(false)}
+            onClick={handleCloseMenu}
           />
           
           {/* Slide-in menu panel */}
@@ -111,7 +121,7 @@ export function Header() {
                     key={link.href}
                     href={link.href}
                     className="text-lg font-medium text-white hover:text-red-300 transition-colors py-2"
-                    onClick={() => setMobileMenuOpen(false)}
+                    onClick={handleCloseMenu}
                   >
                     {link.label}
                   </a>
@@ -123,7 +133,7 @@ export function Header() {
                 <Link
                   href="/estimator"
                   className="btn-primary w-full text-center"
-                  onClick={() => setMobileMenuOpen(false)}
+                  onClick={handleCloseMenu}
                 >
                   Get Free Estimate
                 </Link>

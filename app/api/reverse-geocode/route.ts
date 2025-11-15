@@ -80,7 +80,7 @@ export async function POST(request: Request) {
           // If city not found in context, try to extract from place_name
           if (!city && place.place_type.includes('address')) {
             // For addresses, city might be in the place_name
-            const parts = place.place_name.split(',').map(p => p.trim())
+            const parts = place.place_name.split(',').map((p: string) => p.trim())
             if (parts.length >= 2) {
               city = parts[1] // Second part is usually the city
             }

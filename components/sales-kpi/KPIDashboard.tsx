@@ -185,7 +185,7 @@ function StatCard({ title, value, icon, color }: any) {
           <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
           <p className="text-3xl font-bold text-navy-700">{value}</p>
         </div>
-        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${colorClasses[color]}`}>
+        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${colorClasses[color as keyof typeof colorClasses]}`}>
           <IconForType type={icon} />
         </div>
       </div>

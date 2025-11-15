@@ -270,7 +270,7 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated, initialD
       const data = draw.current!.getAll()
       
       // Remove existing angle labels
-      if (map.current.getSource('angle-labels')) {
+      if (map.current?.getSource('angle-labels')) {
         map.current.removeLayer('angle-labels-layer')
         map.current.removeSource('angle-labels')
       }
@@ -325,7 +325,7 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated, initialD
         }
       })
       
-      if (labelFeatures.length > 0) {
+      if (labelFeatures.length > 0 && map.current) {
         map.current.addSource('angle-labels', {
           type: 'geojson',
           data: {
@@ -486,7 +486,7 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated, initialD
         setCurrentArea(null)
         
         // Remove angle labels
-        if (map.current.getSource('angle-labels')) {
+        if (map.current?.getSource('angle-labels')) {
           map.current.removeLayer('angle-labels-layer')
           map.current.removeSource('angle-labels')
         }
@@ -503,7 +503,7 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated, initialD
       }
       if (map.current) {
         // Remove angle labels if they exist
-        if (map.current.getSource('angle-labels')) {
+        if (map.current?.getSource('angle-labels')) {
           map.current.removeLayer('angle-labels-layer')
           map.current.removeSource('angle-labels')
         }

@@ -2771,10 +2771,10 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                             <div className="text-xs text-gray-600 pl-7">Battery top-up {uloAdjustedGridCharge.toFixed(0)} kWh + small remainder {uloLeftoverKwh.toFixed(0)} kWh</div>
                             <div className="text-[11px] text-gray-500 pl-7">
                               Blended rate {(uloCorrectBlendedRate * 100).toFixed(2)}¢/kWh • Remainder {uloLeftoverKwh.toFixed(0)} kWh allocated:
-                              {uloLeftoverBreakdown.ultraLow > 0 && ` ${uloLeftoverBreakdown.ultraLow.toFixed(0)} kWh ultra-low`}
-                              {uloLeftoverBreakdown.offPeak > 0 && `, ${uloLeftoverBreakdown.offPeak.toFixed(0)} kWh off-peak`}
-                              {uloLeftoverBreakdown.midPeak > 0 && `, ${uloLeftoverBreakdown.midPeak.toFixed(0)} kWh mid-peak`}
-                              {uloLeftoverBreakdown.onPeak > 0 && `, ${uloLeftoverBreakdown.onPeak.toFixed(0)} kWh on-peak`}
+                              {uloLeftoverBreakdown.ultraLow && uloLeftoverBreakdown.ultraLow > 0 && ` ${uloLeftoverBreakdown.ultraLow.toFixed(0)} kWh ultra-low`}
+                              {uloLeftoverBreakdown.offPeak && uloLeftoverBreakdown.offPeak > 0 && `, ${uloLeftoverBreakdown.offPeak.toFixed(0)} kWh off-peak`}
+                              {uloLeftoverBreakdown.midPeak && uloLeftoverBreakdown.midPeak > 0 && `, ${uloLeftoverBreakdown.midPeak.toFixed(0)} kWh mid-peak`}
+                              {uloLeftoverBreakdown.onPeak && uloLeftoverBreakdown.onPeak > 0 && `, ${uloLeftoverBreakdown.onPeak.toFixed(0)} kWh on-peak`}
                               {uloAdjustedGridCharge > 0 && ` • Battery top-up ${uloAdjustedGridCharge.toFixed(0)} kWh charged ultra-low @ ${uloUltraLowRate.toFixed(1)}¢/kWh`}
                             </div>
                           </div>

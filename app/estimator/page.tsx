@@ -627,13 +627,17 @@ export default function EstimatorPage() {
       {/* Main content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {currentStep === 0 ? (
-          <CurrentStepComponent onComplete={handleStepComplete} />
+          <CurrentStepComponent
+            data={data}
+            onComplete={handleStepComplete}
+            onBack={undefined as any}
+          />
         ) : (
           <CurrentStepComponent
             data={data}
             onComplete={handleStepComplete}
-            onBack={currentStep > 0 ? handleBack : undefined}
-            onUpgradeMode={data.estimatorMode === 'easy' && currentStep > 1 ? handleUpgradeMode : undefined}
+            onBack={handleBack}
+            {...(data.estimatorMode === 'easy' && currentStep > 1 ? { onUpgradeMode: handleUpgradeMode } : {})}
           />
         )}
       </main>
