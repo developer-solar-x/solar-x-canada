@@ -27,21 +27,66 @@ The `sync-upstream.yml` workflow automatically syncs this fork with the upstream
      - Select "Read and write permissions"
      - Check "Allow GitHub Actions to create and approve pull requests"
 
-3. **Set Up Personal Access Token (REQUIRED for private upstream repositories)**:
-   - If the upstream repository (`tayawaaean/solar-x`) is private, you MUST create a Personal Access Token:
-     1. Go to GitHub Settings > Developer settings > Personal access tokens > Tokens (classic)
-     2. Click "Generate new token (classic)"
-     3. Give it a descriptive name (e.g., "Upstream Sync Token")
-     4. Select the `repo` scope (this gives access to private repositories)
-     5. Click "Generate token"
-     6. **Copy the token immediately** (you won't be able to see it again)
-     7. Go to your fork repository: `developer-solar-x/solar-x-canada`
-     8. Navigate to Settings > Secrets and variables > Actions
-     9. Click "New repository secret"
-     10. Name: `UPSTREAM_SYNC_TOKEN`
-     11. Value: Paste your Personal Access Token
-     12. Click "Add secret"
-   - The workflow will automatically use this token if it's available
+3. **Set Up Authentication (REQUIRED for private upstream repositories)**:
+   - Since the upstream repository (`tayawaaean/solar-x`) is private, you need to configure authentication
+   - The workflow supports two methods: **SSH (Recommended)** or **HTTPS with Personal Access Token**
+   
+   **Option A: SSH Deploy Key (Recommended for Private Repositories)**
+   
+   SSH is often more reliable for private repositories. Here's how to set it up:
+   
+   1. **Generate an SSH key pair** (on your local machine):
+      ```powershell
+      ssh-keygen -t ed25519 -C "github-actions-upstream-sync" -f upstream_sync_key
+      ```
+      - Press Enter to accept the default location
+      - You can leave the passphrase empty (or set one if you prefer)
+      - This creates two files: `upstream_sync_key` (private key) and `upstream_sync_key.pub` (public key)
+   
+   2. **Add the public key as a Deploy Key to the upstream repository**:
+      - Log in to the `tayawaaean` GitHub account
+      - Go to the repository: `tayawaaean/solar-x`
+      - Navigate to: Settings > Deploy keys
+      - Click "Add deploy key"
+      - Title: "GitHub Actions Sync for developer-solar-x"
+      - Key: Paste the contents of `upstream_sync_key.pub` (the public key)
+      - **Important**: Check "Allow write access" if you need write access, or leave it unchecked for read-only
+      - Click "Add key"
+   
+   3. **Add the private key as a secret in your fork repository**:
+      - Log in to the `developer-solar-x` GitHub account
+      - Go to your fork repository: `developer-solar-x/solar-x-canada`
+      - Navigate to: Settings > Secrets and variables > Actions
+      - Click "New repository secret"
+      - Name: `UPSTREAM_SSH_KEY`
+      - Value: Paste the **entire contents** of `upstream_sync_key` (the private key)
+        - Include the `-----BEGIN OPENSSH PRIVATE KEY-----` and `-----END OPENSSH PRIVATE KEY-----` lines
+        - Include all lines of the key
+      - Click "Add secret"
+   
+   **Option B: Personal Access Token (HTTPS)**
+   
+   If you prefer to use HTTPS instead of SSH:
+   
+   1. **Create a Personal Access Token**:
+      - Log in to the `tayawaaean` GitHub account (the owner of the upstream repository)
+      - Go to: GitHub Settings > Developer settings > Personal access tokens > Tokens (classic)
+      - Click "Generate new token (classic)"
+      - Give it a descriptive name (e.g., "Upstream Sync Token for developer-solar-x")
+      - Select the `repo` scope (this gives access to private repositories)
+      - Click "Generate token"
+      - **Copy the token immediately** (you won't be able to see it again)
+   
+   2. **Add the token as a secret in your fork repository**:
+      - Log in to the `developer-solar-x` GitHub account (the fork owner)
+      - Go to your fork repository: `developer-solar-x/solar-x-canada`
+      - Navigate to: Settings > Secrets and variables > Actions
+      - Click "New repository secret"
+      - Name: `UPSTREAM_SYNC_TOKEN`
+      - Value: Paste the Personal Access Token you created
+      - Click "Add secret"
+   
+   **Note**: The workflow will automatically use SSH if `UPSTREAM_SSH_KEY` is available, otherwise it will fall back to HTTPS with `UPSTREAM_SYNC_TOKEN`. You only need to configure one method.
 
 ### Manual Trigger
 
@@ -58,9 +103,9 @@ To manually trigger the sync:
 **Issue: "Repository not found" error when fetching upstream**
 - **Cause**: The upstream repository is private and requires authentication
 - **Solution**: 
-  1. Create a Personal Access Token with `repo` scope (see Setup Instructions #3 above)
-  2. Add it as a secret named `UPSTREAM_SYNC_TOKEN` in your repository
-  3. The workflow will automatically use this token to access the private upstream repository
+  - **If using SSH**: Ensure `UPSTREAM_SSH_KEY` secret is set and the public key is added as a deploy key to `tayawaaean/solar-x`
+  - **If using HTTPS**: Ensure `UPSTREAM_SYNC_TOKEN` secret is set with a valid Personal Access Token that has `repo` scope
+  - See Setup Instructions #3 above for detailed steps
 
 **Issue: Workflow fails with permission errors**
 - Solution: Check workflow permissions in repository settings (see Setup Instructions above)
