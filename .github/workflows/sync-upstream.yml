@@ -30,13 +30,40 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
       
       - name: Add upstream remote
+        env:
+          UPSTREAM_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
         run: |
-          git remote add upstream https://github.com/tayawaaean/solar-x.git || git remote set-url upstream https://github.com/tayawaaean/solar-x.git
+          # Construct URL with token for authentication if PAT is provided
+          if [ -n "$UPSTREAM_TOKEN" ]; then
+            UPSTREAM_URL="https://$UPSTREAM_TOKEN@github.com/tayawaaean/solar-x.git"
+            echo "Using Personal Access Token for upstream access"
+          else
+            UPSTREAM_URL="https://github.com/tayawaaean/solar-x.git"
+            echo "Using public access (no token)"
+          fi
+          git remote add upstream $UPSTREAM_URL || git remote set-url upstream $UPSTREAM_URL
           git remote -v
       
       - name: Fetch upstream changes
+        env:
+          UPSTREAM_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
         run: |
-          git fetch upstream
+          # Configure credential helper if PAT is available
+          if [ -n "$UPSTREAM_TOKEN" ]; then
+            git config credential.helper store
+            echo "https://$UPSTREAM_TOKEN@github.com" > ~/.git-credentials
+          fi
+          git fetch upstream || {
+            echo "::error::Failed to fetch from upstream repository"
+            echo "This could mean:"
+            echo "1. The repository is private and requires a Personal Access Token"
+            echo "2. The repository URL is incorrect"
+            echo "3. The token doesn't have access to the upstream repository"
+            echo ""
+            echo "Please add a Personal Access Token with 'repo' scope as UPSTREAM_SYNC_TOKEN secret"
+            echo "See .github/workflows/README.md for detailed instructions"
+            exit 1
+          }
           git fetch origin
       
       - name: Check for upstream changes

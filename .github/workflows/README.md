@@ -27,12 +27,21 @@ The `sync-upstream.yml` workflow automatically syncs this fork with the upstream
      - Select "Read and write permissions"
      - Check "Allow GitHub Actions to create and approve pull requests"
 
-3. **Optional: Use Personal Access Token (PAT)**:
-   - If the default token doesn't work, create a Personal Access Token:
-     - Go to GitHub Settings > Developer settings > Personal access tokens > Tokens (classic)
-     - Generate a new token with `repo` scope
-     - Add it as a secret named `SYNC_TOKEN` in your repository
-     - Update the workflow to use `${{ secrets.SYNC_TOKEN }}` instead of `${{ secrets.GITHUB_TOKEN }}`
+3. **Set Up Personal Access Token (REQUIRED for private upstream repositories)**:
+   - If the upstream repository (`tayawaaean/solar-x`) is private, you MUST create a Personal Access Token:
+     1. Go to GitHub Settings > Developer settings > Personal access tokens > Tokens (classic)
+     2. Click "Generate new token (classic)"
+     3. Give it a descriptive name (e.g., "Upstream Sync Token")
+     4. Select the `repo` scope (this gives access to private repositories)
+     5. Click "Generate token"
+     6. **Copy the token immediately** (you won't be able to see it again)
+     7. Go to your fork repository: `developer-solar-x/solar-x-canada`
+     8. Navigate to Settings > Secrets and variables > Actions
+     9. Click "New repository secret"
+     10. Name: `UPSTREAM_SYNC_TOKEN`
+     11. Value: Paste your Personal Access Token
+     12. Click "Add secret"
+   - The workflow will automatically use this token if it's available
 
 ### Manual Trigger
 
@@ -45,6 +54,13 @@ To manually trigger the sync:
 5. Click "Run workflow"
 
 ### Troubleshooting
+
+**Issue: "Repository not found" error when fetching upstream**
+- **Cause**: The upstream repository is private and requires authentication
+- **Solution**: 
+  1. Create a Personal Access Token with `repo` scope (see Setup Instructions #3 above)
+  2. Add it as a secret named `UPSTREAM_SYNC_TOKEN` in your repository
+  3. The workflow will automatically use this token to access the private upstream repository
 
 **Issue: Workflow fails with permission errors**
 - Solution: Check workflow permissions in repository settings (see Setup Instructions above)
