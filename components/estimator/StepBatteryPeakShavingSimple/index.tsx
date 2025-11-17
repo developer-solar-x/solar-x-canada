@@ -1314,19 +1314,28 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
 
 
               {/* Unified table with all metrics */}
-              <div className="overflow-hidden border border-gray-200 rounded-xl">
-                {/* Column headers */}
-                <div className="grid grid-cols-[1.2fr_1fr_1fr] bg-gray-50 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                  <div className="px-4 py-3">Metric</div>
-                  <div className="px-4 py-3 text-center text-blue-600">
-                    <Sun className="inline mr-1" size={14} />
-                    TOU Plan
-                  </div>
-                  <div className="px-4 py-3 text-center text-amber-600">
-                    <Moon className="inline mr-1" size={14} />
-                    ULO Plan
-                  </div>
+              <div className="relative">
+                {/* Mobile scroll hint */}
+                <div className="md:hidden mb-2 text-xs text-gray-500 flex items-center gap-1">
+                  <span>← Swipe to see all columns →</span>
                 </div>
+                <div className="overflow-x-auto border border-gray-200 rounded-xl scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                  {/* Scroll shadow indicators */}
+                  <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent pointer-events-none z-10 md:hidden" />
+                  <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none z-10 md:hidden" />
+                  <div className="min-w-[640px]">
+                  {/* Column headers */}
+                  <div className="grid grid-cols-[1.2fr_1fr_1fr] bg-gray-50 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                    <div className="px-4 py-3">Metric</div>
+                    <div className="px-4 py-3 text-center text-blue-600">
+                      <Sun className="inline mr-1" size={14} />
+                      TOU Plan
+                    </div>
+                    <div className="px-4 py-3 text-center text-amber-600">
+                      <Moon className="inline mr-1" size={14} />
+                      ULO Plan
+                    </div>
+                  </div>
 
                 {/* Baseline (No System) row */}
                 <div className="grid grid-cols-[1.2fr_1fr_1fr] border-t border-gray-200 bg-gray-50">
@@ -1507,6 +1516,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                         uloData.combined?.projection?.netProfit25Year ?? uloData.projection.netProfit25Year
                       ).toLocaleString()}
                     </div>
+                  </div>
+                </div>
                   </div>
                 </div>
               </div>
@@ -1801,8 +1812,16 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                   </div>
                 </div>
 
-                <div className="mt-6 overflow-x-auto">
-                  <table className="min-w-full divide-y divide-blue-200">
+                <div className="mt-6 relative">
+                  {/* Mobile scroll hint */}
+                  <div className="md:hidden mb-2 text-xs text-gray-500 flex items-center gap-1">
+                    <span>← Swipe to see all columns →</span>
+                  </div>
+                  <div className="overflow-x-auto border border-blue-200 rounded-lg">
+                    {/* Scroll shadow indicators */}
+                    <div className="absolute left-0 top-8 bottom-0 w-8 bg-gradient-to-r from-white to-transparent pointer-events-none z-10 md:hidden" />
+                    <div className="absolute right-0 top-8 bottom-0 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none z-10 md:hidden" />
+                    <table className="min-w-[600px] w-full divide-y divide-blue-200">
                     <thead className="bg-blue-100/80">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-bold text-blue-800 uppercase tracking-wide">TOU Period</th>
@@ -1848,6 +1867,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                       })}
                     </tbody>
                   </table>
+                  </div>
                 </div>
 
               </div>
@@ -1891,8 +1911,16 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                 </div>
 
                 {/* Table summarising the allocation and leftovers per period */}
-                <div className="mt-6 overflow-x-auto">
-                  <table className="min-w-full divide-y divide-amber-200">
+                <div className="mt-6 relative">
+                  {/* Mobile scroll hint */}
+                  <div className="md:hidden mb-2 text-xs text-gray-500 flex items-center gap-1">
+                    <span>← Swipe to see all columns →</span>
+                  </div>
+                  <div className="overflow-x-auto border border-amber-200 rounded-lg">
+                    {/* Scroll shadow indicators */}
+                    <div className="absolute left-0 top-8 bottom-0 w-8 bg-gradient-to-r from-white to-transparent pointer-events-none z-10 md:hidden" />
+                    <div className="absolute right-0 top-8 bottom-0 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none z-10 md:hidden" />
+                    <table className="min-w-[600px] w-full divide-y divide-amber-200">
                     <thead className="bg-amber-100/80">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-bold text-amber-800 uppercase tracking-wide">ULO Period</th>
@@ -1937,6 +1965,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                       })}
                     </tbody>
                   </table>
+                  </div>
                 </div>
 
                 {/* Quick takeaway row so readers understand why overnight energy grows */}
@@ -1948,17 +1977,17 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
            {/* Full Calculation Breakdown - Card Layout */}
            {(touData.result || uloData.result) && (
              <div className="mt-6">
-               <div className="flex items-center gap-3 mb-4">
-                 <div className="p-2 bg-navy-500 rounded-lg">
-                   <BarChart3 className="text-white" size={24} />
+               <div className="flex items-center gap-2 sm:gap-3 mb-4">
+                 <div className="p-1.5 sm:p-2 bg-navy-500 rounded-lg">
+                   <BarChart3 className="text-white" size={20} />
                  </div>
-                 <h4 className="text-2xl font-bold text-navy-600">Full Offset Calculation Breakdown</h4>
+                 <h4 className="text-lg sm:text-xl md:text-2xl font-bold text-navy-600">Full Offset Calculation Breakdown</h4>
                </div>
                <p className="text-xs text-gray-600 mb-4">
                  Offset is capped to keep expectations realistic in winter. Savings can exceed offset because any remaining grid energy is bought at low overnight rates.
                </p>
                
-               <div className="grid md:grid-cols-2 gap-6">
+               <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
                  {/* TOU Calculation Card */}
                  {(() => {
                  // Use FRD results for consistent calculations
@@ -1974,13 +2003,15 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                  
                  // Battery top-up from grid (AI Mode enables grid charging at off-peak rate for TOU)
                  const touChargedBatteryKwh = touFrd.battGridCharged || 0
+                 const touChargedBatteryPercent = annualUsageKwh > 0 ? (touChargedBatteryKwh / annualUsageKwh) * 100 : 0
                  
                  const gridRemainingPercent = touFrd.offsetPercentages.gridRemaining
                  const gridRemainingKwh = (gridRemainingPercent / 100) * annualUsageKwh
                  
-                 // Combined offset (solar direct + solar-charged battery)
-                 const touCombinedOffsetPercent = solarDirectPercent + solarBatteryPercent
-                 const touCombinedOffset = solarDirectKwh + solarBatteryKwh
+                 // Combined offset (solar direct + solar-charged battery + off-peak-charged battery per FRD)
+                 // FRD Section 5: Total Offset = 50% solar direct + 20% solar-charged battery + 30% grid-charged battery
+                 const touCombinedOffsetPercent = solarDirectPercent + solarBatteryPercent + touChargedBatteryPercent
+                 const touCombinedOffset = solarDirectKwh + solarBatteryKwh + touChargedBatteryKwh
                  
                  const solarProductionKwh = effectiveSolarProductionKwh
                  
@@ -2093,15 +2124,15 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                   const touNewEffectiveRate = annualUsageKwh > 0 ? (touNewBill / annualUsageKwh) * 100 : 0
                    
                    return (
-                     <div className="bg-gradient-to-br from-navy-50 to-white rounded-2xl border-2 border-navy-300 shadow-lg p-6">
+                     <div className="bg-gradient-to-br from-navy-50 to-white rounded-2xl border-2 border-navy-300 shadow-lg p-4 sm:p-6">
                        {/* TOU Header */}
-                       <div className="flex items-center gap-3 mb-6 pb-4 border-b-2 border-navy-200">
-                         <div className="p-2 bg-navy-500 rounded-xl">
-                           <Sun className="text-white" size={24} />
+                       <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6 pb-3 sm:pb-4 border-b-2 border-navy-200">
+                         <div className="p-1.5 sm:p-2 bg-navy-500 rounded-xl flex-shrink-0">
+                           <Sun className="text-white" size={20} />
                          </div>
-                         <div>
-                           <h5 className="text-xl font-bold text-navy-600">Time-of-Use (TOU)</h5>
-                           <p className="text-sm text-gray-600">Standard rate plan</p>
+                         <div className="min-w-0">
+                           <h5 className="text-lg sm:text-xl font-bold text-navy-600">Time-of-Use (TOU)</h5>
+                           <p className="text-xs sm:text-sm text-gray-600">Standard rate plan</p>
                          </div>
                        </div>
                        
@@ -2121,7 +2152,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                          </div>
                          
                         {/* Friendly heading reminding the reader that the next cards talk about offsets */}
-                        <div className="space-y-4 bg-white/80 border border-navy-100 rounded-2xl p-4">
+                        <div className="space-y-4 bg-white/80 border border-navy-100 rounded-2xl p-3 sm:p-4">
                           {/* Plain-language heading so people notice the offset cluster */}
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-navy-600 uppercase tracking-wide">Offset Coverage</span>
@@ -2143,7 +2174,40 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                             <div className="text-xs text-gray-600 pl-7">Energy your panels cover during the day</div>
                           </div>
 
-                         {/* Nighttime covered by battery - combines Solar→Battery + Grid top-up */}
+                         {/* FRD: Solar-charged battery coverage - separate card per FRD section 6 */}
+                          <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border-2 border-blue-200">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <Battery className="text-blue-600" size={20} />
+                                <span className="font-bold text-gray-700">Solar-charged battery coverage</span>
+                              </div>
+                              <div className="text-right">
+                               <div className="text-2xl font-bold text-blue-600">{solarBatteryPercent.toFixed(2)}%</div>
+                               <div className="text-xs text-gray-600">{solarBatteryKwh.toFixed(0)} kWh/year</div>
+                              </div>
+                            </div>
+                            <div className="text-xs text-gray-600 pl-7">Stored solar energy used to offset grid usage</div>
+                          </div>
+
+                         {/* FRD: Off-peak-charged battery coverage - separate card per FRD section 6 */}
+                          {aiMode && touChargedBatteryKwh > 0 && (
+                            <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 sm:p-4 border-2 border-amber-200">
+                              <div className="flex items-start sm:items-center justify-between mb-2 gap-2">
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <Battery className="text-amber-600 flex-shrink-0" size={18} />
+                                  <span className="font-bold text-gray-700 text-sm sm:text-base">Off-peak→Battery coverage</span>
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                 <div className="text-xl sm:text-2xl font-bold text-amber-600">{touChargedBatteryPercent.toFixed(2)}%</div>
+                                 <div className="text-xs text-gray-600">{touChargedBatteryKwh.toFixed(0)} kWh/year</div>
+                                </div>
+                              </div>
+                              <div className="text-xs text-gray-600 pl-5 sm:pl-7">Battery charged from off-peak grid rates (AI Mode)</div>
+                            </div>
+                          )}
+
+                         {/* Legacy: Nighttime covered by battery - kept for reference but now using separate cards above */}
+                          {false && (
                           <div className="bg-gradient-to-r from-navy-50 to-blue-50 rounded-xl p-4 border-2 border-navy-200">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
@@ -2166,20 +2230,21 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                              <div>Remainder (still from grid): <span className="font-semibold text-navy-600">{touActualLeftoverAfterFullBattery.toFixed(0)} kWh</span></div>
                             </div>
                           </div>
+                          )}
 
                           {/* Summary card bundling the full offset picture in one spot */}
-                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-300 space-y-2">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <BarChart3 className="text-green-600" size={20} />
-                                <span className="font-bold text-gray-700">Total Offset by Solar + Battery</span>
+                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-3 sm:p-4 border-2 border-green-300 space-y-2">
+                            <div className="flex items-start sm:items-center justify-between mb-2 gap-2">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <BarChart3 className="text-green-600 flex-shrink-0" size={18} />
+                                <span className="font-bold text-gray-700 text-sm sm:text-base">Total Energy Offset</span>
                               </div>
-                              <div className="text-right">
-                                <div className="text-2xl font-bold text-green-600">{touCombinedOffsetPercent.toFixed(2)}%</div>
+                              <div className="text-right flex-shrink-0">
+                                <div className="text-xl sm:text-2xl font-bold text-green-600">{touCombinedOffsetPercent.toFixed(2)}%</div>
                                 <div className="text-xs text-gray-600">{touCombinedOffset.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-7">Solar energy that offsets your grid usage (excludes grid-charged battery)</div>
+                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">Total energy offset from solar and battery (includes solar direct, solar-charged battery, and off-peak-charged battery)</div>
                             {touOffsetCapped && (
                               <div className="text-[11px] text-amber-600 pl-7 mt-1">
                                 Capped at {offsetCapPercent.toFixed(0)}% to reflect winter limits
@@ -2198,7 +2263,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                         </div>
 
                         {/* Friendly heading reminding the reader that the next cards cover dollars saved */}
-                        <div className="space-y-4 bg-white/80 border border-navy-100 rounded-2xl p-4">
+                        <div className="space-y-4 bg-white/80 border border-navy-100 rounded-2xl p-3 sm:p-4">
                           {/* Plain-language heading so viewers see this is the savings set */}
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-navy-600 uppercase tracking-wide">Savings & Remaining Costs</span>
@@ -2216,25 +2281,25 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                           <p className="text-[11px] text-gray-600 pl-1">Savings follow the bill: {`100% - Cost of energy bought from the grid`}.</p>
 
                           {/* Straightforward card spelling out what still comes from the grid */}
-                          <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border-2 border-red-200 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <AlertTriangle className="text-red-600" size={20} />
-                                <span className="font-bold text-gray-700">Bought from the grid (cheap hours)</span>
+                          <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-3 sm:p-4 border-2 border-red-200 space-y-2">
+                            <div className="flex items-start sm:items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <AlertTriangle className="text-red-600 flex-shrink-0" size={18} />
+                                <span className="font-bold text-gray-700 text-sm sm:text-base">Bought from the grid (cheap hours)</span>
                               </div>
-                              <div className="text-right">
-                                <div className="text-2xl font-bold text-red-600">{touLowRatePercent.toFixed(2)}%</div>
+                              <div className="text-right flex-shrink-0">
+                                <div className="text-xl sm:text-2xl font-bold text-red-600">{touLowRatePercent.toFixed(2)}%</div>
                                 <div className="text-xs text-gray-600">{touLowRateEnergyKwh.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-7">
+                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">
                               {touAdjustedGridCharge > 0 ? (
                                 <>Battery top-up {touAdjustedGridCharge.toFixed(0)} kWh (charged at off-peak rate) + remainder {touLeftoverKwh.toFixed(0)} kWh</>
                               ) : (
                                 <>Remainder {touLeftoverKwh.toFixed(0)} kWh</>
                               )}
                             </div>
-                            <div className="text-[11px] text-gray-500 pl-7">
+                            <div className="text-[11px] text-gray-500 pl-5 sm:pl-7 break-words">
                               Blended rate {(touCorrectBlendedRate * 100).toFixed(2)}¢/kWh • Remainder {touLeftoverKwh.toFixed(0)} kWh allocated:
                               {touLeftoverBreakdown.offPeak > 0 && ` ${touLeftoverBreakdown.offPeak.toFixed(0)} kWh off-peak`}
                               {touLeftoverBreakdown.midPeak > 0 && `, ${touLeftoverBreakdown.midPeak.toFixed(0)} kWh mid-peak`}
@@ -2244,31 +2309,31 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                           </div>
 
                           {/* Helpful card that clarifies how the remaining grid power is priced */}
-                          <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-4 border-2 border-gray-300 space-y-2">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="font-bold text-gray-700">Cost of energy bought from grid</span>
-                              <div className="text-right">
-                                <div className="text-2xl font-bold text-green-600">{touLeftoverCostPercent.toFixed(2)}%</div>
+                          <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-3 sm:p-4 border-2 border-gray-300 space-y-2">
+                            <div className="flex items-start sm:items-center justify-between mb-2 gap-2">
+                              <span className="font-bold text-gray-700 text-sm sm:text-base min-w-0 flex-1">Cost of energy bought from grid</span>
+                              <div className="text-right flex-shrink-0">
+                                <div className="text-xl sm:text-2xl font-bold text-green-600">{touLeftoverCostPercent.toFixed(2)}%</div>
                                 <div className="text-xs text-gray-600">of total bill</div>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
-                              <Info size={14} className="text-navy-500 flex-shrink-0" />
-                              <span className="text-xs text-gray-600">
+                            <div className="flex items-start gap-2 pt-2 border-t border-gray-200">
+                              <Info size={14} className="text-navy-500 flex-shrink-0 mt-0.5" />
+                              <span className="text-xs text-gray-600 break-words">
                                 Blended rate {(touCorrectBlendedRate * 100).toFixed(2)}¢/kWh: battery top-up {touAdjustedGridCharge.toFixed(0)} kWh @ {touOffPeakRate.toFixed(1)}¢/kWh + remainder {touLeftoverKwh.toFixed(0)} kWh (allocated to cheapest available hours) • vs on-peak {touOnPeakRate.toFixed(2)}¢/kWh.
                               </span>
                             </div>
                           </div>
 
                           {/* Calm card sharing how the savings show up on the bill */}
-                          <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-4 border-2 border-gray-300 space-y-2">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="font-bold text-gray-700">Total savings</span>
-                              <div className="text-right">
-                               <div className="text-2xl font-bold text-green-600">{touTotalSavingsPercent.toFixed(2)}%</div>
+                          <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-3 sm:p-4 border-2 border-gray-300 space-y-2">
+                            <div className="flex items-start sm:items-center justify-between mb-2 gap-2">
+                              <span className="font-bold text-gray-700 text-sm sm:text-base min-w-0 flex-1">Total savings</span>
+                              <div className="text-right flex-shrink-0">
+                               <div className="text-xl sm:text-2xl font-bold text-green-600">{touTotalSavingsPercent.toFixed(2)}%</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-7">
+                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">
                               Savings can exceed offset because remaining energy is prioritized for cheaper rate periods.
                             </div>
                           </div>
@@ -2382,33 +2447,33 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                    return (
                      <div className="bg-gradient-to-br from-red-50 to-white rounded-2xl border-2 border-red-300 shadow-lg p-6">
                        {/* ULO Header */}
-                       <div className="flex items-center gap-3 mb-6 pb-4 border-b-2 border-red-200">
-                         <div className="p-2 bg-red-500 rounded-xl">
-                           <Moon className="text-white" size={24} />
+                       <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6 pb-3 sm:pb-4 border-b-2 border-red-200">
+                         <div className="p-1.5 sm:p-2 bg-red-500 rounded-xl flex-shrink-0">
+                           <Moon className="text-white" size={20} />
                          </div>
-                         <div>
-                           <h5 className="text-xl font-bold text-navy-600">Ultra-Low Overnight (ULO)</h5>
-                           <p className="text-sm text-gray-600">Best for overnight usage</p>
+                         <div className="min-w-0">
+                           <h5 className="text-lg sm:text-xl font-bold text-navy-600">Ultra-Low Overnight (ULO)</h5>
+                           <p className="text-xs sm:text-sm text-gray-600">Best for overnight usage</p>
                          </div>
                        </div>
                        
                        {/* ULO Metrics */}
                        <div className="space-y-4">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                           <div className="bg-white rounded-xl p-4 border-2 border-gray-200">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                           <div className="bg-white rounded-xl p-3 sm:p-4 border-2 border-gray-200">
                              <div className="text-xs font-semibold text-gray-600 mb-1">Total Consumption</div>
-                             <div className="text-2xl font-bold text-gray-800">{annualUsageKwh.toLocaleString()}</div>
+                             <div className="text-xl sm:text-2xl font-bold text-gray-800">{annualUsageKwh.toLocaleString()}</div>
                              <div className="text-xs text-gray-500">kWh/year</div>
                            </div>
-                           <div className="bg-white rounded-xl p-4 border-2 border-gray-200">
+                           <div className="bg-white rounded-xl p-3 sm:p-4 border-2 border-gray-200">
                              <div className="text-xs font-semibold text-gray-600 mb-1">Solar Production</div>
-                             <div className="text-2xl font-bold text-green-600">{solarProductionKwh > 0 ? solarProductionKwh.toLocaleString() : '0'}</div>
+                             <div className="text-xl sm:text-2xl font-bold text-green-600">{solarProductionKwh > 0 ? solarProductionKwh.toLocaleString() : '0'}</div>
                              <div className="text-xs text-gray-500">kWh/year</div>
                            </div>
                          </div>
                          
                         {/* Friendly heading reminding the reader that the next cards talk about offsets */}
-                        <div className="space-y-4 bg-white/80 border border-red-100 rounded-2xl p-4">
+                        <div className="space-y-4 bg-white/80 border border-red-100 rounded-2xl p-3 sm:p-4">
                           {/* Plain-language heading so people notice the offset cluster */}
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-navy-600 uppercase tracking-wide">Offset Coverage</span>
@@ -2416,65 +2481,65 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                           </div>
 
                          {/* FRD: Solar Direct - energy covered directly by solar */}
-                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-200">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <Sun className="text-green-600" size={20} />
-                                <span className="font-bold text-gray-700">Daytime covered by solar</span>
+                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-3 sm:p-4 border-2 border-green-200">
+                            <div className="flex items-start sm:items-center justify-between mb-2 gap-2">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <Sun className="text-green-600 flex-shrink-0" size={18} />
+                                <span className="font-bold text-gray-700 text-sm sm:text-base">Daytime covered by solar</span>
                               </div>
-                              <div className="text-right">
-                               <div className="text-2xl font-bold text-green-600">{solarDirectPercent.toFixed(2)}%</div>
+                              <div className="text-right flex-shrink-0">
+                               <div className="text-xl sm:text-2xl font-bold text-green-600">{solarDirectPercent.toFixed(2)}%</div>
                                <div className="text-xs text-gray-600">{solarDirectKwh.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-7">Energy your panels cover during the day</div>
+                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">Energy your panels cover during the day</div>
                           </div>
 
                          {/* FRD: Solar-charged battery coverage - separate card per FRD section 6 */}
-                          <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border-2 border-blue-200">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <Battery className="text-blue-600" size={20} />
-                                <span className="font-bold text-gray-700">Solar-charged battery coverage</span>
+                          <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-3 sm:p-4 border-2 border-blue-200">
+                            <div className="flex items-start sm:items-center justify-between mb-2 gap-2">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <Battery className="text-blue-600 flex-shrink-0" size={18} />
+                                <span className="font-bold text-gray-700 text-sm sm:text-base">Solar-charged battery coverage</span>
                               </div>
-                              <div className="text-right">
-                               <div className="text-2xl font-bold text-blue-600">{solarBatteryPercent.toFixed(2)}%</div>
+                              <div className="text-right flex-shrink-0">
+                               <div className="text-xl sm:text-2xl font-bold text-blue-600">{solarBatteryPercent.toFixed(2)}%</div>
                                <div className="text-xs text-gray-600">{solarBatteryKwh.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-7">Stored solar energy used to offset grid usage</div>
+                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">Stored solar energy used to offset grid usage</div>
                           </div>
 
                          {/* FRD: ULO-charged battery coverage - separate card per FRD section 6 */}
                           {aiMode && uloChargedBatteryKwh > 0 && (
-                            <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border-2 border-amber-200">
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <Battery className="text-amber-600" size={20} />
-                                  <span className="font-bold text-gray-700">ULO-charged battery coverage</span>
+                            <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 sm:p-4 border-2 border-amber-200">
+                              <div className="flex items-start sm:items-center justify-between mb-2 gap-2">
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <Battery className="text-amber-600 flex-shrink-0" size={18} />
+                                  <span className="font-bold text-gray-700 text-sm sm:text-base">ULO-charged battery coverage</span>
                                 </div>
-                                <div className="text-right">
-                                 <div className="text-2xl font-bold text-amber-600">{uloChargedBatteryPercent.toFixed(2)}%</div>
+                                <div className="text-right flex-shrink-0">
+                                 <div className="text-xl sm:text-2xl font-bold text-amber-600">{uloChargedBatteryPercent.toFixed(2)}%</div>
                                  <div className="text-xs text-gray-600">{uloChargedBatteryKwh.toFixed(0)} kWh/year</div>
                                 </div>
                               </div>
-                              <div className="text-xs text-gray-600 pl-7">Battery charged from ultra-low overnight grid rates (AI Mode)</div>
+                              <div className="text-xs text-gray-600 pl-5 sm:pl-7">Battery charged from ultra-low overnight grid rates (AI Mode)</div>
                             </div>
                           )}
 
                           {/* FRD: Total Energy Offset - per FRD section 6 */}
-                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-300">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <BarChart3 className="text-green-600" size={20} />
-                                <span className="font-bold text-gray-700">Total Energy Offset</span>
+                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-3 sm:p-4 border-2 border-green-300">
+                            <div className="flex items-start sm:items-center justify-between mb-2 gap-2">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <BarChart3 className="text-green-600 flex-shrink-0" size={18} />
+                                <span className="font-bold text-gray-700 text-sm sm:text-base">Total Energy Offset</span>
                               </div>
-                              <div className="text-right">
-                                <div className="text-2xl font-bold text-green-600">{uloCombinedOffsetPercent.toFixed(2)}%</div>
+                              <div className="text-right flex-shrink-0">
+                                <div className="text-xl sm:text-2xl font-bold text-green-600">{uloCombinedOffsetPercent.toFixed(2)}%</div>
                                 <div className="text-xs text-gray-600">{uloCombinedOffset.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-7">Total energy offset from solar and battery (includes solar direct, solar-charged battery, and ULO-charged battery)</div>
+                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">Total energy offset from solar and battery (includes solar direct, solar-charged battery, and ULO-charged battery)</div>
                             {uloOffsetCapped && (
                               <div className="text-[11px] text-amber-600 pl-7 mt-1">
                                 Capped at {offsetCapPercent.toFixed(0)}% to reflect winter limits
@@ -2493,7 +2558,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                         </div>
 
                         {/* Friendly heading reminding the reader that the next cards cover dollars saved */}
-                        <div className="space-y-4 bg-white/80 border border-red-100 rounded-2xl p-4">
+                        <div className="space-y-4 bg-white/80 border border-red-100 rounded-2xl p-3 sm:p-4">
                           {/* Plain-language heading so viewers see this is the savings set */}
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-navy-600 uppercase tracking-wide">Savings & Remaining Costs</span>
@@ -2511,19 +2576,19 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                           <p className="text-[11px] text-gray-600 pl-1">Savings = 100% − Cost of energy bought from the grid.</p>
 
                           {/* FRD: Remaining purchased from grid (ULO rate) - per FRD section 6 */}
-                          <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border-2 border-red-200 space-y-2">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <AlertTriangle className="text-red-600" size={20} />
-                                <span className="font-bold text-gray-700">Remaining purchased from grid (ULO rate)</span>
+                          <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-3 sm:p-4 border-2 border-red-200 space-y-2">
+                            <div className="flex items-start sm:items-center justify-between mb-2 gap-2">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <AlertTriangle className="text-red-600 flex-shrink-0" size={18} />
+                                <span className="font-bold text-gray-700 text-sm sm:text-base">Remaining purchased from grid (ULO rate)</span>
                               </div>
-                              <div className="text-right">
-                                <div className="text-2xl font-bold text-red-600">{uloLowRatePercent.toFixed(2)}%</div>
+                              <div className="text-right flex-shrink-0">
+                                <div className="text-xl sm:text-2xl font-bold text-red-600">{uloLowRatePercent.toFixed(2)}%</div>
                                 <div className="text-xs text-gray-600">{uloLowRateEnergyKwh.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-7">Battery top-up {uloAdjustedGridCharge.toFixed(0)} kWh + small remainder {uloLeftoverKwh.toFixed(0)} kWh</div>
-                            <div className="text-[11px] text-gray-500 pl-7">
+                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">Battery top-up {uloAdjustedGridCharge.toFixed(0)} kWh + small remainder {uloLeftoverKwh.toFixed(0)} kWh</div>
+                            <div className="text-[11px] text-gray-500 pl-5 sm:pl-7 break-words">
                               Blended rate {(uloCorrectBlendedRate * 100).toFixed(2)}¢/kWh • Remainder {uloLeftoverKwh.toFixed(0)} kWh allocated:
                               {(uloLeftoverBreakdown.ultraLow || 0) > 0 && ` ${(uloLeftoverBreakdown.ultraLow || 0).toFixed(0)} kWh ultra-low`}
                               {uloLeftoverBreakdown.offPeak > 0 && `, ${uloLeftoverBreakdown.offPeak.toFixed(0)} kWh off-peak`}
@@ -2534,31 +2599,31 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                           </div>
 
                           {/* Helpful card that clarifies how the remaining grid power is priced */}
-                          <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-4 border-2 border-gray-300 space-y-2">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="font-bold text-gray-700">Cost of energy bought from grid</span>
-                              <div className="text-right">
-                                <div className="text-2xl font-bold text-green-600">{uloLeftoverCostPercent.toFixed(2)}%</div>
+                          <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-3 sm:p-4 border-2 border-gray-300 space-y-2">
+                            <div className="flex items-start sm:items-center justify-between mb-2 gap-2">
+                              <span className="font-bold text-gray-700 text-sm sm:text-base min-w-0 flex-1">Cost of energy bought from grid</span>
+                              <div className="text-right flex-shrink-0">
+                                <div className="text-xl sm:text-2xl font-bold text-green-600">{uloLeftoverCostPercent.toFixed(2)}%</div>
                                 <div className="text-xs text-gray-600">of total bill</div>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
-                              <Info size={14} className="text-navy-500 flex-shrink-0" />
-                              <span className="text-xs text-gray-600">
+                            <div className="flex items-start gap-2 pt-2 border-t border-gray-200">
+                              <Info size={14} className="text-navy-500 flex-shrink-0 mt-0.5" />
+                              <span className="text-xs text-gray-600 break-words">
                                 Blended rate {(uloCorrectBlendedRate * 100).toFixed(2)}¢/kWh: battery top-up {uloAdjustedGridCharge.toFixed(0)} kWh @ {uloUltraLowRate.toFixed(1)}¢/kWh + remainder {uloLeftoverKwh.toFixed(0)} kWh (allocated to cheapest available hours) • vs on-peak {uloOnPeakRate.toFixed(2)}¢/kWh.
                               </span>
                             </div>
                           </div>
 
                           {/* FRD: Total Bill Savings - per FRD section 6 */}
-                          <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-4 border-2 border-gray-300 space-y-2">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="font-bold text-gray-700">Total Bill Savings</span>
-                              <div className="text-right">
-                                <div className="text-2xl font-bold text-green-600">{uloTotalSavingsPercent.toFixed(2)}%</div>
+                          <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-3 sm:p-4 border-2 border-gray-300 space-y-2">
+                            <div className="flex items-start sm:items-center justify-between mb-2 gap-2">
+                              <span className="font-bold text-gray-700 text-sm sm:text-base min-w-0 flex-1">Total Bill Savings</span>
+                              <div className="text-right flex-shrink-0">
+                                <div className="text-xl sm:text-2xl font-bold text-green-600">{uloTotalSavingsPercent.toFixed(2)}%</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-7">
+                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">
                               Savings can exceed offset because remaining energy is prioritized for cheaper rate periods.
                             </div>
                           </div>
