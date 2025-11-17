@@ -1324,18 +1324,18 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                   <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent pointer-events-none z-10 md:hidden" />
                   <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none z-10 md:hidden" />
                   <div className="min-w-[640px]">
-                  {/* Column headers */}
-                  <div className="grid grid-cols-[1.2fr_1fr_1fr] bg-gray-50 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                    <div className="px-4 py-3">Metric</div>
-                    <div className="px-4 py-3 text-center text-blue-600">
-                      <Sun className="inline mr-1" size={14} />
-                      TOU Plan
-                    </div>
-                    <div className="px-4 py-3 text-center text-amber-600">
-                      <Moon className="inline mr-1" size={14} />
-                      ULO Plan
-                    </div>
+                {/* Column headers */}
+                <div className="grid grid-cols-[1.2fr_1fr_1fr] bg-gray-50 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                  <div className="px-4 py-3">Metric</div>
+                  <div className="px-4 py-3 text-center text-blue-600">
+                    <Sun className="inline mr-1" size={14} />
+                    TOU Plan
                   </div>
+                  <div className="px-4 py-3 text-center text-amber-600">
+                    <Moon className="inline mr-1" size={14} />
+                    ULO Plan
+                  </div>
+                </div>
 
                 {/* Baseline (No System) row */}
                 <div className="grid grid-cols-[1.2fr_1fr_1fr] border-t border-gray-200 bg-gray-50">
@@ -1517,7 +1517,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                       ).toLocaleString()}
                     </div>
                   </div>
-                </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2113,9 +2113,12 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                    (touLeftoverBreakdown.midPeak || 0) * (touMidPeakRate / 100) +
                    (touLeftoverBreakdown.onPeak || 0) * (touOnPeakRate / 100)
                  const touTotalGridCost = touBatteryChargingCost + touLeftoverCost
-                 const touLowRateEnergyKwh = touAdjustedGridCharge + touLeftoverKwh
-                 const touLowRatePercent = gridRemainingPercent // Grid remaining percentage
-                 const touCorrectBlendedRate = touLowRateEnergyKwh > 0 ? touTotalGridCost / touLowRateEnergyKwh : 0
+                 // For display: show only the remainder (battery charging is already shown in offset section)
+                 const touLowRateEnergyKwh = touLeftoverKwh // Only show remainder, not battery charging
+                 const touLowRatePercent = gridRemainingPercent // Grid remaining percentage (matches remainder only)
+                 // Blended rate calculation includes both battery charging and remainder for accurate cost calculation
+                 const touTotalGridEnergyKwh = touAdjustedGridCharge + touLeftoverKwh
+                 const touCorrectBlendedRate = touTotalGridEnergyKwh > 0 ? touTotalGridCost / touTotalGridEnergyKwh : 0
                  // Use touNewBill instead of touTotalGridCost to ensure percentages add to 100%
                  const touLeftoverCostPercent = touOriginalBill > 0 ? (touNewBill / touOriginalBill) * 100 : 0
                   
