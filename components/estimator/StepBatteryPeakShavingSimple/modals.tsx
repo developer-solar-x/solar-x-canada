@@ -536,10 +536,8 @@ export function AnnualSavingsModal({
   const ulo = uloResults.get('combined')
   const touBaselineEnergy = Math.max(0, tou?.combined?.baselineAnnualBillEnergyOnly ?? 0)
   const uloBaselineEnergy = Math.max(0, ulo?.combined?.baselineAnnualBillEnergyOnly ?? 0)
-  const baselineAnnualEnergy = Math.max(touBaselineEnergy, uloBaselineEnergy)
-  const fallbackBaselineAnnual = displayedMonthlyBill * 12
-  const baselineAnnual = baselineAnnualEnergy > 0 ? baselineAnnualEnergy : fallbackBaselineAnnual
-  const baselineMonthly = baselineAnnual / 12
+  const touBaselineMonthly = touBaselineEnergy > 0 ? touBaselineEnergy / 12 : 0
+  const uloBaselineMonthly = uloBaselineEnergy > 0 ? uloBaselineEnergy / 12 : 0
   const touAnnualSavings = Math.max(0, tou?.combined?.annual ?? 0)
   const uloAnnualSavings = Math.max(0, ulo?.combined?.annual ?? 0)
   const touSolarPiece = tou?.combined?.solarOnlyAnnual ?? 0
@@ -560,7 +558,7 @@ export function AnnualSavingsModal({
         <div>
           <span className="font-semibold">What the numbers mean</span>
           <div className="mt-1 text-xs text-gray-600 ml-1">
-            • Current bill (baseline energy only): {formatMoney(baselineMonthly)}/month — the same {formatMoney(baselineAnnual)} per year shown in the summary card.
+            • Current bill (baseline energy only): Varies by rate plan — TOU: {formatMoney(touBaselineMonthly)}/month ({formatMoney(touBaselineEnergy)}/year), ULO: {formatMoney(uloBaselineMonthly)}/month ({formatMoney(uloBaselineEnergy)}/year). These match the values shown in the summary card.
           </div>
           <div className="mt-1 text-xs text-gray-600 ml-1">
             • Projected bill (after upgrades): same usage, but with solar production and smart battery shifting applied, expressed as energy charges only.

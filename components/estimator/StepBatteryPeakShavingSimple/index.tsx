@@ -1280,13 +1280,18 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
             const uloOffsetPercent = annualUsageKwh > 0 ? (uloTotalOffset / annualUsageKwh) * 100 : 0
 
             // Get energy-only baseline and final costs
+            // Annual savings = Baseline energy charges − Projected energy charges (with winter safeguard)
             const touBaseline = touData.combined?.baselineAnnualBillEnergyOnly || 0
             const touFinal = touData.combined?.postSolarBatteryAnnualBillEnergyOnly || 0
-            const touSavings = touBaseline - touFinal
+            // Use the combined annual savings (which includes winter safeguard) instead of raw difference
+            const touSavings = touData.combined?.annual || (touBaseline - touFinal)
+            const touSavingsMonthly = touData.combined?.monthly || (touSavings / 12)
 
             const uloBaseline = uloData.combined?.baselineAnnualBillEnergyOnly || 0
             const uloFinal = uloData.combined?.postSolarBatteryAnnualBillEnergyOnly || 0
-            const uloSavings = uloBaseline - uloFinal
+            // Use the combined annual savings (which includes winter safeguard) instead of raw difference
+            const uloSavings = uloData.combined?.annual || (uloBaseline - uloFinal)
+            const uloSavingsMonthly = uloData.combined?.monthly || (uloSavings / 12)
 
             return (
           <div className="mb-8">
@@ -1307,12 +1312,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                 </p>
               </div>
 
-              {/* Energy-only note */}
-              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-xs text-blue-700">
-                  <strong>Note:</strong> Costs shown are energy charges only (excluding HST, delivery, and fixed fees) to match maximum savings calculation.
-                </p>
-              </div>
 
               {/* Unified table with all metrics */}
               <div className="overflow-hidden border border-gray-200 rounded-xl">
@@ -1368,18 +1367,18 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                   </div>
                   <div className="px-4 py-4 text-center">
                     <div className="text-2xl font-bold text-red-600">
-                      ${Math.round((touData.combined?.annual || 0)).toLocaleString()}
+                      ${Math.round(touSavings).toLocaleString()}
                     </div>
                     <div className="text-xs text-gray-600">
-                      ${Math.round((touData.combined?.monthly || 0)).toLocaleString()}/month
+                      ${Math.round(touSavingsMonthly).toLocaleString()}/month
                     </div>
                   </div>
                   <div className="px-4 py-4 text-center">
                     <div className="text-2xl font-bold text-red-600">
-                      ${Math.round((uloData.combined?.annual || 0)).toLocaleString()}
+                      ${Math.round(uloSavings).toLocaleString()}
                     </div>
                     <div className="text-xs text-gray-600">
-                      ${Math.round((uloData.combined?.monthly || 0)).toLocaleString()}/month
+                      ${Math.round(uloSavingsMonthly).toLocaleString()}/month
                     </div>
                   </div>
                 </div>
@@ -2267,7 +2266,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                               <span className="font-bold text-gray-700">Total savings</span>
                               <div className="text-right">
                                <div className="text-2xl font-bold text-green-600">{touTotalSavingsPercent.toFixed(2)}%</div>
-                               <div className="text-xs text-gray-600">Equivalent to {touSavingsKwhEquivalent.toFixed(0)} kWh/year of peak-priced energy avoided</div>
                               </div>
                             </div>
                             <div className="text-xs text-gray-600 pl-7">
@@ -2527,7 +2525,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                             <div className="text-xs text-gray-600 pl-7">Battery top-up {uloAdjustedGridCharge.toFixed(0)} kWh + small remainder {uloLeftoverKwh.toFixed(0)} kWh</div>
                             <div className="text-[11px] text-gray-500 pl-7">
                               Blended rate {(uloCorrectBlendedRate * 100).toFixed(2)}¢/kWh • Remainder {uloLeftoverKwh.toFixed(0)} kWh allocated:
-                              {uloLeftoverBreakdown.ultraLow > 0 && ` ${uloLeftoverBreakdown.ultraLow.toFixed(0)} kWh ultra-low`}
+                              {(uloLeftoverBreakdown.ultraLow || 0) > 0 && ` ${(uloLeftoverBreakdown.ultraLow || 0).toFixed(0)} kWh ultra-low`}
                               {uloLeftoverBreakdown.offPeak > 0 && `, ${uloLeftoverBreakdown.offPeak.toFixed(0)} kWh off-peak`}
                               {uloLeftoverBreakdown.midPeak > 0 && `, ${uloLeftoverBreakdown.midPeak.toFixed(0)} kWh mid-peak`}
                               {uloLeftoverBreakdown.onPeak > 0 && `, ${uloLeftoverBreakdown.onPeak.toFixed(0)} kWh on-peak`}
@@ -2558,7 +2556,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                               <span className="font-bold text-gray-700">Total Bill Savings</span>
                               <div className="text-right">
                                 <div className="text-2xl font-bold text-green-600">{uloTotalSavingsPercent.toFixed(2)}%</div>
-                                <div className="text-xs text-gray-600">Equivalent to {uloSavingsKwhEquivalent.toFixed(0)} kWh/year of peak-priced energy avoided</div>
                               </div>
                             </div>
                             <div className="text-xs text-gray-600 pl-7">
