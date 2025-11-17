@@ -2008,10 +2008,16 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                  const gridRemainingPercent = touFrd.offsetPercentages.gridRemaining
                  const gridRemainingKwh = (gridRemainingPercent / 100) * annualUsageKwh
                  
-                 // Combined offset (solar direct + solar-charged battery + off-peak-charged battery per FRD)
-                 // FRD Section 5: Total Offset = 50% solar direct + 20% solar-charged battery + 30% grid-charged battery
-                 const touCombinedOffsetPercent = solarDirectPercent + solarBatteryPercent + touChargedBatteryPercent
-                 const touCombinedOffset = solarDirectKwh + solarBatteryKwh + touChargedBatteryKwh
+                // Solar-only offset (free energy from solar, not including grid-purchased battery charging)
+                // This represents energy that doesn't need to be purchased from the grid
+                const touSolarOffsetPercent = solarDirectPercent + solarBatteryPercent
+                const touSolarOffset = solarDirectKwh + solarBatteryKwh
+                
+                // Total Energy Offset = only free energy from solar (solar direct + solar-charged battery)
+                // Grid-charged battery is NOT included here because it's purchased from the grid
+                // This provides a clearer picture: what's truly free vs what still costs money
+                const touCombinedOffsetPercent = solarDirectPercent + solarBatteryPercent
+                const touCombinedOffset = solarDirectKwh + solarBatteryKwh
                  
                  const solarProductionKwh = effectiveSolarProductionKwh
                  
@@ -2113,12 +2119,11 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                    (touLeftoverBreakdown.midPeak || 0) * (touMidPeakRate / 100) +
                    (touLeftoverBreakdown.onPeak || 0) * (touOnPeakRate / 100)
                  const touTotalGridCost = touBatteryChargingCost + touLeftoverCost
-                 // For display: show only the remainder (battery charging is already shown in offset section)
-                 const touLowRateEnergyKwh = touLeftoverKwh // Only show remainder, not battery charging
-                 const touLowRatePercent = gridRemainingPercent // Grid remaining percentage (matches remainder only)
-                 // Blended rate calculation includes both battery charging and remainder for accurate cost calculation
-                 const touTotalGridEnergyKwh = touAdjustedGridCharge + touLeftoverKwh
-                 const touCorrectBlendedRate = touTotalGridEnergyKwh > 0 ? touTotalGridCost / touTotalGridEnergyKwh : 0
+                 const touLowRateEnergyKwh = touAdjustedGridCharge + touLeftoverKwh
+                // Total purchased from grid = grid-charged battery + remaining grid energy
+                // This shows all energy that must be purchased from the grid (even if strategically timed)
+                const touLowRatePercent = touChargedBatteryPercent + gridRemainingPercent // Should equal 100% - touCombinedOffsetPercent
+                 const touCorrectBlendedRate = touLowRateEnergyKwh > 0 ? touTotalGridCost / touLowRateEnergyKwh : 0
                  // Use touNewBill instead of touTotalGridCost to ensure percentages add to 100%
                  const touLeftoverCostPercent = touOriginalBill > 0 ? (touNewBill / touOriginalBill) * 100 : 0
                   
@@ -2247,7 +2252,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                                 <div className="text-xs text-gray-600">{touCombinedOffset.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">Total energy offset from solar and battery (includes solar direct, solar-charged battery, and off-peak-charged battery)</div>
+                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">Free energy from solar: {solarDirectPercent.toFixed(2)}% direct + {solarBatteryPercent.toFixed(2)}% stored in battery</div>
                             {touOffsetCapped && (
                               <div className="text-[11px] text-amber-600 pl-7 mt-1">
                                 Capped at {offsetCapPercent.toFixed(0)}% to reflect winter limits
@@ -2297,17 +2302,19 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                             </div>
                             <div className="text-xs text-gray-600 pl-5 sm:pl-7">
                               {touAdjustedGridCharge > 0 ? (
-                                <>Battery top-up {touAdjustedGridCharge.toFixed(0)} kWh (charged at off-peak rate) + remainder {touLeftoverKwh.toFixed(0)} kWh</>
+                                <>Battery top-up charged at off-peak rate: {touAdjustedGridCharge.toFixed(0)} kWh ({touChargedBatteryPercent.toFixed(2)}%) + Remainder: {touLeftoverKwh.toFixed(0)} kWh ({gridRemainingPercent.toFixed(2)}%)</>
                               ) : (
-                                <>Remainder {touLeftoverKwh.toFixed(0)} kWh</>
+                                <>Remainder: {touLeftoverKwh.toFixed(0)} kWh ({gridRemainingPercent.toFixed(2)}%)</>
                               )}
                             </div>
                             <div className="text-[11px] text-gray-500 pl-5 sm:pl-7 break-words">
-                              Blended rate {(touCorrectBlendedRate * 100).toFixed(2)}¢/kWh • Remainder {touLeftoverKwh.toFixed(0)} kWh allocated:
-                              {touLeftoverBreakdown.offPeak > 0 && ` ${touLeftoverBreakdown.offPeak.toFixed(0)} kWh off-peak`}
-                              {touLeftoverBreakdown.midPeak > 0 && `, ${touLeftoverBreakdown.midPeak.toFixed(0)} kWh mid-peak`}
-                              {touLeftoverBreakdown.onPeak > 0 && `, ${touLeftoverBreakdown.onPeak.toFixed(0)} kWh on-peak`}
-                              {touAdjustedGridCharge > 0 && ` • Battery top-up ${touAdjustedGridCharge.toFixed(0)} kWh charged off-peak @ ${touOffPeakRate.toFixed(1)}¢/kWh`}
+                              Blended rate {(touCorrectBlendedRate * 100).toFixed(2)}¢/kWh • 
+                              {touAdjustedGridCharge > 0 && ` Battery top-up ${touAdjustedGridCharge.toFixed(0)} kWh charged off-peak @ ${touOffPeakRate.toFixed(1)}¢/kWh`}
+                              {touAdjustedGridCharge > 0 && touLeftoverKwh > 0 && ' • '}
+                              {touLeftoverKwh > 0 && ` Remainder ${touLeftoverKwh.toFixed(0)} kWh allocated:`}
+                              {touLeftoverKwh > 0 && touLeftoverBreakdown.offPeak > 0 && ` ${touLeftoverBreakdown.offPeak.toFixed(0)} kWh off-peak`}
+                              {touLeftoverKwh > 0 && touLeftoverBreakdown.midPeak > 0 && `, ${touLeftoverBreakdown.midPeak.toFixed(0)} kWh mid-peak`}
+                              {touLeftoverKwh > 0 && touLeftoverBreakdown.onPeak > 0 && `, ${touLeftoverBreakdown.onPeak.toFixed(0)} kWh on-peak`}
                             </div>
                           </div>
 
@@ -2367,10 +2374,16 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                  const gridRemainingPercent = uloFrd.offsetPercentages.gridRemaining
                  const gridRemainingKwh = (gridRemainingPercent / 100) * annualUsageKwh
                  
-                 // Combined offset (solar direct + all battery sources per FRD)
-                 // FRD Section 5: Total Offset = 50% solar direct + 20% solar-charged battery + 30% ULO-charged battery = 80%
-                 const uloCombinedOffsetPercent = solarDirectPercent + solarBatteryPercent + uloChargedBatteryPercent
-                 const uloCombinedOffset = solarDirectKwh + solarBatteryKwh + uloChargedBatteryKwh
+                // Solar-only offset (free energy from solar, not including grid-purchased battery charging)
+                // This represents energy that doesn't need to be purchased from the grid
+                const uloSolarOffsetPercent = solarDirectPercent + solarBatteryPercent
+                const uloSolarOffset = solarDirectKwh + solarBatteryKwh
+                
+                // Total Energy Offset = only free energy from solar (solar direct + solar-charged battery)
+                // ULO-charged battery is NOT included here because it's purchased from the grid
+                // This provides a clearer picture: what's truly free vs what still costs money
+                const uloCombinedOffsetPercent = solarDirectPercent + solarBatteryPercent
+                const uloCombinedOffset = solarDirectKwh + solarBatteryKwh
                  
                  const solarProductionKwh = effectiveSolarProductionKwh
                  
@@ -2414,8 +2427,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                  
                  // Grid energy display values (battery top-up + remainder)
                  const uloAdjustedGridCharge = uloChargedBatteryKwh // Battery charged from grid at ULO rate (AI Mode)
-                 const uloLowRateEnergyKwh = uloAdjustedGridCharge + uloLeftoverKwh // Total energy from grid
-                 const uloLowRatePercent = annualUsageKwh > 0 ? (uloLowRateEnergyKwh / annualUsageKwh) * 100 : 0
+                // Total purchased from grid = ULO-charged battery + remaining grid energy
+                // This shows all energy that must be purchased from the grid (even if strategically timed)
+                const uloLowRateEnergyKwh = uloAdjustedGridCharge + gridRemainingKwh // Total energy from grid
+                const uloLowRatePercent = uloChargedBatteryPercent + gridRemainingPercent // Should equal 100% - uloSolarOffsetPercent
                  const uloBatteryChargingCost = uloChargedBatteryKwh * (uloUltraLowRate / 100)
                   
                  // Use uloNewBill instead of uloTotalGridCost to ensure percentages add to 100%
@@ -2433,6 +2448,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                     (uloLeftoverBreakdown.midPeak || 0) * (uloMidPeakRate / 100) +
                     (uloLeftoverBreakdown.onPeak || 0) * (uloOnPeakRate / 100)
                   const uloTotalGridCost = uloBatteryChargingCost + uloLeftoverCost
+                  // Blended rate for all grid purchases (battery charging + remainder)
                   const uloCorrectBlendedRate = uloLowRateEnergyKwh > 0 ? uloTotalGridCost / uloLowRateEnergyKwh : 0
                   
                   // Keep the storytelling grounded by anchoring to the original peak-priced usage
@@ -2530,8 +2546,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                             </div>
                           )}
 
-                          {/* FRD: Total Energy Offset - per FRD section 6 */}
-                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-3 sm:p-4 border-2 border-green-300">
+                          {/* Total Energy Offset - free energy from solar only (solar direct + solar-charged battery) */}
+                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-3 sm:p-4 border-2 border-green-300 space-y-2">
                             <div className="flex items-start sm:items-center justify-between mb-2 gap-2">
                               <div className="flex items-center gap-2 min-w-0 flex-1">
                                 <BarChart3 className="text-green-600 flex-shrink-0" size={18} />
@@ -2542,7 +2558,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                                 <div className="text-xs text-gray-600">{uloCombinedOffset.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">Total energy offset from solar and battery (includes solar direct, solar-charged battery, and ULO-charged battery)</div>
+                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">Free energy from solar: {solarDirectPercent.toFixed(2)}% direct + {solarBatteryPercent.toFixed(2)}% stored in battery</div>
                             {uloOffsetCapped && (
                               <div className="text-[11px] text-amber-600 pl-7 mt-1">
                                 Capped at {offsetCapPercent.toFixed(0)}% to reflect winter limits
@@ -2590,14 +2606,22 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                                 <div className="text-xs text-gray-600">{uloLowRateEnergyKwh.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">Battery top-up {uloAdjustedGridCharge.toFixed(0)} kWh + small remainder {uloLeftoverKwh.toFixed(0)} kWh</div>
+                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">
+                              {uloAdjustedGridCharge > 0 ? (
+                                <>Battery top-up charged at ULO rate: {uloAdjustedGridCharge.toFixed(0)} kWh ({uloChargedBatteryPercent.toFixed(2)}%) + Remainder: {uloLeftoverKwh.toFixed(0)} kWh ({gridRemainingPercent.toFixed(2)}%)</>
+                              ) : (
+                                <>Remainder: {uloLeftoverKwh.toFixed(0)} kWh ({gridRemainingPercent.toFixed(2)}%)</>
+                              )}
+                            </div>
                             <div className="text-[11px] text-gray-500 pl-5 sm:pl-7 break-words">
-                              Blended rate {(uloCorrectBlendedRate * 100).toFixed(2)}¢/kWh • Remainder {uloLeftoverKwh.toFixed(0)} kWh allocated:
-                              {(uloLeftoverBreakdown.ultraLow || 0) > 0 && ` ${(uloLeftoverBreakdown.ultraLow || 0).toFixed(0)} kWh ultra-low`}
-                              {uloLeftoverBreakdown.offPeak > 0 && `, ${uloLeftoverBreakdown.offPeak.toFixed(0)} kWh off-peak`}
-                              {uloLeftoverBreakdown.midPeak > 0 && `, ${uloLeftoverBreakdown.midPeak.toFixed(0)} kWh mid-peak`}
-                              {uloLeftoverBreakdown.onPeak > 0 && `, ${uloLeftoverBreakdown.onPeak.toFixed(0)} kWh on-peak`}
-                              {uloAdjustedGridCharge > 0 && ` • Battery top-up ${uloAdjustedGridCharge.toFixed(0)} kWh charged ultra-low @ ${uloUltraLowRate.toFixed(1)}¢/kWh`}
+                              Blended rate {(uloCorrectBlendedRate * 100).toFixed(2)}¢/kWh • 
+                              {uloAdjustedGridCharge > 0 && ` Battery top-up ${uloAdjustedGridCharge.toFixed(0)} kWh charged ultra-low @ ${uloUltraLowRate.toFixed(1)}¢/kWh`}
+                              {uloAdjustedGridCharge > 0 && uloLeftoverKwh > 0 && ' • '}
+                              {uloLeftoverKwh > 0 && ` Remainder ${uloLeftoverKwh.toFixed(0)} kWh allocated:`}
+                              {uloLeftoverKwh > 0 && (uloLeftoverBreakdown.ultraLow || 0) > 0 && ` ${(uloLeftoverBreakdown.ultraLow || 0).toFixed(0)} kWh ultra-low`}
+                              {uloLeftoverKwh > 0 && uloLeftoverBreakdown.offPeak > 0 && `, ${uloLeftoverBreakdown.offPeak.toFixed(0)} kWh off-peak`}
+                              {uloLeftoverKwh > 0 && uloLeftoverBreakdown.midPeak > 0 && `, ${uloLeftoverBreakdown.midPeak.toFixed(0)} kWh mid-peak`}
+                              {uloLeftoverKwh > 0 && uloLeftoverBreakdown.onPeak > 0 && `, ${uloLeftoverBreakdown.onPeak.toFixed(0)} kWh on-peak`}
                             </div>
                           </div>
 

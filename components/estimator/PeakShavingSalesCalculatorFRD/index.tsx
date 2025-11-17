@@ -7,13 +7,15 @@
 import { useState, useEffect, useMemo } from 'react'
 import { 
   Sun, Battery, TrendingUp, ChevronDown, ChevronUp, 
-  Zap, Info, AlertTriangle, BarChart3
+  Zap, Info, AlertTriangle, BarChart3, DollarSign, Calendar, Award
 } from 'lucide-react'
 import { BATTERY_SPECS, BatterySpec } from '@/config/battery-specs'
 import { RATE_PLANS, RatePlan, ULO_RATE_PLAN, TOU_RATE_PLAN } from '@/config/rate-plans'
 import {
   calculateFRDPeakShaving,
   calculateSolarBatteryCombined,
+  calculateSimpleMultiYear,
+  calculateCombinedMultiYear,
   DEFAULT_TOU_DISTRIBUTION,
   DEFAULT_ULO_DISTRIBUTION,
   UsageDistribution,
@@ -23,10 +25,11 @@ import { calculateSystemCost } from '@/config/pricing'
 import type { StepBatteryPeakShavingSimpleProps } from '../StepBatteryPeakShavingSimple/types'
 
 // Animated number component for smooth transitions
-function AnimatedNumber({ value, decimals = 0, suffix = '%', className = '' }: { 
+function AnimatedNumber({ value, decimals = 0, suffix = '%', prefix = '', className = '' }: { 
   value: number
   decimals?: number
   suffix?: string
+  prefix?: string
   className?: string
 }) {
   const [displayValue, setDisplayValue] = useState(value)
@@ -57,9 +60,13 @@ function AnimatedNumber({ value, decimals = 0, suffix = '%', className = '' }: {
     }
   }, [value])
 
+  const formattedValue = displayValue >= 1000 && suffix === 'k' 
+    ? (displayValue / 1000).toFixed(decimals)
+    : displayValue.toFixed(decimals)
+  
   return (
     <span className={className}>
-      {displayValue.toFixed(decimals)}{suffix}
+      {prefix}{formattedValue}{suffix}
     </span>
   )
 }
@@ -69,12 +76,14 @@ function HeroMetricCard({
   icon: Icon, 
   label, 
   value, 
+  suffix = '%',
   caption, 
   color 
 }: { 
   icon: any
   label: string
   value: number
+  suffix?: string
   caption: string
   color: 'blue' | 'green' | 'gold'
 }) {
@@ -111,7 +120,16 @@ function HeroMetricCard({
           className={`text-5xl md:text-6xl font-bold mb-2 ${color === 'blue' ? 'text-blue-600' : color === 'green' ? 'text-green-600' : ''}`}
           style={goldColorStyle}
         >
-          <AnimatedNumber value={value} decimals={1} suffix="%" />
+          {suffix === '$' ? (
+            <AnimatedNumber 
+              value={value} 
+              decimals={value >= 1000 ? 1 : 0} 
+              suffix={value >= 1000 ? 'k' : ''} 
+              prefix="$"
+            />
+          ) : (
+            <AnimatedNumber value={value} decimals={1} suffix={suffix} />
+          )}
         </div>
         <div className="text-sm font-semibold text-gray-700 mb-1">{label}</div>
         <div className="text-xs text-gray-500">{caption}</div>
@@ -132,7 +150,8 @@ function EnergyFlowDiagram({
 }) {
   // Calculate percentages from combined result if available, otherwise use FRD result
   let solarDirectPercent = 0
-  let batteryPercent = 0
+  let solarChargedBatteryPercent = 0
+  let gridChargedBatteryPercent = 0
   let gridRemainingPercent = 0
   let totalOffset = 0
 
@@ -144,23 +163,39 @@ function EnergyFlowDiagram({
       : 0
     solarDirectPercent = (solarAllocated / annualUsageKwh) * 100
 
-    // Calculate battery offset
+    // Calculate battery offsets - separate solar-charged and grid-charged (ULO/off-peak)
+    if (result?.offsetPercentages) {
+      // Get separate percentages for solar-charged and grid-charged battery
+      solarChargedBatteryPercent = result.offsetPercentages.solarChargedBattery || 0
+      gridChargedBatteryPercent = result.offsetPercentages.uloChargedBattery || 0
+    } else {
+      // Fallback: estimate from breakdown (less accurate)
     const batteryOffsets: any = breakdown.batteryOffsets || {}
     const batteryOffsetKwh = (batteryOffsets.onPeak || 0) + 
                              (batteryOffsets.midPeak || 0) + 
                              (batteryOffsets.offPeak || 0) +
                              (batteryOffsets.ultraLow || 0)
-    batteryPercent = (batteryOffsetKwh / annualUsageKwh) * 100
+      // Rough estimate: assume most is solar-charged, some is grid-charged
+      const totalBatteryPercent = (batteryOffsetKwh / annualUsageKwh) * 100
+      solarChargedBatteryPercent = totalBatteryPercent * 0.7 // Estimate 70% solar-charged
+      gridChargedBatteryPercent = totalBatteryPercent * 0.3 // Estimate 30% grid-charged
+    }
 
-    // Grid remaining
-    gridRemainingPercent = 100 - solarDirectPercent - batteryPercent
-    totalOffset = solarDirectPercent + batteryPercent
+    // Grid remaining = only actual remaining grid usage (not including grid-charged battery)
+    gridRemainingPercent = 100 - solarDirectPercent - solarChargedBatteryPercent - gridChargedBatteryPercent
+    // Total Energy Offset = only FREE energy (solar direct + solar-charged battery)
+    // Grid-charged battery is NOT free - it's purchased from the grid
+    totalOffset = solarDirectPercent + solarChargedBatteryPercent
   } else if (result) {
     const { offsetPercentages } = result
     solarDirectPercent = offsetPercentages.solarDirect
-    batteryPercent = offsetPercentages.solarChargedBattery + offsetPercentages.uloChargedBattery
-    gridRemainingPercent = offsetPercentages.gridRemaining
-    totalOffset = solarDirectPercent + batteryPercent
+    solarChargedBatteryPercent = offsetPercentages.solarChargedBattery || 0
+    gridChargedBatteryPercent = offsetPercentages.uloChargedBattery || 0
+    // Grid remaining = only actual remaining grid usage
+    gridRemainingPercent = offsetPercentages.gridRemaining || 0
+    // Total Energy Offset = only FREE energy (solar direct + solar-charged battery)
+    // Grid-charged battery is NOT free - it's purchased from the grid
+    totalOffset = solarDirectPercent + solarChargedBatteryPercent
   } else {
     return (
       <div className="p-12 bg-gray-50 rounded-xl border-2 border-gray-200 text-center">
@@ -199,7 +234,7 @@ function EnergyFlowDiagram({
             strokeDasharray={`${(solarDirectPercent / 100) * 565} 565`}
             strokeDashoffset={-(gridRemainingPercent / 100) * 565}
           />
-          {/* Battery (green) */}
+          {/* Solar-charged battery (green) */}
           <circle
             cx="100"
             cy="100"
@@ -207,8 +242,19 @@ function EnergyFlowDiagram({
             fill="none"
             stroke="#34A853"
             strokeWidth="20"
-            strokeDasharray={`${(batteryPercent / 100) * 565} 565`}
+            strokeDasharray={`${(solarChargedBatteryPercent / 100) * 565} 565`}
             strokeDashoffset={-((gridRemainingPercent + solarDirectPercent) / 100) * 565}
+          />
+          {/* Grid-charged battery (ULO/off-peak) - orange/amber */}
+          <circle
+            cx="100"
+            cy="100"
+            r="90"
+            fill="none"
+            stroke="#F9A825"
+            strokeWidth="20"
+            strokeDasharray={`${(gridChargedBatteryPercent / 100) * 565} 565`}
+            strokeDashoffset={-((gridRemainingPercent + solarDirectPercent + solarChargedBatteryPercent) / 100) * 565}
           />
         </svg>
         
@@ -228,30 +274,39 @@ function EnergyFlowDiagram({
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded-full bg-blue-500"></div>
           <div className="text-sm">
-            <div className="font-semibold text-gray-700">Solar Direct</div>
+            <div className="font-semibold text-gray-700">From Solar Panels</div>
             <div className="text-xs text-gray-500">{solarDirectPercent.toFixed(1)}%</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded-full bg-green-500"></div>
           <div className="text-sm">
-            <div className="font-semibold text-gray-700">Battery</div>
-            <div className="text-xs text-gray-500">{batteryPercent.toFixed(1)}%</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-full bg-gray-400"></div>
-          <div className="text-sm">
-            <div className="font-semibold text-gray-700">Grid</div>
-            <div className="text-xs text-gray-500">{gridRemainingPercent.toFixed(1)}%</div>
+            <div className="font-semibold text-gray-700">From Stored Solar</div>
+            <div className="text-xs text-gray-500">{solarChargedBatteryPercent.toFixed(1)}%</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded-full" style={{ backgroundColor: '#F9A825' }}></div>
           <div className="text-sm">
-            <div className="font-semibold text-gray-700">Total Offset</div>
-            <div className="text-xs text-gray-500">{totalOffset.toFixed(1)}%</div>
+            <div className="font-semibold text-gray-700">From Battery (AI Charged)</div>
+            <div className="text-xs text-gray-500">{gridChargedBatteryPercent.toFixed(1)}%</div>
           </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded-full bg-gray-400"></div>
+          <div className="text-sm">
+            <div className="font-semibold text-gray-700">From Grid</div>
+            <div className="text-xs text-gray-500">{gridRemainingPercent.toFixed(1)}%</div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Total Offset Summary */}
+      <div className="mt-4 pt-4 border-t border-gray-200 text-center">
+        <div className="text-sm text-gray-600">
+          <span className="font-semibold text-gray-700">Total Energy Offset: </span>
+          <span className="text-lg font-bold text-gray-800">{totalOffset.toFixed(1)}%</span>
+          <span className="text-xs text-gray-500 ml-1">(Free energy from solar and battery)</span>
         </div>
       </div>
     </div>
@@ -354,7 +409,8 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
   const [solarProductionInput, setSolarProductionInput] = useState<string>(String(defaultProduction))
   const [selectedBatteryId, setSelectedBatteryId] = useState<string>(defaultBattery)
   const [ratePlan, setRatePlan] = useState<'TOU' | 'ULO'>('ULO')
-  const [aiMode, setAiMode] = useState(true) // Default to ON, but user can toggle
+  // AI Optimization Mode is always ON (hidden from user) - allows grid charging at cheap rates for both TOU and ULO
+  const aiMode = true
 
   // Parse numeric values
   const annualUsageKwh = Math.max(0, Number(annualUsageInput) || 0)
@@ -378,7 +434,7 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
         ratePlanObj,
         distribution,
         undefined, // offsetCapFraction - let it calculate automatically
-        aiMode && ratePlan === 'ULO' // AI Mode only for ULO
+        aiMode  // AI Mode enables battery grid charging for arbitrage (both TOU and ULO)
       )
     } catch (e) {
       console.error('Calculation error:', e)
@@ -401,7 +457,7 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
         selectedBattery,
         ratePlanObj,
         distribution,
-        aiMode && ratePlan === 'ULO', // AI Mode only for ULO
+        aiMode, // AI Mode now works for both TOU and ULO plans
         { p_day: 0.5, p_night: 0.5 }
       )
     } catch (e) {
@@ -432,6 +488,10 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
         solarOffset: 0,
         batteryOffset: 0,
         totalSavings: 0,
+        totalEnergyOffset: 0,
+        gridChargedBatteryPercent: 0,
+        boughtFromGridPercent: 0,
+        costOfEnergyBoughtFromGrid: 0,
       }
     }
 
@@ -441,11 +501,47 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
       // Fallback to FRD result if breakdown not available
       if (result) {
         const solarOffset = result.offsetPercentages.solarDirect
-        const batteryOffset = result.offsetPercentages.solarChargedBattery + result.offsetPercentages.uloChargedBattery
+        // Only include solar-charged battery, not grid-charged (ULO-charged)
+        const batteryOffset = result.offsetPercentages.solarChargedBattery
         const totalSavings = solarOffset + batteryOffset
-        return { solarOffset, batteryOffset, totalSavings }
+        
+        // Calculate bought from grid and cost percentage
+        const gridChargedBatteryPercent = result.offsetPercentages.uloChargedBattery || 0
+        const gridRemainingPercent = result.offsetPercentages.gridRemaining || 0
+        const boughtFromGridPercent = gridChargedBatteryPercent + gridRemainingPercent
+        
+        // Get cost percentage from combined result if available
+        let costOfEnergyBoughtFromGrid = 0
+        let totalSavingsPercent = 0
+        if (combinedResult) {
+          const baselineBill = combinedResult.baselineAnnualBill || 0
+          const postSolarBatteryBill = combinedResult.postSolarBatteryAnnualBill || 0
+          if (baselineBill > 0) {
+            costOfEnergyBoughtFromGrid = (postSolarBatteryBill / baselineBill) * 100
+            const annualSavings = baselineBill - postSolarBatteryBill
+            totalSavingsPercent = (annualSavings / baselineBill) * 100
+          }
+        }
+
+        return { 
+          solarOffset, 
+          batteryOffset, 
+          totalSavings: totalSavingsPercent,
+          totalEnergyOffset: solarOffset + batteryOffset,
+          gridChargedBatteryPercent,
+          boughtFromGridPercent,
+          costOfEnergyBoughtFromGrid,
+        }
       }
-      return { solarOffset: 0, batteryOffset: 0, totalSavings: 0 }
+      return { 
+        solarOffset: 0, 
+        batteryOffset: 0, 
+        totalSavings: 0,
+        totalEnergyOffset: 0,
+        gridChargedBatteryPercent: 0,
+        boughtFromGridPercent: 0,
+        costOfEnergyBoughtFromGrid: 0,
+      }
     }
 
     // Calculate solar direct offset
@@ -454,19 +550,70 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
       : 0
     const solarOffset = (solarAllocated / annualUsageKwh) * 100
 
-    // Calculate battery offset (solar-charged + grid-charged)
+    // Calculate battery offset - only solar-charged battery (not grid-charged)
+    // Try to get from FRD result if available for accurate separation
+    let batteryOffset = 0
+    if (result?.offsetPercentages) {
+      // Use FRD result to get accurate solar-charged battery percentage
+      batteryOffset = result.offsetPercentages.solarChargedBattery
+    } else {
+      // Fallback: estimate from breakdown (less accurate)
     const batteryOffsets: any = breakdown.batteryOffsets || {}
     const batteryOffsetKwh = (batteryOffsets.onPeak || 0) + 
                              (batteryOffsets.midPeak || 0) + 
                              (batteryOffsets.offPeak || 0) +
                              (batteryOffsets.ultraLow || 0)
-    const batteryOffset = (batteryOffsetKwh / annualUsageKwh) * 100
+      // Conservative estimate: assume most battery is solar-charged
+      batteryOffset = (batteryOffsetKwh / annualUsageKwh) * 100
+    }
 
-    // Total savings percentage
-    const totalSavings = solarOffset + batteryOffset
+    // Total Energy Offset = solar + battery (free energy only)
+    const totalEnergyOffset = solarOffset + batteryOffset
 
-    return { solarOffset, batteryOffset, totalSavings }
-  }, [combinedResult, result, annualUsageKwh])
+    // Calculate grid-charged battery percentage (ULO/off-peak charged)
+    let gridChargedBatteryPercent = 0
+    if (result?.offsetPercentages) {
+      // For ULO: uloChargedBattery, for TOU: also uses uloChargedBattery field (off-peak charged)
+      gridChargedBatteryPercent = result.offsetPercentages.uloChargedBattery || 0
+    }
+
+    // Calculate "Bought from cheap hours" = grid-charged battery + grid remaining
+    let boughtFromGridPercent = 0
+    if (result?.offsetPercentages) {
+      // Grid-charged battery + remaining grid usage
+      const gridRemainingPercent = result.offsetPercentages.gridRemaining || 0
+      boughtFromGridPercent = gridChargedBatteryPercent + gridRemainingPercent
+    } else {
+      // Fallback: calculate from total
+      boughtFromGridPercent = 100 - totalEnergyOffset
+    }
+
+    // Calculate "Cost of energy bought from grid" as percentage of original bill
+    let costOfEnergyBoughtFromGrid = 0
+    const baselineBill = combinedResult.baselineAnnualBill || 0
+    const postSolarBatteryBill = combinedResult.postSolarBatteryAnnualBill || 0
+    if (baselineBill > 0) {
+      // Cost of energy bought from grid = new bill / original bill * 100
+      costOfEnergyBoughtFromGrid = (postSolarBatteryBill / baselineBill) * 100
+    }
+
+    // Calculate Total Savings as percentage of original bill
+    let totalSavingsPercent = 0
+    if (baselineBill > 0) {
+      const annualSavings = baselineBill - postSolarBatteryBill
+      totalSavingsPercent = (annualSavings / baselineBill) * 100
+    }
+
+    return { 
+      solarOffset, 
+      batteryOffset, 
+      totalSavings: totalSavingsPercent,
+      totalEnergyOffset,
+      gridChargedBatteryPercent,
+      boughtFromGridPercent,
+      costOfEnergyBoughtFromGrid,
+    }
+  }, [combinedResult, result, annualUsageKwh, solarProductionKwh, selectedBattery, data?.estimate])
 
   // Calculate before/after costs using combined result for accurate savings
   const beforeAfterCosts = useMemo(() => {
@@ -615,36 +762,6 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
                   </button>
                 </div>
               </div>
-
-              {/* AI Optimization Toggle (only for ULO) */}
-              {ratePlan === 'ULO' && (
-                <div className="p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
-                  <label className="flex items-center justify-between cursor-pointer">
-                    <div>
-                      <div className="font-semibold text-gray-800">AI Optimization Mode</div>
-                      <div className="text-xs text-gray-600">Enable grid charging at ULO rate</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setAiMode(!aiMode)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        aiMode ? 'bg-red-500' : 'bg-gray-300'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          aiMode ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </label>
-                  {aiMode && (
-                    <p className="mt-2 text-xs text-blue-800">
-                      AI EMC Active: Battery charges at cheap ULO rates and discharges during peak hours.
-                    </p>
-                  )}
-                </div>
-              )}
               </div>
             </div>
 
@@ -658,7 +775,8 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Energy Sources */}
                 <HeroMetricCard
                   icon={Sun}
                   label="Solar Offset"
@@ -670,8 +788,23 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
                   icon={Battery}
                   label="Battery Offset"
                   value={heroMetrics.batteryOffset}
-                  caption="Powered by stored solar or AI-charged battery."
+                  caption="Powered by stored solar energy."
                   color="green"
+                />
+                <HeroMetricCard
+                  icon={BarChart3}
+                  label="Total Energy Offset"
+                  value={heroMetrics.totalEnergyOffset}
+                  caption="Free energy from solar and stored solar battery."
+                  color="gold"
+                />
+                {/* Grid & Financial Metrics */}
+                <HeroMetricCard
+                  icon={AlertTriangle}
+                  label="Bought from Grid"
+                  value={heroMetrics.boughtFromGridPercent}
+                  caption="Energy purchased from grid (cheap hours)."
+                  color="blue"
                 />
                 <HeroMetricCard
                   icon={TrendingUp}
@@ -679,6 +812,13 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
                   value={heroMetrics.totalSavings}
                   caption="Your annual bill reduction vs today."
                   color="gold"
+                />
+                <HeroMetricCard
+                  icon={DollarSign}
+                  label="Cost of Energy from Grid"
+                  value={heroMetrics.costOfEnergyBoughtFromGrid}
+                  caption="Cost of grid energy as % of original bill."
+                  color="green"
                 />
               </div>
             )}
@@ -737,9 +877,9 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
                                            (batteryOffsets.ultraLow || 0)
                   batterySolarChargedPercent = (batterySolarChargedKwh / annualUsageKwh) * 100
 
-                  // Grid-charged battery (only for ULO with AI Mode)
-                  if (breakdown.batteryChargeFromUltraLow) {
-                    batteryGridChargedKwh = breakdown.batteryChargeFromUltraLow
+                  // Grid-charged battery (AI Mode enables grid charging for both TOU and ULO)
+                  if (breakdown.batteryChargeFromUltraLow || breakdown.batteryChargeFromOffPeak) {
+                    batteryGridChargedKwh = (breakdown.batteryChargeFromUltraLow || 0) + (breakdown.batteryChargeFromOffPeak || 0)
                     batteryGridChargedPercent = (batteryGridChargedKwh / annualUsageKwh) * 100
                   }
 
@@ -797,7 +937,7 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
                         </tr>
                         {batteryGridChargedKwh > 0 && (
                           <tr>
-                            <td className="py-3 px-4 text-gray-700">Battery (ULO-charged)</td>
+                            <td className="py-3 px-4 text-gray-700">Battery (Grid-charged)</td>
                             <td className="py-3 px-4 text-right text-gray-600">
                               {batteryGridChargedKwh.toLocaleString()}
                             </td>
