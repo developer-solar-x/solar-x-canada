@@ -33,11 +33,31 @@ function AnimatedNumber({ value, decimals = 0, suffix = '%', prefix = '', classN
   className?: string
 }) {
   const [displayValue, setDisplayValue] = useState(value)
+  const [isMounted, setIsMounted] = useState(false)
+
+  // Set mounted flag on client side only to prevent hydration mismatch
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   useEffect(() => {
+    // Only animate after component has mounted to avoid hydration mismatch
+    if (!isMounted) {
+      // On server or initial render, just set the value directly
+      setDisplayValue(value)
+      return
+    }
+
+    // On client after mount, animate the transition
     const duration = 700 // Animation duration in ms
     const startValue = displayValue
     const endValue = value
+    
+    // If values are the same, no need to animate
+    if (Math.abs(startValue - endValue) < 0.01) {
+      return
+    }
+
     const startTime = Date.now()
 
     const animate = () => {
@@ -55,10 +75,8 @@ function AnimatedNumber({ value, decimals = 0, suffix = '%', prefix = '', classN
       }
     }
 
-    if (startValue !== endValue) {
-      requestAnimationFrame(animate)
-    }
-  }, [value])
+    requestAnimationFrame(animate)
+  }, [value, isMounted])
 
   const formattedValue = displayValue >= 1000 && suffix === 'k' 
     ? (displayValue / 1000).toFixed(decimals)
@@ -862,36 +880,9 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
                 let gridRemainingPercent = 0
                 let effectiveCycles = 0
 
-                if (breakdown && annualUsageKwh > 0) {
-                  // Calculate from combined result breakdown
-                  const solarAllocated = breakdown.solarAllocation 
-                    ? Object.values(breakdown.solarAllocation).reduce((sum: number, val: any) => sum + (val || 0), 0)
-                    : 0
-                  solarDirectKwh = solarAllocated
-                  solarDirectPercent = (solarAllocated / annualUsageKwh) * 100
-
-                  const batteryOffsets: any = breakdown.batteryOffsets || {}
-                  batterySolarChargedKwh = (batteryOffsets.onPeak || 0) + 
-                                           (batteryOffsets.midPeak || 0) + 
-                                           (batteryOffsets.offPeak || 0) +
-                                           (batteryOffsets.ultraLow || 0)
-                  batterySolarChargedPercent = (batterySolarChargedKwh / annualUsageKwh) * 100
-
-                  // Grid-charged battery (AI Mode enables grid charging for both TOU and ULO)
-                  if (breakdown.batteryChargeFromUltraLow || breakdown.batteryChargeFromOffPeak) {
-                    batteryGridChargedKwh = (breakdown.batteryChargeFromUltraLow || 0) + (breakdown.batteryChargeFromOffPeak || 0)
-                    batteryGridChargedPercent = (batteryGridChargedKwh / annualUsageKwh) * 100
-                  }
-
-                  // Grid remaining
-                  const usageAfterBattery: any = breakdown.usageAfterBattery || {}
-                  gridRemainingKwh = (usageAfterBattery.ultraLow || 0) +
-                                     (usageAfterBattery.offPeak || 0) +
-                                     (usageAfterBattery.midPeak || 0) +
-                                     (usageAfterBattery.onPeak || 0)
-                  gridRemainingPercent = (gridRemainingKwh / annualUsageKwh) * 100
-                } else if (result) {
-                  // Fallback to FRD result
+                // Always prefer FRD result for accurate separation of solar vs grid-charged battery
+                if (result) {
+                  // Use FRD result for accurate values
                   solarDirectKwh = result.solarToDay
                   solarDirectPercent = result.offsetPercentages.solarDirect
                   batterySolarChargedKwh = result.battSolarCharged
@@ -904,10 +895,54 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
                                     result.gridKWhByBucket.onPeak
                   gridRemainingPercent = result.offsetPercentages.gridRemaining
                   effectiveCycles = result.effectiveCycles
+                } else if (breakdown && annualUsageKwh > 0) {
+                  // Fallback: Calculate from combined result breakdown (less accurate)
+                  const solarAllocated = breakdown.solarAllocation 
+                    ? Object.values(breakdown.solarAllocation).reduce((sum: number, val: any) => sum + (val || 0), 0)
+                    : 0
+                  solarDirectKwh = solarAllocated
+                  solarDirectPercent = (solarAllocated / annualUsageKwh) * 100
+
+                  // Grid-charged battery (AI Mode enables grid charging for both TOU and ULO)
+                  if (breakdown.batteryChargeFromUltraLow || breakdown.batteryChargeFromOffPeak) {
+                    batteryGridChargedKwh = (breakdown.batteryChargeFromUltraLow || 0) + (breakdown.batteryChargeFromOffPeak || 0)
+                    batteryGridChargedPercent = (batteryGridChargedKwh / annualUsageKwh) * 100
+                  }
+
+                  // Battery offsets from breakdown (this includes both solar and grid-charged, so we need to subtract grid-charged)
+                  const batteryOffsets: any = breakdown.batteryOffsets || {}
+                  const totalBatteryOffsetKwh = (batteryOffsets.onPeak || 0) + 
+                                           (batteryOffsets.midPeak || 0) + 
+                                           (batteryOffsets.offPeak || 0) +
+                                           (batteryOffsets.ultraLow || 0)
+                  // Solar-charged = total battery offset minus grid-charged
+                  batterySolarChargedKwh = Math.max(0, totalBatteryOffsetKwh - batteryGridChargedKwh)
+                  batterySolarChargedPercent = (batterySolarChargedKwh / annualUsageKwh) * 100
+
+                  // Grid remaining
+                  const usageAfterBattery: any = breakdown.usageAfterBattery || {}
+                  gridRemainingKwh = (usageAfterBattery.ultraLow || 0) +
+                                     (usageAfterBattery.offPeak || 0) +
+                                     (usageAfterBattery.midPeak || 0) +
+                                     (usageAfterBattery.onPeak || 0)
+                  gridRemainingPercent = (gridRemainingKwh / annualUsageKwh) * 100
                 }
+
+                // Calculate totals for verification
+                const totalKwh = solarDirectKwh + batterySolarChargedKwh + batteryGridChargedKwh + gridRemainingKwh
+                const totalPercent = solarDirectPercent + batterySolarChargedPercent + batteryGridChargedPercent + gridRemainingPercent
 
                 return (
                   <div className="p-6 border-t border-gray-200">
+                    <div className="mb-4 text-sm text-gray-600">
+                      <p className="mb-2">Energy sources that power your home:</p>
+                      <ul className="list-disc list-inside space-y-1 text-xs">
+                        <li><strong>Solar Direct:</strong> Energy used directly from solar panels</li>
+                        <li><strong>Battery (Solar-charged):</strong> Energy from battery charged by solar (free)</li>
+                        <li><strong>Battery (Grid-charged):</strong> Energy from battery charged from grid at cheap rates (AI Mode)</li>
+                        <li><strong>Grid Remaining:</strong> Energy purchased directly from grid</li>
+                      </ul>
+                    </div>
                     <table className="w-full">
                       <thead>
                         <tr className="border-b-2 border-gray-200">
@@ -953,6 +988,15 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
                           </td>
                           <td className="py-3 px-4 text-right font-semibold text-gray-600">
                             {gridRemainingPercent.toFixed(1)}%
+                          </td>
+                        </tr>
+                        <tr className="border-t-2 border-gray-300 bg-gray-100">
+                          <td className="py-3 px-4 font-bold text-gray-900">Total Annual Usage</td>
+                          <td className="py-3 px-4 text-right font-bold text-gray-900">
+                            {totalKwh.toLocaleString()}
+                          </td>
+                          <td className="py-3 px-4 text-right font-bold text-gray-900">
+                            {totalPercent.toFixed(1)}%
                           </td>
                         </tr>
                       </tbody>
