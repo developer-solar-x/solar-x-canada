@@ -32,6 +32,9 @@ import {
   MonthlySavings 
 } from '../../lib/monthly-savings-calculator'
 import { UsageInputSelector } from './UsageInputSelector'
+import { calculateUsageFromBill } from './StepBatteryPeakShaving/utils'
+import { useBatteryCalculations } from './StepBatteryPeakShaving/hooks'
+import { BatterySelection } from './StepBatteryPeakShaving/BatterySelection'
 
 // Props interface for the component
 interface StepBatteryPeakShavingProps {
@@ -43,17 +46,6 @@ interface StepBatteryPeakShavingProps {
 export function StepBatteryPeakShaving({ data, onComplete, onBack }: StepBatteryPeakShavingProps) {
   // Calculate default annual usage from previous steps
   // Priority: energyUsage > monthlyBill calculation > fallback
-  const calculateUsageFromBill = (monthlyBill: number) => {
-    // All-in blended rate for Ontario (includes energy + delivery + regulatory + HST)
-    // Energy charges: 9.8-39.1¢/kWh (varies by TOU/ULO)
-    // Delivery charges: ~$50-70/month fixed + variable
-    // Regulatory charges: ~$5-15/month
-    // HST: 13% on top
-    // Typical all-in rate: 22-24¢/kWh for residential customers
-    const avgRate = 0.223 // 22.3¢/kWh blended rate (includes all charges)
-    const monthlyKwh = monthlyBill / avgRate
-    return Math.round(monthlyKwh * 12)
-  }
   
   const defaultUsage = data.energyUsage?.annualKwh || 
                        (data.monthlyBill ? calculateUsageFromBill(data.monthlyBill) : null) || 
@@ -67,10 +59,16 @@ export function StepBatteryPeakShaving({ data, onComplete, onBack }: StepBattery
   const [comparisonBatteries, setComparisonBatteries] = useState<string[]>([])
   const [annualUsageKwh, setAnnualUsageKwh] = useState<number>(defaultUsage)
   const [usageData, setUsageData] = useState<UsageDataPoint[]>([])
-  const [batteryComparisons, setBatteryComparisons] = useState<BatteryComparison[]>([])
-  const [loading, setLoading] = useState(false)
   const [usageDataSource, setUsageDataSource] = useState<'csv' | 'monthly' | 'annual'>('annual')
-  const [monthlySavingsData, setMonthlySavingsData] = useState<Map<string, MonthlySavings[]>>(new Map())
+  
+  // Use custom hook for battery calculations
+  const { batteryComparisons, monthlySavingsData, loading } = useBatteryCalculations({
+    usageData,
+    selectedBattery,
+    showComparison,
+    comparisonBatteries,
+    selectedRatePlan,
+  })
 
   // Calculate usage data when inputs change (only for annual input mode)
   useEffect(() => {
@@ -92,51 +90,6 @@ export function StepBatteryPeakShaving({ data, onComplete, onBack }: StepBattery
     setUsageDataSource(source)
   }
 
-  // Calculate battery comparisons when usage data or selected battery changes
-  useEffect(() => {
-    if (usageData.length === 0) return
-
-    setLoading(true)
-    
-    // Run calculation asynchronously to avoid blocking UI
-    const calculateAsync = async () => {
-    // Always calculate for the selected battery
-    const batteriesToAnalyze = [selectedBattery]
-    
-    // Add comparison batteries if comparison mode is enabled
-    if (showComparison && comparisonBatteries.length > 0) {
-      batteriesToAnalyze.push(...comparisonBatteries)
-    }
-    
-    // Get battery specs
-    const batteries = batteriesToAnalyze
-      .map(id => BATTERY_SPECS.find(b => b.id === id))
-      .filter(b => b !== undefined) as BatterySpec[]
-
-      // Compare batteries (wrapped in setTimeout to allow UI to update)
-      await new Promise(resolve => setTimeout(resolve, 0))
-      
-    const comparisons = compareBatteryOptions(
-      usageData,
-      batteries,
-      selectedRatePlan,
-      0.05 // 5% rate escalation
-    )
-
-      // Calculate monthly savings for each battery
-      const newMonthlySavingsMap = new Map<string, MonthlySavings[]>()
-      batteries.forEach(battery => {
-        const monthlySavings = calculateMonthlySavings(usageData, battery, selectedRatePlan)
-        newMonthlySavingsMap.set(battery.id, monthlySavings)
-      })
-
-    setBatteryComparisons(comparisons)
-      setMonthlySavingsData(newMonthlySavingsMap)
-    setLoading(false)
-    }
-    
-    calculateAsync()
-  }, [usageData, selectedBattery, showComparison, comparisonBatteries, selectedRatePlan])
 
   // Toggle comparison battery
   const toggleComparisonBattery = (batteryId: string) => {
@@ -241,105 +194,14 @@ export function StepBatteryPeakShaving({ data, onComplete, onBack }: StepBattery
         </div>
       </div>
 
-      {/* Battery Selection - Primary Choice */}
-      <div className="card p-6">
-        <h3 className="text-xl font-semibold text-navy-500 mb-2">
-          Choose Your Battery
-        </h3>
-        <p className="text-gray-600 text-sm mb-6">
-          Select the battery system for your home. This will be included in your quote.
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {BATTERY_SPECS.map(battery => {
-            const financials = calculateBatteryFinancials(battery)
-            const isSelected = selectedBattery === battery.id
-            
-            return (
-              <button
-                key={battery.id}
-                onClick={() => setSelectedBattery(battery.id)}
-                className={`p-4 border-2 rounded-lg text-left transition-all ${
-                  isSelected
-                    ? 'border-red-500 bg-red-50 shadow-lg'
-                    : 'border-gray-300 hover:border-red-300 hover:shadow-md'
-                }`}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <div className="font-bold text-navy-500">{battery.brand}</div>
-                    <div className="text-sm text-gray-600">{battery.model}</div>
-                  </div>
-                  {isSelected && (
-                    <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
-                      <Check size={16} className="text-white" />
-                    </div>
-                  )}
-                </div>
-                
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Capacity:</span>
-                    <span className="font-medium">{battery.usableKwh} kWh</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Price:</span>
-                    <span className="font-medium">${battery.price.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Rebate:</span>
-                    <span className="font-medium text-green-600">
-                      -${financials.rebate.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between pt-2 border-t">
-                    <span className="font-semibold text-gray-700">Net Cost:</span>
-                    <span className="font-bold text-navy-500">
-                      ${financials.netPrice.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-                
-                {battery.description && (
-                  <p className="text-xs text-gray-500 mt-2">{battery.description}</p>
-                )}
-              </button>
-            )
-          })}
-        </div>
-        
-        {/* Optional: Compare with other batteries */}
-        <div className="mt-6 pt-6 border-t">
-          <button
-            onClick={() => setShowComparison(!showComparison)}
-            className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-2"
-          >
-            {showComparison ? '− Hide' : '+ Compare with other options'}
-          </button>
-          
-          {showComparison && (
-            <div className="mt-4">
-              <p className="text-sm text-gray-600 mb-3">
-                Select additional batteries to compare (optional):
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {BATTERY_SPECS.filter(b => b.id !== selectedBattery).map(battery => (
-                  <button
-                    key={battery.id}
-                    onClick={() => toggleComparisonBattery(battery.id)}
-                    className={`px-3 py-1.5 rounded-full text-sm border transition-all ${
-                      comparisonBatteries.includes(battery.id)
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-gray-300 text-gray-600 hover:border-blue-300'
-                    }`}
-                  >
-                    {battery.brand} {battery.model}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      <BatterySelection
+        selectedBattery={selectedBattery}
+        onBatteryChange={setSelectedBattery}
+        showComparison={showComparison}
+        onToggleComparison={() => setShowComparison(!showComparison)}
+        comparisonBatteries={comparisonBatteries}
+        onToggleComparisonBattery={toggleComparisonBattery}
+      />
 
       {/* Battery Comparison Results */}
       {loading ? (

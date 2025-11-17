@@ -42,68 +42,9 @@ import {
   MonthlyBillCard,
   SolarSystemCard,
 } from './sections'
-
-type LeftoverBreakdown = {
-  ultraLow?: number
-  offPeak: number
-  midPeak: number
-  onPeak: number
-}
-
-function clampBreakdown(
-  breakdown: LeftoverBreakdown | undefined,
-  targetTotal: number,
-  order: Array<'ultraLow' | 'offPeak' | 'midPeak' | 'onPeak'>,
-  caps?: Partial<Record<'ultraLow' | 'offPeak' | 'midPeak' | 'onPeak', number>>
-) {
-  const safeBreakdown: LeftoverBreakdown = {
-    ultraLow: Math.max(0, breakdown?.ultraLow ?? 0),
-    offPeak: Math.max(0, breakdown?.offPeak ?? 0),
-    midPeak: Math.max(0, breakdown?.midPeak ?? 0),
-    onPeak: Math.max(0, breakdown?.onPeak ?? 0),
-  }
-
-  if (targetTotal <= 0) {
-    return {
-      ultraLow: 0,
-      offPeak: 0,
-      midPeak: 0,
-      onPeak: 0,
-    }
-  }
-
-  let remaining = targetTotal
-  const result: LeftoverBreakdown = { ultraLow: 0, offPeak: 0, midPeak: 0, onPeak: 0 }
-
-  // First pass respects caps (max shift per period)
-  order.forEach(period => {
-    if (remaining <= 0) return
-    const available = safeBreakdown[period] ?? 0
-    if (available <= 0) return
-    const cap = caps?.[period]
-    const allowed = cap != null ? Math.max(0, Math.min(cap, available)) : available
-    if (allowed <= 0) return
-    const allocation = Math.min(allowed, remaining)
-    result[period] = allocation
-    remaining -= allocation
-  })
-
-  // Second pass uses any leftover room without caps so totals always reconcile
-  if (remaining > 0) {
-    order.forEach(period => {
-      if (remaining <= 0) return
-      const available = safeBreakdown[period] ?? 0
-      const alreadyAllocated = result[period] ?? 0
-      const spaceLeft = Math.max(0, available - alreadyAllocated)
-      if (spaceLeft <= 0) return
-      const allocation = Math.min(spaceLeft, remaining)
-      result[period] = alreadyAllocated + allocation
-      remaining -= allocation
-    })
-  }
-
-  return result
-}
+import { clampBreakdown, formatUsageShare, formatKwh, formatPercent, calculateUsageFromBill, type LeftoverBreakdown } from './utils'
+import { getCustomTouRatePlan, getCustomUloRatePlan, DEFAULT_CUSTOM_RATES, type CustomRates } from './rate-plans'
+import { BatterySelection } from './BatterySelection'
 
 export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualMode = false }: StepBatteryPeakShavingSimpleProps) {
   // Info modals for rate plans
@@ -120,13 +61,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
       setEstimateLoading(false)
     }
   }, [data.estimate])
-  
-  // Calculate default usage from monthly bill
-  const calculateUsageFromBill = (monthlyBill: number) => {
-    const avgRate = 0.223
-    const monthlyKwh = monthlyBill / avgRate
-    return Math.round(monthlyKwh * 12)
-  }
   
   // Calculate default usage - prefer persisted value from peakShaving, then energyUsage, then calculated
   // Note: localStorage will be checked in useEffect after mount (SSR-safe)
@@ -371,10 +305,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
     return true
   })()
 
-  // Friendly formatter so the custom rate cards can show the current usage share beside each rate
-const formatUsageShare = (value?: number) => `${(value ?? 0).toFixed(1)}%`
-const formatKwh = (value: number) => `${Math.round(value).toLocaleString()} kWh`
-const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
 
   // When panel count changes, re-run estimate with override size to refresh annual kWh
   useEffect(() => {
@@ -403,51 +333,12 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
   }, [solarPanels])
   
   // Custom editable rates (initialize with defaults)
-  const [customRates, setCustomRates] = useState({
-    ulo: {
-      ultraLow: 3.9,
-      midPeak: 15.7,
-      onPeak: 39.1,
-      weekendOffPeak: 9.8
-    },
-    tou: {
-      offPeak: 9.8,
-      midPeak: 15.7,
-      onPeak: 20.3
-    }
-  })
-
-  // Create custom rate plans with user's editable rates
-  const getCustomTouRatePlan = (): RatePlan => {
-    return {
-      ...TOU_RATE_PLAN,
-      periods: TOU_RATE_PLAN.periods.map(period => ({
-        ...period,
-        rate: period.period === 'off-peak' ? customRates.tou.offPeak :
-              period.period === 'mid-peak' ? customRates.tou.midPeak :
-              customRates.tou.onPeak
-      })),
-      weekendRate: customRates.tou.offPeak
-    }
-  }
-
-  const getCustomUloRatePlan = (): RatePlan => {
-    return {
-      ...ULO_RATE_PLAN,
-      periods: ULO_RATE_PLAN.periods.map(period => ({
-        ...period,
-        rate: period.period === 'ultra-low' ? customRates.ulo.ultraLow :
-              period.period === 'mid-peak' ? customRates.ulo.midPeak :
-              customRates.ulo.onPeak
-      })),
-      weekendRate: customRates.ulo.weekendOffPeak
-    }
-  }
+  const [customRates, setCustomRates] = useState<CustomRates>(DEFAULT_CUSTOM_RATES)
 
   // Calculate TOU results for selected batteries
   useEffect(() => {
     const newResults = new Map<string, {result: SimplePeakShavingResult, projection: any, combined?: CombinedPlanResult}>()
-    const touRatePlan = getCustomTouRatePlan()
+    const touRatePlan = getCustomTouRatePlan(customRates.tou)
 
     // Get solar rebate if solar system exists
     const systemSizeKw = effectiveSystemSizeKw
@@ -562,7 +453,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
   // Calculate ULO results for selected batteries
   useEffect(() => {
     const newResults = new Map<string, {result: SimplePeakShavingResult, projection: any, combined?: CombinedPlanResult}>()
-    const uloRatePlan = getCustomUloRatePlan()
+    const uloRatePlan = getCustomUloRatePlan(customRates.ulo)
 
     // Get solar rebate if solar system exists
     const systemSizeKw = effectiveSystemSizeKw
@@ -695,7 +586,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
         annualUsageKwh,
         effectiveSolarProductionKwh,
         battery,
-        getCustomTouRatePlan(),
+        getCustomTouRatePlan(customRates.tou),
         touDistribution,
         aiMode, // AI Mode now works for both TOU and ULO plans
         { p_day: 0.5, p_night: 0.5 }
@@ -705,7 +596,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
         annualUsageKwh,
         effectiveSolarProductionKwh,
         battery,
-        getCustomUloRatePlan(),
+        getCustomUloRatePlan(customRates.ulo),
         uloDistribution,
         aiMode, // AI Mode now works for both TOU and ULO plans
         { p_day: 0.5, p_night: 0.5 }
@@ -1035,7 +926,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                    </div>
                    <div className="pt-2 border-t border-gray-300">
                      <button
-                       onClick={() => setCustomRates({...customRates, tou: {offPeak: 9.8, midPeak: 15.7, onPeak: 20.3}})}
+                       onClick={() => setCustomRates({...customRates, tou: DEFAULT_CUSTOM_RATES.tou})}
                        className="text-xs text-navy-600 hover:text-navy-700 font-semibold"
                      >
                        Reset to OEB Defaults
@@ -1112,7 +1003,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                    </div>
                    <div className="pt-2 border-t border-gray-300">
                      <button
-                       onClick={() => setCustomRates({...customRates, ulo: {ultraLow: 3.9, midPeak: 15.7, onPeak: 39.1, weekendOffPeak: 9.8}})}
+                       onClick={() => setCustomRates({...customRates, ulo: DEFAULT_CUSTOM_RATES.ulo})}
                        className="text-xs text-navy-600 hover:text-navy-700 font-semibold"
                      >
                        Reset to OEB Defaults
@@ -1314,160 +1205,11 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
       </div>
 
       {/* Battery Selection - Multiple Batteries */}
-      <div className="card p-6 shadow-md">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="p-2 bg-red-100 rounded-lg">
-            <Battery className="text-red-500" size={24} />
-          </div>
-          <h3 className="text-2xl font-bold text-navy-500">Choose Your Batteries</h3>
-        </div>
-        
-        <div className="space-y-5">
-          {/* Battery Selection List */}
-          {selectedBatteries.map((batteryId, index) => {
-            const battery = BATTERY_SPECS.find(b => b.id === batteryId)
-            if (!battery) return null
-            
-            return (
-              <div key={`${batteryId}-${index}`} className="p-4 bg-gradient-to-br from-red-50 to-white border-2 border-red-300 rounded-xl shadow-md">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
-                      <Battery size={20} className="text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-bold text-navy-600 text-sm mb-2">
-                        Battery {index + 1}
-                      </div>
-                      <div className="relative">
-                        <select
-                          value={batteryId}
-                          onChange={(e) => {
-                            const newBatteries = [...selectedBatteries]
-                            newBatteries[index] = e.target.value
-                            setSelectedBatteries(newBatteries)
-                          }}
-                          className="w-full px-3 py-2 pr-8 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-base font-bold text-navy-600 bg-white shadow-sm appearance-none cursor-pointer transition-all"
-                        >
-                          {BATTERY_SPECS.map(b => (
-                            <option key={b.id} value={b.id}>
-                              {b.brand} {b.model}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={18} />
-                      </div>
-                    </div>
-                  </div>
-                  {selectedBatteries.length > 1 && (
-                    <button
-                      onClick={() => setSelectedBatteries(selectedBatteries.filter((_, i) => i !== index))}
-                      className="p-2 hover:bg-red-100 rounded-lg transition-colors flex-shrink-0"
-                    >
-                      <X className="text-red-500" size={20} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-
-          {/* Add Battery Button */}
-          {selectedBatteries.length < 3 && (
-            <button
-              onClick={() => setSelectedBatteries([...selectedBatteries, BATTERY_SPECS[0].id])}
-              className="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-red-500 hover:bg-red-50 hover:text-navy-600 transition-all flex items-center justify-center gap-2"
-            >
-              <Plus className="text-red-500" size={20} />
-              <span className="font-semibold">Add Another Battery</span>
-            </button>
-          )}
-
-          {/* Combined Battery Summary */}
-          {(() => {
-            const batteries = selectedBatteries.map(id => BATTERY_SPECS.find(b => b.id === id)).filter(Boolean) as BatterySpec[]
-            if (batteries.length === 0) return null
-            
-            // Create combined battery spec
-            const battery = batteries.reduce((combined, current, idx) => {
-              if (idx === 0) return { ...current }
-              return {
-                ...combined,
-                nominalKwh: combined.nominalKwh + current.nominalKwh,
-                usableKwh: combined.usableKwh + current.usableKwh,
-                price: combined.price + current.price
-              }
-            }, batteries[0])
-            
-            const financials = calculateBatteryFinancials(battery)
-            
-            // Calculate solar rebate if solar system exists (use standalone/manual or estimate override)
-            const systemSizeKw = effectiveSystemSizeKw
-            const solarRebatePerKw = 1000
-            const solarMaxRebate = 5000
-            const solarRebate = systemSizeKw > 0 ? Math.min(systemSizeKw * solarRebatePerKw, solarMaxRebate) : 0
-            
-            // Calculate total rebates
-            const totalRebates = financials.rebate + solarRebate
-            const netCostWithSolarRebate = battery.price - totalRebates
-            
-            return (
-              <div className="p-5 bg-gradient-to-br from-red-50 to-white border-2 border-red-500 rounded-xl shadow-lg">
-                <div className="flex items-start gap-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
-                    <Battery size={28} className="text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="font-bold text-navy-500 text-xl">
-                        {batteries.map(b => `${b.brand} ${b.model}`).join(' + ')}
-                      </div>
-                      <div className="px-2 py-1 bg-red-500 text-white text-xs rounded-full font-semibold">
-                        SELECTED
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-3">
-                      <div className="flex items-center gap-2">
-                        <DollarSign size={18} className="text-gray-500" />
-                        <div>
-                          <div className="text-xs text-gray-600 font-medium">Total Price</div>
-                          <div className="font-bold text-navy-600">${battery.price.toLocaleString()}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <TrendingDown size={18} className="text-green-600" />
-                        <div>
-                          <div className="text-xs text-gray-600 font-medium">Battery Rebate</div>
-                          <div className="font-bold text-green-600">-${financials.rebate.toLocaleString()}</div>
-                        </div>
-                      </div>
-                      {solarRebate > 0 && (
-                        <div className="flex items-center gap-2">
-                          <Sun size={18} className="text-green-600" />
-                          <div>
-                            <div className="text-xs text-gray-600 font-medium">Solar Rebate</div>
-                            <div className="font-bold text-green-600">-${solarRebate.toLocaleString()}</div>
-                          </div>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2">
-                        <Award size={18} className={netCostWithSolarRebate < 0 ? 'text-green-600' : 'text-red-500'} />
-                        <div>
-                          <div className="text-xs text-gray-600 font-medium">Net Cost</div>
-                          <div className={`font-bold ${netCostWithSolarRebate < 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {netCostWithSolarRebate < 0 ? '+' : ''}${Math.abs(netCostWithSolarRebate).toLocaleString()}
-                            {netCostWithSolarRebate < 0 && <span className="text-xs ml-1">(Credit)</span>}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )
-          })()}
-        </div>
-      </div>
+      <BatterySelection
+        selectedBatteries={selectedBatteries}
+        onBatteriesChange={setSelectedBatteries}
+        effectiveSystemSizeKw={effectiveSystemSizeKw}
+      />
 
        {/* Results - Both TOU and ULO */}
        {touResults.get('combined') && uloResults.get('combined') && (() => {
@@ -1790,7 +1532,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
 
           {showCostTables && (() => {
             const touBreakdown = touData?.combined?.breakdown
-            const touRatePlan = getCustomTouRatePlan()
+            const touRatePlan = getCustomTouRatePlan(customRates.tou)
             const touRates = {
               offPeak: (touRatePlan.periods.find(p => p.period === 'off-peak')?.rate ?? touRatePlan.weekendRate ?? 9.8) / 100,
               midPeak: (touRatePlan.periods.find(p => p.period === 'mid-peak')?.rate ?? 15.7) / 100,
@@ -1814,7 +1556,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                 }
 
             const uloBreakdown = uloData?.combined?.breakdown
-            const uloRatePlan = getCustomUloRatePlan()
+            const uloRatePlan = getCustomUloRatePlan(customRates.ulo)
             const uloRates = {
               ultraLow: (uloRatePlan.periods.find(p => p.period === 'ultra-low')?.rate ?? 3.9) / 100,
               offPeak: (uloRatePlan.periods.find(p => p.period === 'off-peak')?.rate ?? uloRatePlan.weekendRate ?? 9.8) / 100,
@@ -2273,7 +2015,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                  const touTotalSavingsPercent = touOriginalBill > 0 ? (touBillSavings / touOriginalBill) * 100 : 0
                    
                  // Get TOU rates for display
-                  const touRatePlan = getCustomTouRatePlan()
+                  const touRatePlan = getCustomTouRatePlan(customRates.tou)
                  const touOffPeakRate = touRatePlan.periods.find(p => p.period === 'off-peak')?.rate ?? touRatePlan.periods[0]?.rate ?? 9.8
                   const touLeftoverRate = touData.result.leftoverEnergy.ratePerKwh
                  const touLeftoverKwh = gridRemainingKwh
@@ -2591,7 +2333,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
                 const uloTotalSavingsPercent = uloOriginalBill > 0 ? (uloBillSavings / uloOriginalBill) * 100 : 0
                    
                  // Get ULO rates for display
-                  const uloRatePlan = getCustomUloRatePlan()
+                  const uloRatePlan = getCustomUloRatePlan(customRates.ulo)
                  const uloLeftoverRate = uloData.result.leftoverEnergy.ratePerKwh
                  const uloLeftoverKwh = gridRemainingKwh
                  const uloUltraLowRate = uloRatePlan.periods.find(p => p.period === 'ultra-low')?.rate ?? 3.9

@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 // Page-specific metadata for SEO
 export const metadata: Metadata = {
   title: 'Solar Panel Estimator Canada | Free Solar Quote & Cost Calculator',
-    description: 'Get your free solar panel estimate in Canada. Calculate solar installation costs, savings, ROI, and payback period. Instant quotes for Ontario, BC, Alberta & all provinces.',
+    description: 'Get your free solar panel estimate for Canada. Calculate solar costs, savings, and ROI instantly.',
   keywords: [
     'solar panel estimator canada',
     'solar quote canada',
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: 'Solar Panel Estimator Canada | Free Solar Quote & Cost Calculator',
-    description: 'Get your free solar panel estimate in Canada. Calculate solar installation costs, savings, and ROI instantly.',
+    description: 'Get your free solar panel estimate for Canada. Calculate solar costs, savings, and ROI instantly.',
     url: 'https://www.solarcalculatorcanada.org/estimator',
   },
 }

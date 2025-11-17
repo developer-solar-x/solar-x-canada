@@ -6,7 +6,7 @@ import { PreconnectLinks } from '@/components/PreconnectLinks'
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.solarcalculatorcanada.org'),
   title: 'Free Solar Calculator Canada | Solar Panel Cost & Savings Estimate 2025',
-  description: 'Get your free solar panel estimate for Canada. Calculate solar costs, savings, and ROI instantly. Get accurate quotes for Ontario, BC, Alberta & all provinces. No commitment required.',
+  description: 'Get your free solar panel estimate for Canada. Calculate solar costs, savings, and ROI instantly.',
   keywords: [
     // Primary keywords
     'solar calculator canada',
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
     url: 'https://www.solarcalculatorcanada.org',
     siteName: 'SolarX - Free Solar Calculator Canada',
     title: 'Free Solar Calculator Canada | Solar Panel Cost & Savings Estimate 2025',
-    description: 'Get your free solar panel estimate for Canada. Calculate solar costs, savings, and ROI instantly. No commitment required.',
+    description: 'Get your free solar panel estimate for Canada. Calculate solar costs, savings, and ROI instantly.',
     countryName: 'Canada',
   },
   twitter: {
