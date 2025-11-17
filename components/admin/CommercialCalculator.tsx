@@ -4,11 +4,11 @@
 // Wraps the commercial estimator components for use in admin panel
 
 import { useState } from 'react'
-import { StepCommercialTariff } from '@/components/estimator/StepCommercialTariff'
-import { StepCommercialPeakShaving } from '@/components/estimator/StepCommercialPeakShaving'
-import { StepCommercialBattery } from '@/components/estimator/StepCommercialBattery'
-import { StepCommercialCosts } from '@/components/estimator/StepCommercialCosts'
-import { StepCommercialResults } from '@/components/estimator/StepCommercialResults'
+import { StepCommercialTariff } from '@/components/admin/StepCommercialTariff'
+import { StepCommercialPeakShaving } from '@/components/admin/StepCommercialPeakShaving'
+import { StepCommercialBattery } from '@/components/admin/StepCommercialBattery'
+import { StepCommercialCosts } from '@/components/admin/StepCommercialCosts'
+import { StepCommercialResults } from '@/components/admin/StepCommercialResults'
 import { Building2, Calculator } from 'lucide-react'
 
 export function CommercialCalculator() {

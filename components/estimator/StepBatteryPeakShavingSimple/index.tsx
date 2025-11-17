@@ -2017,6 +2017,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                  // Get TOU rates for display
                   const touRatePlan = getCustomTouRatePlan(customRates.tou)
                  const touOffPeakRate = touRatePlan.periods.find(p => p.period === 'off-peak')?.rate ?? touRatePlan.periods[0]?.rate ?? 9.8
+                 const touMidPeakRate = touRatePlan.periods.find(p => p.period === 'mid-peak')?.rate ?? 15.7
                   const touLeftoverRate = touData.result.leftoverEnergy.ratePerKwh
                  const touLeftoverKwh = gridRemainingKwh
                  // Use actual grid-charged battery value from FRD calculation (AI Mode enables grid charging)
@@ -2024,14 +2025,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                   
                  // Calculate correct blended rate for TOU
                  const touOnPeakRate = touRatePlan.periods.find(p => p.period === 'on-peak')?.rate || 20.3
-                  const touBatteryChargingCost = touAdjustedGridCharge * (touOffPeakRate / 100)
-                  const touLeftoverCost = touLeftoverKwh * touLeftoverRate
-                  const touTotalGridCost = touBatteryChargingCost + touLeftoverCost
-                 const touLowRateEnergyKwh = touAdjustedGridCharge + touLeftoverKwh
-                 const touLowRatePercent = gridRemainingPercent // Grid remaining percentage
-                  const touCorrectBlendedRate = touLowRateEnergyKwh > 0 ? touTotalGridCost / touLowRateEnergyKwh : 0
-                 // Use touNewBill instead of touTotalGridCost to ensure percentages add to 100%
-                 const touLeftoverCostPercent = touOriginalBill > 0 ? (touNewBill / touOriginalBill) * 100 : 0
                   
                   // Keep the storytelling grounded by anchoring to the original peak-priced usage
                   const touPeakPricedUsageKwh =
@@ -2082,6 +2075,19 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                       { offPeak: touOffPeakCap }
                     )
                   }
+                  
+                 // Calculate leftover cost from clamped breakdown (matches what's displayed)
+                 const touBatteryChargingCost = touAdjustedGridCharge * (touOffPeakRate / 100)
+                 const touLeftoverCost = 
+                   (touLeftoverBreakdown.offPeak || 0) * (touOffPeakRate / 100) +
+                   (touLeftoverBreakdown.midPeak || 0) * (touMidPeakRate / 100) +
+                   (touLeftoverBreakdown.onPeak || 0) * (touOnPeakRate / 100)
+                 const touTotalGridCost = touBatteryChargingCost + touLeftoverCost
+                 const touLowRateEnergyKwh = touAdjustedGridCharge + touLeftoverKwh
+                 const touLowRatePercent = gridRemainingPercent // Grid remaining percentage
+                 const touCorrectBlendedRate = touLowRateEnergyKwh > 0 ? touTotalGridCost / touLowRateEnergyKwh : 0
+                 // Use touNewBill instead of touTotalGridCost to ensure percentages add to 100%
+                 const touLeftoverCostPercent = touOriginalBill > 0 ? (touNewBill / touOriginalBill) * 100 : 0
                   
                   // Easy comparables for average bill rate before and after battery support
                   const touOriginalEffectiveRate = annualUsageKwh > 0 ? (touOriginalBill / annualUsageKwh) * 100 : 0
@@ -2337,6 +2343,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                  const uloLeftoverRate = uloData.result.leftoverEnergy.ratePerKwh
                  const uloLeftoverKwh = gridRemainingKwh
                  const uloUltraLowRate = uloRatePlan.periods.find(p => p.period === 'ultra-low')?.rate ?? 3.9
+                 const uloOffPeakRate = uloRatePlan.periods.find(p => p.period === 'off-peak')?.rate ?? 9.8
+                 const uloMidPeakRate = uloRatePlan.periods.find(p => p.period === 'mid-peak')?.rate ?? 15.7
                   const uloOnPeakRate = uloRatePlan.periods.find(p => p.period === 'on-peak')?.rate || 39.1
                  
                  // Grid energy display values (battery top-up + remainder)
@@ -2344,11 +2352,23 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                  const uloLowRateEnergyKwh = uloAdjustedGridCharge + uloLeftoverKwh // Total energy from grid
                  const uloLowRatePercent = annualUsageKwh > 0 ? (uloLowRateEnergyKwh / annualUsageKwh) * 100 : 0
                  const uloBatteryChargingCost = uloChargedBatteryKwh * (uloUltraLowRate / 100)
-                  const uloLeftoverCost = uloLeftoverKwh * uloLeftoverRate
-                  const uloTotalGridCost = uloBatteryChargingCost + uloLeftoverCost
-                  const uloCorrectBlendedRate = uloLowRateEnergyKwh > 0 ? uloTotalGridCost / uloLowRateEnergyKwh : 0
+                  
                  // Use uloNewBill instead of uloTotalGridCost to ensure percentages add to 100%
                  const uloLeftoverCostPercent = uloOriginalBill > 0 ? (uloNewBill / uloOriginalBill) * 100 : 0
+                  
+                  // Calculate leftover cost from clamped breakdown (matches what's displayed)
+                  const uloLeftoverBreakdown = clampBreakdown(
+                    uloData.result.leftoverEnergy.breakdown,
+                    uloLeftoverKwh,
+                    ['ultraLow', 'offPeak', 'midPeak', 'onPeak']
+                  )
+                  const uloLeftoverCost = 
+                    (uloLeftoverBreakdown.ultraLow || 0) * (uloUltraLowRate / 100) +
+                    (uloLeftoverBreakdown.offPeak || 0) * (uloOffPeakRate / 100) +
+                    (uloLeftoverBreakdown.midPeak || 0) * (uloMidPeakRate / 100) +
+                    (uloLeftoverBreakdown.onPeak || 0) * (uloOnPeakRate / 100)
+                  const uloTotalGridCost = uloBatteryChargingCost + uloLeftoverCost
+                  const uloCorrectBlendedRate = uloLowRateEnergyKwh > 0 ? uloTotalGridCost / uloLowRateEnergyKwh : 0
                   
                   // Keep the storytelling grounded by anchoring to the original peak-priced usage
                   const uloPeakPricedUsageKwh =
@@ -2357,11 +2377,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                   // Translate the savings percentage into a relatable kWh figure
                   const uloSavingsKwhEquivalentRaw = (annualUsageKwh * uloTotalSavingsPercent) / 100
                   const uloSavingsKwhEquivalent = Math.min(uloPeakPricedUsageKwh, uloSavingsKwhEquivalentRaw)
-                  const uloLeftoverBreakdown = clampBreakdown(
-                    uloData.result.leftoverEnergy.breakdown,
-                    uloLeftoverKwh,
-                    ['ultraLow', 'offPeak', 'midPeak', 'onPeak']
-                  )
                   
                   // Easy comparables for average bill rate before and after battery support
                   const uloOriginalEffectiveRate = annualUsageKwh > 0 ? (uloOriginalBill / annualUsageKwh) * 100 : 0
@@ -2513,10 +2528,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                             <div className="text-xs text-gray-600 pl-7">Battery top-up {uloAdjustedGridCharge.toFixed(0)} kWh + small remainder {uloLeftoverKwh.toFixed(0)} kWh</div>
                             <div className="text-[11px] text-gray-500 pl-7">
                               Blended rate {(uloCorrectBlendedRate * 100).toFixed(2)}¢/kWh • Remainder {uloLeftoverKwh.toFixed(0)} kWh allocated:
-                              {uloLeftoverBreakdown.ultraLow && uloLeftoverBreakdown.ultraLow > 0 && ` ${uloLeftoverBreakdown.ultraLow.toFixed(0)} kWh ultra-low`}
-                              {uloLeftoverBreakdown.offPeak && uloLeftoverBreakdown.offPeak > 0 && `, ${uloLeftoverBreakdown.offPeak.toFixed(0)} kWh off-peak`}
-                              {uloLeftoverBreakdown.midPeak && uloLeftoverBreakdown.midPeak > 0 && `, ${uloLeftoverBreakdown.midPeak.toFixed(0)} kWh mid-peak`}
-                              {uloLeftoverBreakdown.onPeak && uloLeftoverBreakdown.onPeak > 0 && `, ${uloLeftoverBreakdown.onPeak.toFixed(0)} kWh on-peak`}
+                              {uloLeftoverBreakdown.ultraLow > 0 && ` ${uloLeftoverBreakdown.ultraLow.toFixed(0)} kWh ultra-low`}
+                              {uloLeftoverBreakdown.offPeak > 0 && `, ${uloLeftoverBreakdown.offPeak.toFixed(0)} kWh off-peak`}
+                              {uloLeftoverBreakdown.midPeak > 0 && `, ${uloLeftoverBreakdown.midPeak.toFixed(0)} kWh mid-peak`}
+                              {uloLeftoverBreakdown.onPeak > 0 && `, ${uloLeftoverBreakdown.onPeak.toFixed(0)} kWh on-peak`}
                               {uloAdjustedGridCharge > 0 && ` • Battery top-up ${uloAdjustedGridCharge.toFixed(0)} kWh charged ultra-low @ ${uloUltraLowRate.toFixed(1)}¢/kWh`}
                             </div>
                           </div>
