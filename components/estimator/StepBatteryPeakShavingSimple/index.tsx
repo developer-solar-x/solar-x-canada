@@ -2301,11 +2301,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                  const gridRemainingPercent = uloFrd.offsetPercentages.gridRemaining
                  const gridRemainingKwh = (gridRemainingPercent / 100) * annualUsageKwh
                  
-                 // Combined offset (solar direct + all battery sources)
-                 // Combined offset (solar direct + solar-charged battery only, NOT grid-charged battery)
-                 // Grid-charged battery top-up is purchased from the grid, so it doesn't count as "offset"
-                 const uloCombinedOffsetPercent = solarDirectPercent + solarBatteryPercent
-                 const uloCombinedOffset = solarDirectKwh + solarBatteryKwh
+                 // Combined offset (solar direct + all battery sources per FRD)
+                 // FRD Section 5: Total Offset = 50% solar direct + 20% solar-charged battery + 30% ULO-charged battery = 80%
+                 const uloCombinedOffsetPercent = solarDirectPercent + solarBatteryPercent + uloChargedBatteryPercent
+                 const uloCombinedOffset = solarDirectKwh + solarBatteryKwh + uloChargedBatteryKwh
                  
                  const solarProductionKwh = effectiveSolarProductionKwh
                  
@@ -2477,7 +2476,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                                 <div className="text-xs text-gray-600">{uloCombinedOffset.toFixed(0)} kWh/year</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-7">Solar energy that offsets your grid usage (excludes grid-charged battery)</div>
+                            <div className="text-xs text-gray-600 pl-7">Total energy offset from solar and battery (includes solar direct, solar-charged battery, and ULO-charged battery)</div>
                             {uloOffsetCapped && (
                               <div className="text-[11px] text-amber-600 pl-7 mt-1">
                                 Capped at {offsetCapPercent.toFixed(0)}% to reflect winter limits
