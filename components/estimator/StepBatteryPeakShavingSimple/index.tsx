@@ -135,7 +135,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
   const [touResults, setTouResults] = useState<PlanResultMap>(new Map())
   // This state mirrors the same idea for the ULO plan so both cards get identical treatment
   const [uloResults, setUloResults] = useState<PlanResultMap>(new Map())
-  // This state remembers if the custom rate inputs should be visible for the person using the tool
+  // State to show/hide custom rates display (read-only, rates are hardcoded)
   const [showCustomRates, setShowCustomRates] = useState(false)
   // This state keeps track of whether the usage breakdown editor is open so folks can hide it when they do not need it
   const [showUsageDistribution, setShowUsageDistribution] = useState(false)
@@ -220,7 +220,15 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
   const [overrideEstimate, setOverrideEstimate] = useState<any>(null)
 
   // Manual production override input as string to allow temporary blank (better editing UX)
-  const [manualProductionInput, setManualProductionInput] = useState<string>('')
+  // Default to 5000 if no estimate is provided
+  const [manualProductionInput, setManualProductionInput] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem('manual_estimator_production_kwh')
+      if (stored !== null) return stored
+    }
+    const initial = data.estimate?.production?.annualKwh ?? 5000
+    return initial > 0 ? String(Math.round(initial)) : '5000'
+  })
 
   useEffect(() => {
     if (!manualMode) return
@@ -231,8 +239,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
       setManualProductionInput(stored)
       return
     }
-    // Fallback to provided estimate
-    const initial = (overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0)
+    // Fallback to provided estimate, or default to 5000 if none provided
+    const initial = (overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 5000)
     setManualProductionInput(prev => (prev === '' ? String(Math.max(0, Math.round(initial))) : prev))
   }, [manualMode, data.estimate?.production?.annualKwh, overrideEstimate?.production?.annualKwh])
 
@@ -250,8 +258,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
 
   const effectiveSolarProductionKwh = (
     manualMode
-      ? Math.max(0, Number(manualProductionInput) || 0)
-      : (overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0)
+      ? Math.max(0, Number(manualProductionInput) || 5000)
+      : (overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 5000)
   )
 
   const offsetCapInfo = useMemo(() => (
@@ -332,8 +340,8 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
     run()
   }, [solarPanels])
   
-  // Custom editable rates (initialize with defaults)
-  const [customRates, setCustomRates] = useState<CustomRates>(DEFAULT_CUSTOM_RATES)
+  // Custom rates are hardcoded to defaults (no longer editable)
+  const customRates: CustomRates = DEFAULT_CUSTOM_RATES
 
   // Calculate TOU results for selected batteries
   useEffect(() => {
@@ -698,7 +706,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
           manualMode={manualMode}
           manualProductionInput={manualProductionInput}
           onManualProductionChange={(value) => setManualProductionInput(value)}
-          annualProductionEstimate={overrideEstimate?.production?.annualKwh ?? data.estimate.production.annualKwh}
+          annualProductionEstimate={overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 0}
         />
       )}
       
@@ -856,7 +864,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
            </div>
          </div>
 
-         {/* Custom Rate Editor */}
+         {/* Custom Rates Display (Read-Only) */}
          <div className="pt-4 border-t border-gray-200">
            <button
              onClick={() => setShowCustomRates(!showCustomRates)}
@@ -870,7 +878,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
              ) : (
                <>
                  <ChevronDown size={16} />
-                 Edit Custom Rates
+                 View Custom Rates
                </>
              )}
            </button>
@@ -878,7 +886,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
            {showCustomRates && (
              <div className="mt-4 space-y-4">
                <p className="text-sm text-gray-600 font-medium mb-3">
-                 Customize electricity rates (¢/kWh) for both rate plans:
+                 Current electricity rates (¢/kWh) for both rate plans:
                </p>
                
                <div className="grid md:grid-cols-2 gap-4">
@@ -887,50 +895,24 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                    <h4 className="font-bold text-navy-500 mb-2">Time-of-Use (TOU)</h4>
                    <div className="flex items-center gap-2">
                      <div className="w-32 text-xs font-semibold text-navy-600">Off-Peak:</div>
-                     <input
-                       type="number"
-                       value={customRates.tou.offPeak}
-                       onChange={(e) => setCustomRates({...customRates, tou: {...customRates.tou, offPeak: Number(e.target.value)}})}
-                       className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                       min="0"
-                       max="100"
-                       step="0.1"
-                     />
+                     <div className="w-20 px-2 py-1 bg-white border border-gray-300 rounded text-sm text-gray-800">
+                       {customRates.tou.offPeak}
+                     </div>
                      <span className="text-xs text-gray-600">¢/kWh</span>
                    </div>
                    <div className="flex items-center gap-2">
                      <div className="w-32 text-xs font-semibold text-navy-600">Mid-Peak:</div>
-                     <input
-                       type="number"
-                       value={customRates.tou.midPeak}
-                       onChange={(e) => setCustomRates({...customRates, tou: {...customRates.tou, midPeak: Number(e.target.value)}})}
-                       className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                       min="0"
-                       max="100"
-                       step="0.1"
-                     />
+                     <div className="w-20 px-2 py-1 bg-white border border-gray-300 rounded text-sm text-gray-800">
+                       {customRates.tou.midPeak}
+                     </div>
                      <span className="text-xs text-gray-600">¢/kWh</span>
                    </div>
                    <div className="flex items-center gap-2">
                      <div className="w-32 text-xs font-semibold text-navy-600">On-Peak:</div>
-                     <input
-                       type="number"
-                       value={customRates.tou.onPeak}
-                       onChange={(e) => setCustomRates({...customRates, tou: {...customRates.tou, onPeak: Number(e.target.value)}})}
-                       className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                       min="0"
-                       max="100"
-                       step="0.1"
-                     />
+                     <div className="w-20 px-2 py-1 bg-white border border-gray-300 rounded text-sm text-gray-800">
+                       {customRates.tou.onPeak}
+                     </div>
                      <span className="text-xs text-gray-600">¢/kWh</span>
-                   </div>
-                   <div className="pt-2 border-t border-gray-300">
-                     <button
-                       onClick={() => setCustomRates({...customRates, tou: DEFAULT_CUSTOM_RATES.tou})}
-                       className="text-xs text-navy-600 hover:text-navy-700 font-semibold"
-                     >
-                       Reset to OEB Defaults
-                     </button>
                    </div>
                  </div>
 
@@ -942,15 +924,9 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                       <div className="text-xs font-semibold text-navy-600">Ultra-Low:</div>
                       <div className="text-[10px] text-gray-500">Usage share {formatUsageShare(uloDistribution.ultraLowPercent)}</div>
                     </div>
-                     <input
-                       type="number"
-                       value={customRates.ulo.ultraLow}
-                       onChange={(e) => setCustomRates({...customRates, ulo: {...customRates.ulo, ultraLow: Number(e.target.value)}})}
-                       className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                       min="0"
-                       max="100"
-                       step="0.1"
-                     />
+                     <div className="w-20 px-2 py-1 bg-white border border-gray-300 rounded text-sm text-gray-800">
+                       {customRates.ulo.ultraLow}
+                     </div>
                      <span className="text-xs text-gray-600">¢/kWh</span>
                    </div>
                    <div className="flex items-center gap-2">
@@ -958,15 +934,9 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                       <div className="text-xs font-semibold text-navy-600">Mid-Peak:</div>
                       <div className="text-[10px] text-gray-500">Usage share {formatUsageShare(uloDistribution.midPeakPercent)}</div>
                     </div>
-                     <input
-                       type="number"
-                       value={customRates.ulo.midPeak}
-                       onChange={(e) => setCustomRates({...customRates, ulo: {...customRates.ulo, midPeak: Number(e.target.value)}})}
-                       className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                       min="0"
-                       max="100"
-                       step="0.1"
-                     />
+                     <div className="w-20 px-2 py-1 bg-white border border-gray-300 rounded text-sm text-gray-800">
+                       {customRates.ulo.midPeak}
+                     </div>
                      <span className="text-xs text-gray-600">¢/kWh</span>
                    </div>
                    <div className="flex items-center gap-2">
@@ -974,15 +944,9 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                       <div className="text-xs font-semibold text-navy-600">On-Peak:</div>
                       <div className="text-[10px] text-gray-500">Usage share {formatUsageShare(uloDistribution.onPeakPercent)}</div>
                     </div>
-                     <input
-                       type="number"
-                       value={customRates.ulo.onPeak}
-                       onChange={(e) => setCustomRates({...customRates, ulo: {...customRates.ulo, onPeak: Number(e.target.value)}})}
-                       className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                       min="0"
-                       max="100"
-                       step="0.1"
-                     />
+                     <div className="w-20 px-2 py-1 bg-white border border-gray-300 rounded text-sm text-gray-800">
+                       {customRates.ulo.onPeak}
+                     </div>
                      <span className="text-xs text-gray-600">¢/kWh</span>
                    </div>
                    <div className="flex items-center gap-2">
@@ -990,24 +954,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                       <div className="text-xs font-semibold text-navy-600">Weekend:</div>
                       <div className="text-[10px] text-gray-500">Usage share {formatUsageShare(uloDistribution.offPeakPercent)}</div>
                     </div>
-                     <input
-                       type="number"
-                       value={customRates.ulo.weekendOffPeak}
-                       onChange={(e) => setCustomRates({...customRates, ulo: {...customRates.ulo, weekendOffPeak: Number(e.target.value)}})}
-                       className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                       min="0"
-                       max="100"
-                       step="0.1"
-                     />
+                     <div className="w-20 px-2 py-1 bg-white border border-gray-300 rounded text-sm text-gray-800">
+                       {customRates.ulo.weekendOffPeak}
+                     </div>
                      <span className="text-xs text-gray-600">¢/kWh</span>
-                   </div>
-                   <div className="pt-2 border-t border-gray-300">
-                     <button
-                       onClick={() => setCustomRates({...customRates, ulo: DEFAULT_CUSTOM_RATES.ulo})}
-                       className="text-xs text-navy-600 hover:text-navy-700 font-semibold"
-                     >
-                       Reset to OEB Defaults
-                     </button>
                    </div>
                  </div>
                </div>
@@ -1415,7 +1365,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                             <span className="text-gray-600">Solar→Battery:</span>
                             <span className="font-bold text-blue-600">{frdResults.tou.offsetPercentages.solarChargedBattery.toFixed(1)}%</span>
                           </div>
-                          {aiMode && frdResults.tou.offsetPercentages.uloChargedBattery > 0 && (
+                          {!manualMode && aiMode && frdResults.tou.offsetPercentages.uloChargedBattery > 0 && (
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-gray-600">Off-peak→Battery:</span>
                               <span className="font-bold text-amber-600">{frdResults.tou.offsetPercentages.uloChargedBattery.toFixed(1)}%</span>
@@ -1441,7 +1391,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                             <span className="text-gray-600">Solar→Battery:</span>
                             <span className="font-bold text-blue-600">{frdResults.ulo.offsetPercentages.solarChargedBattery.toFixed(1)}%</span>
                           </div>
-                          {aiMode && (
+                          {!manualMode && aiMode && (
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-gray-600">ULO→Battery:</span>
                               <span className="font-bold text-amber-600">{frdResults.ulo.offsetPercentages.uloChargedBattery.toFixed(1)}%</span>
@@ -1990,6 +1940,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
                  {/* TOU Calculation Card */}
                  {(() => {
+                 // Get TOU data from results
+                 const touData = touResults.get('combined')
+                 if (!touData) return null
+                 
                  // Use FRD results for consistent calculations
                  const touFrd = frdResults.tou
                  if (!touFrd) return null
@@ -2019,7 +1973,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                 const touCombinedOffsetPercent = solarDirectPercent + solarBatteryPercent
                 const touCombinedOffset = solarDirectKwh + solarBatteryKwh
                  
-                 const solarProductionKwh = effectiveSolarProductionKwh
+                 // Ensure solarProductionKwh is always a valid number
+                 const solarProductionKwh = typeof effectiveSolarProductionKwh === 'number' && !isNaN(effectiveSolarProductionKwh) 
+                   ? effectiveSolarProductionKwh 
+                   : (data.estimate?.production?.annualKwh ?? overrideEstimate?.production?.annualKwh ?? 0)
                  
                  // Battery totals from FRD
                  const touBatteryOffsetKwh = touData.result.batteryOffsets.onPeak + 
@@ -2032,10 +1989,30 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                  const touRemainderPercent = gridRemainingPercent
                  
                  // Check if offset is capped
-                 const touOffsetCapped = touCombinedOffsetPercent < offsetCapPercent - 0.1
-
+                 const touUncappedOffsetPercent = touCombinedOffsetPercent // This is already the uncapped value from FRD
+                 // Calculate cap percent from offsetCapInfo to ensure it's in scope
+                 const touOffsetCapPercent = offsetCapInfo.capFraction * 100
+                 const touCappedOffsetPercent = Math.min(touUncappedOffsetPercent, touOffsetCapPercent)
+                 const touOffsetCapped = touUncappedOffsetPercent > touOffsetCapPercent + 0.1
+                 
+                 // Scale solar direct and battery offsets proportionally when capped to maintain their ratio
+                 let touDisplaySolarDirectPercent = solarDirectPercent
+                 let touDisplaySolarBatteryPercent = solarBatteryPercent
+                 if (touOffsetCapped && touUncappedOffsetPercent > 0) {
+                   const scale = touCappedOffsetPercent / touUncappedOffsetPercent
+                   touDisplaySolarDirectPercent = solarDirectPercent * scale
+                   touDisplaySolarBatteryPercent = solarBatteryPercent * scale
+                 }
+                 
+                 // When offset is capped, adjust grid energy to account for the cap
+                 // The additional grid energy = the difference between uncapped and capped offset
+                 const touOffsetReduction = touUncappedOffsetPercent - touCappedOffsetPercent
+                 const touAdditionalGridKwh = (touOffsetReduction / 100) * annualUsageKwh
+                 
                  // Grid energy breakdown (includes grid charging when AI Mode is ON)
-                 const touShownGridKwh = gridRemainingKwh + touChargedBatteryKwh
+                 // Add additional grid energy if offset is capped
+                 const touAdjustedGridRemainingKwh = gridRemainingKwh + (touOffsetCapped ? touAdditionalGridKwh : 0)
+                 const touShownGridKwh = touAdjustedGridRemainingKwh + touChargedBatteryKwh
                  const touShownGridPercent = touShownGridKwh > 0 ? (touShownGridKwh / annualUsageKwh) * 100 : 0
                    
                  // Get savings from combined calculation (properly accounts for grid charging arbitrage)
@@ -2048,16 +2025,20 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                  const touCombinedSavings = touData.combined?.combinedAnnualSavings
                  // Prefer uncapped savings for accurate percentage, fallback to capped if uncapped not available
                  const touBillSavings = touUncappedSavings || touCombinedSavings || Math.max(0, touOriginalBill - touNewBill)
-                 const touTotalSavingsPercent = touOriginalBill > 0 ? (touBillSavings / touOriginalBill) * 100 : 0
+                 // Note: touTotalSavingsPercent will be calculated after touLeftoverCostPercent to ensure they add up to 100%
                    
                  // Get TOU rates for display
                   const touRatePlan = getCustomTouRatePlan(customRates.tou)
                  const touOffPeakRate = touRatePlan.periods.find(p => p.period === 'off-peak')?.rate ?? touRatePlan.periods[0]?.rate ?? 9.8
                  const touMidPeakRate = touRatePlan.periods.find(p => p.period === 'mid-peak')?.rate ?? 15.7
                   const touLeftoverRate = touData.result.leftoverEnergy.ratePerKwh
-                 const touLeftoverKwh = gridRemainingKwh
+                 // Use adjusted grid remaining if offset is capped
+                 const touLeftoverKwh = touAdjustedGridRemainingKwh
                  // Use actual grid-charged battery value from FRD calculation (AI Mode enables grid charging)
                  const touAdjustedGridCharge = touChargedBatteryKwh
+                 
+                 // Adjust grid remaining percent to account for cap
+                 const touAdjustedGridRemainingPercent = (touAdjustedGridRemainingKwh / annualUsageKwh) * 100
                   
                  // Calculate correct blended rate for TOU
                  const touOnPeakRate = touRatePlan.periods.find(p => p.period === 'on-peak')?.rate || 20.3
@@ -2066,9 +2047,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                   const touPeakPricedUsageKwh =
                     (touData.result.usageByPeriod.onPeak ?? 0) +
                     (touData.result.usageByPeriod.midPeak ?? 0)
-                  // Translate the savings percentage into a relatable kWh figure
-                  const touSavingsKwhEquivalentRaw = (annualUsageKwh * touTotalSavingsPercent) / 100
-                  const touSavingsKwhEquivalent = Math.min(touPeakPricedUsageKwh, touSavingsKwhEquivalentRaw)
                   const touPostProgramsOffPeakUsage =
                     (touData.result.usageByPeriod.offPeak ?? 0) +
                     touAdjustedGridCharge
@@ -2118,14 +2096,24 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                    (touLeftoverBreakdown.offPeak || 0) * (touOffPeakRate / 100) +
                    (touLeftoverBreakdown.midPeak || 0) * (touMidPeakRate / 100) +
                    (touLeftoverBreakdown.onPeak || 0) * (touOnPeakRate / 100)
-                 const touTotalGridCost = touBatteryChargingCost + touLeftoverCost
+                 // If offset is capped, add cost of additional grid energy (at cheapest rate - off-peak)
+                 const touAdditionalGridCost = touOffsetCapped ? touAdditionalGridKwh * (touOffPeakRate / 100) : 0
+                 const touTotalGridCost = touBatteryChargingCost + touLeftoverCost + touAdditionalGridCost
                  const touLowRateEnergyKwh = touAdjustedGridCharge + touLeftoverKwh
-                // Total purchased from grid = grid-charged battery + remaining grid energy
+                // Total purchased from grid = grid-charged battery + remaining grid energy (adjusted for cap)
                 // This shows all energy that must be purchased from the grid (even if strategically timed)
-                const touLowRatePercent = touChargedBatteryPercent + gridRemainingPercent // Should equal 100% - touCombinedOffsetPercent
+                const touLowRatePercent = touChargedBatteryPercent + touAdjustedGridRemainingPercent // Should equal 100% - touCappedOffsetPercent
                  const touCorrectBlendedRate = touLowRateEnergyKwh > 0 ? touTotalGridCost / touLowRateEnergyKwh : 0
-                 // Use touNewBill instead of touTotalGridCost to ensure percentages add to 100%
-                 const touLeftoverCostPercent = touOriginalBill > 0 ? (touNewBill / touOriginalBill) * 100 : 0
+                 // Calculate cost percentage as actual cost of remaining grid energy divided by original bill
+                 // This should be LESS than the energy percentage because energy is bought at cheaper rates
+                 const touLeftoverCostPercent = touOriginalBill > 0 ? (touTotalGridCost / touOriginalBill) * 100 : 0
+                 // Calculate Total Bill Savings as complement to ensure they add up to 100%
+                 // This ensures "Remaining Grid Cost (Discounted)" + "Total Bill Savings" = 100%
+                 const touTotalSavingsPercent = Math.max(0, 100 - touLeftoverCostPercent)
+                  
+                  // Translate the savings percentage into a relatable kWh figure (calculated after touTotalSavingsPercent)
+                  const touSavingsKwhEquivalentRaw = (annualUsageKwh * touTotalSavingsPercent) / 100
+                  const touSavingsKwhEquivalent = Math.min(touPeakPricedUsageKwh, touSavingsKwhEquivalentRaw)
                   
                   // Easy comparables for average bill rate before and after battery support
                   const touOriginalEffectiveRate = annualUsageKwh > 0 ? (touOriginalBill / annualUsageKwh) * 100 : 0
@@ -2154,7 +2142,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                            </div>
                            <div className="bg-white rounded-xl p-4 border-2 border-gray-200">
                              <div className="text-xs font-semibold text-gray-600 mb-1">Solar Production</div>
-                             <div className="text-2xl font-bold text-green-600">{solarProductionKwh > 0 ? solarProductionKwh.toLocaleString() : '0'}</div>
+                             <div className="text-2xl font-bold text-green-600">{(solarProductionKwh ?? effectiveSolarProductionKwh ?? 0).toLocaleString()}</div>
                              <div className="text-xs text-gray-500">kWh/year</div>
                            </div>
                          </div>
@@ -2198,7 +2186,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                           </div>
 
                          {/* FRD: Off-peak-charged battery coverage - separate card per FRD section 6 */}
-                          {aiMode && touChargedBatteryKwh > 0 && (
+                          {!manualMode && aiMode && touChargedBatteryKwh > 0 && (
                             <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 sm:p-4 border-2 border-amber-200">
                               <div className="flex items-start sm:items-center justify-between mb-2 gap-2">
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -2248,14 +2236,14 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                                 <span className="font-bold text-gray-700 text-sm sm:text-base">Total Energy Offset</span>
                               </div>
                               <div className="text-right flex-shrink-0">
-                                <div className="text-xl sm:text-2xl font-bold text-green-600">{touCombinedOffsetPercent.toFixed(2)}%</div>
-                                <div className="text-xs text-gray-600">{touCombinedOffset.toFixed(0)} kWh/year</div>
+                                <div className="text-xl sm:text-2xl font-bold text-green-600">{touCappedOffsetPercent.toFixed(2)}%</div>
+                                <div className="text-xs text-gray-600">{(touCappedOffsetPercent / 100 * annualUsageKwh).toFixed(0)} kWh/year</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">Free energy from solar: {solarDirectPercent.toFixed(2)}% direct + {solarBatteryPercent.toFixed(2)}% stored in battery</div>
+                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">Free energy from solar: {touDisplaySolarDirectPercent.toFixed(2)}% direct + {touDisplaySolarBatteryPercent.toFixed(2)}% stored in battery</div>
                             {touOffsetCapped && (
                               <div className="text-[11px] text-amber-600 pl-7 mt-1">
-                                Capped at {offsetCapPercent.toFixed(0)}% to reflect winter limits
+                                Capped at {touOffsetCapPercent.toFixed(0)}% to reflect winter limits
                                 {offsetCapInfo.matchesUsage ? ' (solar production closely matches annual usage).' : '.'}
                                 {offsetCapInfo.orientationBonus || offsetCapInfo.productionBonus ? (
                                   <span className="block">
@@ -2286,7 +2274,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                             </button>
                             <div className="h-px flex-1 bg-gradient-to-r from-navy-200 to-transparent" />
                           </div>
-                          <p className="text-[11px] text-gray-600 pl-1">Savings follow the bill: {`100% - Cost of energy bought from the grid`}.</p>
+                          <p className="text-[11px] text-gray-600 pl-1">Savings follow the bill: {`100% - Remaining Grid Cost (Discounted)`}.</p>
 
                           {/* Straightforward card spelling out what still comes from the grid */}
                           <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-3 sm:p-4 border-2 border-red-200 space-y-2">
@@ -2302,9 +2290,14 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                             </div>
                             <div className="text-xs text-gray-600 pl-5 sm:pl-7">
                               {touAdjustedGridCharge > 0 ? (
-                                <>Battery top-up charged at off-peak rate: {touAdjustedGridCharge.toFixed(0)} kWh ({touChargedBatteryPercent.toFixed(2)}%) + Remainder: {touLeftoverKwh.toFixed(0)} kWh ({gridRemainingPercent.toFixed(2)}%)</>
+                                <>Battery top-up charged at off-peak rate: {touAdjustedGridCharge.toFixed(0)} kWh ({touChargedBatteryPercent.toFixed(2)}%) + Remainder: {touLeftoverKwh.toFixed(0)} kWh ({touAdjustedGridRemainingPercent.toFixed(2)}%)</>
                               ) : (
-                                <>Remainder: {touLeftoverKwh.toFixed(0)} kWh ({gridRemainingPercent.toFixed(2)}%)</>
+                                <>Remainder: {touLeftoverKwh.toFixed(0)} kWh ({touAdjustedGridRemainingPercent.toFixed(2)}%)</>
+                              )}
+                              {touOffsetCapped && (
+                                <span className="block mt-1 text-[11px] text-amber-600">
+                                  Includes {touAdditionalGridKwh.toFixed(0)} kWh ({touOffsetReduction.toFixed(2)}%) additional grid energy due to winter cap.
+                                </span>
                               )}
                             </div>
                             <div className="text-[11px] text-gray-500 pl-5 sm:pl-7 break-words">
@@ -2321,11 +2314,19 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                           {/* Helpful card that clarifies how the remaining grid power is priced */}
                           <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-3 sm:p-4 border-2 border-gray-300 space-y-2">
                             <div className="flex items-start sm:items-center justify-between mb-2 gap-2">
-                              <span className="font-bold text-gray-700 text-sm sm:text-base min-w-0 flex-1">Cost of energy bought from grid</span>
+                              <span className="font-bold text-gray-700 text-sm sm:text-base min-w-0 flex-1">Remaining Grid Cost (Discounted)</span>
                               <div className="text-right flex-shrink-0">
                                 <div className="text-xl sm:text-2xl font-bold text-green-600">{touLeftoverCostPercent.toFixed(2)}%</div>
                                 <div className="text-xs text-gray-600">of total bill</div>
                               </div>
+                            </div>
+                            <div className="text-xs text-gray-600 pl-5 sm:pl-7 mb-2">
+                              Discounted cost because remaining energy is allocated to cheapest rate periods.
+                              {touOffsetCapped && (
+                                <span className="block mt-1 text-[11px] text-amber-600">
+                                  Cost includes additional grid energy ({touAdditionalGridKwh.toFixed(0)} kWh @ {touOffPeakRate.toFixed(1)}¢/kWh) due to winter cap.
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-start gap-2 pt-2 border-t border-gray-200">
                               <Info size={14} className="text-navy-500 flex-shrink-0 mt-0.5" />
@@ -2335,10 +2336,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                             </div>
                           </div>
 
-                          {/* Calm card sharing how the savings show up on the bill */}
+                          {/* FRD: Total Bill Savings - per FRD section 6 */}
                           <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-3 sm:p-4 border-2 border-gray-300 space-y-2">
                             <div className="flex items-start sm:items-center justify-between mb-2 gap-2">
-                              <span className="font-bold text-gray-700 text-sm sm:text-base min-w-0 flex-1">Total savings</span>
+                              <span className="font-bold text-gray-700 text-sm sm:text-base min-w-0 flex-1">Total Bill Savings</span>
                               <div className="text-right flex-shrink-0">
                                <div className="text-xl sm:text-2xl font-bold text-green-600">{touTotalSavingsPercent.toFixed(2)}%</div>
                               </div>
@@ -2357,6 +2358,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                  
                  {/* ULO Calculation Card */}
                  {(() => {
+                 // Get ULO data from results
+                 const uloData = uloResults.get('combined')
+                 if (!uloData) return null
+                 
                  // Use FRD results for consistent calculations
                  const uloFrd = frdResults.ulo
                  if (!uloFrd) return null
@@ -2385,7 +2390,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                 const uloCombinedOffsetPercent = solarDirectPercent + solarBatteryPercent
                 const uloCombinedOffset = solarDirectKwh + solarBatteryKwh
                  
-                 const solarProductionKwh = effectiveSolarProductionKwh
+                 // Ensure solarProductionKwh is always a valid number
+                 const solarProductionKwh = typeof effectiveSolarProductionKwh === 'number' && !isNaN(effectiveSolarProductionKwh) 
+                   ? effectiveSolarProductionKwh 
+                   : (data.estimate?.production?.annualKwh ?? overrideEstimate?.production?.annualKwh ?? 0)
                  
                  // Battery totals from data
                  const uloBatteryOffsetKwh = uloData.result.batteryOffsets.onPeak + 
@@ -2398,11 +2406,31 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                  const uloRemainderPercent = gridRemainingPercent
                  
                  // Check if offset is capped
-                 const uloOffsetCapped = uloCombinedOffsetPercent < offsetCapPercent - 0.1
+                 const uloUncappedOffsetPercent = uloCombinedOffsetPercent // This is already the uncapped value from FRD
+                 // Calculate cap percent from offsetCapInfo to ensure it's in scope
+                 const uloOffsetCapPercent = offsetCapInfo.capFraction * 100
+                 const uloCappedOffsetPercent = Math.min(uloUncappedOffsetPercent, uloOffsetCapPercent)
+                 const uloOffsetCapped = uloUncappedOffsetPercent > uloOffsetCapPercent + 0.1
+                 
+                 // Scale solar direct and battery offsets proportionally when capped to maintain their ratio
+                 let uloDisplaySolarDirectPercent = solarDirectPercent
+                 let uloDisplaySolarBatteryPercent = solarBatteryPercent
+                 if (uloOffsetCapped && uloUncappedOffsetPercent > 0) {
+                   const scale = uloCappedOffsetPercent / uloUncappedOffsetPercent
+                   uloDisplaySolarDirectPercent = solarDirectPercent * scale
+                   uloDisplaySolarBatteryPercent = solarBatteryPercent * scale
+                 }
 
-                 // Grid energy breakdown  
-                 const uloShownGridKwh = gridRemainingKwh
-                 const uloShownGridPercent = gridRemainingPercent
+                 // When offset is capped, adjust grid energy to account for the cap
+                 // The additional grid energy = the difference between uncapped and capped offset
+                 const uloOffsetReduction = uloUncappedOffsetPercent - uloCappedOffsetPercent
+                 const uloAdditionalGridKwh = (uloOffsetReduction / 100) * annualUsageKwh
+
+                 // Grid energy breakdown (includes grid charging when AI Mode is ON)
+                 // Add additional grid energy if offset is capped
+                 const uloAdjustedGridRemainingKwh = gridRemainingKwh + (uloOffsetCapped ? uloAdditionalGridKwh : 0)
+                 const uloShownGridKwh = uloAdjustedGridRemainingKwh + uloChargedBatteryKwh
+                 const uloShownGridPercent = uloShownGridKwh > 0 ? (uloShownGridKwh / annualUsageKwh) * 100 : 0
                  
                 // Get savings from combined results (includes AI Mode effects)
                 // Use combined results which account for AI Mode, fallback to result if combined not available
@@ -2414,12 +2442,15 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                 const uloCombinedSavings = uloData.combined?.combinedAnnualSavings
                 // Prefer uncapped savings for accurate percentage, fallback to capped if uncapped not available
                 const uloBillSavings = uloUncappedSavings || uloCombinedSavings || Math.max(0, uloOriginalBill - uloNewBill)
-                const uloTotalSavingsPercent = uloOriginalBill > 0 ? (uloBillSavings / uloOriginalBill) * 100 : 0
+                // Note: uloTotalSavingsPercent will be calculated after uloLeftoverCostPercent to ensure they add up to 100%
                    
                  // Get ULO rates for display
                   const uloRatePlan = getCustomUloRatePlan(customRates.ulo)
                  const uloLeftoverRate = uloData.result.leftoverEnergy.ratePerKwh
-                 const uloLeftoverKwh = gridRemainingKwh
+                 // Use adjusted grid remaining if offset is capped (already calculated above)
+                 const uloLeftoverKwh = uloAdjustedGridRemainingKwh
+                 // Adjust grid remaining percent to account for cap
+                 const uloAdjustedGridRemainingPercent = (uloAdjustedGridRemainingKwh / annualUsageKwh) * 100
                  const uloUltraLowRate = uloRatePlan.periods.find(p => p.period === 'ultra-low')?.rate ?? 3.9
                  const uloOffPeakRate = uloRatePlan.periods.find(p => p.period === 'off-peak')?.rate ?? 9.8
                  const uloMidPeakRate = uloRatePlan.periods.find(p => p.period === 'mid-peak')?.rate ?? 15.7
@@ -2427,14 +2458,11 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                  
                  // Grid energy display values (battery top-up + remainder)
                  const uloAdjustedGridCharge = uloChargedBatteryKwh // Battery charged from grid at ULO rate (AI Mode)
-                // Total purchased from grid = ULO-charged battery + remaining grid energy
+                // Total purchased from grid = ULO-charged battery + remaining grid energy (adjusted for cap)
                 // This shows all energy that must be purchased from the grid (even if strategically timed)
-                const uloLowRateEnergyKwh = uloAdjustedGridCharge + gridRemainingKwh // Total energy from grid
-                const uloLowRatePercent = uloChargedBatteryPercent + gridRemainingPercent // Should equal 100% - uloSolarOffsetPercent
+                 const uloLowRateEnergyKwh = uloAdjustedGridCharge + uloLeftoverKwh // Total energy from grid
+                 const uloLowRatePercent = uloChargedBatteryPercent + uloAdjustedGridRemainingPercent // Should equal 100% - uloCappedOffsetPercent
                  const uloBatteryChargingCost = uloChargedBatteryKwh * (uloUltraLowRate / 100)
-                  
-                 // Use uloNewBill instead of uloTotalGridCost to ensure percentages add to 100%
-                 const uloLeftoverCostPercent = uloOriginalBill > 0 ? (uloNewBill / uloOriginalBill) * 100 : 0
                   
                   // Calculate leftover cost from clamped breakdown (matches what's displayed)
                   const uloLeftoverBreakdown = clampBreakdown(
@@ -2447,9 +2475,17 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                     (uloLeftoverBreakdown.offPeak || 0) * (uloOffPeakRate / 100) +
                     (uloLeftoverBreakdown.midPeak || 0) * (uloMidPeakRate / 100) +
                     (uloLeftoverBreakdown.onPeak || 0) * (uloOnPeakRate / 100)
-                  const uloTotalGridCost = uloBatteryChargingCost + uloLeftoverCost
+                  // If offset is capped, add cost of additional grid energy (at cheapest rate - ultra-low)
+                  const uloAdditionalGridCost = uloOffsetCapped ? uloAdditionalGridKwh * (uloUltraLowRate / 100) : 0
+                  const uloTotalGridCost = uloBatteryChargingCost + uloLeftoverCost + uloAdditionalGridCost
                   // Blended rate for all grid purchases (battery charging + remainder)
                   const uloCorrectBlendedRate = uloLowRateEnergyKwh > 0 ? uloTotalGridCost / uloLowRateEnergyKwh : 0
+                  // Calculate cost percentage as actual cost of remaining grid energy divided by original bill
+                  // This should be LESS than the energy percentage because energy is bought at cheaper rates
+                  const uloLeftoverCostPercent = uloOriginalBill > 0 ? (uloTotalGridCost / uloOriginalBill) * 100 : 0
+                  // Calculate Total Bill Savings as complement to ensure they add up to 100%
+                  // This ensures "Remaining Grid Cost (Discounted)" + "Total Bill Savings" = 100%
+                  const uloTotalSavingsPercent = Math.max(0, 100 - uloLeftoverCostPercent)
                   
                   // Keep the storytelling grounded by anchoring to the original peak-priced usage
                   const uloPeakPricedUsageKwh =
@@ -2486,7 +2522,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                            </div>
                            <div className="bg-white rounded-xl p-3 sm:p-4 border-2 border-gray-200">
                              <div className="text-xs font-semibold text-gray-600 mb-1">Solar Production</div>
-                             <div className="text-xl sm:text-2xl font-bold text-green-600">{solarProductionKwh > 0 ? solarProductionKwh.toLocaleString() : '0'}</div>
+                             <div className="text-xl sm:text-2xl font-bold text-green-600">{(solarProductionKwh ?? effectiveSolarProductionKwh ?? 0).toLocaleString()}</div>
                              <div className="text-xs text-gray-500">kWh/year</div>
                            </div>
                          </div>
@@ -2530,7 +2566,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                           </div>
 
                          {/* FRD: ULO-charged battery coverage - separate card per FRD section 6 */}
-                          {aiMode && uloChargedBatteryKwh > 0 && (
+                          {!manualMode && aiMode && uloChargedBatteryKwh > 0 && (
                             <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 sm:p-4 border-2 border-amber-200">
                               <div className="flex items-start sm:items-center justify-between mb-2 gap-2">
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -2554,14 +2590,14 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                                 <span className="font-bold text-gray-700 text-sm sm:text-base">Total Energy Offset</span>
                               </div>
                               <div className="text-right flex-shrink-0">
-                                <div className="text-xl sm:text-2xl font-bold text-green-600">{uloCombinedOffsetPercent.toFixed(2)}%</div>
-                                <div className="text-xs text-gray-600">{uloCombinedOffset.toFixed(0)} kWh/year</div>
+                                <div className="text-xl sm:text-2xl font-bold text-green-600">{uloCappedOffsetPercent.toFixed(2)}%</div>
+                                <div className="text-xs text-gray-600">{(uloCappedOffsetPercent / 100 * annualUsageKwh).toFixed(0)} kWh/year</div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">Free energy from solar: {solarDirectPercent.toFixed(2)}% direct + {solarBatteryPercent.toFixed(2)}% stored in battery</div>
+                            <div className="text-xs text-gray-600 pl-5 sm:pl-7">Free energy from solar: {uloDisplaySolarDirectPercent.toFixed(2)}% direct + {uloDisplaySolarBatteryPercent.toFixed(2)}% stored in battery</div>
                             {uloOffsetCapped && (
                               <div className="text-[11px] text-amber-600 pl-7 mt-1">
-                                Capped at {offsetCapPercent.toFixed(0)}% to reflect winter limits
+                                Capped at {uloOffsetCapPercent.toFixed(0)}% to reflect winter limits
                                 {offsetCapInfo.matchesUsage ? ' (solar production closely matches annual usage).' : '.'}
                                 {offsetCapInfo.orientationBonus || offsetCapInfo.productionBonus ? (
                                   <span className="block">
@@ -2592,7 +2628,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                             </button>
                             <div className="h-px flex-1 bg-gradient-to-r from-red-200 to-transparent" />
                           </div>
-                          <p className="text-[11px] text-gray-600 pl-1">Savings = 100% − Cost of energy bought from the grid.</p>
+                          <p className="text-[11px] text-gray-600 pl-1">Savings = 100% − Remaining Grid Cost (Discounted).</p>
 
                           {/* FRD: Remaining purchased from grid (ULO rate) - per FRD section 6 */}
                           <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-3 sm:p-4 border-2 border-red-200 space-y-2">
@@ -2608,9 +2644,14 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                             </div>
                             <div className="text-xs text-gray-600 pl-5 sm:pl-7">
                               {uloAdjustedGridCharge > 0 ? (
-                                <>Battery top-up charged at ULO rate: {uloAdjustedGridCharge.toFixed(0)} kWh ({uloChargedBatteryPercent.toFixed(2)}%) + Remainder: {uloLeftoverKwh.toFixed(0)} kWh ({gridRemainingPercent.toFixed(2)}%)</>
+                                <>Battery top-up charged at ULO rate: {uloAdjustedGridCharge.toFixed(0)} kWh ({uloChargedBatteryPercent.toFixed(2)}%) + Remainder: {uloLeftoverKwh.toFixed(0)} kWh ({uloAdjustedGridRemainingPercent.toFixed(2)}%)</>
                               ) : (
-                                <>Remainder: {uloLeftoverKwh.toFixed(0)} kWh ({gridRemainingPercent.toFixed(2)}%)</>
+                                <>Remainder: {uloLeftoverKwh.toFixed(0)} kWh ({uloAdjustedGridRemainingPercent.toFixed(2)}%)</>
+                              )}
+                              {uloOffsetCapped && (
+                                <span className="block mt-1 text-[11px] text-amber-600">
+                                  Includes {uloAdditionalGridKwh.toFixed(0)} kWh ({uloOffsetReduction.toFixed(2)}%) additional grid energy due to winter cap.
+                                </span>
                               )}
                             </div>
                             <div className="text-[11px] text-gray-500 pl-5 sm:pl-7 break-words">
@@ -2628,11 +2669,19 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                           {/* Helpful card that clarifies how the remaining grid power is priced */}
                           <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-3 sm:p-4 border-2 border-gray-300 space-y-2">
                             <div className="flex items-start sm:items-center justify-between mb-2 gap-2">
-                              <span className="font-bold text-gray-700 text-sm sm:text-base min-w-0 flex-1">Cost of energy bought from grid</span>
+                              <span className="font-bold text-gray-700 text-sm sm:text-base min-w-0 flex-1">Remaining Grid Cost (Discounted)</span>
                               <div className="text-right flex-shrink-0">
                                 <div className="text-xl sm:text-2xl font-bold text-green-600">{uloLeftoverCostPercent.toFixed(2)}%</div>
                                 <div className="text-xs text-gray-600">of total bill</div>
                               </div>
+                            </div>
+                            <div className="text-xs text-gray-600 pl-5 sm:pl-7 mb-2">
+                              Discounted cost because remaining energy is allocated to cheapest rate periods.
+                              {uloOffsetCapped && (
+                                <span className="block mt-1 text-[11px] text-amber-600">
+                                  Cost includes additional grid energy ({uloAdditionalGridKwh.toFixed(0)} kWh @ {uloUltraLowRate.toFixed(1)}¢/kWh) due to winter cap.
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-start gap-2 pt-2 border-t border-gray-200">
                               <Info size={14} className="text-navy-500 flex-shrink-0 mt-0.5" />

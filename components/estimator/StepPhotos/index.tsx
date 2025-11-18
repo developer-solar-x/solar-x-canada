@@ -1,0 +1,205 @@
+'use client'
+
+// Step: Property Photos Upload
+
+import { useState, useRef } from 'react'
+import { Modal } from '@/components/ui/Modal'
+import { ImageModal } from '@/components/ui/ImageModal'
+import { deletePhoto } from '@/lib/photo-storage'
+import { PhotoUploadSection } from './sections/PhotoUploadSection'
+import { PhotoSummary } from './components/PhotoSummary'
+import { usePhotoStorage } from './hooks/usePhotoStorage'
+import { usePhotoUpload } from './hooks/usePhotoUpload'
+import { PHOTO_CATEGORIES } from './constants'
+import type { StepPhotosProps, UploadedPhoto } from './types'
+
+export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
+  const [activeCategory, setActiveCategory] = useState<string>('roof')
+  const [showSkipModal, setShowSkipModal] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // State for image modal
+  const [imageModalOpen, setImageModalOpen] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string; title: string } | null>(null)
+
+  const { photos, setPhotos, loading } = usePhotoStorage(data)
+  const { dragActive, handleDrag, handleDrop, handleFiles } = usePhotoUpload(photos, setPhotos, activeCategory)
+
+  // Check if required categories have photos
+  const hasRequiredPhotos = () => {
+    const requiredCategories = PHOTO_CATEGORIES.filter(cat => cat.required)
+    return requiredCategories.every(cat => 
+      photos.some(photo => photo.category === cat.id)
+    )
+  }
+
+  // Get photos for specific category
+  const getPhotosForCategory = (categoryId: string) => {
+    return photos.filter(photo => photo.category === categoryId)
+  }
+
+  // Handle file selection from input
+  const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (files) {
+      handleFiles(Array.from(files))
+    }
+  }
+
+  // Remove photo
+  const removePhoto = async (photoId: string) => {
+    const photo = photos.find(p => p.id === photoId)
+    if (photo) {
+      // Revoke the object URL to free memory
+      URL.revokeObjectURL(photo.preview)
+      
+      // Delete from IndexedDB
+      try {
+        await deletePhoto(photoId)
+      } catch (error) {
+        console.error(`Failed to delete photo ${photoId}:`, error)
+      }
+    }
+    
+    // Update UI
+    setPhotos(photos.filter(p => p.id !== photoId))
+  }
+
+  // Handle view photo
+  const handleViewPhoto = (photo: UploadedPhoto) => {
+    const categoryName = PHOTO_CATEGORIES.find(c => c.id === activeCategory)?.name || activeCategory
+    setSelectedImage({ 
+      src: photo.preview, 
+      alt: `${categoryName} photo`, 
+      title: `${categoryName} - ${photo.file.name}` 
+    })
+    setImageModalOpen(true)
+  }
+
+  // Handle continue
+  const handleContinue = () => {
+    // Filter photos that have been successfully uploaded
+    const uploadedPhotos = photos.filter(p => p.uploadedUrl)
+    
+    // Warn if some photos failed to upload
+    const failedPhotos = photos.filter(p => p.uploadError)
+    if (failedPhotos.length > 0) {
+      console.warn(`${failedPhotos.length} photo(s) failed to upload, but continuing anyway`)
+    }
+    
+    onComplete({
+      photos: photos.map(p => ({
+        id: p.id,
+        category: p.category,
+        file: p.file,
+        preview: p.preview,
+        url: p.uploadedUrl, // Use Supabase URL instead of blob URL
+      })),
+      photoSummary: {
+        total: photos.length,
+        byCategory: PHOTO_CATEGORIES.map(cat => ({
+          category: cat.id,
+          count: getPhotosForCategory(cat.id).length,
+        })),
+      }
+    })
+  }
+
+  // Skip photos (allow but warn)
+  const handleSkip = () => {
+    setShowSkipModal(true)
+  }
+
+  // Confirm skip
+  const confirmSkip = () => {
+    onComplete({ photos: [], photoSummary: { total: 0, byCategory: [] } })
+  }
+
+  // Show loading state while loading photos from IndexedDB
+  if (loading) {
+    return (
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading your photos...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-hidden">
+      <div className="grid lg:grid-cols-[1fr_320px] gap-4 lg:gap-6">
+        {/* Main content - Photo upload */}
+        <PhotoUploadSection
+          categories={PHOTO_CATEGORIES}
+          activeCategory={activeCategory}
+          onCategoryChange={setActiveCategory}
+          photos={photos}
+          getPhotosForCategory={getPhotosForCategory}
+          onFileSelect={handleFiles}
+          dragActive={dragActive}
+          onDrag={handleDrag}
+          onDrop={handleDrop}
+          fileInputRef={fileInputRef}
+          onRemovePhoto={removePhoto}
+          onViewPhoto={handleViewPhoto}
+        />
+        
+        {/* Hidden file input for programmatic access */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*"
+          onChange={handleFileInputChange}
+          className="hidden"
+          capture="environment"
+        />
+
+        {/* Right sidebar - Summary */}
+        <PhotoSummary
+          categories={PHOTO_CATEGORIES}
+          photos={photos}
+          getPhotosForCategory={getPhotosForCategory}
+          hasRequiredPhotos={hasRequiredPhotos()}
+          onContinue={handleContinue}
+          onSkip={handleSkip}
+          onBack={onBack}
+        />
+      </div>
+
+      {/* Skip Photos Confirmation Modal */}
+      <Modal
+        isOpen={showSkipModal}
+        onClose={() => setShowSkipModal(false)}
+        onConfirm={confirmSkip}
+        title="Skip Photo Upload?"
+        message="Skipping photos may result in a less accurate estimate and could require an additional site visit. Are you sure you want to continue without uploading photos?"
+        confirmText="Yes, Skip Photos"
+        cancelText="No, Upload Photos"
+        variant="warning"
+      >
+        <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+          <p className="text-xs text-yellow-800">
+            <strong>Note:</strong> Photos help us provide accurate quotes faster and may eliminate the need for an initial site visit.
+          </p>
+        </div>
+      </Modal>
+
+      {/* Image Modal for viewing photos in full size */}
+      {selectedImage && (
+        <ImageModal
+          isOpen={imageModalOpen}
+          onClose={() => setImageModalOpen(false)}
+          imageSrc={selectedImage.src}
+          imageAlt={selectedImage.alt}
+          title={selectedImage.title}
+        />
+      )}
+    </div>
+  )
+}
+
