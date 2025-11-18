@@ -835,7 +835,7 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
             )
           } else {
             // ULO: derive leftoverEnergy.breakdown from gridKWhByBucket (subtract battery charging)
-            // Then apply clampBreakdown (EXACT same as manual calculator)
+            // Then apply clampBreakdown with ultra-low cap (EXACT same as manual calculator)
             const leftoverBreakdown = {
               ultraLow: Math.max(0, (gridKwhByBucket.ultraLow || 0) - batteryGridChargedKwh),
               offPeak: gridKwhByBucket.offPeak || 0,
@@ -843,11 +843,19 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
               onPeak: gridKwhByBucket.onPeak || 0
             }
             
-            // Apply clampBreakdown (EXACT same as manual calculator)
+            // Calculate ultra-low cap for ULO (EXACT same as manual calculator - similar to TOU off-peak cap)
+            const distribution = DEFAULT_ULO_DISTRIBUTION
+            const originalUltraLowUsage = annualUsageKwh * (distribution.ultraLowPercent || 0) / 100
+            const postUltraLowUsage = (leftoverBreakdown.ultraLow || 0) + batteryGridChargedKwh
+            const ultraLowRoomForRemainder = Math.max(0, originalUltraLowUsage - postUltraLowUsage)
+            const ultraLowCap = Math.min(leftoverKwh, ultraLowRoomForRemainder + (annualUsageKwh * 0.05))
+            
+            // Apply clampBreakdown with ultra-low cap (EXACT same as manual calculator)
             clampedBreakdown = clampBreakdown(
               leftoverBreakdown,
               leftoverKwh,
-              ['ultraLow', 'offPeak', 'midPeak', 'onPeak']
+              ['ultraLow', 'offPeak', 'midPeak', 'onPeak'],
+              { ultraLow: ultraLowCap }
             )
           }
           
@@ -1099,7 +1107,7 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
         )
       } else {
         // ULO: derive leftoverEnergy.breakdown from gridKWhByBucket (subtract battery charging)
-        // Then apply clampBreakdown (EXACT same as manual calculator)
+        // Then apply clampBreakdown with ultra-low cap (EXACT same as manual calculator)
         const leftoverBreakdown = {
           ultraLow: Math.max(0, (gridKwhByBucket.ultraLow || 0) - batteryGridChargedKwh),
           offPeak: gridKwhByBucket.offPeak || 0,
@@ -1107,11 +1115,19 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
           onPeak: gridKwhByBucket.onPeak || 0
         }
         
-        // Apply clampBreakdown to adjusted leftoverKwh (includes additional energy if capped)
+        // Calculate ultra-low cap for ULO (EXACT same as manual calculator - similar to TOU off-peak cap)
+        const distribution = DEFAULT_ULO_DISTRIBUTION
+        const originalUltraLowUsage = annualUsageKwh * (distribution.ultraLowPercent || 0) / 100
+        const postUltraLowUsage = (leftoverBreakdown.ultraLow || 0) + batteryGridChargedKwh
+        const ultraLowRoomForRemainder = Math.max(0, originalUltraLowUsage - postUltraLowUsage)
+        const ultraLowCap = Math.min(adjustedLeftoverKwh, ultraLowRoomForRemainder + (annualUsageKwh * 0.05))
+        
+        // Apply clampBreakdown with ultra-low cap to adjusted leftoverKwh (includes additional energy if capped)
         clampedBreakdown = clampBreakdown(
           leftoverBreakdown,
           adjustedLeftoverKwh,
-          ['ultraLow', 'offPeak', 'midPeak', 'onPeak']
+          ['ultraLow', 'offPeak', 'midPeak', 'onPeak'],
+          { ultraLow: ultraLowCap }
         )
       }
       

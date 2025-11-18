@@ -33,9 +33,7 @@ import {
   PaybackInfoModal,
   ProfitInfoModal,
   TouInfoModal,
-  TouSavingsBreakdownModal,
   UloInfoModal,
-  UloSavingsBreakdownModal,
 } from './modals'
 import {
   HeaderSection,
@@ -141,10 +139,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
   const [showUsageDistribution, setShowUsageDistribution] = useState(false)
   // Track whether the global savings explainer modal is showing for quick help
   const [showSavingsInfo, setShowSavingsInfo] = useState(false)
-  // Track if the TOU savings section helper modal should be visible
-  const [showTouSavingsSectionInfo, setShowTouSavingsSectionInfo] = useState(false)
-  // Track if the ULO savings section helper modal should be visible
-  const [showUloSavingsSectionInfo, setShowUloSavingsSectionInfo] = useState(false)
   // This state toggles the 25-year profit explainer so folks can explore the long-term story when they are ready
   const [showProfitInfo, setShowProfitInfo] = useState(false)
   // AI Optimization Mode state (always ON, hidden from user) - allows grid charging at cheap rates
@@ -752,22 +746,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
         onClose={() => setShowPaybackInfo(false)}
         touResults={touResults}
         uloResults={uloResults}
-      />
-
-      {/* TOU savings section explainer keeps the context handy for that card stack */}
-      <TouSavingsBreakdownModal
-        open={showTouSavingsSectionInfo}
-        onClose={() => setShowTouSavingsSectionInfo(false)}
-        results={touResults}
-        formatKwh={formatKwh}
-      />
-
-      {/* ULO savings section explainer mirrors the same idea but calls out the overnight top-ups */}
-      <UloSavingsBreakdownModal
-        open={showUloSavingsSectionInfo}
-        onClose={() => setShowUloSavingsSectionInfo(false)}
-        results={uloResults}
-        formatKwh={formatKwh}
       />
 
       {/* Savings & 25-Year Profit Info Modal */}
@@ -2263,15 +2241,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                           {/* Plain-language heading so viewers see this is the savings set */}
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-navy-600 uppercase tracking-wide">Savings & Remaining Costs</span>
-                            {/* Tiny info button offers a plain-language explainer for this whole section */}
-                            <button
-                              type="button"
-                              onClick={() => setShowTouSavingsSectionInfo(true)}
-                              className="inline-flex items-center justify-center rounded-full border border-navy-200 text-navy-500 hover:bg-navy-50 transition px-1.5 py-1"
-                              aria-label="How are savings and remaining costs calculated for TOU?"
-                            >
-                              <Info size={14} />
-                            </button>
                             <div className="h-px flex-1 bg-gradient-to-r from-navy-200 to-transparent" />
                           </div>
                           <p className="text-[11px] text-gray-600 pl-1">Savings follow the bill: {`100% - Remaining Grid Cost (Discounted)`}.</p>
@@ -2464,11 +2433,26 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                  const uloLowRatePercent = uloChargedBatteryPercent + uloAdjustedGridRemainingPercent // Should equal 100% - uloCappedOffsetPercent
                  const uloBatteryChargingCost = uloChargedBatteryKwh * (uloUltraLowRate / 100)
                   
-                  // Calculate leftover cost from clamped breakdown (matches what's displayed)
+                  // Calculate ultra-low cap for ULO (similar to TOU off-peak cap)
+                  // Keep the storytelling grounded by anchoring to the original ultra-low usage
+                  const uloPostProgramsUltraLowUsage =
+                    (uloData.result.usageByPeriod?.ultraLow ?? 0) +
+                    uloAdjustedGridCharge
+                  const uloUltraLowRoomForRemainder = Math.max(
+                    0,
+                    (annualUsageKwh * ((uloDistribution.ultraLowPercent || 0) / 100)) - uloPostProgramsUltraLowUsage
+                  )
+                  const uloUltraLowCap = Math.min(
+                    uloLeftoverKwh,
+                    uloUltraLowRoomForRemainder + (annualUsageKwh * 0.05)
+                  )
+                  
+                  // Calculate leftover cost from clamped breakdown with ultra-low cap (matches what's displayed)
                   const uloLeftoverBreakdown = clampBreakdown(
                     uloData.result.leftoverEnergy.breakdown,
                     uloLeftoverKwh,
-                    ['ultraLow', 'offPeak', 'midPeak', 'onPeak']
+                    ['ultraLow', 'offPeak', 'midPeak', 'onPeak'],
+                    { ultraLow: uloUltraLowCap }
                   )
                   const uloLeftoverCost = 
                     (uloLeftoverBreakdown.ultraLow || 0) * (uloUltraLowRate / 100) +
@@ -2617,15 +2601,6 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                           {/* Plain-language heading so viewers see this is the savings set */}
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-navy-600 uppercase tracking-wide">Savings & Remaining Costs</span>
-                            {/* Same friendly info button but tailored for the ULO explanation */}
-                            <button
-                              type="button"
-                              onClick={() => setShowUloSavingsSectionInfo(true)}
-                              className="inline-flex items-center justify-center rounded-full border border-red-200 text-red-500 hover:bg-red-50 transition px-1.5 py-1"
-                              aria-label="How are savings and remaining costs calculated for ULO?"
-                            >
-                              <Info size={14} />
-                            </button>
                             <div className="h-px flex-1 bg-gradient-to-r from-red-200 to-transparent" />
                           </div>
                           <p className="text-[11px] text-gray-600 pl-1">Savings = 100% − Remaining Grid Cost (Discounted).</p>
