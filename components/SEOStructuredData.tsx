@@ -5,10 +5,10 @@ export function SEOStructuredData() {
   const organizationSchema = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
-    name: 'SolarX',
+    name: 'Solar Calculator Canada',
     url: 'https://www.solarcalculatorcanada.org',
     logo: 'https://www.solarcalculatorcanada.org/logo.png',
-    description: 'Free solar panel calculator and estimate tool for Canadian homeowners. Calculate solar costs, savings, and ROI instantly.',
+    description: 'Free solar calculator and estimate tool for Canadian homeowners. Calculate rooftop solar systems, peak shaving, net metering, battery storage, system sizing, costs, savings, and ROI instantly.',
     address: {
       '@type': 'PostalAddress',
       addressCountry: 'CA',
@@ -22,9 +22,9 @@ export function SEOStructuredData() {
   const websiteSchema = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
-    name: 'SolarX - Free Solar Calculator Canada',
+    name: 'Free Solar Calculator Canada',
     url: 'https://www.solarcalculatorcanada.org',
-    description: 'Free solar panel calculator and estimate tool for Canadian homeowners',
+    description: 'Free solar calculator and estimate tool for Canadian homeowners. Calculate rooftop solar, peak shaving, net metering, battery storage, and system sizing.',
     inLanguage: 'en-CA',
     potentialAction: {
       '@type': 'SearchAction',
@@ -42,13 +42,13 @@ export function SEOStructuredData() {
     serviceType: 'Solar Panel Installation Consultation',
     provider: {
       '@type': 'Organization',
-      name: 'SolarX',
+      name: 'Solar Calculator Canada',
     },
     areaServed: {
       '@type': 'Country',
       name: 'Canada',
     },
-    description: 'Free solar panel cost and savings calculator for Canadian homeowners. Get instant estimates for solar panel installation costs, savings, and ROI.',
+    description: 'Free solar calculator for Canadian homeowners. Calculate rooftop solar systems, peak shaving, net metering, battery storage, system sizing, installation costs, savings, and ROI. Get instant solar panel estimates.',
     offers: {
       '@type': 'Offer',
       price: '0',

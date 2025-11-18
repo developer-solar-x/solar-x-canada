@@ -383,7 +383,7 @@ function EnergyFlowDiagram({
       {/* Total Offset Summary */}
       <div className="mt-4 pt-4 border-t border-gray-200 text-center">
         <div className="text-sm text-gray-600">
-          <span className="font-semibold text-gray-700">Total Energy Offset: </span>
+          <span className="font-semibold text-gray-700">Total Solar & Battery Offset: </span>
           <span className="text-lg font-bold text-gray-800">{totalOffset.toFixed(1)}%</span>
           <span className="text-xs text-gray-500 ml-1">(Free energy from solar and battery)</span>
         </div>
@@ -1317,9 +1317,19 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
               {/* Battery Selection */}
               <div>
                 {/* FRD Section 9: Body 16-18px (text-base = 16px, text-lg = 18px) */}
-                <label className="block text-base md:text-lg font-semibold text-gray-700 mb-2">
-                  Battery Size
-                </label>
+                <div className="flex items-center gap-2 mb-2">
+                  <label className="block text-base md:text-lg font-semibold text-gray-700">
+                    Battery Size
+                  </label>
+                  <div className="relative group">
+                    <Info className="text-blue-500 cursor-help hover:text-blue-600 transition-colors" size={18} />
+                    <div className="absolute left-0 bottom-full mb-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl">
+                      <div className="font-semibold mb-1">Usable Capacity</div>
+                      <div>This battery uses {selectedBattery.usablePercent}% of its nominal capacity.</div>
+                      <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                </div>
                 <select
                   value={selectedBatteryId}
                   onChange={(e) => setSelectedBatteryId(e.target.value)}
@@ -1327,7 +1337,7 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
                 >
                   {BATTERY_SPECS.map(battery => (
                     <option key={battery.id} value={battery.id}>
-                      {battery.brand} {battery.model} ({battery.nominalKwh} kWh)
+                      {battery.brand} {battery.model}
                     </option>
                   ))}
                 </select>
@@ -1388,14 +1398,14 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
                 />
                 <HeroMetricCard
                   icon={Battery}
-                  label="Battery Offset"
+                  label="Battery Solar Capture"
                   value={heroMetrics.batteryOffset}
                   caption="Powered by stored solar energy."
                   color="green"
                 />
                 <HeroMetricCard
                   icon={BarChart3}
-                  label="Total Energy Offset"
+                  label="Total Solar & Battery Offset"
                   value={heroMetrics.totalEnergyOffset}
                   caption={(() => {
                     // Check if offset is capped
@@ -1411,17 +1421,16 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
                 {/* Grid & Financial Metrics */}
                 <HeroMetricCard
                   icon={AlertTriangle}
-                  label="Bought from Grid"
+                  label="Buy from Grid"
                   value={heroMetrics.boughtFromGridPercent}
-                  caption="Energy purchased from grid (cheap hours)."
+                  caption="Annual % of leftover electricity purchased"
                   color="blue"
                 />
                 <HeroMetricCard
                   icon={DollarSign}
-                  label="Remaining Grid Cost (Discounted)"
+                  label="Battery Load Management"
                   value={heroMetrics.costOfEnergyBoughtFromGrid}
-                  caption="Discounted cost because remaining energy is allocated to cheapest rate periods."
-                  tooltip={heroMetrics.remainingGridCostTooltip}
+                  caption="Annual cost after battery time of use optimization"
                   color="green"
                 />
                 <HeroMetricCard
@@ -1594,14 +1603,6 @@ export function PeakShavingSalesCalculatorFRD({ data, onComplete, onBack, manual
                         </tr>
                       </tbody>
                     </table>
-                    
-                    {effectiveCycles > 0 && (
-                      <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                        <div className="text-sm text-gray-700">
-                          <strong>Effective Battery Cycles:</strong> {effectiveCycles.toFixed(1)} cycles/year
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )
               })()}

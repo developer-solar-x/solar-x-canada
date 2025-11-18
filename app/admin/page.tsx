@@ -43,6 +43,7 @@ export default function AdminPage() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [partialLeads, setPartialLeads] = useState<MockPartialLead[]>([])
   const [loading, setLoading] = useState(true)
+  const [partialLeadsLoading, setPartialLeadsLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [activeSection, setActiveSection] = useState('analytics') // State to track active section (leads, partial-leads, users, analytics, greenbutton, sales-kpi, or commercial-calculator)
@@ -131,6 +132,7 @@ export default function AdminPage() {
   // Load real partial leads from database
   useEffect(() => {
     const fetchPartialLeads = async () => {
+      setPartialLeadsLoading(true)
       try {
         const params = new URLSearchParams()
         if (searchTerm) {
@@ -151,6 +153,8 @@ export default function AdminPage() {
       } catch (error) {
         console.error('Error fetching partial leads:', error)
         setPartialLeads([])
+      } finally {
+        setPartialLeadsLoading(false)
       }
     }
     
@@ -354,6 +358,7 @@ export default function AdminPage() {
             leads={leads}
             stats={stats}
             partialStats={partialStats}
+            loading={loading}
           />
         )}
 
@@ -374,6 +379,7 @@ export default function AdminPage() {
           <PartialLeadsSection
             partialLeads={partialLeads}
             partialStats={partialStats}
+            loading={partialLeadsLoading}
             searchTerm={searchTerm}
             onSearchTermChange={setSearchTerm}
             onPartialLeadClick={handlePartialLeadClick}

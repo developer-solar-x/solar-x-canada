@@ -1,6 +1,7 @@
 'use client'
 
 import { Users } from 'lucide-react'
+import { SkeletonUserTableRow } from '@/components/admin/SkeletonLoader'
 
 interface UsersSectionProps {
   users: any[]
@@ -34,8 +35,26 @@ export function UsersSection({
       </div>
 
       {usersLoading ? (
-        <div className="text-center py-12">
-          <div className="text-gray-500">Loading users...</div>
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0">
+            <table className="w-full min-w-[700px]">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Role</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Created</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <SkeletonUserTableRow key={i} />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : users.length === 0 ? (
         <div className="card p-12 text-center">

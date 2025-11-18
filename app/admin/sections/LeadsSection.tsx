@@ -3,6 +3,7 @@
 import { Users, DollarSign, Zap, TrendingUp, Search, Download } from 'lucide-react'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils'
 import { getStatusColor, getProgramBadgeColor, formatProgramType } from '../utils'
+import { SkeletonStatsGrid, SkeletonTableRow } from '@/components/admin/SkeletonLoader'
 
 interface Lead {
   id: string
@@ -54,46 +55,50 @@ export function LeadsSection({
       </div>
 
       {/* Stats cards */}
-      <div className="grid md:grid-cols-4 gap-6 mb-8">
-        <div className="card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <Users className="text-blue-500" size={32} />
-            <span className="text-3xl font-bold text-navy-500">{stats.totalLeads}</span>
+      {loading ? (
+        <SkeletonStatsGrid />
+      ) : (
+        <div className="grid md:grid-cols-4 gap-6 mb-8">
+          <div className="card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <Users className="text-blue-500" size={32} />
+              <span className="text-3xl font-bold text-navy-500">{stats.totalLeads}</span>
+            </div>
+            <div className="text-sm text-gray-600">Total Leads</div>
+            <div className="text-xs text-green-600 mt-1">↑ {stats.newLeads} new</div>
           </div>
-          <div className="text-sm text-gray-600">Total Leads</div>
-          <div className="text-xs text-green-600 mt-1">↑ {stats.newLeads} new</div>
-        </div>
 
-        <div className="card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <Zap className="text-red-500" size={32} />
-            <span className="text-3xl font-bold text-navy-500">
-              {stats.avgSystemSize.toFixed(1)} kW
-            </span>
+          <div className="card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <Zap className="text-red-500" size={32} />
+              <span className="text-3xl font-bold text-navy-500">
+                {stats.avgSystemSize.toFixed(1)} kW
+              </span>
+            </div>
+            <div className="text-sm text-gray-600">Avg System Size</div>
           </div>
-          <div className="text-sm text-gray-600">Avg System Size</div>
-        </div>
 
-        <div className="card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <DollarSign className="text-green-500" size={32} />
-            <span className="text-3xl font-bold text-navy-500">
-              {formatCurrency(stats.totalSavings)}
-            </span>
+          <div className="card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <DollarSign className="text-green-500" size={32} />
+              <span className="text-3xl font-bold text-navy-500">
+                {formatCurrency(stats.totalSavings)}
+              </span>
+            </div>
+            <div className="text-sm text-gray-600">Total Annual Savings</div>
           </div>
-          <div className="text-sm text-gray-600">Total Annual Savings</div>
-        </div>
 
-        <div className="card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <TrendingUp className="text-purple-500" size={32} />
-            <span className="text-3xl font-bold text-navy-500">
-              {((stats.newLeads / stats.totalLeads) * 100 || 0).toFixed(0)}%
-            </span>
+          <div className="card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <TrendingUp className="text-purple-500" size={32} />
+              <span className="text-3xl font-bold text-navy-500">
+                {((stats.newLeads / stats.totalLeads) * 100 || 0).toFixed(0)}%
+              </span>
+            </div>
+            <div className="text-sm text-gray-600">Conversion Rate</div>
           </div>
-          <div className="text-sm text-gray-600">Conversion Rate</div>
         </div>
-      </div>
+      )}
 
       {/* Filters bar */}
       <div className="card p-6 mb-6">
@@ -134,7 +139,30 @@ export function LeadsSection({
       {/* Leads table */}
       <div className="card overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-gray-500">Loading leads...</div>
+          <>
+            <div className="bg-navy-500 h-12"></div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px]">
+                <thead className="bg-navy-500 text-white">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Name</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Program</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Location</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">System Size</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Savings/Year</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Created</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">HubSpot</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <SkeletonTableRow key={i} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         ) : leads.length === 0 ? (
           <div className="p-8 text-center text-gray-500">No leads found</div>
         ) : (

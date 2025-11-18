@@ -1,7 +1,5 @@
-// SolarX Logo component with brand styling
-// Displays the company logo image
-
-import Image from 'next/image'
+// Logo component with brand styling
+// Displays a text-based logo
 
 interface LogoProps {
   variant?: 'default' | 'white' | 'dark';
@@ -14,36 +12,33 @@ export function Logo({
   size = 'md',
   showTagline = false 
 }: LogoProps) {
-  // Size dimensions for the logo image (maintaining aspect ratio ~3:1)
-  const sizeDimensions = {
-    sm: { width: 120, height: 40 },
-    md: { width: 180, height: 60 },
-    lg: { width: 240, height: 80 }
+  // Text sizes for different logo sizes
+  const textSizes = {
+    sm: 'text-xl',
+    md: 'text-2xl',
+    lg: 'text-3xl'
   };
   
-  const dimensions = sizeDimensions[size];
+  const taglineSizes = {
+    sm: 'text-xs',
+    md: 'text-sm',
+    lg: 'text-base'
+  };
+  
+  const textColor = variant === 'white' || variant === 'dark' 
+    ? 'text-white' 
+    : 'text-navy-500';
   
   return (
-    <div className="flex items-center">
-      {/* Logo image - works best on dark backgrounds as designed */}
-      <div className={`relative ${
-        variant === 'white' || variant === 'dark' 
-          ? 'bg-transparent' 
-          : 'bg-transparent'
-      }`}>
-        <Image 
-          src="/SolarXLogo cropped.png"
-          alt="SolarX - Modern Solar Solutions"
-          width={dimensions.width}
-          height={dimensions.height}
-          priority
-          className="object-contain"
-          style={{ 
-            maxWidth: '100%',
-            height: 'auto'
-          }}
-        />
+    <div className="flex flex-col items-start">
+      <div className={`font-bold font-display ${textSizes[size]} ${textColor}`}>
+        Solar Calculator Canada
       </div>
+      {showTagline && (
+        <div className={`${taglineSizes[size]} ${variant === 'white' || variant === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+          Free Solar Estimate Tool
+        </div>
+      )}
     </div>
   );
 }

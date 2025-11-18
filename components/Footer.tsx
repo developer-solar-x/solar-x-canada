@@ -96,14 +96,14 @@ export function Footer() {
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <Phone size={18} className="mt-1 flex-shrink-0" />
-                <a href="tel:1-800-SOLAR-X1" className="text-gray-300 hover:text-white transition-colors">
-                  1-800-SOLAR-X1
+                <a href="tel:1-800-555-1234" className="text-gray-300 hover:text-white transition-colors">
+                  1-800-555-1234
                 </a>
               </li>
               <li className="flex items-start gap-3">
                 <Mail size={18} className="mt-1 flex-shrink-0" />
-                <a href="mailto:hello@solarx.ca" className="text-gray-300 hover:text-white transition-colors">
-                  hello@solarx.ca
+                <a href="mailto:hello@solarcalculatorcanada.org" className="text-gray-300 hover:text-white transition-colors">
+                  hello@solarcalculatorcanada.org
                 </a>
               </li>
               <li className="flex items-start gap-3">
@@ -124,7 +124,7 @@ export function Footer() {
         <div className="pt-8 border-t border-white/10">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-gray-200 text-sm">
-              © 2024 SolarX. All rights reserved.
+              © 2024. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm">
               <Link href="#" className="text-gray-200 hover:text-white transition-colors">

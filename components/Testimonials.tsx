@@ -6,7 +6,7 @@ export function Testimonials() {
   // Customer testimonials data
   const testimonials = [
     {
-      quote: "SolarX made going solar effortless. The estimate was spot-on, and we're now saving $180/month!",
+      quote: "Going solar was effortless. The estimate was spot-on, and we're now saving $180/month!",
       name: 'Sarah M.',
       location: 'Toronto, ON',
       system: '8.5 kW system',
@@ -24,7 +24,7 @@ export function Testimonials() {
       bgColor: 'bg-red-500',
     },
     {
-      quote: "From estimate to installation took only 3 months. Couldn't be happier with SolarX!",
+      quote: "From estimate to installation took only 3 months. Couldn't be happier!",
       name: 'Maria K.',
       location: 'Mississauga, ON',
       system: '10.1 kW system',

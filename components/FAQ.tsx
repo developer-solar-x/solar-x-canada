@@ -12,7 +12,7 @@ export function FAQ() {
   // FAQ questions and answers
   const faqs = [
     {
-      question: 'How accurate is the SolarX estimate?',
+      question: 'How accurate is the estimate?',
       answer: 'Our estimates are highly accurate, typically within 5-10% of final installation costs. We use advanced satellite imagery, local weather data, and real-time equipment pricing to provide you with reliable projections. However, a final quote from an installer will account for specific factors like roof condition and electrical panel requirements.',
     },
     {
@@ -52,7 +52,7 @@ export function FAQ() {
         <div className="text-center mb-16">
           <h2 className="heading-lg mb-4">Your Questions, Answered</h2>
           <p className="text-lg text-gray-600">
-            Everything you need to know about going solar with SolarX
+            Everything you need to know about going solar
           </p>
         </div>
 

@@ -58,7 +58,7 @@ export function Hero() {
 
             {/* Subheadline */}
             <p className="text-lg sm:text-xl text-white/85 max-w-xl leading-relaxed">
-              Get your personalized solar estimate in minutes. Join thousands of Ontario homeowners saving money and the planet with SolarX.
+              Get your personalized solar estimate in minutes. Join thousands of Ontario homeowners saving money and the planet.
             </p>
 
             {/* CTA buttons */}
@@ -153,7 +153,7 @@ export function Hero() {
               <iframe
                 className="w-full h-full"
                 src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1"
-                title="SolarX How It Works"
+                title="How It Works"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
               />

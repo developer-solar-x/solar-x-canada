@@ -2,6 +2,7 @@
 
 import { Users, DollarSign, Zap, TrendingUp, Clock, Calendar, PieChart, MapPin, Home } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import { SkeletonStatsGrid, SkeletonCard, SkeletonChart } from '@/components/admin/SkeletonLoader'
 
 interface Lead {
   id: string
@@ -33,9 +34,40 @@ interface AnalyticsSectionProps {
     highCompletionCount: number
     avgCompletion: number
   }
+  loading?: boolean
 }
 
-export function AnalyticsSection({ leads, stats, partialStats }: AnalyticsSectionProps) {
+export function AnalyticsSection({ leads, stats, partialStats, loading = false }: AnalyticsSectionProps) {
+  if (loading) {
+    return (
+      <div>
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-navy-500 mb-2">Analytics Dashboard</h1>
+          <p className="text-gray-600">Comprehensive insights into your solar leads and business metrics</p>
+        </div>
+
+        {/* Key Metrics Overview */}
+        <SkeletonStatsGrid />
+
+        {/* Charts */}
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <SkeletonChart />
+          <SkeletonChart />
+        </div>
+
+        {/* More charts */}
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+
+        {/* Financial Overview */}
+        <SkeletonCard className="mb-8" />
+      </div>
+    )
+  }
+
   return (
     <div>
       {/* Header */}

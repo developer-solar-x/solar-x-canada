@@ -3,6 +3,7 @@
 import { Clock, AlertCircle, TrendingUp, Zap, Search, Mail } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
 import type { MockPartialLead } from '@/lib/mock-partial-leads'
+import { SkeletonStatsGrid, SkeletonTableRow } from '@/components/admin/SkeletonLoader'
 
 interface PartialLeadsSectionProps {
   partialLeads: MockPartialLead[]
@@ -12,6 +13,7 @@ interface PartialLeadsSectionProps {
     highCompletionCount: number
     avgCompletion: number
   }
+  loading?: boolean
   searchTerm: string
   onSearchTermChange: (term: string) => void
   onPartialLeadClick: (partialLead: MockPartialLead) => void
@@ -20,6 +22,7 @@ interface PartialLeadsSectionProps {
 export function PartialLeadsSection({
   partialLeads,
   partialStats,
+  loading = false,
   searchTerm,
   onSearchTermChange,
   onPartialLeadClick,
@@ -33,43 +36,47 @@ export function PartialLeadsSection({
       </div>
 
       {/* Partial Leads Stats */}
-      <div className="grid md:grid-cols-4 gap-6 mb-8">
-        <div className="card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <Clock className="text-yellow-500" size={32} />
-            <span className="text-3xl font-bold text-navy-500">{partialStats.total}</span>
+      {loading ? (
+        <SkeletonStatsGrid />
+      ) : (
+        <div className="grid md:grid-cols-4 gap-6 mb-8">
+          <div className="card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <Clock className="text-yellow-500" size={32} />
+              <span className="text-3xl font-bold text-navy-500">{partialStats.total}</span>
+            </div>
+            <div className="text-sm text-gray-600">Total Partial Leads</div>
+            <div className="text-xs text-yellow-600 mt-1">In-progress estimates</div>
           </div>
-          <div className="text-sm text-gray-600">Total Partial Leads</div>
-          <div className="text-xs text-yellow-600 mt-1">In-progress estimates</div>
-        </div>
 
-        <div className="card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <AlertCircle className="text-red-500" size={32} />
-            <span className="text-3xl font-bold text-navy-500">{partialStats.recentCount}</span>
+          <div className="card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <AlertCircle className="text-red-500" size={32} />
+              <span className="text-3xl font-bold text-navy-500">{partialStats.recentCount}</span>
+            </div>
+            <div className="text-sm text-gray-600">Recent (24h)</div>
+            <div className="text-xs text-red-600 mt-1">Hot leads to follow up</div>
           </div>
-          <div className="text-sm text-gray-600">Recent (24h)</div>
-          <div className="text-xs text-red-600 mt-1">Hot leads to follow up</div>
-        </div>
 
-        <div className="card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <TrendingUp className="text-green-500" size={32} />
-            <span className="text-3xl font-bold text-navy-500">{partialStats.highCompletionCount}</span>
+          <div className="card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <TrendingUp className="text-green-500" size={32} />
+              <span className="text-3xl font-bold text-navy-500">{partialStats.highCompletionCount}</span>
+            </div>
+            <div className="text-sm text-gray-600">High Completion</div>
+            <div className="text-xs text-green-600 mt-1">70%+ complete</div>
           </div>
-          <div className="text-sm text-gray-600">High Completion</div>
-          <div className="text-xs text-green-600 mt-1">70%+ complete</div>
-        </div>
 
-        <div className="card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <Zap className="text-blue-500" size={32} />
-            <span className="text-3xl font-bold text-navy-500">{partialStats.avgCompletion.toFixed(0)}%</span>
+          <div className="card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <Zap className="text-blue-500" size={32} />
+              <span className="text-3xl font-bold text-navy-500">{partialStats.avgCompletion.toFixed(0)}%</span>
+            </div>
+            <div className="text-sm text-gray-600">Avg Completion</div>
+            <div className="text-xs text-blue-600 mt-1">Average progress</div>
           </div>
-          <div className="text-sm text-gray-600">Avg Completion</div>
-          <div className="text-xs text-blue-600 mt-1">Average progress</div>
         </div>
-      </div>
+      )}
 
       {/* Search bar */}
       <div className="card p-6 mb-6">
@@ -87,7 +94,31 @@ export function PartialLeadsSection({
 
       {/* Partial Leads Table */}
       <div className="card overflow-hidden">
-        {partialLeads.length === 0 ? (
+        {loading ? (
+          <>
+            <div className="bg-navy-500 h-12"></div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[800px]">
+                <thead className="bg-navy-500 text-white">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Email</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Address</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Best Plan</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Progress</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Data Captured</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Last Updated</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <SkeletonTableRow key={i} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : partialLeads.length === 0 ? (
           <div className="p-8 text-center text-gray-500">No partial leads found</div>
         ) : (
           <>

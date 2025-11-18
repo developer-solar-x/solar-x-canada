@@ -20,7 +20,7 @@ export function FinalCTA() {
       {/* Geometric overlay shapes */}
       <div className="absolute inset-0 opacity-10">
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-navy-500 text-[20rem] font-bold font-display">
-          X
+          ☀
         </div>
       </div>
 
@@ -34,7 +34,7 @@ export function FinalCTA() {
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         {/* Headline */}
         <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6 font-display leading-tight">
-          Ready to Go Solar with SolarX?
+          Ready to Go Solar?
         </h2>
 
         {/* Subheadline */}

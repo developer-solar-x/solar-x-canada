@@ -1,4 +1,4 @@
-// Features section showcasing key benefits of SolarX
+// Features section showcasing key benefits
 
 import { Zap, Shield, MapPin, Users } from 'lucide-react'
 
@@ -36,7 +36,7 @@ export function Features() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Title block */}
         <div className="text-center mb-16 space-y-4">
-          <p className="eyebrow text-red-500">WHY SOLARX</p>
+          <p className="eyebrow text-red-500">WHY GO SOLAR</p>
           <h2 className="heading-lg">The Modern Way to Go Solar</h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             We've streamlined the solar journey from estimate to installation
