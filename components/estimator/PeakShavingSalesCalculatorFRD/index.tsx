@@ -417,9 +417,12 @@ function BeforeAfterBars({
   const savingsPercent = before > 0 ? (savings / before) * 100 : 0
 
   return (
-    <div className="p-4 bg-white rounded-xl border-2 border-gray-200 shadow-lg">
+    <div className="space-y-4">
       {/* FRD Section 9: Headline 32-40px */}
-      <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mb-4 text-center">Before & After Comparison</h3>
+      <div className="text-center">
+        <h3 className="text-2xl font-bold text-gray-800 mb-2">Before & After Comparison</h3>
+        <p className="text-sm text-gray-600">Annual cost comparison with your solar + battery system</p>
+      </div>
       
       <div className="space-y-3">
         {/* Before bar */}
@@ -1751,20 +1754,26 @@ export function PeakShavingSalesCalculatorFRD({
                   value=""
                   onChange={(e) => {
                     const newId = e.target.value
-                    if (newId) {
-                      // Allow selecting the same battery multiple times
+                    if (newId && !selectedBatteryIds.includes(newId)) {
+                      // Only add if not already selected (prevent duplicates)
                       setSelectedBatteryIds([...selectedBatteryIds, newId])
                     }
                   }}
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base md:text-lg appearance-none bg-white"
                 >
-                  <option value="" disabled>Select batteries (can select multiple, including duplicates)...</option>
-                  {BATTERY_SPECS.map(battery => (
+                  <option value="" disabled>
+                    {selectedBatteryIds.length === 0 
+                      ? 'Select a battery...' 
+                      : selectedBatteryIds.length >= BATTERY_SPECS.length
+                      ? 'All batteries selected'
+                      : 'Select another battery...'}
+                  </option>
+                  {BATTERY_SPECS.filter(battery => !selectedBatteryIds.includes(battery.id)).map(battery => (
                     <option 
                       key={battery.id} 
                       value={battery.id}
                     >
-                      {battery.brand} {battery.model} - {battery.nominalKwh} kWh ({battery.usablePercent}% usable)
+                      {battery.brand} {battery.model}
                     </option>
                   ))}
                 </select>
@@ -1780,7 +1789,7 @@ export function PeakShavingSalesCalculatorFRD({
                           className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-300 rounded-lg text-sm"
                         >
                           <span className="font-medium text-gray-800">
-                            {battery.brand} {battery.model} ({battery.nominalKwh} kWh, {battery.usablePercent}%)
+                            {battery.brand} {battery.model}
                           </span>
                           <button
                             type="button"
