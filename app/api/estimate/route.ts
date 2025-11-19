@@ -59,18 +59,36 @@ export async function POST(request: Request) {
     let systemSizeKw = 0
     let numPanels = 0
     let usableAreaSqFt = 0
+    
+    // Calculate usage-based system size recommendation
+    const derivedAnnual = energyUsage?.annualKwh || annualUsageKwh || (monthlyBill ? (monthlyBill / 0.223) * 12 : 9000)
+    // Target production equals ~100% of annual usage (for zero-export/self-consumption)
+    // This ensures the system covers most of the usage without excessive overproduction
+    const targetAnnualProduction = Math.max(0, derivedAnnual * 1.0)
+    const usageBasedSystemSizeKw = Math.round((targetAnnualProduction / 1200) * 10) / 10
+    
     if (areaSquareFeet > 0) {
       const systemCalc = calculateSystemSize(areaSquareFeet, shadingLevel || 'minimal')
-      systemSizeKw = systemCalc.systemSizeKw
-      numPanels = systemCalc.numPanels
+      const roofBasedSystemSizeKw = systemCalc.systemSizeKw
+      const roofBasedNumPanels = systemCalc.numPanels
       usableAreaSqFt = systemCalc.usableAreaSqFt
+      
+      // Use the smaller of roof-based or usage-based sizing to avoid oversizing
+      // But allow up to 20% larger than usage-based to account for seasonal variations
+      const maxRecommendedSize = usageBasedSystemSizeKw * 1.2
+      
+      if (roofBasedSystemSizeKw <= maxRecommendedSize) {
+        // Roof can fit a reasonable system size
+        systemSizeKw = roofBasedSystemSizeKw
+        numPanels = roofBasedNumPanels
+      } else {
+        // Roof is too large - cap to usage-based recommendation
+        systemSizeKw = Math.round(maxRecommendedSize * 10) / 10
+        numPanels = Math.round((systemSizeKw * 1000) / 500)
+      }
     } else {
-      // Fallback sizing without polygon: zero-export target
-      // Target production equals ~50% of annual usage (daytime consumption),
-      // which minimizes export under the NREL 50% daytime rule.
-      const derivedAnnual = energyUsage?.annualKwh || annualUsageKwh || (monthlyBill ? (monthlyBill / 0.13) * 12 : 9000)
-      const targetAnnualProduction = Math.max(0, derivedAnnual * 0.5)
-      systemSizeKw = Math.round((targetAnnualProduction / 1200) * 10) / 10
+      // Fallback sizing without polygon: size based on usage
+      systemSizeKw = usageBasedSystemSizeKw
       numPanels = Math.round((systemSizeKw * 1000) / 500)
     }
 

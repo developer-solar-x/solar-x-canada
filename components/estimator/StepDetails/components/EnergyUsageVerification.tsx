@@ -1,5 +1,6 @@
 'use client'
 
+import { ElectricityBillInflationCalculator } from '../../StepEnergySimple/components/ElectricityBillInflationCalculator'
 import type { EnergyUsageVerificationProps } from '../types'
 
 export function EnergyUsageVerification({ formData, setFormData, data }: EnergyUsageVerificationProps) {
@@ -51,6 +52,15 @@ export function EnergyUsageVerification({ formData, setFormData, data }: EnergyU
           <p className="text-xs text-gray-500 mt-1">Check a recent electricity bill to verify the calculated usage matches your costs</p>
         </div>
       </div>
+
+      {/* Electricity Bill Inflation Calculator */}
+      {formData.monthlyBill && Number(formData.monthlyBill) > 0 && (
+        <div className="mt-6">
+          <ElectricityBillInflationCalculator 
+            monthlyBill={Number(formData.monthlyBill)} 
+          />
+        </div>
+      )}
     </div>
   )
 }

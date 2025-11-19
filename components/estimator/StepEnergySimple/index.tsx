@@ -8,6 +8,7 @@ import { InputToggle } from './components/InputToggle'
 import { PlanTypeSelector } from './components/PlanTypeSelector'
 import { AnnualUsageInput } from './components/AnnualUsageInput'
 import { MonthlyBillInput } from './components/MonthlyBillInput'
+import { ElectricityBillInflationCalculator } from './components/ElectricityBillInflationCalculator'
 import { UpgradePrompt } from './components/UpgradePrompt'
 import { BLENDED_RATE } from './constants'
 import { useEnergyCalculation } from './hooks/useEnergyCalculation'
@@ -88,10 +89,19 @@ export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: St
 
         {/* Monthly Bill */}
         {useMonthlyBill && (
-          <MonthlyBillInput
-            monthlyBillInput={monthlyBillInput}
-            onMonthlyBillChange={setMonthlyBillInput}
-          />
+          <>
+            <MonthlyBillInput
+              monthlyBillInput={monthlyBillInput}
+              onMonthlyBillChange={setMonthlyBillInput}
+            />
+            
+            {/* Electricity Bill Inflation Calculator */}
+            {monthlyBillInput && Number(monthlyBillInput) > 0 && (
+              <ElectricityBillInflationCalculator 
+                monthlyBill={Number(monthlyBillInput)} 
+              />
+            )}
+          </>
         )}
 
         {/* Upgrade to Detailed */}

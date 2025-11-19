@@ -19,7 +19,7 @@ import { StepPhotosSimple } from '@/components/estimator/StepPhotosSimple'
 // import { StepAppliances } from '@/components/estimator/StepAppliances' // Temporarily disabled - solar only
 import { StepEnergySimple } from '@/components/estimator/StepEnergySimple'
 import { StepAddOns } from '@/components/estimator/StepAddOns'
-import { StepBatteryPeakShavingSimple as StepBatteryPeakShaving } from '@/components/estimator/StepBatteryPeakShavingSimple'
+import { StepBatteryPeakShavingFRD as StepBatteryPeakShaving } from '@/components/estimator/StepBatteryPeakShavingFRD'
 import { StepDetails } from '@/components/estimator/StepDetails'
 import { StepDetailsSimple } from '@/components/estimator/StepDetailsSimple'
 import { StepReview } from '@/components/estimator/StepReview'
@@ -175,9 +175,13 @@ export default function EstimatorPage() {
   
   // Filter steps based on mode and conditions
   const displaySteps = steps.filter(step => {
-    // Show Battery Savings step only for HRS program (residential)
+    // Show Battery Savings step only for HRS program or battery system
     if (step.name === 'Battery Savings') {
       return data.programType === 'hrs_residential' || data.systemType === 'battery_system'
+    }
+    // Skip program step since it's now in Details
+    if (step.name === 'Program') {
+      return false
     }
     return true
   })
@@ -324,6 +328,14 @@ export default function EstimatorPage() {
       if (currentStep < nextSteps.length - 1) {
         let nextStep = currentStep + 1
 
+        // Skip Program step (now in Details)
+        while (
+          nextStep < nextSteps.length &&
+          nextSteps[nextStep]?.name === 'Program'
+        ) {
+          nextStep += 1
+        }
+        
         // Skip Battery Savings step entirely when not in HRS program
         while (
           nextStep < nextSteps.length &&
@@ -391,6 +403,14 @@ export default function EstimatorPage() {
         : easySteps
       let prevStep = currentStep - 1
 
+      // Skip Program step (now in Details)
+      while (
+        prevStep > 0 &&
+        stepsForMode[prevStep]?.name === 'Program'
+      ) {
+        prevStep -= 1
+      }
+      
       while (
         prevStep > 0 &&
         stepsForMode[prevStep]?.name === 'Battery Savings' &&
@@ -518,21 +538,34 @@ export default function EstimatorPage() {
               <span className={`inline-block px-4 py-1 rounded-full text-xs font-bold ${
                 data.programType === 'hrs_residential'
                   ? 'bg-navy-100 text-navy-600'
-                  : data.estimatorMode === 'easy' 
-                    ? 'bg-red-100 text-red-600' 
-                    : 'bg-navy-100 text-navy-600'
+                  : data.programType === 'net_metering'
+                    ? 'bg-blue-100 text-blue-600'
+                    : data.estimatorMode === 'easy' 
+                      ? 'bg-red-100 text-red-600' 
+                      : 'bg-navy-100 text-navy-600'
               }`}>
                 {data.programType === 'hrs_residential' 
-                  ? 'Solar HRS Program' 
-                  : data.estimatorMode === 'easy' 
-                    ? 'Quick Estimate' 
-                    : 'Detailed Analysis'}
+                  ? 'Solar + Battery' 
+                  : data.programType === 'net_metering'
+                    ? 'Solar Net Metering'
+                    : data.estimatorMode === 'easy' 
+                      ? 'Quick Estimate' 
+                      : 'Detailed Analysis'}
               </span>
+              {data.leadType && (
+                <span className={`ml-2 inline-block px-4 py-1 rounded-full text-xs font-bold ${
+                  data.leadType === 'commercial'
+                    ? 'bg-navy-100 text-navy-600'
+                    : 'bg-red-100 text-red-600'
+                }`}>
+                  {data.leadType === 'commercial' ? 'Commercial' : 'Residential'}
+                </span>
+              )}
             </div>
 
             {/* Progress stepper - desktop */}
             <div className="hidden md:flex items-center justify-center gap-2">
-              {displaySteps.slice(1).map((step, index) => (
+              {displaySteps.map((step, index) => (
                 <div key={step.id} className="flex items-center">
                   {/* Step circle */}
                   <div
@@ -559,7 +592,7 @@ export default function EstimatorPage() {
                   </span>
 
                   {/* Connecting line */}
-                  {index < displaySteps.length - 2 && (
+                  {index < displaySteps.length - 1 && (
                     <div className={`w-8 h-0.5 mx-3 ${
                       currentStep > step.id ? 'bg-navy-500' : 'bg-gray-200'
                     }`} />
@@ -591,22 +624,34 @@ export default function EstimatorPage() {
       )}
 
       {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {currentStep === 0 ? (
-          <CurrentStepComponent
-            data={data}
-            onComplete={handleStepComplete}
-            onBack={undefined as any}
-          />
-        ) : (
+      {/* Check if current step is Battery Savings - use full width without container */}
+      {displaySteps[currentStep]?.name === 'Battery Savings' ? (
+        <main className="w-full px-0 py-0">
           <CurrentStepComponent
             data={data}
             onComplete={handleStepComplete}
             onBack={handleBack}
             {...(data.estimatorMode === 'easy' && currentStep > 1 ? { onUpgradeMode: handleUpgradeMode } : {})}
           />
-        )}
-      </main>
+        </main>
+      ) : (
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {currentStep === 0 ? (
+            <CurrentStepComponent
+              data={data}
+              onComplete={handleStepComplete}
+              onBack={undefined as any}
+            />
+          ) : (
+            <CurrentStepComponent
+              data={data}
+              onComplete={handleStepComplete}
+              onBack={handleBack}
+              {...(data.estimatorMode === 'easy' && currentStep > 1 ? { onUpgradeMode: handleUpgradeMode } : {})}
+            />
+          )}
+        </main>
+      )}
 
       {/* Resume Progress Modal */}
       <Modal
@@ -623,10 +668,12 @@ export default function EstimatorPage() {
           <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm font-semibold text-blue-800 mb-1">
               {savedProgressData.data.programType === 'hrs_residential' 
-                ? 'Solar HRS Program' 
-                : savedProgressData.data.estimatorMode === 'easy' 
-                  ? 'Quick Estimate' 
-                  : 'Detailed Analysis'}
+                ? 'Solar + Battery' 
+                : savedProgressData.data.programType === 'net_metering'
+                  ? 'Solar Net Metering'
+                  : savedProgressData.data.estimatorMode === 'easy' 
+                    ? 'Quick Estimate' 
+                    : 'Detailed Analysis'}
             </p>
             <p className="text-sm text-blue-600">
               Step {savedProgressData.currentStep}

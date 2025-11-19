@@ -2,7 +2,7 @@
 
 // Step 2: Draw roof on map with Mapbox integration
 
-import { useState } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { MapboxDrawing } from '../MapboxDrawing'
 import { calculateRoofAzimuth, calculateRoofAzimuthWithConfidence, getDirectionLabel, getOrientationEfficiency, ROOF_ORIENTATIONS } from '@/lib/roof-calculations'
 import * as turf from '@turf/turf'
@@ -41,29 +41,66 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   // Per-section orientation editing
   const [editingSectionIndex, setEditingSectionIndex] = useState<number | null>(null)
 
+  // Use refs to track current values without causing callback recreation
+  const roofAreaRef = useRef<number | null>(roofArea)
+  const roofPolygonRef = useRef<any>(roofPolygon)
+  const mapSnapshotRef = useRef<string | null>(mapSnapshot)
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    roofAreaRef.current = roofArea
+  }, [roofArea])
+  
+  useEffect(() => {
+    roofPolygonRef.current = roofPolygon
+  }, [roofPolygon])
+  
+  useEffect(() => {
+    mapSnapshotRef.current = mapSnapshot
+  }, [mapSnapshot])
+
   // Handle area calculation from map drawing (supports multiple polygons)
-  const handleAreaCalculated = (areaSqFt: number, polygonData: any, snapshot?: string) => {
-    // If no area (all polygons deleted), clear everything
-    if (areaSqFt === 0 || !polygonData.features || polygonData.features.length === 0) {
-      setRoofArea(null)
-      setRoofPolygon(null)
-      setMapSnapshot(null)
-      setEstimatedPanels(null)
-      setRoofSections([])
-      setDetectedAzimuth(null)
-      setSelectedAzimuth(180)
+  // Memoize to prevent infinite re-renders
+  const handleAreaCalculated = useCallback((areaSqFt: number, polygonData: any, snapshot?: string) => {
+    // Prevent infinite loops by checking if data has actually changed
+    const areaChanged = roofAreaRef.current !== areaSqFt
+    const polygonChanged = JSON.stringify(roofPolygonRef.current) !== JSON.stringify(polygonData)
+    const snapshotChanged = snapshot && mapSnapshotRef.current !== snapshot
+    
+    // If nothing changed, don't update state
+    if (!areaChanged && !polygonChanged && !snapshotChanged) {
       return
     }
     
-    setRoofArea(areaSqFt)
-    setRoofPolygon(polygonData)
-    if (snapshot) {
+    // If no area (all polygons deleted), clear everything
+    if (areaSqFt === 0 || !polygonData.features || polygonData.features.length === 0) {
+      if (roofAreaRef.current !== null) {
+        setRoofArea(null)
+        setRoofPolygon(null)
+        setMapSnapshot(null)
+        setEstimatedPanels(null)
+        setRoofSections([])
+        setDetectedAzimuth(null)
+        setSelectedAzimuth(180)
+      }
+      return
+    }
+    
+    if (areaChanged) {
+      setRoofArea(areaSqFt)
+      setEstimatedPanels(Math.floor(areaSqFt / PANEL_AREA_SQFT))
+    }
+    
+    if (polygonChanged) {
+      setRoofPolygon(polygonData)
+    }
+    
+    if (snapshotChanged && snapshot) {
       setMapSnapshot(snapshot)
     }
-    setEstimatedPanels(Math.floor(areaSqFt / PANEL_AREA_SQFT))
     
-    // Calculate individual section areas and orientations
-    if (polygonData.features && polygonData.features.length > 0) {
+    // Calculate individual section areas and orientations only if polygon changed
+    if (polygonChanged && polygonData.features && polygonData.features.length > 0) {
       let largestPolygon = polygonData.features[0]
       let maxArea = 0
       
@@ -107,7 +144,7 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
     } else {
       setRoofSections([])
     }
-  }
+  }, []) // Empty dependency array - setState functions are stable
 
   // Update orientation for a specific section
   const updateSectionOrientation = (sectionIndex: number, newAzimuth: number) => {

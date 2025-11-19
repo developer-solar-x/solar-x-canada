@@ -29,3 +29,13 @@ export interface UpgradePromptProps {
   onUpgrade: () => void
 }
 
+export interface ProgramSelectorProps {
+  programType: string
+  onProgramTypeChange: (type: string) => void
+}
+
+export interface LeadTypeSelectorProps {
+  leadType: string
+  onLeadTypeChange: (type: string) => void
+}
+

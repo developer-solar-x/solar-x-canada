@@ -7,7 +7,6 @@ import { Hero } from '@/components/Hero'
 import { Features } from '@/components/Features'
 import { HowItWorks } from '@/components/HowItWorks'
 import { Calculator } from '@/components/Calculator'
-import { Testimonials } from '@/components/Testimonials'
 import { Stats } from '@/components/Stats'
 import { FAQ } from '@/components/FAQ'
 import { FinalCTA } from '@/components/FinalCTA'
@@ -34,9 +33,6 @@ export default function Home() {
 
       {/* Interactive calculator */}
       <Calculator />
-
-      {/* Customer testimonials */}
-      <Testimonials />
 
       {/* Statistics counters */}
       <Stats />

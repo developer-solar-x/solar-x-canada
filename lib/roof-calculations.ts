@@ -257,6 +257,21 @@ export function getOrientationEfficiency(azimuth: number): number {
 }
 
 /**
+ * Get production efficiency percentage based on roof pitch/tilt angle
+ * Optimal tilt for Canada is 30-40° (latitude + 15° for winter optimization)
+ * Based on PVWatts production data
+ */
+export function getPitchEfficiency(pitch: string): number {
+  const pitchMap: Record<string, number> = {
+    'flat': 88,   // 5° - suboptimal, needs racking
+    'low': 93,    // 15° - below optimal
+    'medium': 100, // 30° - optimal for Canada
+    'steep': 97   // 45° - good, slightly less optimal than medium
+  }
+  return pitchMap[pitch.toLowerCase()] || 100
+}
+
+/**
  * Get orientation quality rating
  */
 export function getOrientationQuality(azimuth: number): {

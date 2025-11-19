@@ -38,10 +38,11 @@ export function LeadTypeModal({ isOpen, onClose, onSelect }: LeadTypeModalProps)
               </div>
             }
             title="Residential"
-            description="For homes, townhouses, and residential properties"
+            description="For homes, townhouses, condos, and residential properties"
             features={[
               'Single-family homes',
               'Townhouses & condos',
+              'Peak shaving benefits',
               'Up to $10,000 HRS rebate',
             ]}
             buttonText="Select Residential"

@@ -47,18 +47,18 @@ export function Hero() {
             <div className="flex items-center gap-3">
               <div className="w-1 h-5 bg-red-500" />
               <p className="eyebrow text-white/90">
-                MODERN SOLAR SOLUTIONS
+                FREE SOLAR CALCULATOR
               </p>
             </div>
 
             {/* Main headline */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight font-display">
-              Power Your Home with Clean Energy
+              Calculate Your Solar Potential
             </h1>
 
             {/* Subheadline */}
             <p className="text-lg sm:text-xl text-white/85 max-w-xl leading-relaxed">
-              Get your personalized solar estimate in minutes. Join thousands of Ontario homeowners saving money and the planet.
+              Get your free solar estimate in minutes. Calculate rooftop solar, peak shaving, net metering, and battery storage for your home.
             </p>
 
             {/* CTA buttons */}

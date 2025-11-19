@@ -9,6 +9,10 @@ import { EnergyUsageVerification } from './components/EnergyUsageVerification'
 import type { StepDetailsProps } from './types'
 
 export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
+  // Program type and lead type are already selected in the initial modal
+  const programType = data.programType || 'hrs_residential'
+  const leadType = data.leadType || 'residential'
+  
   const [formData, setFormData] = useState({
     roofType: data.roofType || 'asphalt_shingle',
     roofAge: data.roofAge || '0-5',
@@ -20,7 +24,11 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onComplete(formData)
+    onComplete({
+      ...formData,
+      programType,
+      leadType,
+    })
   }
 
   return (
