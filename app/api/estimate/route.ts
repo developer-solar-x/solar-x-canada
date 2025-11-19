@@ -62,10 +62,13 @@ export async function POST(request: Request) {
     
     // Calculate usage-based system size recommendation
     const derivedAnnual = energyUsage?.annualKwh || annualUsageKwh || (monthlyBill ? (monthlyBill / 0.223) * 12 : 9000)
-    // Target production equals ~100% of annual usage (for zero-export/self-consumption)
-    // This ensures the system covers most of the usage without excessive overproduction
-    const targetAnnualProduction = Math.max(0, derivedAnnual * 1.0)
+    // Target production equals ~80% of annual usage (AI mode optimization strategy)
+    // Battery handles remaining 20% via arbitrage (charge at off-peak, discharge at peak)
+    // This optimizes for lower upfront cost while maximizing battery arbitrage benefits
+    const targetAnnualProduction = Math.max(0, derivedAnnual * 0.8)
     const usageBasedSystemSizeKw = Math.round((targetAnnualProduction / 1200) * 10) / 10
+    // Maximum system size: Never exceed 100% of usage (hard cap)
+    const maxSystemSizeKw = Math.round((derivedAnnual / 1200) * 10) / 10
     
     if (areaSquareFeet > 0) {
       const systemCalc = calculateSystemSize(areaSquareFeet, shadingLevel || 'minimal')
@@ -73,28 +76,33 @@ export async function POST(request: Request) {
       const roofBasedNumPanels = systemCalc.numPanels
       usableAreaSqFt = systemCalc.usableAreaSqFt
       
-      // Use the smaller of roof-based or usage-based sizing to avoid oversizing
-      // But allow up to 20% larger than usage-based to account for seasonal variations
-      const maxRecommendedSize = usageBasedSystemSizeKw * 1.2
+      // Use the smaller of roof-based or usage-based sizing
+      // Cap at maximum (100% of usage) to prevent oversizing
+      const cappedRoofBasedSize = Math.min(roofBasedSystemSizeKw, maxSystemSizeKw)
       
-      if (roofBasedSystemSizeKw <= maxRecommendedSize) {
-        // Roof can fit a reasonable system size
-        systemSizeKw = roofBasedSystemSizeKw
+      if (cappedRoofBasedSize <= usageBasedSystemSizeKw) {
+        // Roof can fit the recommended size (80% target)
+        systemSizeKw = cappedRoofBasedSize
         numPanels = roofBasedNumPanels
       } else {
-        // Roof is too large - cap to usage-based recommendation
-        systemSizeKw = Math.round(maxRecommendedSize * 10) / 10
+        // Roof is larger than needed - use 80% target size
+        systemSizeKw = usageBasedSystemSizeKw
         numPanels = Math.round((systemSizeKw * 1000) / 500)
       }
     } else {
-      // Fallback sizing without polygon: size based on usage
+      // Fallback sizing without polygon: size based on 80% target
       systemSizeKw = usageBasedSystemSizeKw
       numPanels = Math.round((systemSizeKw * 1000) / 500)
     }
+    
+    // Final cap: Never exceed 100% of usage
+    systemSizeKw = Math.min(systemSizeKw, maxSystemSizeKw)
+    numPanels = Math.round((systemSizeKw * 1000) / 500)
 
     // Apply explicit override from client when provided (e.g., user adjusted panels)
+    // Still cap at 100% of usage to prevent oversizing
     if (overrideSystemSizeKw && overrideSystemSizeKw > 0) {
-      systemSizeKw = overrideSystemSizeKw
+      systemSizeKw = Math.min(overrideSystemSizeKw, maxSystemSizeKw)
       numPanels = Math.round((systemSizeKw * 1000) / 500)
     }
 

@@ -2,7 +2,7 @@
 
 // Easy Mode: Simple Energy Calculator
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Zap } from 'lucide-react'
 import { InputToggle } from './components/InputToggle'
 import { PlanTypeSelector } from './components/PlanTypeSelector'
@@ -23,6 +23,37 @@ export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: St
   const [monthlyBillInput, setMonthlyBillInput] = useState<string>(data.monthlyBill?.toString() || '')
   const [useMonthlyBill, setUseMonthlyBill] = useState<boolean>(Boolean(data.monthlyBill && Number(data.monthlyBill) > 0))
   const [planType, setPlanType] = useState<'battery'>('battery')
+  const [annualEscalator, setAnnualEscalator] = useState<number>(() => {
+    const value = data.annualEscalator ?? 4.5
+    return value
+  })
+  // Separate state for the direct input field to handle intermediate typing states
+  const [annualEscalatorInput, setAnnualEscalatorInput] = useState<string>(() => {
+    const value = data.annualEscalator ?? 4.5
+    return value.toString()
+  })
+  
+  // Sync annualEscalator from data prop when it changes (e.g., when loading from storage)
+  useEffect(() => {
+    if (data.annualEscalator !== undefined && data.annualEscalator !== annualEscalator) {
+      setAnnualEscalator(data.annualEscalator)
+      setAnnualEscalatorInput(data.annualEscalator.toString())
+    }
+  }, [data.annualEscalator])
+  
+  // Sync input field when annualEscalator changes from other sources (e.g., calculator component)
+  // Only sync if the parsed input value doesn't match the annualEscalator (to avoid overwriting user typing)
+  useEffect(() => {
+    const parsedInput = parseFloat(annualEscalatorInput)
+    const shouldSync = isNaN(parsedInput) || Math.abs(parsedInput - annualEscalator) > 0.001
+    if (shouldSync) {
+      setAnnualEscalatorInput(annualEscalator.toString())
+    }
+  }, [annualEscalator]) // Only depend on annualEscalator
+  
+  const handleAnnualEscalatorChange = useCallback((value: number) => {
+    setAnnualEscalator(value)
+  }, []) // Empty dependency array - this function doesn't depend on any props or state
 
   const { finalAnnualUsage, estimatedAnnualKwh } = useEnergyCalculation({
     useMonthlyBill,
@@ -33,8 +64,13 @@ export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: St
 
   const handleContinue = () => {
     const annualUsageKwh = Math.max(0, finalAnnualUsage)
+    
+    // Only include annualEscalator if it's a valid number
+    const finalAnnualEscalator = (annualEscalator !== undefined && !isNaN(annualEscalator) && annualEscalator >= 0) 
+      ? annualEscalator 
+      : undefined
 
-    onComplete({
+    const stepData = {
       monthlyBill: useMonthlyBill && monthlyBillInput ? parseFloat(monthlyBillInput) : undefined,
       systemType: planType === 'battery' ? 'battery_system' : 'grid_tied',
       hasBattery: planType === 'battery',
@@ -47,7 +83,10 @@ export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: St
           }
         : undefined,
       energyEntryMethod: 'simple',
-    })
+      ...(finalAnnualEscalator !== undefined && { annualEscalator: finalAnnualEscalator }),
+    }
+    
+    onComplete(stepData)
   }
 
   const canContinue = finalAnnualUsage > 0 && Boolean(planType)
@@ -98,11 +137,64 @@ export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: St
             {/* Electricity Bill Inflation Calculator */}
             {monthlyBillInput && Number(monthlyBillInput) > 0 && (
               <ElectricityBillInflationCalculator 
-                monthlyBill={Number(monthlyBillInput)} 
+                monthlyBill={Number(monthlyBillInput)}
+                annualEscalator={annualEscalator}
+                onAnnualEscalatorChange={handleAnnualEscalatorChange}
               />
             )}
           </>
         )}
+
+        {/* Always show annual escalation rate input */}
+        <div className="mb-6">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Annual Electricity Rate Increase (%)
+            <span className="ml-2 text-xs font-normal text-gray-500">(Historical average is 3-5%)</span>
+          </label>
+          <input
+            type="number"
+            value={annualEscalatorInput}
+            onChange={(e) => {
+              const value = e.target.value
+              // Allow empty string, single decimal point, or valid numbers
+              if (value === '' || value === '.' || /^\d*\.?\d*$/.test(value)) {
+                setAnnualEscalatorInput(value)
+                // Update the number state if it's a valid number
+                const numValue = parseFloat(value)
+                if (!isNaN(numValue) && numValue >= 0 && numValue <= 20) {
+                  console.log('[StepEnergySimple] Annual escalator input changed to:', numValue)
+                  setAnnualEscalator(numValue)
+                  // Also call the handler to ensure consistency
+                  handleAnnualEscalatorChange(numValue)
+                }
+              }
+            }}
+            onBlur={(e) => {
+              const value = parseFloat(e.target.value)
+              if (isNaN(value) || value < 0) {
+                console.log('[StepEnergySimple] Annual escalator onBlur - resetting to 4.5')
+                setAnnualEscalatorInput('4.5')
+                setAnnualEscalator(4.5)
+                handleAnnualEscalatorChange(4.5)
+              } else if (value > 20) {
+                console.log('[StepEnergySimple] Annual escalator onBlur - capping at 20')
+                setAnnualEscalatorInput('20')
+                setAnnualEscalator(20)
+                handleAnnualEscalatorChange(20)
+              } else {
+                console.log('[StepEnergySimple] Annual escalator onBlur - finalizing:', value)
+                setAnnualEscalatorInput(value.toString())
+                setAnnualEscalator(value)
+                handleAnnualEscalatorChange(value)
+              }
+            }}
+            className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none"
+            placeholder="4.5"
+            min="0"
+            max="20"
+            step="0.1"
+          />
+        </div>
 
         {/* Upgrade to Detailed */}
         {onUpgradeMode && (

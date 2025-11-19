@@ -1,20 +1,38 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Info } from 'lucide-react'
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts'
 
 interface ElectricityBillInflationCalculatorProps {
   monthlyBill?: number
+  annualEscalator?: number
+  onAnnualEscalatorChange?: (value: number) => void
 }
 
-export function ElectricityBillInflationCalculator({ monthlyBill }: ElectricityBillInflationCalculatorProps) {
-  const [annualIncreaseInput, setAnnualIncreaseInput] = useState<string>('4.5')
+export function ElectricityBillInflationCalculator({ monthlyBill, annualEscalator, onAnnualEscalatorChange }: ElectricityBillInflationCalculatorProps) {
+  const [annualIncreaseInput, setAnnualIncreaseInput] = useState<string>(
+    annualEscalator?.toString() || '4.5'
+  )
 
   // Use monthlyBill prop directly, require it to be provided
   if (!monthlyBill || monthlyBill <= 0) {
     return null
   }
+
+  // Sync with prop when it changes (including initial load)
+  useEffect(() => {
+    if (annualEscalator !== undefined) {
+      const propValue = annualEscalator.toString()
+      if (propValue !== annualIncreaseInput) {
+        setAnnualIncreaseInput(propValue)
+        // Also ensure the callback is called on initial load if value exists
+        if (onAnnualEscalatorChange && annualEscalator !== 4.5) {
+          onAnnualEscalatorChange(annualEscalator)
+        }
+      }
+    }
+  }, [annualEscalator])
 
   // Convert input to number, default to 4.5 if invalid
   const annualIncrease = useMemo(() => {
@@ -91,6 +109,13 @@ export function ElectricityBillInflationCalculator({ monthlyBill }: ElectricityB
               // Allow empty string, single decimal point, or valid numbers
               if (value === '' || value === '.' || /^\d*\.?\d*$/.test(value)) {
                 setAnnualIncreaseInput(value)
+                // Also save immediately if it's a valid number
+                const numValue = parseFloat(value)
+                if (!isNaN(numValue) && numValue >= 0 && numValue <= 20) {
+                  if (onAnnualEscalatorChange) {
+                    onAnnualEscalatorChange(numValue)
+                  }
+                }
               }
             }}
             onBlur={(e) => {
@@ -99,8 +124,13 @@ export function ElectricityBillInflationCalculator({ monthlyBill }: ElectricityB
               // Reset to default if empty or invalid
               if (value === '' || isNaN(numValue) || numValue < 0) {
                 setAnnualIncreaseInput('4.5')
+                onAnnualEscalatorChange?.(4.5)
               } else if (numValue > 20) {
                 setAnnualIncreaseInput('20')
+                onAnnualEscalatorChange?.(20)
+              } else {
+                // Ensure value is saved even if onChange didn't fire
+                onAnnualEscalatorChange?.(numValue)
               }
             }}
             className="w-full pl-4 pr-8 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none"

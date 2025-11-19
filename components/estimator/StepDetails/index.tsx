@@ -20,6 +20,7 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
     shadingLevel: data.shadingLevel || 'minimal',
     monthlyBill: data.monthlyBill || '',
     roofAzimuth: data.roofAzimuth || 180, // Default to south if not detected
+    annualEscalator: data.annualEscalator, // Preserve existing annualEscalator
   })
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -28,6 +29,7 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
       ...formData,
       programType,
       leadType,
+      // annualEscalator is already in formData, so it will be included automatically
     })
   }
 

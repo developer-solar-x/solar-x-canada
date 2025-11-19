@@ -1,9 +1,14 @@
 'use client'
 
+import { useCallback } from 'react'
 import { ElectricityBillInflationCalculator } from '../../StepEnergySimple/components/ElectricityBillInflationCalculator'
 import type { EnergyUsageVerificationProps } from '../types'
 
 export function EnergyUsageVerification({ formData, setFormData, data }: EnergyUsageVerificationProps) {
+  // Handle annualEscalator changes from the calculator
+  const handleAnnualEscalatorChange = useCallback((value: number) => {
+    setFormData(prev => ({ ...prev, annualEscalator: value }))
+  }, [setFormData])
   return (
     <div>
       <h3 className="text-xl font-semibold text-navy-500 mb-4">Verify Your Energy Usage</h3>
@@ -57,7 +62,9 @@ export function EnergyUsageVerification({ formData, setFormData, data }: EnergyU
       {formData.monthlyBill && Number(formData.monthlyBill) > 0 && (
         <div className="mt-6">
           <ElectricityBillInflationCalculator 
-            monthlyBill={Number(formData.monthlyBill)} 
+            monthlyBill={Number(formData.monthlyBill)}
+            annualEscalator={formData.annualEscalator}
+            onAnnualEscalatorChange={handleAnnualEscalatorChange}
           />
         </div>
       )}

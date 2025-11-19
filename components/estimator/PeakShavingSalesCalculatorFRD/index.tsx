@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { 
   Sun, Battery, TrendingUp, ChevronDown, ChevronUp, 
-  Zap, Info, AlertTriangle, BarChart3, DollarSign, Calendar, Award, Clock, X
+  Zap, Info, AlertTriangle, BarChart3, DollarSign, Calendar, Award, Clock, X, Moon
 } from 'lucide-react'
 import { BATTERY_SPECS, BatterySpec, calculateBatteryRebate, BATTERY_REBATE_PER_KWH, BATTERY_REBATE_MAX } from '@/config/battery-specs'
 import { RATE_PLANS, RatePlan, ULO_RATE_PLAN, TOU_RATE_PLAN } from '@/config/rate-plans'
@@ -602,6 +602,13 @@ export function PeakShavingSalesCalculatorFRD({
   // AI Optimization Mode is always ON (hidden from user) - allows grid charging at cheap rates for both TOU and ULO
   const aiMode = true
   
+  // Tab navigation state
+  const [activeTab, setActiveTab] = useState<'basic' | 'distribution'>('basic')
+  
+  // Custom usage distribution state
+  const [touDistribution, setTouDistribution] = useState<UsageDistribution>(DEFAULT_TOU_DISTRIBUTION)
+  const [uloDistribution, setUloDistribution] = useState<UsageDistribution>(DEFAULT_ULO_DISTRIBUTION)
+  
   // Tab state for metrics section
   const [metricsTab, setMetricsTab] = useState<'current' | 'payback' | 'profit'>('current')
   
@@ -936,7 +943,8 @@ export function PeakShavingSalesCalculatorFRD({
 
     try {
       const ratePlanObj: RatePlan = ratePlan === 'ULO' ? ULO_RATE_PLAN : TOU_RATE_PLAN
-      const distribution: UsageDistribution = ratePlan === 'ULO' ? DEFAULT_ULO_DISTRIBUTION : DEFAULT_TOU_DISTRIBUTION
+      // Use custom distribution if set, otherwise fall back to defaults
+      const distribution: UsageDistribution = ratePlan === 'ULO' ? uloDistribution : touDistribution
 
       // Use calculateSolarBatteryCombined with offset cap (EXACT same as manual calculator)
       return calculateSolarBatteryCombined(
@@ -952,7 +960,7 @@ export function PeakShavingSalesCalculatorFRD({
       console.error('Calculation error:', e)
       return null
     }
-  }, [annualUsageKwh, solarProductionKwh, selectedBattery, ratePlan, aiMode, offsetCapInfo.capFraction])
+  }, [annualUsageKwh, solarProductionKwh, selectedBattery, ratePlan, aiMode, offsetCapInfo.capFraction, touDistribution, uloDistribution])
 
   // Also calculate FRD result for offset percentages display
   const frdResult = useMemo<FRDPeakShavingResult | null>(() => {
@@ -961,7 +969,8 @@ export function PeakShavingSalesCalculatorFRD({
 
     try {
       const ratePlanObj: RatePlan = ratePlan === 'ULO' ? ULO_RATE_PLAN : TOU_RATE_PLAN
-      const distribution: UsageDistribution = ratePlan === 'ULO' ? DEFAULT_ULO_DISTRIBUTION : DEFAULT_TOU_DISTRIBUTION
+      // Use custom distribution if set, otherwise fall back to defaults
+      const distribution: UsageDistribution = ratePlan === 'ULO' ? uloDistribution : touDistribution
 
       return calculateFRDPeakShaving(
         annualUsageKwh,
@@ -976,7 +985,7 @@ export function PeakShavingSalesCalculatorFRD({
       console.error('FRD Calculation error:', e)
       return null
     }
-  }, [annualUsageKwh, solarProductionKwh, selectedBattery, ratePlan, aiMode])
+  }, [annualUsageKwh, solarProductionKwh, selectedBattery, ratePlan, aiMode, touDistribution, uloDistribution])
 
   // Use FRD result for offset percentages, combined result for costs
   const result = frdResult
@@ -1537,7 +1546,7 @@ export function PeakShavingSalesCalculatorFRD({
       uncappedTotalOffset, // Include for cap note display
       remainingGridCostTooltip,
     }
-  }, [combinedResult, result, annualUsageKwh, solarProductionKwh, selectedBattery, ratePlan, data?.estimate, offsetCapInfo, isMounted])
+  }, [combinedResult, result, annualUsageKwh, solarProductionKwh, selectedBattery, ratePlan, data?.estimate, offsetCapInfo, isMounted, touDistribution, uloDistribution])
 
   // Calculate before/after costs using combined result for accurate savings
   const beforeAfterCosts = useMemo(() => {
@@ -1560,7 +1569,8 @@ export function PeakShavingSalesCalculatorFRD({
     }
 
     // Get annual escalation rate from Step 3 (default to 4.5% = 0.045)
-    const annualEscalationRate = (data.annualEscalator || 4.5) / 100
+    // Note: annualEscalator is already a percentage (e.g., 3 means 3%), so divide by 100
+    const annualEscalationRate = (data.annualEscalator ?? 4.5) / 100
 
     // Calculate system costs
     const systemSize = effectiveSystemSizeKw || 0
@@ -1604,9 +1614,36 @@ export function PeakShavingSalesCalculatorFRD({
               <div className="p-4 border-b border-gray-200 bg-gray-50">
                 {/* FRD Section 9: Headline 32-40px */}
                 <h2 className="text-3xl md:text-4xl font-bold text-gray-800">Calculator Inputs</h2>
+                
+                {/* Tab Navigation */}
+                <div className="mt-4 flex gap-2 border-b border-gray-300">
+                  <button
+                    onClick={() => setActiveTab('basic')}
+                    className={`px-4 py-2 font-semibold text-sm transition-colors ${
+                      activeTab === 'basic'
+                        ? 'text-blue-600 border-b-2 border-blue-600'
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    Basic Inputs
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('distribution')}
+                    className={`px-4 py-2 font-semibold text-sm transition-colors ${
+                      activeTab === 'distribution'
+                        ? 'text-blue-600 border-b-2 border-blue-600'
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    Usage Distribution
+                  </button>
+                </div>
               </div>
               
               <div className="p-4 md:p-5 space-y-3">
+                {/* Basic Inputs Tab */}
+                {activeTab === 'basic' && (
+                  <>
               {/* Annual Usage - Full Width */}
               <div>
                 {/* FRD Section 9: Body 16-18px (text-base = 16px, text-lg = 18px) */}
@@ -1926,6 +1963,188 @@ export function PeakShavingSalesCalculatorFRD({
                   </div>
                 </div>
               )}
+                  </>
+                )}
+                
+                {/* Usage Distribution Tab */}
+                {activeTab === 'distribution' && (
+                  <div className="space-y-4">
+                    <div className="mb-4">
+                      <p className="text-sm text-gray-600 mb-2">
+                        Customize how your annual usage is distributed across different rate periods for the selected rate plan.
+                      </p>
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
+                          <p className="text-xs text-blue-700">
+                            Currently viewing: <span className="font-semibold">{ratePlan === 'TOU' ? 'Time-of-Use (TOU)' : 'Ultra-Low Overnight (ULO)'}</span>. 
+                            Switch rate plans above to customize the other plan's distribution.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {/* TOU Distribution */}
+                      <div className="space-y-3 bg-gradient-to-br from-gray-50 to-white p-5 rounded-xl border-2 border-gray-300 shadow-sm">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Sun className="text-blue-500" size={18} />
+                          <h4 className="font-bold text-blue-500">Time-of-Use (TOU)</h4>
+                        </div>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-semibold text-gray-700">On-Peak:</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={touDistribution.onPeakPercent}
+                                onChange={(e) => setTouDistribution({...touDistribution, onPeakPercent: Number(e.target.value)})}
+                                className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                              />
+                              <span className="text-sm text-gray-600">%</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-semibold text-gray-700">Mid-Peak:</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={touDistribution.midPeakPercent}
+                                onChange={(e) => setTouDistribution({...touDistribution, midPeakPercent: Number(e.target.value)})}
+                                className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                              />
+                              <span className="text-sm text-gray-600">%</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-semibold text-gray-700">Off-Peak:</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={touDistribution.offPeakPercent}
+                                onChange={(e) => setTouDistribution({...touDistribution, offPeakPercent: Number(e.target.value)})}
+                                className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                              />
+                              <span className="text-sm text-gray-600">%</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="pt-3 border-t border-gray-300">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-gray-700">
+                              Total: {(
+                                touDistribution.offPeakPercent +
+                                touDistribution.midPeakPercent +
+                                touDistribution.onPeakPercent
+                              ).toFixed(1)}%
+                            </span>
+                            {Math.abs(touDistribution.offPeakPercent + touDistribution.midPeakPercent + touDistribution.onPeakPercent - 100) > 0.1 ? (
+                              <span className="text-red-600 text-xs font-semibold">(must = 100%)</span>
+                            ) : (
+                              <span className="text-green-600 text-xs font-semibold">✓ Valid</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ULO Distribution */}
+                      <div className="space-y-3 bg-gradient-to-br from-gray-50 to-white p-5 rounded-xl border-2 border-gray-300 shadow-sm">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Moon className="text-purple-500" size={18} />
+                          <h4 className="font-bold text-purple-500">Ultra-Low Overnight (ULO)</h4>
+                        </div>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-semibold text-gray-700">On-Peak:</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={uloDistribution.onPeakPercent}
+                                onChange={(e) => setUloDistribution({...uloDistribution, onPeakPercent: Number(e.target.value)})}
+                                className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                              />
+                              <span className="text-sm text-gray-600">%</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-semibold text-gray-700">Mid-Peak:</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={uloDistribution.midPeakPercent}
+                                onChange={(e) => setUloDistribution({...uloDistribution, midPeakPercent: Number(e.target.value)})}
+                                className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                              />
+                              <span className="text-sm text-gray-600">%</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-semibold text-gray-700">Weekend:</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={uloDistribution.offPeakPercent}
+                                onChange={(e) => setUloDistribution({...uloDistribution, offPeakPercent: Number(e.target.value)})}
+                                className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                              />
+                              <span className="text-sm text-gray-600">%</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-semibold text-gray-700">Ultra-Low:</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={uloDistribution.ultraLowPercent || 0}
+                                onChange={(e) => setUloDistribution({...uloDistribution, ultraLowPercent: Number(e.target.value)})}
+                                className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                              />
+                              <span className="text-sm text-gray-600">%</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="pt-3 border-t border-gray-300">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-gray-700">
+                              Total: {(
+                                (uloDistribution.ultraLowPercent || 0) +
+                                uloDistribution.offPeakPercent +
+                                uloDistribution.midPeakPercent +
+                                uloDistribution.onPeakPercent
+                              ).toFixed(1)}%
+                            </span>
+                            {Math.abs((uloDistribution.ultraLowPercent || 0) + uloDistribution.offPeakPercent + uloDistribution.midPeakPercent + uloDistribution.onPeakPercent - 100) > 0.1 ? (
+                              <span className="text-red-600 text-xs font-semibold">(must = 100%)</span>
+                            ) : (
+                              <span className="text-green-600 text-xs font-semibold">✓ Valid</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -2114,7 +2333,7 @@ export function PeakShavingSalesCalculatorFRD({
                           ${beforeAfterCosts.savings.toLocaleString()}
                         </div>
                         <div className="text-xs text-gray-500 mt-2">
-                          Based on {ratePlan} rate plan • {(data.annualEscalator || 4.5)}% annual increase
+                          Based on {ratePlan} rate plan • {(data.annualEscalator ?? 4.5)}% annual increase
                         </div>
                       </div>
                     </div>
@@ -2428,7 +2647,7 @@ export function PeakShavingSalesCalculatorFRD({
                     <div>
                       <h3 className="text-lg font-semibold text-gray-800 mb-2">Step 2: Growing Savings Over Time</h3>
                       <p className="text-gray-700">
-                        Electricity rates typically increase each year (we use {(data.annualEscalator || 4.5)}% per year, which you can customize). This means your savings grow each year because you're avoiding those higher rates.
+                        Electricity rates typically increase each year (we use {(data.annualEscalator ?? 4.5)}% per year, which you can customize). This means your savings grow each year because you're avoiding those higher rates.
                       </p>
                     </div>
 
@@ -2452,7 +2671,7 @@ export function PeakShavingSalesCalculatorFRD({
                     <div>
                       <h3 className="text-lg font-semibold text-gray-800 mb-2">Step 1: Total Savings Over 25 Years</h3>
                       <p className="text-gray-700">
-                        We project your savings for all 25 years, accounting for electricity rate increases ({(data.annualEscalator || 4.5)}% per year). Each year, your savings grow because you're avoiding higher grid rates.
+                        We project your savings for all 25 years, accounting for electricity rate increases ({(data.annualEscalator ?? 4.5)}% per year). Each year, your savings grow because you're avoiding higher grid rates.
                       </p>
                     </div>
 
@@ -2494,7 +2713,7 @@ export function PeakShavingSalesCalculatorFRD({
 
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <p className="text-sm text-gray-700">
-                  <strong>Important Note:</strong> These calculations assume electricity rates increase over time ({(data.annualEscalator || 4.5)}% per year). If rates increase faster, your savings and profit will be higher. If rates increase slower, your savings will be lower. The actual results may vary based on future rate changes.
+                  <strong>Important Note:</strong> These calculations assume electricity rates increase over time ({(data.annualEscalator ?? 4.5)}% per year). If rates increase faster, your savings and profit will be higher. If rates increase slower, your savings will be lower. The actual results may vary based on future rate changes.
                 </p>
               </div>
                 </>
@@ -2558,7 +2777,7 @@ export function PeakShavingSalesCalculatorFRD({
                               <div className="border border-gray-200 rounded-lg p-5">
                                 <div className="text-sm font-semibold text-gray-800 mb-3">Step 3: Growing Savings Over Time</div>
                                 <div className="space-y-3 text-sm text-gray-700">
-                                  <p>Each year, your savings increase by {(data.annualEscalator || 4.5)}% because electricity rates go up:</p>
+                                  <p>Each year, your savings increase by {(data.annualEscalator ?? 4.5)}% because electricity rates go up:</p>
                                   <div className="bg-gray-50 rounded-lg p-3 space-y-2">
                                     <div className="flex justify-between">
                                       <span>Year 1 Savings:</span>
@@ -2566,14 +2785,14 @@ export function PeakShavingSalesCalculatorFRD({
                                     </div>
                                     <div className="flex justify-between">
                                       <span>Year 2 Savings:</span>
-                                      <span className="font-semibold text-gray-900">${Math.round(beforeAfterCosts.savings * (1 + (data.annualEscalator || 4.5) / 100)).toLocaleString()}</span>
+                                      <span className="font-semibold text-gray-900">${Math.round(beforeAfterCosts.savings * (1 + (data.annualEscalator ?? 4.5) / 100)).toLocaleString()}</span>
                                     </div>
                                     <div className="flex justify-between">
                                       <span>Year 3 Savings:</span>
-                                      <span className="font-semibold text-gray-900">${Math.round(beforeAfterCosts.savings * Math.pow(1 + (data.annualEscalator || 4.5) / 100, 2)).toLocaleString()}</span>
+                                      <span className="font-semibold text-gray-900">${Math.round(beforeAfterCosts.savings * Math.pow(1 + (data.annualEscalator ?? 4.5) / 100, 2)).toLocaleString()}</span>
                                     </div>
                                     <div className="text-xs text-gray-500 pt-2 border-t border-gray-300">
-                                      ... and so on, increasing by {(data.annualEscalator || 4.5)}% each year
+                                      ... and so on, increasing by {(data.annualEscalator ?? 4.5)}% each year
                                     </div>
                                   </div>
                                 </div>
@@ -2661,7 +2880,7 @@ export function PeakShavingSalesCalculatorFRD({
                               <div className="border border-gray-200 rounded-lg p-5">
                                 <div className="text-sm font-semibold text-gray-800 mb-3">Step 2: Total 25-Year Savings</div>
                                 <div className="space-y-3 text-sm text-gray-700">
-                                  <p>We project your savings for 25 years, with {(data.annualEscalator || 4.5)}% annual rate increases:</p>
+                                  <p>We project your savings for 25 years, with {(data.annualEscalator ?? 4.5)}% annual rate increases:</p>
                                   <div className="bg-gray-50 rounded-lg p-3">
                                     <div className="flex justify-between border-b border-gray-300 pb-2 mb-2">
                                       <span>First Year Savings:</span>

@@ -280,11 +280,21 @@ export default function EstimatorPage() {
   const handleStepComplete = async (stepData: Partial<EstimatorData>) => {
     // Preserve email if it already exists (captured in location step)
     // Only overwrite email if stepData explicitly provides a new non-empty email
+    // Handle annualEscalator: use stepData value if valid, otherwise preserve existing data value
+    const annualEscalatorValue = (stepData.annualEscalator !== undefined && !isNaN(stepData.annualEscalator) && stepData.annualEscalator >= 0)
+      ? stepData.annualEscalator
+      : data.annualEscalator // Preserve existing value, don't default
+    
+    // Create stepData without annualEscalator if it's undefined to avoid overwriting existing value
+    const { annualEscalator: _, ...stepDataWithoutEscalator } = stepData
+    
     const updatedData = { 
       ...data, 
-      ...stepData,
+      ...stepDataWithoutEscalator,
       // Preserve email from location step unless stepData explicitly provides a new non-empty email
-      email: (stepData.email && stepData.email.trim()) ? stepData.email : data.email
+      email: (stepData.email && stepData.email.trim()) ? stepData.email : data.email,
+      // Only include annualEscalator if we have a value (either from stepData or existing data)
+      ...(annualEscalatorValue !== undefined && { annualEscalator: annualEscalatorValue })
     }
     setData(updatedData)
     
@@ -351,21 +361,24 @@ export default function EstimatorPage() {
           currentStep === 3 &&
           (updatedData.programType === 'hrs_residential' || updatedData.systemType === 'battery_system')
         if (willEnterBatterySavings && updatedData.coordinates && (updatedData.roofPolygon || updatedData.roofAreaSqft)) {
+          // IMPORTANT: Store updatedData in a variable that will be captured in the async callback
+          const dataWithAnnualEscalator = updatedData
+          
           try {
             // Show loading overlay while preparing the Battery Savings step
             setIsLoadingNextStep(true)
-            console.log('Generating solar estimate for battery rebate calculation...')
             const response = await fetch('/api/estimate', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(updatedData),
+              body: JSON.stringify(dataWithAnnualEscalator),
             })
             
             if (response.ok) {
               const result = await response.json()
               // Store the estimate in data for use in Battery Savings step
-              setData(prev => ({ ...prev, estimate: result.data }))
-              console.log('Solar estimate generated:', result.data.system)
+              // IMPORTANT: Use dataWithAnnualEscalator (captured from closure) to preserve annualEscalator
+              const finalData = { ...dataWithAnnualEscalator, estimate: result.data }
+              setData(finalData)
             } else {
               console.warn('Failed to generate estimate, will retry in Review step')
             }
