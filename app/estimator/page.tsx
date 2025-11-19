@@ -544,7 +544,7 @@ export default function EstimatorPage() {
 
       {/* Progress Steps Container - Only show after mode selection */}
       {data.estimatorMode && (
-        <div className="bg-white border-b border-gray-200 sticky top-[73px] z-30">
+        <div className="bg-white border-b border-gray-200 sticky top-[73px] z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             {/* Mode Badge */}
             <div className="text-center mb-4">

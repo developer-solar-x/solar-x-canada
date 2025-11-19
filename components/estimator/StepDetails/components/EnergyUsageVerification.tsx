@@ -62,7 +62,7 @@ export function EnergyUsageVerification({ formData, setFormData, data }: EnergyU
       {formData.monthlyBill && Number(formData.monthlyBill) > 0 && (
         <div className="mt-6">
           <ElectricityBillInflationCalculator 
-            monthlyBill={Number(formData.monthlyBill)}
+            monthlyBill={Number(formData.monthlyBill)} 
             annualEscalator={formData.annualEscalator}
             onAnnualEscalatorChange={handleAnnualEscalatorChange}
           />

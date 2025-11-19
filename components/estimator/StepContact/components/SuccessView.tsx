@@ -27,7 +27,7 @@ export function SuccessView({ email, leadId }: SuccessViewProps) {
           <h3 className="font-semibold text-navy-500 mb-3">What happens next?</h3>
           <ul className="space-y-2 text-sm text-gray-700 list-disc list-inside">
             <li className="text-green-600">
-              <span className="text-gray-700">A SolarX specialist will contact you within 24 hours</span>
+              <span className="text-gray-700">A specialist will contact you within 24 hours</span>
             </li>
             <li className="text-green-600">
               <span className="text-gray-700">We'll answer any questions and discuss your options</span>

@@ -64,7 +64,7 @@ export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: St
 
   const handleContinue = () => {
     const annualUsageKwh = Math.max(0, finalAnnualUsage)
-    
+
     // Only include annualEscalator if it's a valid number
     const finalAnnualEscalator = (annualEscalator !== undefined && !isNaN(annualEscalator) && annualEscalator >= 0) 
       ? annualEscalator 

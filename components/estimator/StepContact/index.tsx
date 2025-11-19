@@ -95,7 +95,7 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
             Get Your Detailed Quote
           </h2>
           <p className="text-gray-600">
-            Connect with SolarX installers for next steps
+            Connect with certified installers for next steps
           </p>
         </div>
 

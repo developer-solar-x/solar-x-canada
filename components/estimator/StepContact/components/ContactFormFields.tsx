@@ -131,7 +131,7 @@ export function ContactFormFields({ formData, setFormData, errors }: ContactForm
             className="w-5 h-5 text-red-500 rounded mt-0.5"
           />
           <span className="text-sm text-gray-700">
-            I agree to receive communications from SolarX and certified installers regarding my solar estimate. *
+            I agree to receive communications from certified installers regarding my solar estimate. *
           </span>
         </label>
         {errors.consent && <p className="text-red-500 text-sm mt-1 ml-8">{errors.consent}</p>}

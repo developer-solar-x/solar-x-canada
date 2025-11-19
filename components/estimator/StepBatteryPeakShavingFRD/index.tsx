@@ -169,33 +169,9 @@ export function StepBatteryPeakShavingFRD({ data, onComplete, onBack, manualMode
   }
 
   return (
-    <div className="w-full">
-      {/* Navigation Bar - Fixed at top */}
-      <div className="bg-white border-b border-gray-200 sticky top-[73px] z-40 py-3 shadow-sm">
-        <div className="w-full max-w-none flex items-center justify-between px-2 sm:px-4 md:px-6 lg:px-8 xl:px-10 2xl:px-12">
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
-            >
-              <ArrowLeft size={20} />
-              <span>Back</span>
-            </button>
-          )}
-          <div className="flex-1" /> {/* Spacer */}
-          {!manualMode && (
-            <button
-              onClick={handleContinue}
-              className="flex items-center gap-2 px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-colors shadow-md hover:shadow-lg"
-            >
-              <span>Continue</span>
-              <ArrowRight size={20} />
-            </button>
-          )}
-        </div>
-      </div>
-
+    <div className="w-full min-h-screen">
       {/* FRD Calculator - Standalone */}
+      <div className="pt-2">
       <PeakShavingSalesCalculatorFRD 
         data={enhancedData} 
         onComplete={onComplete} 
@@ -207,6 +183,7 @@ export function StepBatteryPeakShavingFRD({ data, onComplete, onBack, manualMode
         effectiveSystemSizeKw={effectiveSystemSizeKw}
         panelWattage={panelWattage}
       />
+      </div>
     </div>
   )
 }

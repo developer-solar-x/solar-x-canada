@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { 
   Sun, Battery, TrendingUp, ChevronDown, ChevronUp, 
-  Zap, Info, AlertTriangle, BarChart3, DollarSign, Calendar, Award, Clock, X, Moon
+  Zap, Info, AlertTriangle, BarChart3, DollarSign, Calendar, Award, Clock, X, Moon, ArrowLeft, ArrowRight
 } from 'lucide-react'
 import { BATTERY_SPECS, BatterySpec, calculateBatteryRebate, BATTERY_REBATE_PER_KWH, BATTERY_REBATE_MAX } from '@/config/battery-specs'
 import { RATE_PLANS, RatePlan, ULO_RATE_PLAN, TOU_RATE_PLAN } from '@/config/rate-plans'
@@ -179,7 +179,10 @@ function EnergyFlowDiagram({
   annualUsageKwh,
   solarProductionKwh,
   offsetCapInfo,
-  data
+  data,
+  selectedBatteryIds,
+  totalBillSavingsPercent,
+  heroMetrics
 }: { 
   result: FRDPeakShavingResult | null
   combinedResult: any
@@ -187,6 +190,14 @@ function EnergyFlowDiagram({
   solarProductionKwh: number
   offsetCapInfo: ReturnType<typeof computeSolarBatteryOffsetCap>
   data: StepBatteryPeakShavingSimpleProps['data']
+  selectedBatteryIds: string[]
+  totalBillSavingsPercent?: number
+  heroMetrics?: {
+    solarOffset: number
+    batteryOffset: number
+    gridChargedBatteryPercent: number
+    boughtFromGridPercent: number
+  }
 }) {
   // Calculate percentages from combined result if available, otherwise use FRD result
   let solarDirectPercent = 0
@@ -196,6 +207,9 @@ function EnergyFlowDiagram({
   let totalOffset = 0
   let uncappedTotalOffset = 0 // Store for cap note display
 
+  // If no battery is selected, exclude battery from all calculations
+  const hasBattery = selectedBatteryIds.length > 0
+
   if (combinedResult?.breakdown && annualUsageKwh > 0) {
     const breakdown = combinedResult.breakdown
     // Calculate solar direct
@@ -204,8 +218,9 @@ function EnergyFlowDiagram({
       : 0
     const uncappedSolarDirectPercent = (solarAllocated / annualUsageKwh) * 100
 
-    // Calculate battery offsets - separate solar-charged and grid-charged (ULO/off-peak)
+    // Calculate battery offsets - only if battery is selected
     let uncappedSolarChargedBatteryPercent = 0
+    if (hasBattery) {
     if (result?.offsetPercentages) {
       // Get separate percentages for solar-charged and grid-charged battery
       uncappedSolarChargedBatteryPercent = result.offsetPercentages.solarChargedBattery || 0
@@ -221,6 +236,7 @@ function EnergyFlowDiagram({
       const totalBatteryPercent = (batteryOffsetKwh / annualUsageKwh) * 100
       uncappedSolarChargedBatteryPercent = totalBatteryPercent * 0.7 // Estimate 70% solar-charged
       gridChargedBatteryPercent = totalBatteryPercent * 0.3 // Estimate 30% grid-charged
+      }
     }
 
     // Apply offset cap to keep expectations realistic (winter limits)
@@ -240,17 +256,17 @@ function EnergyFlowDiagram({
 
     // Grid remaining = only actual remaining grid usage (not including grid-charged battery)
     // After capping, grid remaining increases to account for the capped offset
-    const uncappedGridRemaining = 100 - uncappedSolarDirectPercent - uncappedSolarChargedBatteryPercent - gridChargedBatteryPercent
     const offsetReduction = uncappedTotalOffset - (solarDirectPercent + solarChargedBatteryPercent)
-    gridRemainingPercent = uncappedGridRemaining + offsetReduction
-    // Total Energy Offset = only FREE energy (solar direct + solar-charged battery) - CAPPED
+    // Calculate grid remaining to ensure all percentages add up to exactly 100%
+    gridRemainingPercent = Math.max(0, 100 - solarDirectPercent - solarChargedBatteryPercent - gridChargedBatteryPercent)
+    // Total Energy Offset = only FREE energy (solar direct + solar-charged battery if battery selected) - CAPPED
     // Grid-charged battery is NOT free - it's purchased from the grid
-    totalOffset = solarDirectPercent + solarChargedBatteryPercent
+    totalOffset = solarDirectPercent + (hasBattery ? solarChargedBatteryPercent : 0)
   } else if (result) {
     const { offsetPercentages } = result
     const uncappedSolarDirectPercent = offsetPercentages.solarDirect
-    const uncappedSolarChargedBatteryPercent = offsetPercentages.solarChargedBattery || 0
-    gridChargedBatteryPercent = offsetPercentages.uloChargedBattery || 0
+    const uncappedSolarChargedBatteryPercent = hasBattery ? (offsetPercentages.solarChargedBattery || 0) : 0
+    gridChargedBatteryPercent = hasBattery ? (offsetPercentages.uloChargedBattery || 0) : 0
     
     // Apply offset cap to keep expectations realistic (winter limits)
     uncappedTotalOffset = uncappedSolarDirectPercent + uncappedSolarChargedBatteryPercent
@@ -269,12 +285,20 @@ function EnergyFlowDiagram({
     
     // Grid remaining = only actual remaining grid usage
     // After capping, grid remaining increases to account for the capped offset
-    const uncappedGridRemaining = offsetPercentages.gridRemaining || 0
     const offsetReduction = uncappedTotalOffset - (solarDirectPercent + solarChargedBatteryPercent)
-    gridRemainingPercent = uncappedGridRemaining + offsetReduction
-    // Total Energy Offset = only FREE energy (solar direct + solar-charged battery) - CAPPED
+    // Calculate grid remaining to ensure all percentages add up to exactly 100%
+    gridRemainingPercent = Math.max(0, 100 - solarDirectPercent - solarChargedBatteryPercent - gridChargedBatteryPercent)
+    // Total Energy Offset = only FREE energy (solar direct + solar-charged battery if battery selected) - CAPPED
     // Grid-charged battery is NOT free - it's purchased from the grid
-    totalOffset = solarDirectPercent + solarChargedBatteryPercent
+    totalOffset = solarDirectPercent + (hasBattery ? solarChargedBatteryPercent : 0)
+  } else if (selectedBatteryIds.length === 0) {
+    return (
+      <div className="p-12 bg-yellow-50 rounded-xl border-2 border-yellow-200 text-center">
+        <Battery className="text-yellow-600 mx-auto mb-3" size={48} />
+        <p className="text-lg font-semibold text-yellow-800 mb-2">Please Select a Battery</p>
+        <p className="text-sm text-yellow-700">Select a battery from the options above to see your energy flow and savings calculations.</p>
+      </div>
+    )
   } else {
     return (
       <div className="p-12 bg-gray-50 rounded-xl border-2 border-gray-200 text-center">
@@ -291,7 +315,7 @@ function EnergyFlowDiagram({
       {/* Circular flow visualization */}
       <div className="relative w-full max-w-xs mx-auto aspect-square">
         {/* Outer circle (grid remaining) */}
-        <svg viewBox="0 0 200 200" className="w-full h-full transform -rotate-90">
+        <svg viewBox="0 0 200 200" className="w-full h-full transform -rotate-90" style={{ overflow: 'visible' }}>
           {/* Grid remaining (grey) */}
           <circle
             cx="100"
@@ -313,7 +337,8 @@ function EnergyFlowDiagram({
             strokeDasharray={`${(solarDirectPercent / 100) * 565} 565`}
             strokeDashoffset={-(gridRemainingPercent / 100) * 565}
           />
-          {/* Solar-charged battery (green) */}
+          {/* Solar-charged battery (green) - only show if battery is selected */}
+          {selectedBatteryIds.length > 0 && (
           <circle
             cx="100"
             cy="100"
@@ -324,7 +349,9 @@ function EnergyFlowDiagram({
             strokeDasharray={`${(solarChargedBatteryPercent / 100) * 565} 565`}
             strokeDashoffset={-((gridRemainingPercent + solarDirectPercent) / 100) * 565}
           />
-          {/* Grid-charged battery (ULO/off-peak) - orange/amber */}
+          )}
+          {/* Grid-charged battery (ULO/off-peak) - orange/amber - only show if battery is selected and has grid-charged energy */}
+          {selectedBatteryIds.length > 0 && gridChargedBatteryPercent > 0 && (
           <circle
             cx="100"
             cy="100"
@@ -335,57 +362,110 @@ function EnergyFlowDiagram({
             strokeDasharray={`${(gridChargedBatteryPercent / 100) * 565} 565`}
             strokeDashoffset={-((gridRemainingPercent + solarDirectPercent + solarChargedBatteryPercent) / 100) * 565}
           />
+          )}
         </svg>
         
-        {/* Center text - FRD requirement: "Net Grid Usage: X%" */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-base font-bold text-gray-800">Net Grid Usage:</div>
+        {/* Center text - Show Grid After Optimization % */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="text-center max-w-[60%] px-2">
+            <div className="text-base font-bold text-gray-800">Grid After Optimization</div>
             <div className="text-xl font-bold text-gray-600">
-              <AnimatedNumber value={gridRemainingPercent} decimals={1} suffix="%" />
+              <AnimatedNumber value={(() => {
+                // Calculate grid after optimization = remaining grid only (excluding grid-charged battery)
+                const solarOffset = heroMetrics?.solarOffset ?? solarDirectPercent
+                const batteryOffset = heroMetrics?.batteryOffset ?? solarChargedBatteryPercent
+                const gridChargedBattery = heroMetrics?.gridChargedBatteryPercent ?? gridChargedBatteryPercent
+                const boughtFromGrid = heroMetrics?.boughtFromGridPercent ?? gridRemainingPercent
+                // Grid after optimization = remaining grid only (not including grid-charged battery)
+                const remainingGrid = Math.max(0, boughtFromGrid - gridChargedBattery)
+                return Math.max(0, Math.min(100, remainingGrid))
+              })()} decimals={1} suffix="%" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
+      {/* Legend - Use heroMetrics values to match hero cards exactly, ensuring percentages add to 100% */}
+      {(() => {
+        // Calculate remaining grid (excluding grid-charged battery) to ensure percentages add to 100%
+        const solarOffset = heroMetrics?.solarOffset ?? solarDirectPercent
+        const batteryOffset = heroMetrics?.batteryOffset ?? solarChargedBatteryPercent
+        const gridChargedBattery = heroMetrics?.gridChargedBatteryPercent ?? gridChargedBatteryPercent
+        const boughtFromGrid = heroMetrics?.boughtFromGridPercent ?? gridRemainingPercent
+        
+        // Calculate remaining grid = total bought from grid minus grid-charged battery portion
+        // Ensure we don't show negative values
+        let remainingGrid = Math.max(0, boughtFromGrid - gridChargedBattery)
+        
+        // If total offset + grid-charged battery >= 100%, remaining grid should be 0
+        // But we need to ensure percentages add up correctly
+        const totalOffset = solarOffset + batteryOffset
+        const totalWithGridCharged = totalOffset + gridChargedBattery
+        
+        // If the sum exceeds 100%, adjust remaining grid to ensure it adds to 100%
+        if (totalWithGridCharged + remainingGrid > 100.1) {
+          remainingGrid = Math.max(0, 100 - totalWithGridCharged)
+        }
+        
+        // Final check: ensure all percentages add to 100%
+        const total = solarOffset + batteryOffset + gridChargedBattery + remainingGrid
+        if (Math.abs(total - 100) > 0.1) {
+          // Recalculate remaining grid to ensure it adds to 100%
+          remainingGrid = Math.max(0, 100 - (solarOffset + batteryOffset + gridChargedBattery))
+        }
+        
+        return (
+          <div className={`grid gap-3 mt-6 ${selectedBatteryIds.length > 0 ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2'}`}>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded-full bg-blue-500"></div>
           <div className="text-sm">
             <div className="font-semibold text-gray-700">From Solar Panels</div>
-            <div className="text-xs text-gray-500">{solarDirectPercent.toFixed(1)}%</div>
+                <div className="text-xs text-gray-500">{solarOffset.toFixed(1)}%</div>
           </div>
         </div>
+            {selectedBatteryIds.length > 0 && (
+              <>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded-full bg-green-500"></div>
           <div className="text-sm">
             <div className="font-semibold text-gray-700">From Stored Solar</div>
-            <div className="text-xs text-gray-500">{solarChargedBatteryPercent.toFixed(1)}%</div>
+                    <div className="text-xs text-gray-500">{batteryOffset.toFixed(1)}%</div>
           </div>
         </div>
+                {gridChargedBattery > 0 && (
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded-full" style={{ backgroundColor: '#F9A825' }}></div>
           <div className="text-sm">
             <div className="font-semibold text-gray-700">From Battery (AI Charged)</div>
-            <div className="text-xs text-gray-500">{gridChargedBatteryPercent.toFixed(1)}%</div>
+                      <div className="text-xs text-gray-500">{gridChargedBattery.toFixed(1)}%</div>
           </div>
         </div>
+                )}
+              </>
+            )}
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded-full bg-gray-400"></div>
           <div className="text-sm">
-            <div className="font-semibold text-gray-700">From Grid</div>
-            <div className="text-xs text-gray-500">{gridRemainingPercent.toFixed(1)}%</div>
+                <div className="font-semibold text-gray-700">Grid After Optimization</div>
+                <div className="text-xs text-gray-500">{remainingGrid.toFixed(1)}%</div>
           </div>
         </div>
       </div>
+        )
+      })()}
       
       {/* Total Offset Summary */}
       <div className="mt-4 pt-4 border-t border-gray-200 text-center">
         <div className="text-sm text-gray-600">
-          <span className="font-semibold text-gray-700">Total Solar & Battery Offset: </span>
+          <span className="font-semibold text-gray-700">
+            {hasBattery ? 'Total Solar & Battery Offset: ' : 'Total Solar Offset: '}
+          </span>
           <span className="text-base font-bold text-gray-800">{totalOffset.toFixed(1)}%</span>
-          <span className="text-xs text-gray-500 ml-1">(Free energy from solar and battery)</span>
+          <span className="text-xs text-gray-500 ml-1">
+            {hasBattery 
+              ? '(Free energy from solar and battery)' 
+              : '(Free energy from solar panels)'}
+          </span>
         </div>
         {(() => {
           const offsetCapPercent = offsetCapInfo.capFraction * 100
@@ -405,18 +485,20 @@ function EnergyFlowDiagram({
 function BeforeAfterBars({ 
   before, 
   after, 
-  savings 
+  savings,
+  showContainer = false
 }: { 
   before: number
   after: number
   savings: number
+  showContainer?: boolean
 }) {
   const maxValue = Math.max(before, after) * 1.1
   const beforeWidth = (before / maxValue) * 100
   const afterWidth = (after / maxValue) * 100
   const savingsPercent = before > 0 ? (savings / before) * 100 : 0
 
-  return (
+  const content = (
     <div className="space-y-4">
       {/* FRD Section 9: Headline 32-40px */}
       <div className="text-center">
@@ -476,6 +558,18 @@ function BeforeAfterBars({
       </div>
     </div>
   )
+
+  // If showContainer is true, wrap in container styling (for standalone sales calculator)
+  if (showContainer) {
+    return (
+      <div className="bg-white rounded-xl shadow-md border-2 border-gray-200 overflow-hidden p-4 md:p-5">
+        {content}
+      </div>
+    )
+  }
+
+  // Otherwise return content as-is (for use inside tabs in step mode)
+  return content
 }
 
 interface PeakShavingSalesCalculatorFRDProps extends StepBatteryPeakShavingSimpleProps {
@@ -885,7 +979,7 @@ export function PeakShavingSalesCalculatorFRD({
   // Parse numeric values
   const annualUsageKwh = Math.max(0, Number(annualUsageInput) || 0)
   const solarProductionKwh = Math.max(0, Number(solarProductionInput) || 0)
-  const selectedBattery = combineBatteries(selectedBatteryIds) || BATTERY_SPECS[0]
+  const selectedBattery = selectedBatteryIds.length > 0 ? combineBatteries(selectedBatteryIds) : null
 
   // Calculate rebates
   const rebates = useMemo(() => {
@@ -939,12 +1033,38 @@ export function PeakShavingSalesCalculatorFRD({
   // Calculate results using the same method as the old calculator for consistency
   const combinedResult = useMemo(() => {
     if (!annualUsageKwh || annualUsageKwh <= 0) return null
-    if (!selectedBattery) return null
 
     try {
       const ratePlanObj: RatePlan = ratePlan === 'ULO' ? ULO_RATE_PLAN : TOU_RATE_PLAN
       // Use custom distribution if set, otherwise fall back to defaults
       const distribution: UsageDistribution = ratePlan === 'ULO' ? uloDistribution : touDistribution
+
+      // If no battery is selected, calculate solar-only result using a zero-capacity battery
+      if (!selectedBattery || selectedBatteryIds.length === 0) {
+        // Create a zero-capacity battery spec for solar-only calculation
+        const zeroBattery: BatterySpec = {
+          id: 'zero',
+          brand: 'None',
+          model: 'No Battery',
+          nominalKwh: 0,
+          usableKwh: 0,
+          usablePercent: 0,
+          roundTripEfficiency: 0,
+          inverterKw: 0,
+          price: 0,
+          warranty: { years: 0, cycles: 0 },
+          description: 'Solar only'
+        }
+        return calculateSolarBatteryCombined(
+          annualUsageKwh,
+          solarProductionKwh,
+          zeroBattery,
+          ratePlanObj,
+          distribution,
+          offsetCapInfo.capFraction,
+          false // No AI mode for solar-only
+        )
+      }
 
       // Use calculateSolarBatteryCombined with offset cap (EXACT same as manual calculator)
       return calculateSolarBatteryCombined(
@@ -960,7 +1080,7 @@ export function PeakShavingSalesCalculatorFRD({
       console.error('Calculation error:', e)
       return null
     }
-  }, [annualUsageKwh, solarProductionKwh, selectedBattery, ratePlan, aiMode, offsetCapInfo.capFraction, touDistribution, uloDistribution])
+  }, [annualUsageKwh, solarProductionKwh, selectedBattery, selectedBatteryIds.length, ratePlan, aiMode, offsetCapInfo.capFraction, touDistribution, uloDistribution])
 
   // Also calculate FRD result for offset percentages display
   const frdResult = useMemo<FRDPeakShavingResult | null>(() => {
@@ -1331,16 +1451,21 @@ export function PeakShavingSalesCalculatorFRD({
       boughtFromGridPercent = gridChargedBatteryPercent + adjustedGridRemainingPercent
     } else {
       // Fallback: calculate from total (this already accounts for cap since totalEnergyOffset is capped)
-      boughtFromGridPercent = 100 - totalEnergyOffset
+      // But ensure we include grid-charged battery if it exists
+      boughtFromGridPercent = Math.max(gridChargedBatteryPercent, 100 - totalEnergyOffset)
     }
     
     // CRITICAL: Always ensure boughtFromGridPercent + totalEnergyOffset = 100%
     // This is the most important check - it ensures the math is always correct
     // When offset is capped at 90%, boughtFromGridPercent must be 10%
+    // NOTE: boughtFromGridPercent includes grid-charged battery, so:
+    // totalEnergyOffset (solar + solar-charged battery) + boughtFromGridPercent (grid-charged battery + remaining grid) = 100%
     const calculatedTotal = totalEnergyOffset + boughtFromGridPercent
     if (Math.abs(calculatedTotal - 100) > 0.1) {
       // Recalculate to ensure correctness - this handles all edge cases
-      boughtFromGridPercent = Math.max(0, 100 - totalEnergyOffset)
+      // But ensure we don't go below grid-charged battery amount
+      const minBoughtFromGrid = gridChargedBatteryPercent // At minimum, must include grid-charged battery
+      boughtFromGridPercent = Math.max(minBoughtFromGrid, 100 - totalEnergyOffset)
     }
     
     // Additional explicit check: if offset is capped, ensure boughtFromGridPercent reflects the cap
@@ -1555,12 +1680,16 @@ export function PeakShavingSalesCalculatorFRD({
     }
 
     // Use combined result which matches the old calculator
+    // Use solar-only bill when no battery is selected
     const baselineCost = combinedResult.baselineAnnualBill
-    const afterCost = combinedResult.postSolarBatteryAnnualBill
-    const savings = combinedResult.combinedAnnualSavings
+    const hasBattery = selectedBatteryIds.length > 0
+    const afterCost = hasBattery
+      ? combinedResult.postSolarBatteryAnnualBill
+      : (combinedResult.postSolarAnnualBill || combinedResult.postSolarBatteryAnnualBill)
+    const savings = baselineCost - afterCost
 
     return { before: baselineCost, after: afterCost, savings }
-  }, [combinedResult])
+  }, [combinedResult, selectedBatteryIds])
 
   // Calculate 25-year projection (payback period and profit)
   const multiYearProjection = useMemo(() => {
@@ -1608,7 +1737,7 @@ export function PeakShavingSalesCalculatorFRD({
         {/* 2-Column Layout: Left = Inputs, Right = Metrics - Full width, scales with screen */}
         <div className={`grid grid-cols-1 lg:grid-cols-2 ${manualMode ? 'gap-4 lg:gap-6 px-2 md:px-4 lg:px-6' : 'gap-4 lg:gap-6 xl:gap-8 px-2 sm:px-4 md:px-6 lg:px-8 xl:px-10 2xl:px-12'}`}>
           {/* LEFT COLUMN: All Inputs */}
-          <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
+          <div className="space-y-4">
             {/* Input Section - Always Expanded on Desktop */}
             <div className="bg-white rounded-xl shadow-md border-2 border-gray-200 overflow-hidden">
               <div className="p-4 border-b border-gray-200 bg-gray-50">
@@ -2139,12 +2268,12 @@ export function PeakShavingSalesCalculatorFRD({
                             ) : (
                               <span className="text-green-600 text-xs font-semibold">✓ Valid</span>
                             )}
-                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                )}
+                </div>
+              )}
               </div>
             </div>
 
@@ -2172,6 +2301,7 @@ export function PeakShavingSalesCalculatorFRD({
                   caption="Powered directly by your solar panels."
                   color="blue"
                 />
+                {selectedBatteryIds.length > 0 && (
                 <HeroMetricCard
                   icon={Battery}
                   label="Battery Solar Capture"
@@ -2179,18 +2309,24 @@ export function PeakShavingSalesCalculatorFRD({
                   caption="Powered by stored solar energy."
                   color="green"
                 />
+                )}
                 <HeroMetricCard
                   icon={BarChart3}
-                  label="Total Solar & Battery Offset"
+                  label={selectedBatteryIds.length > 0 ? "Total Solar & Battery Offset" : "Total Solar Offset"}
                   value={heroMetrics.totalEnergyOffset}
                   caption={(() => {
+                    const hasBattery = selectedBatteryIds.length > 0
                     // Check if offset is capped
                     const offsetCapPercent = offsetCapInfo.capFraction * 100
                     const isCapped = (heroMetrics.uncappedTotalOffset ?? 0) > offsetCapPercent + 0.1
                     if (isCapped) {
-                      return `Free energy from solar and stored solar battery. Capped at ${offsetCapPercent.toFixed(0)}% to reflect winter limits.`
+                      return hasBattery 
+                        ? `Free energy from solar and stored solar battery. Capped at ${offsetCapPercent.toFixed(0)}% to reflect winter limits.`
+                        : `Free energy from solar panels. Capped at ${offsetCapPercent.toFixed(0)}% to reflect winter limits.`
                     }
-                    return "Free energy from solar and stored solar battery."
+                    return hasBattery 
+                      ? "Free energy from solar and stored solar battery."
+                      : "Free energy from solar panels."
                   })()}
                   color="gold"
                 />
@@ -2224,10 +2360,17 @@ export function PeakShavingSalesCalculatorFRD({
           <div className="space-y-4">
 
             {/* Section 3: Energy Flow Diagram */}
-            {!hasErrors && <EnergyFlowDiagram result={result} combinedResult={combinedResult} annualUsageKwh={annualUsageKwh} solarProductionKwh={solarProductionKwh} offsetCapInfo={offsetCapInfo} data={data} />}
+            {!hasErrors && !hasBatteryError && <EnergyFlowDiagram result={result} combinedResult={combinedResult} annualUsageKwh={annualUsageKwh} solarProductionKwh={solarProductionKwh} offsetCapInfo={offsetCapInfo} data={data} selectedBatteryIds={selectedBatteryIds} totalBillSavingsPercent={heroMetrics.totalSavings} heroMetrics={heroMetrics} />}
+            {!hasErrors && hasBatteryError && (
+              <div className="p-12 bg-yellow-50 rounded-xl border-2 border-yellow-200 text-center">
+                <Battery className="text-yellow-600 mx-auto mb-3" size={48} />
+                <p className="text-lg font-semibold text-yellow-800 mb-2">Please Select a Battery</p>
+                <p className="text-sm text-yellow-700">Select a battery from the options above to see your energy flow and savings calculations.</p>
+              </div>
+            )}
 
             {/* Section 4: Before/After Savings Bars with Tabs - Only show in step mode */}
-            {!hasErrors && !manualMode && (
+            {!hasErrors && !hasBatteryError && !manualMode && (
               <div className="bg-white rounded-xl shadow-md border-2 border-gray-200 overflow-hidden">
                 {/* Tab Navigation */}
                 <div className="flex border-b border-gray-200">
@@ -2418,11 +2561,12 @@ export function PeakShavingSalesCalculatorFRD({
             )}
 
             {/* Section 4b: Before/After Savings Bars (Standalone mode only) */}
-            {!hasErrors && manualMode && (
+            {!hasErrors && !hasBatteryError && manualMode && (
               <BeforeAfterBars
                 before={beforeAfterCosts.before}
                 after={beforeAfterCosts.after}
                 savings={beforeAfterCosts.savings}
+                showContainer={true}
               />
             )}
 
@@ -2452,19 +2596,21 @@ export function PeakShavingSalesCalculatorFRD({
                 let effectiveCycles = 0
 
                 // Always prefer FRD result for accurate separation of solar vs grid-charged battery
-                if (result) {
-                  // Use FRD result for accurate values
-                  solarDirectKwh = result.solarToDay
+                if (result && annualUsageKwh > 0) {
+                  // Use FRD result percentages, but recalculate kWh values from percentages using annualUsageKwh as base
+                  // This ensures consistency: all values are based on the same annualUsageKwh
                   solarDirectPercent = result.offsetPercentages.solarDirect
-                  batterySolarChargedKwh = result.battSolarCharged
+                  solarDirectKwh = (solarDirectPercent / 100) * annualUsageKwh
+                  
                   batterySolarChargedPercent = result.offsetPercentages.solarChargedBattery
-                  batteryGridChargedKwh = result.battGridCharged
-                  batteryGridChargedPercent = result.offsetPercentages.uloChargedBattery
-                  gridRemainingKwh = (result.gridKWhByBucket.ultraLow || 0) +
-                                    result.gridKWhByBucket.offPeak +
-                                    result.gridKWhByBucket.midPeak +
-                                    result.gridKWhByBucket.onPeak
+                  batterySolarChargedKwh = (batterySolarChargedPercent / 100) * annualUsageKwh
+                  
+                  batteryGridChargedPercent = result.offsetPercentages.uloChargedBattery || 0
+                  batteryGridChargedKwh = (batteryGridChargedPercent / 100) * annualUsageKwh
+                  
                   gridRemainingPercent = result.offsetPercentages.gridRemaining
+                  gridRemainingKwh = (gridRemainingPercent / 100) * annualUsageKwh
+                  
                   effectiveCycles = result.effectiveCycles
                 } else if (breakdown && annualUsageKwh > 0) {
                   // Fallback: Calculate from combined result breakdown (less accurate)
@@ -2499,9 +2645,28 @@ export function PeakShavingSalesCalculatorFRD({
                   gridRemainingPercent = (gridRemainingKwh / annualUsageKwh) * 100
                 }
 
-                // Calculate totals for verification
-                const totalKwh = solarDirectKwh + batterySolarChargedKwh + batteryGridChargedKwh + gridRemainingKwh
-                const totalPercent = solarDirectPercent + batterySolarChargedPercent + batteryGridChargedPercent + gridRemainingPercent
+                // Ensure all values are consistent with annualUsageKwh
+                // Recalculate kWh values from percentages to ensure they sum to annualUsageKwh
+                if (annualUsageKwh > 0) {
+                  // Recalculate kWh from percentages using annualUsageKwh as base
+                  solarDirectKwh = (solarDirectPercent / 100) * annualUsageKwh
+                  batterySolarChargedKwh = (batterySolarChargedPercent / 100) * annualUsageKwh
+                  batteryGridChargedKwh = (batteryGridChargedPercent / 100) * annualUsageKwh
+                  
+                  // Calculate grid remaining as the remainder to ensure total equals annualUsageKwh
+                  const calculatedGridRemainingKwh = annualUsageKwh - solarDirectKwh - batterySolarChargedKwh - batteryGridChargedKwh
+                  gridRemainingKwh = Math.max(0, calculatedGridRemainingKwh)
+                  
+                  // Recalculate all percentages from kWh values to ensure they're consistent and add up to 100%
+                  solarDirectPercent = (solarDirectKwh / annualUsageKwh) * 100
+                  batterySolarChargedPercent = (batterySolarChargedKwh / annualUsageKwh) * 100
+                  batteryGridChargedPercent = (batteryGridChargedKwh / annualUsageKwh) * 100
+                  gridRemainingPercent = (gridRemainingKwh / annualUsageKwh) * 100
+                }
+                
+                // Calculate totals - should always equal annualUsageKwh and 100%
+                const totalKwh = annualUsageKwh > 0 ? annualUsageKwh : (solarDirectKwh + batterySolarChargedKwh + batteryGridChargedKwh + gridRemainingKwh)
+                const totalPercent = annualUsageKwh > 0 ? 100 : (solarDirectPercent + batterySolarChargedPercent + batteryGridChargedPercent + gridRemainingPercent)
 
                 return (
                   <div className="p-4 border-t border-gray-200">
@@ -2509,9 +2674,15 @@ export function PeakShavingSalesCalculatorFRD({
                       <p className="mb-2">Energy sources that power your home:</p>
                       <ul className="list-disc list-inside space-y-1 text-xs">
                         <li><strong>Solar Direct:</strong> Energy used directly from solar panels</li>
+                        {selectedBatteryIds.length > 0 && (
+                          <>
                         <li><strong>Battery (Solar-charged):</strong> Energy from battery charged by solar (free)</li>
+                            {batteryGridChargedKwh > 0 && (
                         <li><strong>Battery (Grid-charged):</strong> Energy from battery charged from grid at cheap rates (AI Mode)</li>
-                        <li><strong>Grid Remaining:</strong> Energy purchased directly from grid</li>
+                            )}
+                          </>
+                        )}
+                        <li><strong>Grid After Optimization:</strong> Remaining grid usage after battery load optimization</li>
                       </ul>
                     </div>
                     <table className="w-full">
@@ -2532,6 +2703,8 @@ export function PeakShavingSalesCalculatorFRD({
                             {solarDirectPercent.toFixed(1)}%
                           </td>
                         </tr>
+                        {selectedBatteryIds.length > 0 && (
+                          <>
                         <tr>
                           <td className="py-3 px-4 text-gray-700">Battery (Solar-charged)</td>
                           <td className="py-3 px-4 text-right text-gray-600">
@@ -2551,9 +2724,11 @@ export function PeakShavingSalesCalculatorFRD({
                               {batteryGridChargedPercent.toFixed(1)}%
                             </td>
                           </tr>
+                            )}
+                          </>
                         )}
                         <tr className="bg-gray-50">
-                          <td className="py-3 px-4 font-semibold text-gray-800">Grid Remaining</td>
+                          <td className="py-3 px-4 font-semibold text-gray-800">Grid After Optimization</td>
                           <td className="py-3 px-4 text-right font-semibold text-gray-600">
                             {gridRemainingKwh.toLocaleString()}
                           </td>
@@ -2972,6 +3147,54 @@ export function PeakShavingSalesCalculatorFRD({
                 Got it
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Navigation Buttons - Inside container like Step 3 */}
+      {!manualMode && (onBack || onComplete) && (
+        <div className={`mt-8 pt-6 border-t border-gray-200 ${manualMode ? 'px-2 md:px-4 lg:px-6' : 'px-2 sm:px-4 md:px-6 lg:px-8 xl:px-10 2xl:px-12'}`}>
+          <div className="flex gap-4">
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium border border-gray-300 flex-1"
+              >
+                <ArrowLeft size={20} />
+                <span>Back</span>
+              </button>
+            )}
+            {onComplete && (
+              <button
+                onClick={() => {
+                  // Extract data for onComplete - match what StepBatteryPeakShavingFRD expects
+                  const annualUsageKwh = parseFloat(annualUsageInput) || 0
+                  const solarProductionKwh = parseFloat(solarProductionInput) || 0
+                  
+                  // Get peak shaving data from localStorage or current state
+                  const storedData = typeof window !== 'undefined' 
+                    ? window.localStorage.getItem('peak_shaving_data')
+                    : null
+                  const peakShavingData = storedData ? JSON.parse(storedData) : null
+                  
+                  onComplete({
+                    peakShaving: {
+                      ratePlan: ratePlan || 'TOU',
+                      annualUsageKwh: annualUsageKwh || data.energyUsage?.annualKwh || data.annualUsageKwh || 0,
+                      selectedBattery: selectedBatteryIds.join(','),
+                      comparisons: peakShavingData?.comparisons || []
+                    },
+                    selectedBatteryIds,
+                    touDistribution,
+                    uloDistribution
+                  })
+                }}
+                className="flex items-center gap-2 px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-colors shadow-md hover:shadow-lg flex-1 justify-center"
+              >
+                <span>Continue</span>
+                <ArrowRight size={20} />
+              </button>
+            )}
           </div>
         </div>
       )}
