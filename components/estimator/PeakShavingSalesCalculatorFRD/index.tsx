@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { 
   Sun, Battery, TrendingUp, ChevronDown, ChevronUp, 
-  Zap, Info, AlertTriangle, BarChart3, DollarSign, Calendar, Award, Clock
+  Zap, Info, AlertTriangle, BarChart3, DollarSign, Calendar, Award, Clock, X
 } from 'lucide-react'
 import { BATTERY_SPECS, BatterySpec, calculateBatteryRebate, BATTERY_REBATE_PER_KWH, BATTERY_REBATE_MAX } from '@/config/battery-specs'
 import { RATE_PLANS, RatePlan, ULO_RATE_PLAN, TOU_RATE_PLAN } from '@/config/rate-plans'
@@ -604,6 +604,11 @@ export function PeakShavingSalesCalculatorFRD({
   
   // Tab state for metrics section
   const [metricsTab, setMetricsTab] = useState<'current' | 'payback' | 'profit'>('current')
+  
+  // Info modal state
+  const [showInfoModal, setShowInfoModal] = useState(false)
+  const [infoModalType, setInfoModalType] = useState<'payback' | 'profit'>('payback')
+  const [infoModalTab, setInfoModalTab] = useState<'overview' | 'calculation'>('overview')
   
   // Wait for estimate to be available and auto-populate solar production
   // Skip in manual mode to allow free manual input
@@ -2056,7 +2061,19 @@ export function PeakShavingSalesCalculatorFRD({
                         <div className="flex items-center justify-center gap-3 mb-4">
                           <Clock className="text-blue-600" size={32} />
                           <div>
-                            <h3 className="text-2xl font-bold text-gray-800">Payback Period</h3>
+                            <div className="flex items-center justify-center gap-2">
+                              <h3 className="text-2xl font-bold text-gray-800">Payback Period</h3>
+                              <button
+                                onClick={() => {
+                                  setInfoModalType('payback')
+                                  setShowInfoModal(true)
+                                }}
+                                className="text-blue-500 hover:text-blue-600 transition-colors"
+                                aria-label="Learn how payback period is calculated"
+                              >
+                                <Info size={20} />
+                              </button>
+                            </div>
                             <p className="text-sm text-gray-600">Time to recover your investment</p>
                           </div>
                         </div>
@@ -2116,7 +2133,19 @@ export function PeakShavingSalesCalculatorFRD({
                         <div className="flex items-center justify-center gap-3 mb-4">
                           <TrendingUp className="text-green-600" size={32} />
                           <div>
-                            <h3 className="text-2xl font-bold text-gray-800">25-Year Profit</h3>
+                            <div className="flex items-center justify-center gap-2">
+                              <h3 className="text-2xl font-bold text-gray-800">25-Year Profit</h3>
+                              <button
+                                onClick={() => {
+                                  setInfoModalType('profit')
+                                  setShowInfoModal(true)
+                                }}
+                                className="text-green-500 hover:text-green-600 transition-colors"
+                                aria-label="Learn how 25-year profit is calculated"
+                              >
+                                <Info size={20} />
+                              </button>
+                            </div>
                             <p className="text-sm text-gray-600">Total profit after system payback</p>
                           </div>
                         </div>
@@ -2332,6 +2361,401 @@ export function PeakShavingSalesCalculatorFRD({
           </div>
         </div>
       </div>
+
+      {/* Calculation Info Modal */}
+      {showInfoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+              <div className="flex items-center gap-3">
+                {infoModalType === 'payback' ? (
+                  <Clock className="text-blue-600" size={28} />
+                ) : (
+                  <TrendingUp className="text-green-600" size={28} />
+                )}
+                <h2 className="text-2xl font-bold text-gray-800">
+                  How {infoModalType === 'payback' ? 'Payback Period' : '25-Year Profit'} is Calculated
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowInfoModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+                aria-label="Close"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Tab Navigation */}
+            <div className="sticky top-[73px] bg-white border-b border-gray-200 flex z-10">
+              <button
+                onClick={() => setInfoModalTab('overview')}
+                className={`flex-1 px-6 py-3 text-sm font-semibold transition-colors ${
+                  infoModalTab === 'overview'
+                    ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                }`}
+              >
+                Overview
+              </button>
+              <button
+                onClick={() => setInfoModalTab('calculation')}
+                className={`flex-1 px-6 py-3 text-sm font-semibold transition-colors ${
+                  infoModalTab === 'calculation'
+                    ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                }`}
+              >
+                Your Calculation
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              {infoModalTab === 'overview' ? (
+                <>
+              {infoModalType === 'payback' ? (
+                <>
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Step 1: Your First Year Savings</h3>
+                      <p className="text-gray-700">
+                        We calculate how much money you'll save in the first year by using your solar + battery system instead of buying all your electricity from the grid. This is based on your {ratePlan === 'ULO' ? 'Ultra-Low Overnight (ULO)' : 'Time-of-Use (TOU)'} rate plan.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Step 2: Growing Savings Over Time</h3>
+                      <p className="text-gray-700">
+                        Electricity rates typically increase each year (we use {(data.annualEscalator || 4.5)}% per year, which you can customize). This means your savings grow each year because you're avoiding those higher rates.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Step 3: Finding the Payback Point</h3>
+                      <p className="text-gray-700">
+                        We add up your savings year by year. The payback period is when your total accumulated savings equal what you paid for the system (after rebates). This tells you how long it takes for your investment to pay for itself.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-sm text-blue-800">
+                      <strong>Example:</strong> If your system costs $20,000 after rebates and you save $1,000 in year 1, $1,045 in year 2, $1,092 in year 3, and so on, we add these up until the total reaches $20,000. That's your payback period.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Step 1: Total Savings Over 25 Years</h3>
+                      <p className="text-gray-700">
+                        We project your savings for all 25 years, accounting for electricity rate increases ({(data.annualEscalator || 4.5)}% per year). Each year, your savings grow because you're avoiding higher grid rates.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Step 2: Subtract Your Investment</h3>
+                      <p className="text-gray-700">
+                        We take your total 25-year savings and subtract what you paid for the system (after rebates). This gives us your net profit.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Step 3: Your Profit</h3>
+                      <p className="text-gray-700">
+                        The remaining amount is your profit - the money you keep after your system has paid for itself. This is the total amount you'll be ahead after 25 years.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <p className="text-sm text-green-800">
+                      <strong>Example:</strong> If you save $50,000 over 25 years and paid $20,000 for the system, your profit is $30,000. That's money in your pocket after the system has paid for itself!
+                    </p>
+                  </div>
+                </>
+              )}
+
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">Why {ratePlan === 'ULO' ? 'Ultra-Low Overnight (ULO)' : 'Time-of-Use (TOU)'} Matters</h3>
+                {ratePlan === 'ULO' ? (
+                  <p className="text-gray-700">
+                    The <strong>Ultra-Low Overnight (ULO)</strong> plan includes an ultra-low overnight rate (3.9¢/kWh). Your battery can charge at this very low rate and discharge during expensive peak hours, maximizing your savings. This typically results in higher savings and a shorter payback period compared to standard TOU plans.
+                  </p>
+                ) : (
+                  <p className="text-gray-700">
+                    The <strong>Time-of-Use (TOU)</strong> plan uses standard pricing with different rates for different times of day. You get good savings, especially if you can shift your usage to cheaper times. The battery helps by storing energy when rates are low and using it when rates are high.
+                  </p>
+                )}
+              </div>
+
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <p className="text-sm text-gray-700">
+                  <strong>Important Note:</strong> These calculations assume electricity rates increase over time ({(data.annualEscalator || 4.5)}% per year). If rates increase faster, your savings and profit will be higher. If rates increase slower, your savings will be lower. The actual results may vary based on future rate changes.
+                </p>
+              </div>
+                </>
+              ) : (
+                <div className="space-y-6">
+                  {infoModalType === 'payback' ? (
+                    <>
+                      {multiYearProjection ? (
+                        <>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800 mb-4">Step-by-Step Calculation</h3>
+                            
+                            <div className="space-y-4">
+                              <div className="border border-gray-200 rounded-lg p-5">
+                                <div className="text-sm font-semibold text-gray-800 mb-3">Step 1: Your System Investment</div>
+                                <div className="space-y-2 text-sm text-gray-700">
+                                  <div className="flex justify-between py-1">
+                                    <span>Solar System Cost:</span>
+                                    <span className="font-semibold text-gray-900">${multiYearProjection.totalSystemCost ? (multiYearProjection.totalSystemCost - selectedBattery.price).toLocaleString() : '0'}</span>
+                                  </div>
+                                  <div className="flex justify-between py-1">
+                                    <span>Battery Cost:</span>
+                                    <span className="font-semibold text-gray-900">${selectedBattery.price.toLocaleString()}</span>
+                                  </div>
+                                  <div className="flex justify-between border-t border-gray-300 pt-2 mt-2">
+                                    <span className="font-semibold text-gray-800">Total System Cost:</span>
+                                    <span className="font-bold text-gray-900">${multiYearProjection.totalSystemCost.toLocaleString()}</span>
+                                  </div>
+                                  <div className="flex justify-between py-1">
+                                    <span>Total Rebates:</span>
+                                    <span className="font-semibold text-gray-900">-${rebates.totalRebates.toLocaleString()}</span>
+                                  </div>
+                                  <div className="flex justify-between border-t-2 border-gray-400 pt-3 mt-3">
+                                    <span className="font-bold text-gray-900">Net Cost (After Rebates):</span>
+                                    <span className="font-bold text-lg text-gray-900">${multiYearProjection.netCost.toLocaleString()}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="border border-gray-200 rounded-lg p-5">
+                                <div className="text-sm font-semibold text-gray-800 mb-3">Step 2: Your First Year Savings</div>
+                                <div className="space-y-2 text-sm text-gray-700">
+                                  <div className="flex justify-between py-1">
+                                    <span>Annual Cost Before System:</span>
+                                    <span className="font-semibold text-gray-900">${beforeAfterCosts.before.toLocaleString()}/yr</span>
+                                  </div>
+                                  <div className="flex justify-between py-1">
+                                    <span>Annual Cost After System:</span>
+                                    <span className="font-semibold text-gray-900">${beforeAfterCosts.after.toLocaleString()}/yr</span>
+                                  </div>
+                                  <div className="flex justify-between border-t-2 border-gray-400 pt-3 mt-3">
+                                    <span className="font-bold text-gray-900">First Year Annual Savings:</span>
+                                    <span className="font-bold text-lg text-gray-900">${beforeAfterCosts.savings.toLocaleString()}/yr</span>
+                                  </div>
+                                  <div className="text-xs text-gray-500 mt-2">
+                                    Based on {ratePlan} rate plan
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="border border-gray-200 rounded-lg p-5">
+                                <div className="text-sm font-semibold text-gray-800 mb-3">Step 3: Growing Savings Over Time</div>
+                                <div className="space-y-3 text-sm text-gray-700">
+                                  <p>Each year, your savings increase by {(data.annualEscalator || 4.5)}% because electricity rates go up:</p>
+                                  <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                                    <div className="flex justify-between">
+                                      <span>Year 1 Savings:</span>
+                                      <span className="font-semibold text-gray-900">${beforeAfterCosts.savings.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span>Year 2 Savings:</span>
+                                      <span className="font-semibold text-gray-900">${Math.round(beforeAfterCosts.savings * (1 + (data.annualEscalator || 4.5) / 100)).toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span>Year 3 Savings:</span>
+                                      <span className="font-semibold text-gray-900">${Math.round(beforeAfterCosts.savings * Math.pow(1 + (data.annualEscalator || 4.5) / 100, 2)).toLocaleString()}</span>
+                                    </div>
+                                    <div className="text-xs text-gray-500 pt-2 border-t border-gray-300">
+                                      ... and so on, increasing by {(data.annualEscalator || 4.5)}% each year
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="border border-gray-200 rounded-lg p-5">
+                                <div className="text-sm font-semibold text-gray-800 mb-3">Step 4: Finding Your Payback Period</div>
+                                <div className="space-y-3 text-sm text-gray-700">
+                                  <p>We add up your cumulative savings year by year until they equal your net cost:</p>
+                                  <div className="bg-gray-50 rounded-lg p-3">
+                                    {multiYearProjection.paybackYears !== Number.POSITIVE_INFINITY ? (
+                                      <>
+                                        <div className="flex justify-between mb-3 pb-2 border-b border-gray-300">
+                                          <span className="font-semibold text-gray-800">Net Cost to Recover:</span>
+                                          <span className="font-bold text-gray-900">${multiYearProjection.netCost.toLocaleString()}</span>
+                                        </div>
+                                        <div className="space-y-2 text-xs">
+                                          {multiYearProjection.yearlyProjections.slice(0, Math.min(5, Math.ceil(multiYearProjection.paybackYears))).map((year) => (
+                                            <div key={year.year} className="flex justify-between">
+                                              <span>After Year {year.year}:</span>
+                                              <span className={year.cumulativeSavings >= multiYearProjection.netCost ? 'font-bold text-gray-900' : 'font-semibold text-gray-700'}>
+                                                ${year.cumulativeSavings.toLocaleString()} saved
+                                              </span>
+                                            </div>
+                                          ))}
+                                          {multiYearProjection.paybackYears > 5 && (
+                                            <div className="text-gray-500 italic pt-1">... (continuing until payback)</div>
+                                          )}
+                                        </div>
+                                        <div className="border-t-2 border-gray-400 pt-3 mt-3">
+                                          <div className="flex justify-between items-center">
+                                            <span className="font-bold text-gray-900">Payback Achieved:</span>
+                                            <span className="font-bold text-lg text-gray-900">
+                                              {multiYearProjection.paybackYears.toFixed(1)} years
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className="text-center py-4">
+                                        <p className="text-gray-600">
+                                          Your cumulative savings over 25 years (${multiYearProjection.totalSavings25Year.toLocaleString()}) 
+                                          do not exceed your net cost (${multiYearProjection.netCost.toLocaleString()}) within 25 years.
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-center py-12">
+                          <p className="text-gray-600">Please enter your energy usage and select a battery to see the calculation details.</p>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {multiYearProjection ? (
+                        <>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800 mb-4">Step-by-Step Calculation</h3>
+                            
+                            <div className="space-y-4">
+                              <div className="border border-gray-200 rounded-lg p-5">
+                                <div className="text-sm font-semibold text-gray-800 mb-3">Step 1: Your System Investment</div>
+                                <div className="space-y-2 text-sm text-gray-700">
+                                  <div className="flex justify-between py-1">
+                                    <span>Total System Cost:</span>
+                                    <span className="font-semibold text-gray-900">${multiYearProjection.totalSystemCost.toLocaleString()}</span>
+                                  </div>
+                                  <div className="flex justify-between py-1">
+                                    <span>Total Rebates:</span>
+                                    <span className="font-semibold text-gray-900">-${rebates.totalRebates.toLocaleString()}</span>
+                                  </div>
+                                  <div className="flex justify-between border-t-2 border-gray-400 pt-3 mt-3">
+                                    <span className="font-bold text-gray-900">Net Cost (After Rebates):</span>
+                                    <span className="font-bold text-lg text-gray-900">${multiYearProjection.netCost.toLocaleString()}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="border border-gray-200 rounded-lg p-5">
+                                <div className="text-sm font-semibold text-gray-800 mb-3">Step 2: Total 25-Year Savings</div>
+                                <div className="space-y-3 text-sm text-gray-700">
+                                  <p>We project your savings for 25 years, with {(data.annualEscalator || 4.5)}% annual rate increases:</p>
+                                  <div className="bg-gray-50 rounded-lg p-3">
+                                    <div className="flex justify-between border-b border-gray-300 pb-2 mb-2">
+                                      <span>First Year Savings:</span>
+                                      <span className="font-semibold text-gray-900">${beforeAfterCosts.savings.toLocaleString()}</span>
+                                    </div>
+                                    <div className="space-y-2 text-xs">
+                                      {multiYearProjection.yearlyProjections.filter((_, idx) => idx % 5 === 0 || idx === 0 || idx === 24).map((year) => (
+                                        <div key={year.year} className="flex justify-between">
+                                          <span>Year {year.year} Savings:</span>
+                                          <span className="font-semibold text-gray-900">${year.annualSavings.toLocaleString()}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    <div className="border-t-2 border-gray-400 pt-3 mt-3">
+                                      <div className="flex justify-between items-center">
+                                        <span className="font-bold text-gray-900">Total 25-Year Savings:</span>
+                                        <span className="font-bold text-lg text-gray-900">
+                                          ${multiYearProjection.totalSavings25Year.toLocaleString()}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="border border-gray-200 rounded-lg p-5">
+                                <div className="text-sm font-semibold text-gray-800 mb-3">Step 3: Calculate Your Profit</div>
+                                <div className="space-y-3 text-sm text-gray-700">
+                                  <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                                    <div className="flex justify-between">
+                                      <span>Total 25-Year Savings:</span>
+                                      <span className="font-semibold text-gray-900">${multiYearProjection.totalSavings25Year.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span>Net System Cost:</span>
+                                      <span className="font-semibold text-gray-900">-${multiYearProjection.netCost.toLocaleString()}</span>
+                                    </div>
+                                    <div className="border-t-2 border-gray-400 pt-3 mt-3">
+                                      <div className="flex justify-between items-center">
+                                        <span className="font-bold text-gray-900">Your 25-Year Profit:</span>
+                                        <span className="font-bold text-lg text-gray-900">
+                                          ${multiYearProjection.netProfit25Year.toLocaleString()}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="text-xs text-gray-500 mt-2">
+                                    This is the money you keep after your system has paid for itself over 25 years.
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="border border-gray-200 rounded-lg p-5">
+                                <div className="text-sm font-semibold text-gray-800 mb-3">Annual Return on Investment (ROI)</div>
+                                <div className="space-y-2 text-sm text-gray-700">
+                                  <div className="bg-gray-50 rounded-lg p-3">
+                                    <div className="flex justify-between items-center mb-2">
+                                      <span>Average Annual ROI:</span>
+                                      <span className="font-bold text-lg text-gray-900">
+                                        {multiYearProjection.annualROI === 'N/A' ? 'N/A' : `${multiYearProjection.annualROI}%`}
+                                      </span>
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      This represents your average annual return on investment over 25 years.
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-center py-12">
+                          <p className="text-gray-600">Please enter your energy usage and select a battery to see the calculation details.</p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end">
+              <button
+                onClick={() => setShowInfoModal(false)}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
