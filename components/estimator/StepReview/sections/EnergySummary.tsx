@@ -9,9 +9,10 @@ interface EnergySummaryProps {
     monthlyKwh: number
   }
   appliances?: any[]
+  monthlyBill?: number | string
 }
 
-export function EnergySummary({ energyUsage, appliances }: EnergySummaryProps) {
+export function EnergySummary({ energyUsage, appliances, monthlyBill }: EnergySummaryProps) {
   return (
     <div className="card p-5 bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200">
       <div className="flex items-start gap-3 mb-4">
@@ -31,11 +32,24 @@ export function EnergySummary({ energyUsage, appliances }: EnergySummaryProps) {
             <div>
               <p className="text-xs text-red-100 mb-1">Annual Electricity Use</p>
               <p className="text-3xl font-bold">
-                {energyUsage.annualKwh.toLocaleString()} <span className="text-base font-semibold">kWh</span>
+                {energyUsage.annualKwh.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-base font-semibold">kWh</span>
               </p>
             </div>
             <div className="text-5xl opacity-20">⚡</div>
           </div>
+        </div>
+      )}
+
+      {/* Monthly Bill */}
+      {monthlyBill && (typeof monthlyBill === 'string' ? parseFloat(monthlyBill) > 0 : monthlyBill > 0) && (
+        <div className="bg-white border border-gray-200 rounded-lg p-3 mb-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Calendar size={14} className="text-red-500" />
+            <span className="text-xs text-gray-600 font-medium">Average Monthly Bill</span>
+          </div>
+          <p className="text-xl font-bold text-navy-500">
+            ${typeof monthlyBill === 'string' ? parseFloat(monthlyBill).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : monthlyBill.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
         </div>
       )}
 
@@ -50,7 +64,7 @@ export function EnergySummary({ energyUsage, appliances }: EnergySummaryProps) {
                   <span className="text-xs text-gray-600 font-medium">Daily</span>
                 </div>
                 <p className="text-base font-bold text-navy-500">
-                  {energyUsage.dailyKwh} <span className="text-xs font-normal">kWh</span>
+                  {energyUsage.dailyKwh.toFixed(2)} <span className="text-xs font-normal">kWh</span>
                 </p>
               </div>
 
@@ -60,7 +74,7 @@ export function EnergySummary({ energyUsage, appliances }: EnergySummaryProps) {
                   <span className="text-xs text-gray-600 font-medium">Monthly</span>
                 </div>
                 <p className="text-base font-bold text-navy-500">
-                  {energyUsage.monthlyKwh.toLocaleString()} <span className="text-xs font-normal">kWh</span>
+                  {energyUsage.monthlyKwh.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-normal">kWh</span>
                 </p>
               </div>
 
@@ -70,7 +84,7 @@ export function EnergySummary({ energyUsage, appliances }: EnergySummaryProps) {
                   <span className="text-xs text-gray-600 font-medium">Annual</span>
                 </div>
                 <p className="text-base font-bold text-navy-500">
-                  {energyUsage.annualKwh.toLocaleString()} <span className="text-xs font-normal">kWh</span>
+                  {energyUsage.annualKwh.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-normal">kWh</span>
                 </p>
               </div>
             </div>

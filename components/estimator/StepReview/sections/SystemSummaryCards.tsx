@@ -165,8 +165,8 @@ export function SystemSummaryCards({
   }
 
   return (
-    <div className="space-y-4">
-      {/* System Size */}
+    <>
+      {/* System Size Card - will be placed in grid */}
       <div className="card p-6">
         <Zap className="text-red-500 mb-3" size={32} />
         <div className="text-3xl font-bold text-navy-500 mb-1">
@@ -182,7 +182,7 @@ export function SystemSummaryCards({
         )}
       </div>
 
-      {/* Total Cost */}
+      {/* Total Cost Card - will be placed in grid */}
       <div className="card p-6">
         <DollarSign className="text-navy-500 mb-3" size={32} />
         <div className="text-3xl font-bold text-navy-500 mb-1">
@@ -196,7 +196,7 @@ export function SystemSummaryCards({
         </div>
       </div>
 
-      {/* Net Cost - Emphasized */}
+      {/* Net Cost Card - will be placed in grid */}
       <div className="p-6 rounded-xl border-2 border-green-400 bg-gradient-to-br from-green-50 to-white shadow-sm">
         <div className="flex items-center gap-2 mb-1">
           <TrendingDown className="text-green-600" size={28} />
@@ -217,82 +217,99 @@ export function SystemSummaryCards({
           )}
         </div>
       </div>
+    </>
+  )
+}
 
-      {/* Before/After Comparison - TOU and ULO Plans in Two Columns */}
-      {includeBattery ? (
-        <div className="bg-white rounded-xl shadow-md border-2 border-gray-200 overflow-hidden">
-          {/* Header */}
-          <div className="p-4 border-b border-gray-200 bg-gray-50">
-            <h3 className="text-2xl font-bold text-gray-800 mb-2">Before & After Comparison</h3>
-            <p className="text-sm text-gray-600">Annual cost comparison with your solar + battery system</p>
+// Separate component for Before/After Comparison - Full width section
+export function BeforeAfterComparison({
+  includeBattery,
+  touBeforeAfter,
+  uloBeforeAfter,
+  combinedMonthlySavings,
+  displayPlan,
+}: {
+  includeBattery: boolean
+  touBeforeAfter: any
+  uloBeforeAfter: any
+  combinedMonthlySavings: number
+  displayPlan?: string
+}) {
+  if (includeBattery) {
+    return (
+      <div className="bg-white rounded-xl shadow-md border-2 border-gray-200 overflow-hidden">
+        {/* Header */}
+        <div className="p-4 border-b border-gray-200 bg-gray-50">
+          <h3 className="text-2xl font-bold text-gray-800 mb-2">Before & After Comparison</h3>
+          <p className="text-sm text-gray-600">Annual cost comparison with your solar + battery system</p>
+        </div>
+        
+        {/* Two Column Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-2 p-6 gap-6">
+          {/* TOU Plan Column */}
+          <div className="space-y-4 md:pr-6 md:border-r md:border-gray-200">
+            <div className="flex items-center gap-2 mb-2">
+              <Sun size={20} className="text-blue-500" />
+              <h4 className="text-lg font-bold text-gray-800">TOU Plan</h4>
+            </div>
+            {touBeforeAfter ? (
+              <BeforeAfterBars
+                before={touBeforeAfter.before}
+                after={touBeforeAfter.after}
+                savings={touBeforeAfter.savings}
+              />
+            ) : (
+              <div className="text-center text-gray-500 text-sm py-8">
+                TOU Plan data not available
+              </div>
+            )}
           </div>
           
-          {/* Two Column Layout */}
-          <div className="grid grid-cols-1 md:grid-cols-2 p-6 gap-6">
-            {/* TOU Plan Column */}
-            <div className="space-y-4 md:pr-6 md:border-r md:border-gray-200">
-              <div className="flex items-center gap-2 mb-2">
-                <Sun size={20} className="text-blue-500" />
-                <h4 className="text-lg font-bold text-gray-800">TOU Plan</h4>
-              </div>
-              {touBeforeAfter ? (
-                <BeforeAfterBars
-                  before={touBeforeAfter.before}
-                  after={touBeforeAfter.after}
-                  savings={touBeforeAfter.savings}
-                />
-              ) : (
-                <div className="text-center text-gray-500 text-sm py-8">
-                  TOU Plan data not available
-                </div>
-              )}
+          {/* ULO Plan Column */}
+          <div className="space-y-4 md:pl-6">
+            <div className="flex items-center gap-2 mb-2">
+              <Moon size={20} className="text-purple-500" />
+              <h4 className="text-lg font-bold text-gray-800">ULO Plan</h4>
             </div>
-            
-            {/* ULO Plan Column */}
-            <div className="space-y-4 md:pl-6">
-              <div className="flex items-center gap-2 mb-2">
-                <Moon size={20} className="text-purple-500" />
-                <h4 className="text-lg font-bold text-gray-800">ULO Plan</h4>
+            {uloBeforeAfter ? (
+              <BeforeAfterBars
+                before={uloBeforeAfter.before}
+                after={uloBeforeAfter.after}
+                savings={uloBeforeAfter.savings}
+              />
+            ) : (
+              <div className="text-center text-gray-500 text-sm py-8">
+                ULO Plan data not available
               </div>
-              {uloBeforeAfter ? (
-                <BeforeAfterBars
-                  before={uloBeforeAfter.before}
-                  after={uloBeforeAfter.after}
-                  savings={uloBeforeAfter.savings}
-                />
-              ) : (
-                <div className="text-center text-gray-500 text-sm py-8">
-                  ULO Plan data not available
-                </div>
-              )}
-            </div>
+            )}
           </div>
         </div>
-      ) : (
-        /* Fallback: Simple monthly savings if no battery */
+      </div>
+    )
+  } else {
+    return (
       <div className="p-6 rounded-xl border-2 border-red-400 bg-gradient-to-br from-red-50 to-white shadow-sm">
         <div className="flex items-center gap-2 mb-3">
           <TrendingUp className="text-red-600" size={28} />
           <div className="text-sm font-semibold text-red-800">Monthly Savings</div>
         </div>
-            <div className="text-4xl font-extrabold text-red-600 leading-tight">
-              {formatCurrency(combinedMonthlySavings)}
-            </div>
-            <div className="text-xs text-gray-600 mt-1">
-              {displayPlan && (
-                <>
-                  Based on {displayPlan.toUpperCase()} rate plan
-                </>
-              )}
-              {!displayPlan && (
-                <>
-                Estimated monthly savings
-          </>
-        )}
-      </div>
+        <div className="text-4xl font-extrabold text-red-600 leading-tight">
+          {formatCurrency(combinedMonthlySavings)}
         </div>
-      )}
-    </div>
-  )
+        <div className="text-xs text-gray-600 mt-1">
+          {displayPlan && (
+            <>
+              Based on {displayPlan.toUpperCase()} rate plan
+            </>
+          )}
+          {!displayPlan && (
+            <>
+              Estimated monthly savings
+            </>
+          )}
+        </div>
+      </div>
+    )
+  }
 }
 

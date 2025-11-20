@@ -12,10 +12,9 @@ import { MapSnapshot } from './sections/MapSnapshot'
 import { RoofSummary } from './sections/RoofSummary'
 import { PhotosSummary } from './sections/PhotosSummary'
 import { EnergySummary } from './sections/EnergySummary'
-import { SystemSummaryCards } from './sections/SystemSummaryCards'
+import { SystemSummaryCards, BeforeAfterComparison } from './sections/SystemSummaryCards'
 import { CostBreakdown } from './sections/CostBreakdown'
 import { BatteryDetails } from './sections/BatteryDetails'
-import { PlanComparison } from './sections/PlanComparison'
 import { FinancingOptions } from './sections/FinancingOptions'
 import { SavingsTab } from './tabs/SavingsTab'
 import { ProductionTab } from './tabs/ProductionTab'
@@ -44,9 +43,17 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
     setImageModalOpen(true)
   }
 
-  // Fetch estimate from API
+  // Use existing estimate from battery savings step if available, otherwise fetch from API
   useEffect(() => {
     async function fetchEstimate() {
+      // If estimate already exists from battery savings step, use it instead of calling API again
+      if (data.estimate) {
+        setEstimate(data.estimate)
+        setLoading(false)
+        return
+      }
+
+      // Only fetch from API if estimate doesn't exist
       try {
         const response = await fetch('/api/estimate', {
           method: 'POST',
@@ -110,9 +117,14 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
   const solarMonthlySavings = estimate.savings?.monthlySavings || 0
 
   const hasBatteryDetails = !!(data.batteryDetails && (data.peakShaving?.tou || data.peakShaving?.ulo))
-  const selectedBatteryIds: string[] = Array.isArray(data.selectedBatteries) && data.selectedBatteries.length > 0
+  // Check for selectedBatteryIds (from PeakShavingSalesCalculatorFRD) or selectedBatteries (legacy) or selectedBattery (singular)
+  const selectedBatteryIds: string[] = Array.isArray(data.selectedBatteryIds) && data.selectedBatteryIds.length > 0
+    ? data.selectedBatteryIds
+    : Array.isArray(data.selectedBatteries) && data.selectedBatteries.length > 0
     ? data.selectedBatteries
-    : (data.selectedBattery ? [data.selectedBattery] : [])
+    : (data.selectedBattery ? (typeof data.selectedBattery === 'string' && data.selectedBattery.includes(',') 
+        ? data.selectedBattery.split(',') 
+        : [data.selectedBattery]) : [])
   const selectedBatterySpecs = selectedBatteryIds
     .map((id: string) => BATTERY_SPECS.find(b => b.id === id))
     .filter(Boolean) as any[]
@@ -189,8 +201,20 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
           )}
 
           <EnergySummary
-            energyUsage={data.energyUsage}
+            energyUsage={data.energyUsage || (data.peakShaving?.annualUsageKwh ? {
+              annualKwh: data.peakShaving.annualUsageKwh,
+              monthlyKwh: data.peakShaving.annualUsageKwh / 12,
+              dailyKwh: data.peakShaving.annualUsageKwh / 365
+            } : undefined)}
             appliances={data.appliances}
+            monthlyBill={data.monthlyBill}
+          />
+
+          <FinancingOptions
+            selectedFinancing={selectedFinancing}
+            onFinancingChange={setSelectedFinancing}
+            combinedNetCost={combinedNetCost}
+            hasBattery={hasBattery}
           />
         </div>
 
@@ -221,49 +245,101 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             </div>
           )}
 
-          {data.selectedAddOns && data.selectedAddOns.length > 0 && (
-            <div className="card bg-blue-50 border border-blue-200 p-4">
-              <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-                <span>Interested Add-ons</span>
-                <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full">
-                  {data.selectedAddOns.length}
-                </span>
-              </h3>
-              <ul className="text-sm text-blue-800 space-y-1">
-                {data.selectedAddOns.map((addOnId: string) => (
-                  <li key={addOnId} className="flex items-center gap-2">
-                    <span className="text-blue-500">•</span>
-                    <span className="capitalize">{addOnId.replace(/_/g, ' ')}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="text-xs text-blue-600 mt-2">
-                We'll include pricing for these in your custom quote
-              </p>
-            </div>
-          )}
+          {/* 2x2 Grid Layout for Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Top Left: Interested Add-ons */}
+            {data.selectedAddOns && data.selectedAddOns.length > 0 ? (
+              <div className="card bg-blue-50 border border-blue-200 p-4">
+                <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                  <span>Interested Add-ons</span>
+                  <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full">
+                    {data.selectedAddOns.length}
+                  </span>
+                </h3>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  {data.selectedAddOns.map((addOnId: string) => (
+                    <li key={addOnId} className="flex items-center gap-2">
+                      <span className="text-blue-500">•</span>
+                      <span className="capitalize">{addOnId.replace(/_/g, ' ')}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-blue-600 mt-2">
+                  We'll include pricing for these in your custom quote
+                </p>
+              </div>
+            ) : (
+              <div></div>
+            )}
 
-          <SystemSummaryCards
-            systemSizeKw={data.solarOverride?.sizeKw ?? estimate.system.sizeKw}
-            numPanels={data.solarOverride?.numPanels ?? estimate.system.numPanels}
-            selectedBattery={data.selectedBattery}
-            batteryDetails={data.batteryDetails}
-            combinedTotalCost={combinedTotalCost}
-            solarTotalCost={solarTotalCost}
-            batteryPrice={batteryPrice}
+            {/* Top Right: Recommended System */}
+            {/* Bottom Left: Total System Cost */}
+            {/* Bottom Right: Your Net Investment */}
+            <SystemSummaryCards
+              systemSizeKw={data.solarOverride?.sizeKw ?? estimate.system.sizeKw}
+              numPanels={data.solarOverride?.numPanels ?? estimate.system.numPanels}
+              selectedBattery={data.selectedBattery}
+              batteryDetails={data.batteryDetails}
+              combinedTotalCost={combinedTotalCost}
+              solarTotalCost={solarTotalCost}
+              batteryPrice={batteryPrice}
+              includeBattery={includeBattery}
+              combinedNetCost={combinedNetCost}
+              solarIncentives={solarIncentives}
+              batteryProgramRebate={batteryProgramRebate}
+              aggregatedBattery={aggregatedBattery}
+              combinedMonthlySavings={combinedMonthlySavings}
+              tou={tou}
+              ulo={ulo}
+              peakShaving={data.peakShaving}
+              displayPlan={displayPlan}
+              solarMonthlySavings={solarMonthlySavings}
+              batteryMonthlySavings={batteryMonthlySavings}
+              batteryAnnualSavings={batteryAnnualSavings}
+            />
+          </div>
+
+          {/* Before/After Comparison - Full width section below 2x2 grid */}
+          <BeforeAfterComparison
             includeBattery={includeBattery}
-            combinedNetCost={combinedNetCost}
-            solarIncentives={solarIncentives}
-            batteryProgramRebate={batteryProgramRebate}
-            aggregatedBattery={aggregatedBattery}
+            touBeforeAfter={(() => {
+              const touCombined = (data.peakShaving as any)?.tou?.combined ||
+                                 (data.peakShaving as any)?.tou?.allResults?.combined?.combined || 
+                                 (data.peakShaving as any)?.tou?.combined?.combined ||
+                                 (tou as any)?.allResults?.combined?.combined ||
+                                 (tou as any)?.combined?.combined ||
+                                 (tou as any)?.combined
+              if (touCombined) {
+                const before = touCombined.baselineAnnualBill || touCombined.baselineAnnualBillEnergyOnly || 0
+                const after = touCombined.postSolarBatteryAnnualBill || touCombined.postSolarBatteryAnnualBillEnergyOnly || 0
+                // Use combinedAnnualSavings to match the actual savings calculation (baseline - after)
+                const annualSavings = touCombined.combinedAnnualSavings || (before - after)
+                if (before > 0 && after >= 0) {
+                  return { before, after, savings: annualSavings }
+                }
+              }
+              return null
+            })()}
+            uloBeforeAfter={(() => {
+              const uloCombined = (data.peakShaving as any)?.ulo?.combined ||
+                                 (data.peakShaving as any)?.ulo?.allResults?.combined?.combined || 
+                                 (data.peakShaving as any)?.ulo?.combined?.combined ||
+                                 (ulo as any)?.allResults?.combined?.combined ||
+                                 (ulo as any)?.combined?.combined ||
+                                 (ulo as any)?.combined
+              if (uloCombined) {
+                const before = uloCombined.baselineAnnualBill || uloCombined.baselineAnnualBillEnergyOnly || 0
+                const after = uloCombined.postSolarBatteryAnnualBill || uloCombined.postSolarBatteryAnnualBillEnergyOnly || 0
+                // Use combinedAnnualSavings to match the actual savings calculation (baseline - after)
+                const annualSavings = uloCombined.combinedAnnualSavings || (before - after)
+                if (before > 0 && after >= 0) {
+                  return { before, after, savings: annualSavings }
+                }
+              }
+              return null
+            })()}
             combinedMonthlySavings={combinedMonthlySavings}
-            tou={tou}
-            ulo={ulo}
-            peakShaving={data.peakShaving}
             displayPlan={displayPlan}
-            solarMonthlySavings={solarMonthlySavings}
-            batteryMonthlySavings={batteryMonthlySavings}
-            batteryAnnualSavings={batteryAnnualSavings}
           />
 
           <CostBreakdown
@@ -286,33 +362,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             />
           )}
 
-          {tou && ulo && includeBattery && (() => {
-            const touCombined = (data.peakShaving as any)?.tou?.allResults?.combined?.combined ||
-                               (data.peakShaving as any)?.tou?.combined?.combined ||
-                               (data.peakShaving as any)?.tou?.combined
-            const uloCombined = (data.peakShaving as any)?.ulo?.allResults?.combined?.combined ||
-                               (data.peakShaving as any)?.ulo?.combined?.combined ||
-                               (data.peakShaving as any)?.ulo?.combined
 
-            if (!touCombined || !uloCombined) {
-              console.warn('Plan Comparison: Missing combined data', {
-                tou: !!touCombined,
-                ulo: !!uloCombined,
-                touPath: (data.peakShaving as any)?.tou?.allResults,
-                uloPath: (data.peakShaving as any)?.ulo?.allResults,
-              })
-              return null
-            }
-
-            return <PlanComparison touCombined={touCombined} uloCombined={uloCombined} />
-          })()}
-
-          <FinancingOptions
-            combinedNetCost={combinedNetCost}
-            selectedFinancing={selectedFinancing}
-            onFinancingChange={setSelectedFinancing}
-            hasBattery={hasBattery}
-          />
 
           {/* Tabs for detailed results */}
           <div className="card p-6">
@@ -360,6 +410,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                 peakShaving={data.peakShaving}
                 combinedNetCost={combinedNetCost}
                 isMobile={isMobile}
+                annualEscalator={data.annualEscalator}
               />
             )}
 

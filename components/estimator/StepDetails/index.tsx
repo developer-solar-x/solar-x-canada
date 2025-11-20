@@ -29,6 +29,9 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
       ...formData,
       programType,
       leadType,
+      // Preserve energyUsage from previous step (calculated from appliances)
+      energyUsage: data.energyUsage,
+      annualUsageKwh: data.energyUsage?.annualKwh || data.annualUsageKwh,
       // annualEscalator is already in formData, so it will be included automatically
     })
   }
