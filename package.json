@@ -17,6 +17,7 @@
     "@cityssm/green-button-parser": "^1.0.1",
     "@hubspot/api-client": "^11.0.0",
     "@mapbox/mapbox-gl-draw": "^1.4.3",
+    "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.39.0",
     "@turf/turf": "^7.2.0",
     "clsx": "^2.1.0",

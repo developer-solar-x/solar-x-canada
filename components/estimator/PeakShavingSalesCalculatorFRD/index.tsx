@@ -365,10 +365,10 @@ function EnergyFlowDiagram({
           )}
         </svg>
         
-        {/* Center text - Show Grid After Optimization % */}
+        {/* Center text - Show Remaining Grid After Optimization % */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center max-w-[60%] px-2">
-            <div className="text-base font-bold text-gray-800">Grid After Optimization</div>
+            <div className="text-base font-bold text-gray-800">Remaining Grid After Optimization</div>
             <div className="text-xl font-bold text-gray-600">
               <AnimatedNumber value={(() => {
                 // Calculate grid after optimization = remaining grid only (excluding grid-charged battery)
@@ -446,7 +446,7 @@ function EnergyFlowDiagram({
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded-full bg-gray-400"></div>
           <div className="text-sm">
-                <div className="font-semibold text-gray-700">Grid After Optimization</div>
+                <div className="font-semibold text-gray-700">Remaining Grid After Optimization</div>
                 <div className="text-xs text-gray-500">{remainingGrid.toFixed(1)}%</div>
           </div>
         </div>
@@ -1925,8 +1925,8 @@ export function PeakShavingSalesCalculatorFRD({
                   value=""
                   onChange={(e) => {
                     const newId = e.target.value
-                    if (newId && !selectedBatteryIds.includes(newId)) {
-                      // Only add if not already selected (prevent duplicates)
+                    if (newId) {
+                      // Allow duplicates - batteries are stackable
                       setSelectedBatteryIds([...selectedBatteryIds, newId])
                     }
                   }}
@@ -1935,11 +1935,9 @@ export function PeakShavingSalesCalculatorFRD({
                   <option value="" disabled>
                     {selectedBatteryIds.length === 0 
                       ? 'Select a battery...' 
-                      : selectedBatteryIds.length >= BATTERY_SPECS.length
-                      ? 'All batteries selected'
-                      : 'Select another battery...'}
+                      : 'Add another battery (stackable)...'}
                   </option>
-                  {BATTERY_SPECS.filter(battery => !selectedBatteryIds.includes(battery.id)).map(battery => (
+                  {BATTERY_SPECS.map(battery => (
                     <option 
                       key={battery.id} 
                       value={battery.id}
@@ -1951,31 +1949,49 @@ export function PeakShavingSalesCalculatorFRD({
                 {/* Selected batteries display */}
                 {selectedBatteryIds.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {selectedBatteryIds.map((batteryId, index) => {
-                      const battery = BATTERY_SPECS.find(b => b.id === batteryId)
-                      if (!battery) return null
-                      return (
-                        <div
-                          key={`${batteryId}-${index}`}
-                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-300 rounded-lg text-sm"
-                        >
-                          <span className="font-medium text-gray-800">
-                            {battery.brand} {battery.model}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              // Remove only this specific instance (by index)
-                              setSelectedBatteryIds(selectedBatteryIds.filter((_, i) => i !== index))
-                            }}
-                            className="text-red-600 hover:text-red-800 font-bold text-lg leading-none"
-                            aria-label={`Remove ${battery.brand} ${battery.model}`}
+                    {(() => {
+                      // Group batteries by ID and count quantities
+                      const batteryGroups = selectedBatteryIds.reduce((acc, batteryId, index) => {
+                        if (!acc[batteryId]) {
+                          acc[batteryId] = { count: 0, indices: [] }
+                        }
+                        acc[batteryId].count++
+                        acc[batteryId].indices.push(index)
+                        return acc
+                      }, {} as Record<string, { count: number; indices: number[] }>)
+                      
+                      return Object.entries(batteryGroups).map(([batteryId, group]) => {
+                        const battery = BATTERY_SPECS.find(b => b.id === batteryId)
+                        if (!battery) return null
+                        return (
+                          <div
+                            key={batteryId}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-300 rounded-lg text-sm"
                           >
-                            ×
-                          </button>
-                        </div>
-                      )
-                    })}
+                            <span className="font-medium text-gray-800">
+                              {battery.brand} {battery.model}
+                              {group.count > 1 && (
+                                <span className="ml-1.5 px-1.5 py-0.5 bg-green-200 text-green-800 rounded text-xs font-bold">
+                                  ×{group.count}
+                                </span>
+                              )}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                // Remove the last instance of this battery
+                                const lastIndex = group.indices[group.indices.length - 1]
+                                setSelectedBatteryIds(selectedBatteryIds.filter((_, i) => i !== lastIndex))
+                              }}
+                              className="text-red-600 hover:text-red-800 font-bold text-lg leading-none"
+                              aria-label={`Remove one ${battery.brand} ${battery.model}`}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        )
+                      })
+                    })()}
                   </div>
                 )}
                 {selectedBatteryIds.length === 0 && (
@@ -2682,7 +2698,7 @@ export function PeakShavingSalesCalculatorFRD({
                             )}
                           </>
                         )}
-                        <li><strong>Grid After Optimization:</strong> Remaining grid usage after battery load optimization</li>
+                        <li><strong>Remaining Grid After Optimization:</strong> Grid usage remaining after solar and battery optimization</li>
                       </ul>
                     </div>
                     <table className="w-full">
@@ -2728,7 +2744,7 @@ export function PeakShavingSalesCalculatorFRD({
                           </>
                         )}
                         <tr className="bg-gray-50">
-                          <td className="py-3 px-4 font-semibold text-gray-800">Grid After Optimization</td>
+                          <td className="py-3 px-4 font-semibold text-gray-800">Remaining Grid After Optimization</td>
                           <td className="py-3 px-4 text-right font-semibold text-gray-600">
                             {gridRemainingKwh.toLocaleString()}
                           </td>
