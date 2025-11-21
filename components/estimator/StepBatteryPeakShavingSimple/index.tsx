@@ -250,11 +250,29 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
     window.localStorage.setItem('manual_estimator_production_kwh', String(n))
   }, [manualMode, manualProductionInput])
 
-  const effectiveSolarProductionKwh = (
-    manualMode
-      ? Math.max(0, Number(manualProductionInput) || 5000)
-      : (overrideEstimate?.production?.annualKwh ?? data.estimate?.production?.annualKwh ?? 5000)
-  )
+  // Calculate effective solar production - scale proportionally if estimate hasn't updated yet
+  const effectiveSolarProductionKwh = useMemo(() => {
+    if (manualMode) {
+      return Math.max(0, Number(manualProductionInput) || 5000)
+    }
+    
+    // If we have an override estimate, use it
+    if (overrideEstimate?.production?.annualKwh) {
+      return overrideEstimate.production.annualKwh
+    }
+    
+    // If we have the original estimate and system size override, scale proportionally
+    const originalEstimate = data.estimate?.production?.annualKwh
+    const originalSystemSize = data.estimate?.system?.sizeKw
+    if (originalEstimate && originalSystemSize && systemSizeKwOverride > 0 && originalSystemSize > 0) {
+      // Scale production proportionally to system size
+      const scaleFactor = systemSizeKwOverride / originalSystemSize
+      return Math.round(originalEstimate * scaleFactor)
+    }
+    
+    // Fallback to original estimate or default
+    return originalEstimate ?? 5000
+  }, [manualMode, manualProductionInput, overrideEstimate?.production?.annualKwh, data.estimate?.production?.annualKwh, data.estimate?.system?.sizeKw, systemSizeKwOverride])
 
   const offsetCapInfo = useMemo(() => (
     computeSolarBatteryOffsetCap({
@@ -332,7 +350,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
       }
     }
     run()
-  }, [solarPanels])
+  }, [solarPanels, systemSizeKwOverride, data?.coordinates, data?.roofAreaSqft])
   
   // Custom rates are hardcoded to defaults (no longer editable)
   const customRates: CustomRates = DEFAULT_CUSTOM_RATES
