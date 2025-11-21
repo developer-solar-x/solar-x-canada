@@ -18,7 +18,9 @@ export function StepBatteryPeakShavingFRD({ data, onComplete, onBack, manualMode
   const [overrideEstimateLoading, setOverrideEstimateLoading] = useState(false)
   const [initialEstimate, setInitialEstimate] = useState<any>(data.estimate)
   
-  const systemSizeKwOverride = solarPanels > 0 ? Math.round(((solarPanels * panelWattage) / 1000) * 10) / 10 : 0
+  // Round to nearest 0.5 (divisible by 0.5) to match StepReview display
+  // e.g., 7.2 -> 7.0, 7.3 -> 7.5, 7.7 -> 7.5, 7.8 -> 8.0
+  const systemSizeKwOverride = solarPanels > 0 ? Math.round(((solarPanels * panelWattage) / 1000) * 2) / 2 : 0
   const effectiveSystemSizeKw = systemSizeKwOverride || initialEstimate?.system?.sizeKw || 0
 
   // Generate initial estimate if missing or when monthlyBill/usage changes from Step 3

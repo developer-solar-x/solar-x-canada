@@ -40,14 +40,14 @@ export function Stats() {
       value: 10000,
       suffix: '+',
       label: 'Estimates Generated',
-      iconBg: 'bg-blue-500',
+      iconBg: 'bg-sky-500',
     },
     {
       icon: DollarSign,
       value: 2.5,
       suffix: 'M+',
       label: 'In Projected Savings',
-      iconBg: 'bg-red-500',
+      iconBg: 'bg-maple-500',
       prefix: '$',
     },
     {
@@ -63,7 +63,7 @@ export function Stats() {
       value: 500,
       suffix: '+',
       label: 'Systems Installed',
-      iconBg: 'bg-blue-500',
+      iconBg: 'bg-forest-500',
     },
   ]
 
@@ -86,7 +86,7 @@ export function Stats() {
               </div>
 
               {/* Number with counter animation */}
-              <div className="text-4xl md:text-5xl font-bold text-navy-500 mb-2 font-display">
+              <div className="text-4xl md:text-5xl font-bold text-forest-500 mb-2 font-display">
                 {isVisible ? (
                   <CountUp
                     end={stat.value}

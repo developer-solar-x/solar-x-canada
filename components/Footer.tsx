@@ -5,32 +5,31 @@ import { Logo } from './Logo'
 import { Facebook, Linkedin, Instagram, Mail, Phone, MapPin } from 'lucide-react'
 
 export function Footer() {
-  // Social media links
+  // Social media links - removed Solar X specific links, using generic placeholders
   const socialLinks = [
-    { icon: Linkedin, href: 'https://www.linkedin.com/company/solar-x-inc/', label: 'LinkedIn' },
-    { icon: Instagram, href: 'https://www.instagram.com/solar_x_canada/', label: 'Instagram' },
-    { icon: Facebook, href: 'https://web.facebook.com/modernsolarsolutions', label: 'Facebook' },
+    { icon: Linkedin, href: '#', label: 'LinkedIn' },
+    { icon: Instagram, href: '#', label: 'Instagram' },
+    { icon: Facebook, href: '#', label: 'Facebook' },
   ]
 
   // Navigation columns
   const quickLinks = [
     { label: 'Home', href: '/' },
-    { label: 'Estimator Tool', href: '/estimator' },
-    { label: 'How It Works', href: '#how-it-works' },
-    { label: 'FAQ', href: '#faq' },
-    { label: 'Contact', href: '#contact' },
+    { label: 'About', href: '/about' },
+    { label: 'For Installers', href: '/for-installers' },
+    { label: 'Contact', href: '/contact' },
+    { label: 'Calculator', href: '/estimator' },
   ]
 
   const resources = [
-    { label: 'Blog', href: '#' },
-    { label: 'Case Studies', href: '#' },
-    { label: 'Financing Options', href: '#' },
-    { label: 'Warranties', href: '#' },
-    { label: 'Rebates & Incentives', href: '#' },
+    { label: 'How It Works', href: '/#how-it-works' },
+    { label: 'FAQ', href: '/#faq' },
+    { label: 'Double Warranty', href: '/about#warranty' },
+    { label: 'Vetting Process', href: '/about#vetting' },
   ]
 
   return (
-    <footer id="contact" className="bg-navy-500 text-white">
+    <footer id="contact" className="bg-forest-500 text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* Main footer content */}
         <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-12 mb-12">
@@ -38,7 +37,7 @@ export function Footer() {
           <div className="lg:col-span-2">
             <Logo variant="white" size="lg" />
             <p className="mt-6 text-gray-300 leading-relaxed max-w-md">
-              Leading the clean energy revolution in Ontario. Empowering homeowners with transparent estimates, expert guidance, and quality installations.
+              Canada's independent platform connecting homeowners with vetted solar installers. Transparent estimates, unbiased matching, and double warranty protection.
             </p>
             
             {/* Social media icons */}
@@ -47,7 +46,7 @@ export function Footer() {
                 <a
                   key={index}
                   href={social.href}
-                  className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-red-500 transition-colors"
+                  className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-maple-500 transition-colors"
                   aria-label={social.label}
                 >
                   <social.icon size={20} />

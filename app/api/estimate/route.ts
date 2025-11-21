@@ -101,8 +101,10 @@ export async function POST(request: Request) {
 
     // Apply explicit override from client when provided (e.g., user adjusted panels)
     // Still cap at 100% of usage to prevent oversizing
+    // Round to nearest 0.5 (divisible by 0.5) to match StepReview display
     if (overrideSystemSizeKw && overrideSystemSizeKw > 0) {
-      systemSizeKw = Math.min(overrideSystemSizeKw, maxSystemSizeKw)
+      const roundedOverride = Math.round(overrideSystemSizeKw * 2) / 2
+      systemSizeKw = Math.min(roundedOverride, maxSystemSizeKw)
       numPanels = Math.round((systemSizeKw * 1000) / 500)
     }
 

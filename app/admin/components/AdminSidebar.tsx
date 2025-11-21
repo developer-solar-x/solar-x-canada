@@ -1,7 +1,7 @@
 'use client'
 
 import { Logo } from '@/components/Logo'
-import { Users, Clock, BarChart3, Calculator, Zap, ArrowRightFromLine, ExternalLink, TrendingUp } from 'lucide-react'
+import { Users, Clock, BarChart3, Calculator, Zap, ArrowRightFromLine, ExternalLink, TrendingUp, Building2 } from 'lucide-react'
 
 interface AdminSidebarProps {
   activeSection: string
@@ -11,6 +11,7 @@ interface AdminSidebarProps {
   onMobileMenuClose: () => void
   totalLeads: number
   totalPartialLeads: number
+  totalInstallers?: number
 }
 
 export function AdminSidebar({
@@ -21,6 +22,7 @@ export function AdminSidebar({
   onMobileMenuClose,
   totalLeads,
   totalPartialLeads,
+  totalInstallers = 0,
 }: AdminSidebarProps) {
   const handleSectionClick = (section: string) => {
     onSectionChange(section)
@@ -78,6 +80,16 @@ export function AdminSidebar({
           >
             <Users size={20} className="flex-shrink-0" />
             <span>Users</span>
+          </button>
+          <button 
+            onClick={() => handleSectionClick('installers')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+              activeSection === 'installers' ? 'bg-red-500' : 'hover:bg-navy-600'
+            }`}
+          >
+            <Building2 size={20} className="flex-shrink-0" />
+            <span className="flex-1 text-left">Installers</span>
+            <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{totalInstallers}</span>
           </button>
           <button 
             onClick={() => handleSectionClick('sales-kpi')}

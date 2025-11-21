@@ -19,6 +19,8 @@ import { AnalyticsSection } from './sections/AnalyticsSection'
 import { LeadsSection } from './sections/LeadsSection'
 import { PartialLeadsSection } from './sections/PartialLeadsSection'
 import { UsersSection } from './sections/UsersSection'
+import { InstallersSection } from './sections/InstallersSection'
+import { InstallerDetailView } from '@/components/admin/InstallerDetailView'
 import { useLeadStats, usePartialLeadStats } from './hooks'
 
 // Lead type matching database schema
@@ -59,6 +61,12 @@ export default function AdminPage() {
   const [deleteUserModalOpen, setDeleteUserModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<any>(null)
   const [userModalMode, setUserModalMode] = useState<'add' | 'edit'>('add')
+
+  // Installers state
+  const [installerApplications, setInstallerApplications] = useState<any[]>([])
+  const [installersLoading, setInstallersLoading] = useState(false)
+  const [selectedInstaller, setSelectedInstaller] = useState<any>(null)
+  const [installerStatusFilter, setInstallerStatusFilter] = useState('all')
 
   // Load real leads from database
   useEffect(() => {
@@ -201,7 +209,85 @@ export default function AdminPage() {
     if (activeSection === 'users') {
       fetchUsers()
     }
+    if (activeSection === 'installers') {
+      fetchInstallerApplications()
+    }
   }, [activeSection])
+
+  // Fetch installer applications (mock data for now)
+  const fetchInstallerApplications = async () => {
+    setInstallersLoading(true)
+    try {
+      // TODO: Replace with actual API call when backend is ready
+      // For now, use mock data from sessionStorage or create mock data
+      const mockApplications = [
+        {
+          id: 'app-1',
+          companyName: 'Solar Solutions Inc.',
+          contactPersonName: 'John Smith',
+          contactEmail: 'john@solarsolutions.ca',
+          contactPhone: '(416) 555-0123',
+          websiteUrl: 'https://www.solarsolutions.ca',
+          yearsInBusiness: '5+ years',
+          primaryServiceProvinces: ['Ontario', 'Alberta'],
+          serviceAreaDescription: 'Greater Toronto Area and surrounding regions',
+          certifications: {
+            esa: true,
+            provincial: false,
+            manufacturer: ['Tesla', 'Enphase'],
+            other: '',
+          },
+          generalLiabilityCoverage: '$2,000,000',
+          numberOfInstalls: '150+',
+          typicalSystemSizeRange: '5-15 kW',
+          workmanshipWarrantyYears: '10 years',
+          productWarrantySupport: 'Full manufacturer warranty support',
+          status: 'pending_review',
+          submittedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        {
+          id: 'app-2',
+          companyName: 'Green Energy Installers',
+          contactPersonName: 'Sarah Johnson',
+          contactEmail: 'sarah@greenenergy.ca',
+          contactPhone: '(905) 555-0456',
+          yearsInBusiness: '3-5 years',
+          primaryServiceProvinces: ['Ontario'],
+          certifications: {
+            esa: true,
+            provincial: true,
+            manufacturer: ['SolarEdge'],
+            other: 'CEC Certified',
+          },
+          generalLiabilityCoverage: '$1,500,000',
+          numberOfInstalls: '75+',
+          typicalSystemSizeRange: '7-12 kW',
+          workmanshipWarrantyYears: '5 years',
+          status: 'approved',
+          submittedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+          reviewedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+          reviewedBy: 'Admin User',
+        },
+      ]
+      
+      // Try to get from sessionStorage if available (from installer form submission)
+      const stored = sessionStorage.getItem('installerApplication')
+      if (stored) {
+        try {
+          const storedApp = JSON.parse(stored)
+          mockApplications.unshift(storedApp)
+        } catch (err) {
+          console.error('Error parsing stored application:', err)
+        }
+      }
+      
+      setInstallerApplications(mockApplications)
+    } catch (error) {
+      console.error('Error fetching installer applications:', error)
+    } finally {
+      setInstallersLoading(false)
+    }
+  }
 
   // Handle add user
   const handleAddUser = () => {
@@ -329,6 +415,56 @@ export default function AdminPage() {
     }
   }
 
+  // Handle installer application click
+  const handleInstallerClick = (application: any) => {
+    setSelectedInstaller(application)
+  }
+
+  // Handle closing installer detail view
+  const handleCloseInstallerView = () => {
+    setSelectedInstaller(null)
+  }
+
+  // Handle installer status update
+  const handleInstallerStatusUpdate = async (id: string, status: string, notes?: string) => {
+    // TODO: Replace with actual API call when backend is ready
+    setInstallerApplications(prevApps =>
+      prevApps.map(app =>
+        app.id === id
+          ? {
+              ...app,
+              status,
+              reviewNotes: notes || '',
+              reviewedAt: new Date().toISOString(),
+              reviewedBy: 'Admin User', // TODO: Get from auth context
+            }
+          : app
+      )
+    )
+    
+    if (selectedInstaller && selectedInstaller.id === id) {
+      setSelectedInstaller({
+        ...selectedInstaller,
+        status,
+        reviewNotes: notes || '',
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: 'Admin User',
+      })
+    }
+    
+    // Refresh the list
+    await fetchInstallerApplications()
+  }
+
+  // Calculate installer stats
+  const installerStats = {
+    total: installerApplications.length,
+    pending: installerApplications.filter(app => app.status === 'pending_review').length,
+    approved: installerApplications.filter(app => app.status === 'approved').length,
+    rejected: installerApplications.filter(app => app.status === 'rejected').length,
+    needMoreInfo: installerApplications.filter(app => app.status === 'need_more_info').length,
+  }
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -348,6 +484,7 @@ export default function AdminPage() {
         onMobileMenuClose={() => setMobileMenuOpen(false)}
         totalLeads={stats.totalLeads}
         totalPartialLeads={partialStats.total}
+        totalInstallers={installerStats.total}
       />
 
       {/* Main content */}
@@ -393,6 +530,19 @@ export default function AdminPage() {
             onAddUser={handleAddUser}
             onEditUser={handleEditUser}
             onDeleteUser={handleDeleteUser}
+          />
+        )}
+
+        {activeSection === 'installers' && (
+          <InstallersSection
+            applications={installerApplications}
+            loading={installersLoading}
+            stats={installerStats}
+            statusFilter={installerStatusFilter}
+            onStatusFilterChange={setInstallerStatusFilter}
+            searchTerm={searchTerm}
+            onSearchTermChange={setSearchTerm}
+            onApplicationClick={handleInstallerClick}
           />
         )}
         {activeSection === 'greenbutton' && (
@@ -458,6 +608,15 @@ export default function AdminPage() {
         userName={selectedUser?.full_name || 'Unknown'}
         userEmail={selectedUser?.email || 'Unknown'}
       />
+
+      {/* Installer Detail View Modal */}
+      {selectedInstaller && (
+        <InstallerDetailView
+          application={selectedInstaller}
+          onClose={handleCloseInstallerView}
+          onStatusUpdate={handleInstallerStatusUpdate}
+        />
+      )}
     </div>
   )
 }

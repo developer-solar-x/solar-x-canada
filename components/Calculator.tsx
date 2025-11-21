@@ -20,7 +20,7 @@ export function Calculator() {
       {/* Decorative pattern background */}
       <div className="absolute inset-0 opacity-5">
         <div className="absolute inset-0" style={{
-          backgroundImage: 'radial-gradient(circle, #1B4E7C 1px, transparent 1px)',
+          backgroundImage: 'radial-gradient(circle, #2D5F3F 1px, transparent 1px)',
           backgroundSize: '30px 30px'
         }} />
       </div>
@@ -38,7 +38,7 @@ export function Calculator() {
         <div className="card bg-white shadow-xl p-8 md:p-12">
           {/* Input section */}
           <div className="mb-12">
-            <label className="block text-lg font-semibold text-navy-500 mb-4">
+            <label className="block text-lg font-semibold text-forest-500 mb-4">
               Your Monthly Electricity Bill
             </label>
             
@@ -46,7 +46,7 @@ export function Calculator() {
             <div className="relative pt-8">
               {/* Current value display */}
               <div className="absolute top-0 left-1/2 transform -translate-x-1/2">
-                <div className="bg-red-500 text-white px-6 py-2 rounded-lg font-bold text-2xl shadow-lg">
+                <div className="bg-maple-500 text-white px-6 py-2 rounded-lg font-bold text-2xl shadow-lg">
                   {formatCurrency(monthlyBill)}
                 </div>
               </div>
@@ -66,7 +66,7 @@ export function Calculator() {
                 aria-label="Monthly electricity bill amount"
                 className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
                 style={{
-                  background: `linear-gradient(to right, #DC143C 0%, #DC143C ${((monthlyBill - 50) / 450) * 100}%, #E2E8F0 ${((monthlyBill - 50) / 450) * 100}%, #E2E8F0 100%)`
+                  background: `linear-gradient(to right, #C94A3A 0%, #C94A3A ${((monthlyBill - 50) / 450) * 100}%, #E2E8F0 ${((monthlyBill - 50) / 450) * 100}%, #E2E8F0 100%)`
                 }}
               />
 
@@ -154,19 +154,19 @@ export function Calculator() {
           width: 24px;
           height: 24px;
           border-radius: 50%;
-          background: #DC143C;
+          background: #C94A3A;
           cursor: pointer;
-          box-shadow: 0 4px 8px rgba(220, 20, 60, 0.4);
+          box-shadow: 0 4px 8px rgba(201, 74, 58, 0.4);
         }
         
         .slider::-moz-range-thumb {
           width: 24px;
           height: 24px;
           border-radius: 50%;
-          background: #DC143C;
+          background: #C94A3A;
           cursor: pointer;
           border: none;
-          box-shadow: 0 4px 8px rgba(220, 20, 60, 0.4);
+          box-shadow: 0 4px 8px rgba(201, 74, 58, 0.4);
         }
       `}</style>
     </section>

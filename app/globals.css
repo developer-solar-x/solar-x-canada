@@ -8,43 +8,79 @@
 @import 'mapbox-gl/dist/mapbox-gl.css';
 @import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
 
-/* Theme configuration with SolarX brand colors */
+/* Theme configuration with Canadian-inspired colors */
 @theme {
-  /* Primary brand colors from SolarX logo */
-  --color-navy-50: #EBF1F8;
-  --color-navy-100: #D7E3F1;
-  --color-navy-200: #AFC7E3;
-  --color-navy-300: #87ABD5;
-  --color-navy-400: #5F8FC7;
-  --color-navy-500: #1B4E7C;
-  --color-navy-600: #163E63;
-  --color-navy-700: #102F4A;
-  --color-navy-800: #0B1F31;
-  --color-navy-900: #051018;
+  /* Primary colors - Forest green (Canadian nature) */
+  --color-forest-50: #F0F7F4;
+  --color-forest-100: #E1EFE9;
+  --color-forest-200: #C3DFD3;
+  --color-forest-300: #A5CFBD;
+  --color-forest-400: #87BFA7;
+  --color-forest-500: #2D5F3F;
+  --color-forest-600: #244C32;
+  --color-forest-700: #1B3925;
+  --color-forest-800: #122618;
+  --color-forest-900: #09130C;
   
-  /* Red accent colors from X symbol */
-  --color-red-50: #FEE9ED;
-  --color-red-100: #FDD3DB;
-  --color-red-200: #FBA7B7;
-  --color-red-300: #F97B93;
-  --color-red-400: #F74F6F;
-  --color-red-500: #DC143C;
-  --color-red-600: #B01030;
-  --color-red-700: #840C24;
-  --color-red-800: #580818;
-  --color-red-900: #2C040C;
+  /* Legacy navy mapping for backward compatibility - now using forest */
+  --color-navy-50: var(--color-forest-50);
+  --color-navy-100: var(--color-forest-100);
+  --color-navy-200: var(--color-forest-200);
+  --color-navy-300: var(--color-forest-300);
+  --color-navy-400: var(--color-forest-400);
+  --color-navy-500: var(--color-forest-500);
+  --color-navy-600: var(--color-forest-600);
+  --color-navy-700: var(--color-forest-700);
+  --color-navy-800: var(--color-forest-800);
+  --color-navy-900: var(--color-forest-900);
   
-  /* Blue accent colors for tech elements */
-  --color-blue-50: #E8F4FE;
-  --color-blue-100: #D1E9FD;
-  --color-blue-200: #A3D3FB;
-  --color-blue-300: #75BDF9;
-  --color-blue-400: #47A7F7;
-  --color-blue-500: #4A90E2;
-  --color-blue-600: #3B73B5;
-  --color-blue-700: #2C5688;
-  --color-blue-800: #1E395B;
-  --color-blue-900: #0F1C2E;
+  /* Maple red accent colors (softer, more natural than bright red) */
+  --color-maple-50: #FEF5F3;
+  --color-maple-100: #FDEBE7;
+  --color-maple-200: #FBD7CF;
+  --color-maple-300: #F9C3B7;
+  --color-maple-400: #F7AF9F;
+  --color-maple-500: #C94A3A;
+  --color-maple-600: #A13B2E;
+  --color-maple-700: #792C23;
+  --color-maple-800: #511E17;
+  --color-maple-900: #290F0C;
+  
+  /* Legacy red mapping for backward compatibility - now using maple */
+  --color-red-50: var(--color-maple-50);
+  --color-red-100: var(--color-maple-100);
+  --color-red-200: var(--color-maple-200);
+  --color-red-300: var(--color-maple-300);
+  --color-red-400: var(--color-maple-400);
+  --color-red-500: var(--color-maple-500);
+  --color-red-600: var(--color-maple-600);
+  --color-red-700: var(--color-maple-700);
+  --color-red-800: var(--color-maple-800);
+  --color-red-900: var(--color-maple-900);
+  
+  /* Sky blue accent colors (Canadian skies - lighter, more natural) */
+  --color-sky-50: #F0F8FC;
+  --color-sky-100: #E1F1F9;
+  --color-sky-200: #C3E3F3;
+  --color-sky-300: #A5D5ED;
+  --color-sky-400: #87C7E7;
+  --color-sky-500: #4A9BC4;
+  --color-sky-600: #3B7C9D;
+  --color-sky-700: #2C5D76;
+  --color-sky-800: #1E3E4F;
+  --color-sky-900: #0F1F28;
+  
+  /* Legacy blue mapping for backward compatibility - now using sky */
+  --color-blue-50: var(--color-sky-50);
+  --color-blue-100: var(--color-sky-100);
+  --color-blue-200: var(--color-sky-200);
+  --color-blue-300: var(--color-sky-300);
+  --color-blue-400: var(--color-sky-400);
+  --color-blue-500: var(--color-sky-500);
+  --color-blue-600: var(--color-sky-600);
+  --color-blue-700: var(--color-sky-700);
+  --color-blue-800: var(--color-sky-800);
+  --color-blue-900: var(--color-sky-900);
   
   /* Neutral grays for UI elements */
   --color-gray-50: #F8FAFC;
@@ -62,12 +98,19 @@
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-display: 'Montserrat', 'Inter', ui-sans-serif, system-ui, sans-serif;
   
-  /* Custom shadows with brand colors */
-  --shadow-navy-sm: 0 1px 2px rgba(27, 78, 124, 0.05);
-  --shadow-navy-md: 0 4px 6px rgba(27, 78, 124, 0.1);
-  --shadow-navy-lg: 0 10px 15px rgba(27, 78, 124, 0.15);
-  --shadow-navy-xl: 0 20px 25px rgba(27, 78, 124, 0.2);
-  --shadow-red: 0 4px 14px rgba(220, 20, 60, 0.35);
+  /* Custom shadows with Canadian-inspired colors */
+  --shadow-forest-sm: 0 1px 2px rgba(45, 95, 63, 0.05);
+  --shadow-forest-md: 0 4px 6px rgba(45, 95, 63, 0.1);
+  --shadow-forest-lg: 0 10px 15px rgba(45, 95, 63, 0.15);
+  --shadow-forest-xl: 0 20px 25px rgba(45, 95, 63, 0.2);
+  --shadow-maple: 0 4px 14px rgba(201, 74, 58, 0.35);
+  
+  /* Legacy shadow mappings for backward compatibility */
+  --shadow-navy-sm: var(--shadow-forest-sm);
+  --shadow-navy-md: var(--shadow-forest-md);
+  --shadow-navy-lg: var(--shadow-forest-lg);
+  --shadow-navy-xl: var(--shadow-forest-xl);
+  --shadow-red: var(--shadow-maple);
 }
 
 /* Component layer for reusable styles - Tailwind v4 compatible */
@@ -84,7 +127,7 @@
   cursor: pointer;
 }
 
-/* Primary button with red gradient */
+/* Primary button with maple red */
 .btn-primary {
   display: inline-flex;
   align-items: center;
@@ -95,12 +138,12 @@
   border-radius: 0.5rem;
   transition: all 0.2s;
   cursor: pointer;
-  background-color: var(--color-red-500);
+  background-color: var(--color-maple-500);
   color: white;
 }
 
 .btn-primary:hover {
-  background-color: var(--color-red-600);
+  background-color: var(--color-maple-600);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   transform: translateY(-2px);
 }
@@ -109,7 +152,7 @@
   transform: translateY(0);
 }
 
-/* Secondary button with navy colors */
+/* Secondary button with forest green */
 .btn-secondary {
   display: inline-flex;
   align-items: center;
@@ -120,12 +163,12 @@
   border-radius: 0.5rem;
   transition: all 0.2s;
   cursor: pointer;
-  background-color: var(--color-navy-500);
+  background-color: var(--color-forest-500);
   color: white;
 }
 
 .btn-secondary:hover {
-  background-color: var(--color-navy-600);
+  background-color: var(--color-forest-600);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   transform: translateY(-2px);
 }
@@ -176,7 +219,7 @@
 .heading-xl {
   font-size: 2.25rem;
   font-weight: 700;
-  color: var(--color-navy-500);
+  color: var(--color-forest-500);
   line-height: 1.1;
   font-family: var(--font-display);
 }
@@ -196,7 +239,7 @@
 .heading-lg {
   font-size: 1.875rem;
   font-weight: 700;
-  color: var(--color-navy-500);
+  color: var(--color-forest-500);
   line-height: 1.1;
   font-family: var(--font-display);
 }
@@ -216,7 +259,7 @@
 .heading-md {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--color-navy-500);
+  color: var(--color-forest-500);
   line-height: 1.1;
   font-family: var(--font-display);
 }
@@ -233,13 +276,24 @@
   }
 }
 
-/* Gradient backgrounds */
+/* Professional solid backgrounds with subtle depth */
 .gradient-hero {
-  background: linear-gradient(135deg, #1B4E7C 0%, #4A90E2 100%);
+  background: #2D5F3F;
+  position: relative;
+}
+
+.gradient-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(circle at 20% 50%, rgba(74, 155, 196, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(201, 74, 58, 0.08) 0%, transparent 50%);
+  pointer-events: none;
 }
 
 .gradient-cta {
-  background: linear-gradient(135deg, #DC143C 0%, #B01030 100%);
+  background: linear-gradient(135deg, #C94A3A 0%, #A13B2E 100%);
 }
 
 /* Eyebrow text style */
@@ -284,12 +338,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-navy-500);
+  background: var(--color-forest-500);
   border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-navy-600);
+  background: var(--color-forest-600);
 }
 
 /* Chart scrollbar - always visible and touch-friendly */
@@ -304,35 +358,35 @@ body {
 }
 
 .chart-scroll-container::-webkit-scrollbar-thumb {
-  background: #1B4E7C;
+  background: #2D5F3F;
   border-radius: 6px;
   border: 2px solid #F1F5F9;
   min-height: 12px;
 }
 
 .chart-scroll-container::-webkit-scrollbar-thumb:hover {
-  background: #163E63;
+  background: #244C32;
 }
 
 .chart-scroll-container {
   scrollbar-width: auto;
-  scrollbar-color: #1B4E7C #F1F5F9;
+  scrollbar-color: #2D5F3F #F1F5F9;
 }
 
 /* Focus styles for accessibility */
 :focus-visible {
-  outline: 2px solid var(--color-red-500);
+  outline: 2px solid var(--color-maple-500);
   outline-offset: 2px;
 }
 
 /* Selection styles */
 ::selection {
-  background-color: var(--color-red-500);
+  background-color: var(--color-maple-500);
   color: white;
 }
 
 ::-moz-selection {
-  background-color: var(--color-red-500);
+  background-color: var(--color-maple-500);
   color: white;
 }
 
@@ -417,7 +471,7 @@ body {
 }
 
 .mapboxgl-ctrl-group button:hover {
-  background-color: var(--color-red-500);
+  background-color: var(--color-maple-500);
   color: white;
 }
 

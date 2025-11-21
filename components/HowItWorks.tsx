@@ -4,7 +4,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { Zap, LineChart, Handshake } from 'lucide-react'
+import { Zap, LineChart, Handshake, Shield } from 'lucide-react'
 import { useState } from 'react'
 import { ImageModal } from './ui/ImageModal'
 
@@ -30,35 +30,42 @@ export function HowItWorks() {
     {
       number: '01',
       icon: Zap,
-      title: 'Choose Your Path',
-      description: 'Select Quick Estimate for instant results or Detailed Analysis for precision. Map your roof or pick a size. Upload photos. Add your appliances.',
-      color: 'text-red-500',
+      title: 'Answer a Few Questions',
+      description: 'Provide basic information about your home and energy use. Our calculator uses transparent data to estimate your solar potential.',
+      color: 'text-maple-500',
     },
     {
       number: '02',
       icon: LineChart,
-      title: 'See Your Full Picture',
-      description: 'View accurate system sizing, costs with incentives, monthly and annual savings, payback timeline, and environmental impact with seasonal production charts.',
-      color: 'text-navy-500',
+      title: 'See Your Estimated Savings',
+      description: 'View your personalized results: system size, payback period, monthly savings, and environmental impact. All calculations are transparent.',
+      color: 'text-forest-500',
     },
     {
       number: '03',
       icon: Handshake,
-      title: 'Get Expert Quotes',
-      description: 'Your detailed estimate is sent to vetted local installers. Compare competitive quotes and choose the best fit for your solar journey.',
-      color: 'text-red-500',
+      title: 'Get Matched with a Vetted Installer',
+      description: 'Connect with carefully vetted local installers. All partners are certified, insured, and committed to quality service.',
+      color: 'text-maple-500',
+    },
+    {
+      number: '04',
+      icon: Shield,
+      title: 'Enjoy Double Warranty Protection',
+      description: 'Benefit from both installer warranties and our platform guarantee. Complete peace of mind for your solar investment.',
+      color: 'text-sky-500',
     },
   ]
 
   return (
-    <section id="how-it-works" className="py-20 bg-gradient-to-b from-blue-50 to-white relative overflow-hidden">
+    <section id="how-it-works" className="py-20 bg-gradient-to-b from-sky-50 to-white relative overflow-hidden">
       {/* Decorative wave pattern */}
       <div className="absolute top-0 left-0 right-0 h-32 opacity-10">
         <svg viewBox="0 0 1200 120" className="w-full h-full">
           <path
             d="M0,50 Q300,0 600,50 T1200,50 L1200,0 L0,0 Z"
             fill="currentColor"
-            className="text-blue-500"
+            className="text-sky-500"
           />
         </svg>
       </div>
@@ -66,14 +73,17 @@ export function HowItWorks() {
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Title block */}
         <div className="text-center mb-16">
-          <h2 className="heading-lg mb-4">Your Journey to Solar</h2>
+          <h2 className="heading-lg mb-4">How It Works</h2>
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            Simple, transparent process from estimate to installation
+          </p>
         </div>
 
         {/* Steps timeline */}
-        <div className="grid md:grid-cols-3 gap-12 relative">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 relative">
           {/* Connecting line (desktop only) */}
-          <div className="hidden md:block absolute top-24 left-0 right-0 h-0.5 bg-gray-200">
-            <div className="h-full w-2/3 bg-blue-500"></div>
+          <div className="hidden lg:block absolute top-24 left-0 right-0 h-0.5 bg-gray-200">
+            <div className="h-full w-3/4 bg-sky-500"></div>
           </div>
 
           {steps.map((step, index) => (
@@ -91,7 +101,7 @@ export function HowItWorks() {
                 </div>
 
                 {/* Title */}
-                <h3 className="text-2xl font-bold text-navy-500 mb-4">
+                <h3 className="text-2xl font-bold text-forest-500 mb-4">
                   {step.title}
                 </h3>
 
@@ -103,7 +113,7 @@ export function HowItWorks() {
                 {/* Visual mockup/screenshot */}
                 <div 
                   className={`mt-6 h-40 bg-gray-100 rounded-lg overflow-hidden relative ${
-                    index === 0 ? 'cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all' : ''
+                    index === 0 ? 'cursor-pointer hover:ring-2 hover:ring-sky-500 transition-all' : ''
                   }`}
                   onClick={() => {
                     // Only make first image clickable since others are placeholders

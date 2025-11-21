@@ -226,24 +226,6 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             <p className="text-white/90">{data.address}</p>
           </div>
 
-          {selectedBatterySpecs.length > 0 && (
-            <div className="card p-4 bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-navy-500 rounded-lg">
-                    <Battery className="text-white" size={20} />
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold text-navy-600">Selected Battery</div>
-                    <div className="text-sm text-gray-700 font-semibold">{aggregatedBattery?.labels?.join(' + ')}</div>
-                  </div>
-                </div>
-                {selectedPlan && (
-                  <div className="text-xs text-gray-600">Plan: {selectedPlan.toUpperCase()}</div>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* 2x2 Grid Layout for Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -279,28 +261,40 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             {/* Top Right: Recommended System */}
             {/* Bottom Left: Total System Cost */}
             {/* Bottom Right: Your Net Investment */}
-            <SystemSummaryCards
-              systemSizeKw={data.solarOverride?.sizeKw ?? estimate.system.sizeKw}
-              numPanels={data.solarOverride?.numPanels ?? estimate.system.numPanels}
-              selectedBattery={data.selectedBattery}
-              batteryDetails={data.batteryDetails}
-              combinedTotalCost={combinedTotalCost}
-              solarTotalCost={solarTotalCost}
-              batteryPrice={batteryPrice}
-              includeBattery={includeBattery}
-              combinedNetCost={combinedNetCost}
-              solarIncentives={solarIncentives}
-              batteryProgramRebate={batteryProgramRebate}
-              aggregatedBattery={aggregatedBattery}
-              combinedMonthlySavings={combinedMonthlySavings}
-              tou={tou}
-              ulo={ulo}
-              peakShaving={data.peakShaving}
-              displayPlan={displayPlan}
-              solarMonthlySavings={solarMonthlySavings}
-              batteryMonthlySavings={batteryMonthlySavings}
-              batteryAnnualSavings={batteryAnnualSavings}
-            />
+            {/* Calculate system size from panel count if available (exact calculation) */}
+            {(() => {
+              const panelWattage = 500 // Standard panel wattage
+              const numPanels = data.solarOverride?.numPanels ?? estimate.system.numPanels
+              // Always calculate from panel count if available (ensures 14 panels = 7.0 kW exactly)
+              const systemSizeKw = numPanels && numPanels > 0
+                ? (numPanels * panelWattage) / 1000 // Exact calculation from panel count
+                : (data.solarOverride?.sizeKw ?? estimate.system.sizeKw) // Fallback to provided value
+              
+              return (
+                <SystemSummaryCards
+                  systemSizeKw={systemSizeKw}
+                  numPanels={numPanels}
+                  selectedBattery={data.selectedBattery}
+                  batteryDetails={data.batteryDetails}
+                  combinedTotalCost={combinedTotalCost}
+                  solarTotalCost={solarTotalCost}
+                  batteryPrice={batteryPrice}
+                  includeBattery={includeBattery}
+                  combinedNetCost={combinedNetCost}
+                  solarIncentives={solarIncentives}
+                  batteryProgramRebate={batteryProgramRebate}
+                  aggregatedBattery={aggregatedBattery}
+                  combinedMonthlySavings={combinedMonthlySavings}
+                  tou={tou}
+                  ulo={ulo}
+                  peakShaving={data.peakShaving}
+                  displayPlan={displayPlan}
+                  solarMonthlySavings={solarMonthlySavings}
+                  batteryMonthlySavings={batteryMonthlySavings}
+                  batteryAnnualSavings={batteryAnnualSavings}
+                />
+              )
+            })()}
           </div>
 
           {/* Before/After Comparison - Full width section below 2x2 grid */}

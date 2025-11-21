@@ -230,49 +230,50 @@ export default function EstimatorPage() {
     setShowSaveIndicator(true)
     const saveIndicatorTimer = setTimeout(() => setShowSaveIndicator(false), 2000)
     
+    // Partial leads feature disabled
     // Also save to partial leads database if email exists (required for partial leads)
     // Exclude map snapshots from frequent saves to improve efficiency (they're large base64 images)
     // Map snapshots are only saved when explicitly needed (e.g., when roof drawing is completed)
-    let partialLeadTimer: NodeJS.Timeout | null = null
-    if (data.email && isValidEmail(data.email)) {
-      // Debounce partial lead saves to avoid excessive API calls
-      partialLeadTimer = setTimeout(async () => {
-        try {
-          // Create a copy of data without map snapshot for efficient saving
-          // Map snapshots are large base64 images (500KB-2MB+) and significantly increase payload size
-          // Exclude from frequent auto-saves to improve performance
-          // Map snapshots are saved separately when explicitly provided (see handleStepComplete)
-          const dataWithoutSnapshot = { ...data }
-          if (dataWithoutSnapshot.mapSnapshot) {
-            delete dataWithoutSnapshot.mapSnapshot
-          }
-          
-          const response = await fetch('/api/partial-lead', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: data.email,
-              estimatorData: dataWithoutSnapshot,
-              currentStep: currentStep,
-            }),
-          })
-          
-          if (response.ok) {
-            console.log('Progress saved to partial leads database')
-          }
-        } catch (error) {
-          console.error('Failed to save to partial leads:', error)
-          // Fail silently - don't break the user experience
-        }
-      }, 1000) // Debounce 1 second
-    }
+    // let partialLeadTimer: NodeJS.Timeout | null = null
+    // if (data.email && isValidEmail(data.email)) {
+    //   // Debounce partial lead saves to avoid excessive API calls
+    //   partialLeadTimer = setTimeout(async () => {
+    //     try {
+    //       // Create a copy of data without map snapshot for efficient saving
+    //       // Map snapshots are large base64 images (500KB-2MB+) and significantly increase payload size
+    //       // Exclude from frequent auto-saves to improve performance
+    //       // Map snapshots are saved separately when explicitly provided (see handleStepComplete)
+    //       const dataWithoutSnapshot = { ...data }
+    //       if (dataWithoutSnapshot.mapSnapshot) {
+    //         delete dataWithoutSnapshot.mapSnapshot
+    //       }
+    //       
+    //       const response = await fetch('/api/partial-lead', {
+    //         method: 'POST',
+    //         headers: { 'Content-Type': 'application/json' },
+    //         body: JSON.stringify({
+    //           email: data.email,
+    //           estimatorData: dataWithoutSnapshot,
+    //           currentStep: currentStep,
+    //         }),
+    //       })
+    //       
+    //       if (response.ok) {
+    //         console.log('Progress saved to partial leads database')
+    //       }
+    //     } catch (error) {
+    //       console.error('Failed to save to partial leads:', error)
+    //       // Fail silently - don't break the user experience
+    //     }
+    //   }, 1000) // Debounce 1 second
+    // }
     
     // Cleanup function for both timers
     return () => {
       clearTimeout(saveIndicatorTimer)
-      if (partialLeadTimer) {
-        clearTimeout(partialLeadTimer)
-      }
+      // if (partialLeadTimer) {
+      //   clearTimeout(partialLeadTimer)
+      // }
     }
   }, [data, currentStep])
 
@@ -298,30 +299,31 @@ export default function EstimatorPage() {
     }
     setData(updatedData)
     
+    // Partial leads feature disabled
     // If map snapshot is included in stepData (e.g., from roof drawing step), save it to partial leads
     // This ensures map snapshots are saved when they're created, but not on every step
-    if (stepData.mapSnapshot && updatedData.email && isValidEmail(updatedData.email)) {
-      // Save with map snapshot when it's explicitly provided (roof drawing completion)
-      setTimeout(async () => {
-        try {
-          const response = await fetch('/api/partial-lead', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: updatedData.email,
-              estimatorData: updatedData,
-              currentStep: currentStep,
-            }),
-          })
-          
-          if (response.ok) {
-            console.log('Progress with map snapshot saved to partial leads')
-          }
-        } catch (error) {
-          console.error('Failed to save map snapshot to partial leads:', error)
-        }
-      }, 500) // Small delay to ensure data is updated
-    }
+    // if (stepData.mapSnapshot && updatedData.email && isValidEmail(updatedData.email)) {
+    //   // Save with map snapshot when it's explicitly provided (roof drawing completion)
+    //   setTimeout(async () => {
+    //     try {
+    //       const response = await fetch('/api/partial-lead', {
+    //         method: 'POST',
+    //         headers: { 'Content-Type': 'application/json' },
+    //         body: JSON.stringify({
+    //           email: updatedData.email,
+    //           estimatorData: updatedData,
+    //           currentStep: currentStep,
+    //         }),
+    //       })
+    //       
+    //       if (response.ok) {
+    //         console.log('Progress with map snapshot saved to partial leads')
+    //       }
+    //     } catch (error) {
+    //       console.error('Failed to save map snapshot to partial leads:', error)
+    //     }
+    //   }, 500) // Small delay to ensure data is updated
+    // }
     
     // Special handling for mode selection (step 0)
     if (currentStep === 0 && stepData.estimatorMode) {

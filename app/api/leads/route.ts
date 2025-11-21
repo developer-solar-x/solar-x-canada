@@ -210,7 +210,6 @@ export async function POST(request: Request) {
       // Additional metadata
       estimator_mode: body.estimatorMode || body.estimator_mode || '',
       program_type: body.programType || body.program_type || '',
-      lead_type: body.leadType || body.lead_type || 'residential', // Default to residential if not specified
       roof_sections: body.roofSections || [],
       map_snapshot_url: body.mapSnapshot || body.mapSnapshotUrl || '',
       photo_urls: body.photos?.map((p: any) => p.url || p.uploadedUrl || p.preview).filter(Boolean) || body.photoUrls || [],
@@ -237,14 +236,98 @@ export async function POST(request: Request) {
       insertData.city = city
     }
     
-    const { data: lead, error: insertError } = await supabase
+    // Only include lead_type if provided (column may not exist in database yet)
+    // This prevents errors if the column hasn't been added to the database
+    const leadType = body.leadType || body.lead_type || 'residential'
+    if (leadType) {
+      insertData.lead_type = leadType
+    }
+    
+    // Try old table first (leads_v3), then new schema (homeowner_leads)
+    let lead: any = null
+    let insertError: any = null
+    
+    // Try leads_v3 first (existing schema)
+    const { data: oldLead, error: oldError } = await supabase
       .from('leads_v3')
       .insert(insertData)
       .select()
       .single()
+    
+    if (oldError && oldError.code === 'PGRST205') {
+      // Old table doesn't exist, try new schema table
+      // Map fields to new schema format
+      const newSchemaData: any = {
+        // Contact - split full_name into first_name and last_name
+        first_name: fullName?.split(' ')[0] || fullName || '',
+        last_name: fullName?.split(' ').slice(1).join(' ') || '',
+        email,
+        phone,
+        preferred_contact_method: preferredContactMethod || 'either',
+        
+        // Property
+        street_address: address,
+        city: city || '',
+        postal_code: postalCode || '',
+        province: province || 'ON',
+        coordinates,
+        
+        // Calculator data
+        calculator_inputs: {
+          ...body,
+          fullName,
+          address,
+          city,
+          province,
+          postalCode,
+        },
+        calculator_outputs: estimateData,
+        system_size_kw: systemSizeKw,
+        payback_period_years: paybackYears,
+        annual_savings: annualSavings,
+        monthly_savings: body.monthlySavings || estimateData?.savings?.monthlySavings || 0,
+        lifetime_savings: (annualSavings || 0) * 25,
+        net_investment: netCostAfterIncentives,
+        total_cost: estimatedCost,
+        incentives_amount: body.solarIncentives || estimateData?.costs?.incentives || 0,
+        has_battery: Boolean((body.selectedAddOns || []).includes('battery') || body.hasBattery),
+        battery_impact: body.batteryDetails ? {
+          annualSavings: body.batteryDetails?.firstYearAnalysis?.totalSavings || 0,
+          monthlySavings: body.batteryDetails?.firstYearAnalysis?.totalSavings ? Math.round(body.batteryDetails.firstYearAnalysis.totalSavings / 12) : 0,
+          batterySizeKwh: body.batteryDetails?.battery?.nominalKwh || 0,
+        } : null,
+        
+        // Status
+        status: 'new',
+        source: source || 'calculator',
+      }
+      
+      const { data: newLead, error: newError } = await supabase
+        .from('homeowner_leads')
+        .insert(newSchemaData)
+        .select()
+        .single()
+      
+      lead = newLead
+      insertError = newError
+    } else {
+      lead = oldLead
+      insertError = oldError
+    }
 
     if (insertError) {
       console.error('Database insert error:', insertError)
+      // If both tables don't exist, return helpful error
+      if (insertError.code === 'PGRST205') {
+        return NextResponse.json(
+          { 
+            error: 'Database table not found', 
+            details: 'Please run the database schema migration. Tables leads_v3 or homeowner_leads must exist.',
+            hint: 'Run supabase/schema_frd.sql in your Supabase SQL Editor'
+          },
+          { status: 500 }
+        )
+      }
       return NextResponse.json(
         { error: 'Failed to save lead', details: insertError.message },
         { status: 500 }
@@ -333,12 +416,22 @@ export async function GET(request: Request) {
     // Get Supabase admin client
     const supabase = getSupabaseAdmin()
 
-    // Build query - use leads_v2 table
+    // Build query - try new schema first, fallback to old
     let query = supabase
-      .from('leads_v3')
+      .from('homeowner_leads')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
+    
+    // If table doesn't exist, try old table
+    const { error: tableCheckError } = await query.limit(0)
+    if (tableCheckError && tableCheckError.code === 'PGRST205') {
+      query = supabase
+        .from('leads_v3')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1)
+    }
 
     // Apply status filter if provided
     if (status && status !== 'all') {

@@ -35,11 +35,12 @@ export function Header() {
 
   // Navigation links
   const navLinks = [
-    { href: '#home', label: 'Home' },
-    { href: '#how-it-works', label: 'How It Works' },
-    { href: '#benefits', label: 'Benefits' },
-    { href: '#faq', label: 'FAQ' },
-    { href: '#contact', label: 'Contact' },
+    { href: '/', label: 'Home' },
+    { href: '/about', label: 'About' },
+    { href: '/for-installers', label: 'For Installers' },
+    { href: '/#how-it-works', label: 'How It Works' },
+    { href: '/#faq', label: 'FAQ' },
+    { href: '/contact', label: 'Contact' },
   ]
 
   return (
@@ -64,17 +65,17 @@ export function Header() {
             </Link>
 
             {/* Desktop navigation in the center */}
-            <nav className="hidden md:flex items-center space-x-8">
+            <nav className="hidden md:flex items-center space-x-6">
               {navLinks.map((link) => (
-                <a
+                <Link
                   key={link.href}
                   href={link.href}
-                  className={`text-sm font-medium transition-colors hover:text-red-500 ${
+                  className={`text-sm font-medium transition-colors hover:text-maple-500 ${
                     scrolled ? 'text-gray-700' : 'text-white'
                   }`}
                 >
                   {link.label}
-                </a>
+                </Link>
               ))}
             </nav>
 
@@ -112,19 +113,19 @@ export function Header() {
           />
           
           {/* Slide-in menu panel */}
-          <div className="absolute top-0 right-0 bottom-0 w-64 bg-navy-500 shadow-xl">
+          <div className="absolute top-0 right-0 bottom-0 w-64 bg-forest-500 shadow-xl">
             <div className="flex flex-col h-full py-20 px-6">
               {/* Mobile navigation links */}
               <nav className="flex flex-col space-y-4">
                 {navLinks.map((link) => (
-                  <a
+                  <Link
                     key={link.href}
                     href={link.href}
-                    className="text-lg font-medium text-white hover:text-red-300 transition-colors py-2"
+                    className="text-lg font-medium text-white hover:text-maple-300 transition-colors py-2"
                     onClick={handleCloseMenu}
                   >
                     {link.label}
-                  </a>
+                  </Link>
                 ))}
               </nav>
 

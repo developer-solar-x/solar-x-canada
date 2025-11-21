@@ -3,6 +3,7 @@
 // Step 8: Contact form and lead submission
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { isValidEmail } from '@/lib/utils'
 import { useContactFormData } from './hooks/useContactFormData'
@@ -13,6 +14,7 @@ import { validateContactForm } from './utils/validation'
 import type { StepContactProps } from './types'
 
 export function StepContact({ data, onComplete, onBack }: StepContactProps) {
+  const router = useRouter()
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -47,7 +49,125 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
     setSubmitting(true)
 
     try {
-      // Submit lead to API
+      // TODO: API connection disabled - will be connected later
+      // For now, just simulate success without calling the API
+      console.log('Form submission (API disabled):', {
+        formData,
+        estimateData: data.estimate,
+      })
+
+      // Simulate API response
+      const mockLeadId = `mock-${Date.now()}`
+      setLeadId(mockLeadId)
+      
+      // Store estimate data in sessionStorage for results page
+      if (data.estimate) {
+        // Calculate rebates from estimate data
+        const solarRebate = data.estimate.costs?.incentives || 0
+        const batteryPrice = data.batteryDetails?.battery?.price || 0
+        const batteryNetCost = data.batteryDetails?.multiYearProjection?.netCost || 0
+        const batteryRebate = batteryPrice > 0 ? Math.max(0, batteryPrice - batteryNetCost) : 0
+        
+        // Calculate combined costs
+        const combinedTotalCost = data.estimate.costs?.totalCost + (batteryPrice || 0)
+        const combinedNetCost = (data.estimate.costs?.netCost || 0) + (batteryNetCost || 0)
+        
+        // Determine which rate plan is better
+        const touAnnual = data.peakShaving?.tou?.allResults?.combined?.combined?.annual || 
+                         data.peakShaving?.tou?.allResults?.combined?.annual || 0
+        const uloAnnual = data.peakShaving?.ulo?.allResults?.combined?.combined?.annual || 
+                         data.peakShaving?.ulo?.allResults?.combined?.annual || 0
+        const displayPlan = data.peakShaving?.ratePlan || (uloAnnual > touAnnual ? 'ulo' : 'tou')
+        
+        // Ensure estimate uses the override system size if available (matches battery savings display)
+        // If we have exact panel count, calculate system size directly from it (exact calculation)
+        // 14 panels × 500W = 7000W = 7.0 kW exactly
+        const panelWattage = 500 // Standard panel wattage
+        const numPanels = data.solarOverride?.numPanels ?? data.estimate?.system?.numPanels
+        let finalSystemSizeKw: number
+        if (numPanels && numPanels > 0) {
+          // Calculate directly from panel count: exact calculation, no rounding needed
+          // Always prefer panel count calculation to ensure exact values (14 panels = 7.0 kW)
+          finalSystemSizeKw = (numPanels * panelWattage) / 1000
+        } else {
+          // Fallback: use provided system size and round to nearest 0.5
+          const rawSystemSizeKw = data.solarOverride?.sizeKw ?? data.estimate?.system?.sizeKw ?? 0
+          finalSystemSizeKw = Math.round(rawSystemSizeKw * 2) / 2
+        }
+        
+        const finalEstimate = data.estimate ? {
+          ...data.estimate,
+          system: {
+            ...data.estimate.system,
+            // Override with calculated system size from exact panel count
+            sizeKw: finalSystemSizeKw,
+            numPanels: numPanels ?? data.estimate.system.numPanels,
+          }
+        } : data.estimate
+        
+        // Debug logging (remove after confirming fix)
+        console.log('💾 Storing calculator results:', {
+          numPanels: data.solarOverride?.numPanels,
+          calculatedFromPanels: data.solarOverride?.numPanels ? (data.solarOverride.numPanels * panelWattage) / 1000 : null,
+          finalSystemSizeKw,
+          solarOverrideSizeKw: data.solarOverride?.sizeKw,
+          estimateSystemSizeKw: data.estimate?.system?.sizeKw,
+          finalEstimateSystemSizeKw: finalEstimate?.system?.sizeKw,
+        })
+        
+        sessionStorage.setItem('calculatorResults', JSON.stringify({
+          estimate: finalEstimate,
+          leadData: {
+            firstName: formData.fullName?.split(' ')[0] || '',
+            lastName: formData.fullName?.split(' ').slice(1).join(' ') || '',
+            email: formData.email,
+            address: data.address,
+            province: data.province || 'ON',
+          },
+          batteryImpact: data.batteryDetails ? {
+            annualSavings: data.batteryDetails?.firstYearAnalysis?.totalSavings || 0,
+            monthlySavings: data.batteryDetails?.firstYearAnalysis?.totalSavings ? Math.round(data.batteryDetails.firstYearAnalysis.totalSavings / 12) : 0,
+            batterySizeKwh: data.batteryDetails?.battery?.nominalKwh || 0,
+          } : undefined,
+          selectedBattery: data.selectedBattery, // Store selected battery info
+          batteryDetails: data.batteryDetails, // Store full battery details
+          peakShaving: data.peakShaving,
+          solarRebate,
+          batteryRebate,
+          combinedTotalCost,
+          combinedNetCost,
+          displayPlan,
+          solarOverride: data.solarOverride, // Include solar override to match StepReview
+          // Additional data for comprehensive results summary
+          mapSnapshot: data.mapSnapshot,
+          roofData: {
+            roofAreaSqft: data.roofAreaSqft,
+            roofType: data.roofType,
+            roofPitch: data.roofPitch,
+            shadingLevel: data.shadingLevel,
+            roofAge: data.roofAge,
+            roofPolygon: data.roofPolygon,
+            roofSections: data.roofSections,
+          },
+          photos: data.photos,
+          photoSummary: data.photoSummary,
+          monthlyBill: data.monthlyBill,
+          energyUsage: data.energyUsage,
+          appliances: data.appliances,
+          addOns: data.addOns,
+          tou: data.peakShaving?.tou,
+          ulo: data.peakShaving?.ulo,
+        }))
+      }
+      
+      // Redirect to results page
+      router.push(`/results?leadId=${mockLeadId}`)
+      
+      // Also call onComplete for backward compatibility
+      onComplete({ ...formData, leadId: mockLeadId })
+
+      // Uncomment below when ready to connect to API:
+      /*
       const response = await fetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -72,6 +192,7 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
       setLeadId(result.data.leadId)
       setSubmitted(true)
       onComplete({ ...formData, leadId: result.data.leadId })
+      */
 
     } catch (error) {
       console.error('Submission error:', error)

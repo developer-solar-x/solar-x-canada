@@ -173,7 +173,7 @@ export function SystemSummaryCards({
           {formatKw(systemSizeKw)}
         </div>
         <div className="text-sm text-gray-600">Recommended System</div>
-        <div className="text-xs text-gray-500 mt-1">~{numPanels} solar panels</div>
+        <div className="text-xs text-gray-500 mt-1">{numPanels} solar panels</div>
         {selectedBattery && batteryDetails && (
           <div className="text-xs text-navy-500 font-semibold mt-2 flex items-center gap-1">
             <Zap size={12} />

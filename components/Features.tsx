@@ -7,27 +7,27 @@ export function Features() {
   const features = [
     {
       icon: Zap,
-      iconBg: 'bg-red-500',
-      title: '60-Second Estimates',
-      description: 'Advanced satellite imagery and AI-powered calculations deliver accurate solar potential instantly.',
+      iconBg: 'bg-maple-500',
+      title: 'Unbiased Calculator',
+      description: 'Trusted, neutral solar savings calculator with transparent data. No sales pressure, just honest estimates.',
     },
     {
       icon: Shield,
-      iconBg: 'bg-navy-500',
-      title: '100% Free, No Commitments',
-      description: 'Explore your solar options with zero pressure. No credit card required, ever.',
+      iconBg: 'bg-forest-500',
+      title: 'Vetted Installers',
+      description: 'All installers are carefully vetted for certifications, insurance, and experience. Quality guaranteed.',
     },
     {
       icon: MapPin,
-      iconBg: 'bg-blue-500',
-      title: 'Local Knowledge Matters',
-      description: 'We understand Ontario incentives, weather patterns, and regulations inside-out.',
+      iconBg: 'bg-sky-500',
+      title: 'Double Warranty',
+      description: 'Enjoy protection from both installer warranties and our platform guarantee for complete peace of mind.',
     },
     {
       icon: Users,
-      iconBg: 'bg-red-500',
-      title: 'White-Glove Service',
-      description: 'From estimate to installation to monitoring, we\'re with you every step.',
+      iconBg: 'bg-maple-500',
+      title: 'Consumer Protection',
+      description: 'Independent platform focused on your best interests. Transparent matching, no hidden fees.',
     },
   ]
 
@@ -36,10 +36,10 @@ export function Features() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Title block */}
         <div className="text-center mb-16 space-y-4">
-          <p className="eyebrow text-red-500">WHY GO SOLAR</p>
-          <h2 className="heading-lg">The Modern Way to Go Solar</h2>
+          <p className="eyebrow text-maple-500">WHY CHOOSE US</p>
+          <h2 className="heading-lg">Independent, Transparent, Trusted</h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            We've streamlined the solar journey from estimate to installation
+            An unbiased platform connecting Canadian homeowners with vetted solar installers
           </p>
         </div>
 
@@ -59,7 +59,7 @@ export function Features() {
               </div>
 
               {/* Title */}
-              <h3 className="text-xl font-bold text-navy-500 mb-3">
+              <h3 className="text-xl font-bold text-forest-500 mb-3">
                 {feature.title}
               </h3>
 
