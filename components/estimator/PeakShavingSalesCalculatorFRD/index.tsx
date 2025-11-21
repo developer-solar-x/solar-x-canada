@@ -421,6 +421,23 @@ function EnergyFlowDiagram({
             strokeDashoffset={-(solarSavings + batterySavings) * 5.65}
           />
           )}
+          
+          {/* Remaining (gray) - fills up to 100%, not shown in legend */}
+          {(() => {
+            const remainingPercent = 100 - totalBillSavings
+            return remainingPercent > 0 ? (
+              <circle
+                cx="100"
+                cy="100"
+                r="90"
+                fill="none"
+                stroke="#E2E8F0"
+                strokeWidth="20"
+                strokeDasharray={`${remainingPercent * 5.65} ${circumference}`}
+                strokeDashoffset={-(solarSavings + batterySavings + batteryLoadManagementTotal) * 5.65}
+              />
+            ) : null
+          })()}
         </svg>
         
         {/* Center text - Show "Total Bill Savings" */}
