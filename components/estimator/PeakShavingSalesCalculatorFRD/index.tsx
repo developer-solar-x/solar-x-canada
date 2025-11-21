@@ -400,7 +400,7 @@ function EnergyFlowDiagram({
           />
           )}
           
-          {/* Optimized Grid Purchase (blue) - drawn on top */}
+          {/* Grid After Optimization (blue) - drawn on top */}
           {optimizedGridPurchase > 0 && (
           <circle
             cx="100"
@@ -465,7 +465,7 @@ function EnergyFlowDiagram({
       
       {/* Savings components breakdown */}
       <div className="mt-4 pt-4 border-t border-gray-200">
-        <div className="text-xs font-semibold text-gray-600 mb-3 text-center">How You Save {totalBillSavings.toFixed(2)}%:</div>
+        <div className="text-xs font-semibold text-gray-600 mb-3 text-center">How You Saved {totalBillSavings.toFixed(2)}%:</div>
         <div className={`grid gap-3 ${selectedBatteryIds.length > 0 && batteryLoadManagementSavings > 0 ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-2'}`}>
           {/* Free energy from solar */}
           <div className="flex items-center gap-2">
@@ -476,23 +476,23 @@ function EnergyFlowDiagram({
             </div>
           </div>
           
-          {/* Optimized Grid Purchase */}
+          {/* Grid After Optimization */}
           {optimizedGridPurchase > 0 && (
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-blue-500"></div>
             <div className="text-xs">
-              <div className="font-semibold text-gray-700">Optimized Grid Purchase</div>
+              <div className="font-semibold text-gray-700">Grid After Optimization</div>
               <div className="text-xs text-gray-500">{optimizedGridPurchase.toFixed(2)}%</div>
             </div>
           </div>
           )}
           
-          {/* Battery Charged in Cheap hours */}
+          {/* Battery Charged at Cheap Hours */}
           {selectedBatteryIds.length > 0 && batteryLoadManagementSavings > 0 && (
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#F9A825' }}></div>
             <div className="text-xs">
-              <div className="font-semibold text-gray-700">Battery Charged in Cheap hours</div>
+              <div className="font-semibold text-gray-700">Battery Charged at Cheap Hours</div>
               <div className="text-xs text-gray-500">{batteryLoadManagementSavings.toFixed(2)}%</div>
             </div>
           </div>
