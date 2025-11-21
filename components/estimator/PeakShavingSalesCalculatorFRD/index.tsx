@@ -2688,7 +2688,7 @@ export function PeakShavingSalesCalculatorFRD({
                           <>
                         <li><strong>Battery (Solar-charged):</strong> Energy from battery charged by solar (free)</li>
                             {batteryGridChargedKwh > 0 && (
-                        <li><strong>Battery Charged at Cheap Rates:</strong> Energy from battery charged from grid at cheap rates via Battery Load Management</li>
+                        <li><strong>Battery Charged at Cheap Rates:</strong> Energy from battery charged from grid at cheap rates via AI EMC</li>
                             )}
                           </>
                         )}
