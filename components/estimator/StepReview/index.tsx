@@ -235,7 +235,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                   </div>
                   <div>
                     <div className="text-sm font-bold text-navy-600">Selected Battery</div>
-                    <div className="text-sm text-gray-700 font-semibold">{aggregatedBattery?.labels?.join(' + ')} • {aggregatedBattery?.usableKwh} kWh usable</div>
+                    <div className="text-sm text-gray-700 font-semibold">{aggregatedBattery?.labels?.join(' + ')}</div>
                   </div>
                 </div>
                 {selectedPlan && (
@@ -248,29 +248,33 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
           {/* 2x2 Grid Layout for Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Top Left: Interested Add-ons */}
-            {data.selectedAddOns && data.selectedAddOns.length > 0 ? (
-              <div className="card bg-blue-50 border border-blue-200 p-4">
-                <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-                  <span>Interested Add-ons</span>
+            <div className="card bg-blue-50 border border-blue-200 p-4">
+              <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                <span>Interested Add-ons</span>
+                {data.selectedAddOns && data.selectedAddOns.length > 0 && (
                   <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full">
                     {data.selectedAddOns.length}
                   </span>
-                </h3>
-                <ul className="text-sm text-blue-800 space-y-1">
-                  {data.selectedAddOns.map((addOnId: string) => (
-                    <li key={addOnId} className="flex items-center gap-2">
-                      <span className="text-blue-500">•</span>
-                      <span className="capitalize">{addOnId.replace(/_/g, ' ')}</span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="text-xs text-blue-600 mt-2">
-                  We'll include pricing for these in your custom quote
-                </p>
-              </div>
-            ) : (
-              <div></div>
-            )}
+                )}
+              </h3>
+              {data.selectedAddOns && data.selectedAddOns.length > 0 ? (
+                <>
+                  <ul className="text-sm text-blue-800 space-y-1">
+                    {data.selectedAddOns.map((addOnId: string) => (
+                      <li key={addOnId} className="flex items-center gap-2">
+                        <span className="text-blue-500">•</span>
+                        <span className="capitalize">{addOnId.replace(/_/g, ' ')}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-blue-600 mt-2">
+                    We'll include pricing for these in your custom quote
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-blue-700 italic">No add-ons selected</p>
+              )}
+            </div>
 
             {/* Top Right: Recommended System */}
             {/* Bottom Left: Total System Cost */}

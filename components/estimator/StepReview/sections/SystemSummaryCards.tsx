@@ -177,7 +177,7 @@ export function SystemSummaryCards({
         {selectedBattery && batteryDetails && (
           <div className="text-xs text-navy-500 font-semibold mt-2 flex items-center gap-1">
             <Zap size={12} />
-            + {batteryDetails.battery.brand} {batteryDetails.battery.usableKwh} kWh
+            + {batteryDetails.battery.brand} {batteryDetails.battery.model}
           </div>
         )}
       </div>
@@ -212,7 +212,7 @@ export function SystemSummaryCards({
               <div className="text-[11px] text-gray-500 mt-1">
                 Solar rebate: {formatCurrency(solarIncentives)} • Battery rebate: {formatCurrency(batteryProgramRebate)}
               </div>
-              <div className="text-[11px] text-gray-500">Battery: {batteryDetails?.battery?.brand ? `${batteryDetails?.battery?.brand} ${batteryDetails?.battery?.model}` : aggregatedBattery?.labels?.join(' + ')} ({batteryDetails?.battery?.usableKwh || aggregatedBattery?.usableKwh} kWh)</div>
+              <div className="text-[11px] text-gray-500">Battery: {batteryDetails?.battery?.brand ? `${batteryDetails?.battery?.brand} ${batteryDetails?.battery?.model}` : aggregatedBattery?.labels?.join(' + ')}</div>
             </>
           )}
         </div>
