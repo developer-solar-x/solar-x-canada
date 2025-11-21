@@ -24,6 +24,7 @@ export function useMapboxDrawing({
   const draw = useRef<MapboxDraw | null>(null)
   const marker = useRef<mapboxgl.Marker | null>(null)
   const onAreaCalculatedRef = useRef(onAreaCalculated)
+  const snapshotTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [currentArea, setCurrentArea] = useState<number | null>(null)
 
   // Update callback ref when it changes
@@ -281,6 +282,12 @@ export function useMapboxDrawing({
 
     // Calculate total area when polygons are drawn, updated, or deleted
     function updateArea() {
+      // Clear any pending snapshot capture
+      if (snapshotTimeoutRef.current) {
+        clearTimeout(snapshotTimeoutRef.current)
+        snapshotTimeoutRef.current = null
+      }
+      
       const data = draw.current!.getAll()
       
       if (data.features.length > 0) {
@@ -316,7 +323,7 @@ export function useMapboxDrawing({
         // Update draw with color properties
         draw.current!.set(data)
         
-        // Calculate total area of all polygons
+        // Calculate total area of all polygons - REAL-TIME UPDATE
         let totalAreaSqMeters = 0
         
         data.features.forEach((feature) => {
@@ -329,13 +336,17 @@ export function useMapboxDrawing({
         // Convert square meters to square feet
         const totalAreaSqFt = totalAreaSqMeters * 10.764
         
+        // Update area immediately (real-time) without waiting for snapshot
         setCurrentArea(totalAreaSqFt)
+        
+        // Call callback immediately with current data (no snapshot yet for real-time updates)
+        onAreaCalculatedRef.current(totalAreaSqFt, data, undefined)
         
         // Add angle labels
         addAngleLabels()
         
-        // Capture map snapshot for review - zoom to fit all drawn polygons
-        setTimeout(() => {
+        // Debounce snapshot capture - capture after user stops editing (separate from real-time area)
+        snapshotTimeoutRef.current = setTimeout(() => {
           if (map.current && data.features.length > 0) {
             // Calculate bounding box of all polygons
             const allCoordinates: number[][] = []
@@ -368,15 +379,15 @@ export function useMapboxDrawing({
                 if (map.current) {
                   const canvas = map.current.getCanvas()
                   const mapSnapshot = canvas.toDataURL('image/png')
-                  // Pass all features (multiple polygons) with angle data
+                  // Update with snapshot (final update)
                   onAreaCalculatedRef.current(totalAreaSqFt, data, mapSnapshot)
                 }
               }, 300)
             }
           }
-        }, 500) // Wait for drawing to complete
+        }, 1000) // Debounce snapshot capture to 1 second after last edit
       } else {
-        // No polygons left - clear everything
+        // No polygons left - clear everything immediately
         setCurrentArea(null)
         
         // Remove angle labels
@@ -385,6 +396,7 @@ export function useMapboxDrawing({
           map.current.removeSource('angle-labels')
         }
         
+        // Update immediately when deleted (no snapshot needed)
         onAreaCalculatedRef.current(0, { type: 'FeatureCollection', features: [] }, undefined)
       }
     }
@@ -425,18 +437,46 @@ export function useMapboxDrawing({
       }
     }
 
-    // Listen for drawing events
+    // Listen for drawing events - prevent default behavior to avoid page refreshes
     map.current.on('draw.create', updateArea)
     map.current.on('draw.update', updateArea)
     map.current.on('draw.delete', updateArea)
+    
+    // Also prevent any form submissions or navigation from map interactions
+    const preventRefresh = (e: Event) => {
+      if (e.type === 'submit' || (e.target as HTMLElement)?.tagName === 'FORM') {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
+    
+    if (mapContainer.current) {
+      mapContainer.current.addEventListener('submit', preventRefresh, true)
+    }
 
     // Cleanup on unmount
     return () => {
+      // Clear any pending snapshot timeout
+      if (snapshotTimeoutRef.current) {
+        clearTimeout(snapshotTimeoutRef.current)
+        snapshotTimeoutRef.current = null
+      }
+      
+      // Remove form submit listener
+      if (mapContainer.current) {
+        mapContainer.current.removeEventListener('submit', preventRefresh, true)
+      }
+      
       if (marker.current) {
         marker.current.remove()
         marker.current = null
       }
       if (map.current) {
+        // Remove event listeners
+        map.current.off('draw.create', updateArea)
+        map.current.off('draw.update', updateArea)
+        map.current.off('draw.delete', updateArea)
+        
         // Remove angle labels if they exist
         if (map.current?.getSource('angle-labels')) {
           map.current.removeLayer('angle-labels-layer')

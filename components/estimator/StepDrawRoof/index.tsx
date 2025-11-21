@@ -169,7 +169,9 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   }
 
   // Continue to next step
-  const handleContinue = () => {
+  const handleContinue = (e?: React.MouseEvent) => {
+    e?.preventDefault()
+    e?.stopPropagation()
     if (roofArea && roofPolygon) {
       onComplete({
         roofAreaSqft: roofArea,

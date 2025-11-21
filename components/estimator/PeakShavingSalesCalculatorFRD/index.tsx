@@ -364,6 +364,14 @@ function EnergyFlowDiagram({
   // This ensures: 87.21% + optimizedGridPurchase + batteryLoadManagementSavings = 94.51%
   const optimizedGridPurchase = Math.max(0, remainingSavings - batteryLoadManagementSavings)
   
+  // Calculate savings breakdown: Solar, Battery, and Battery Load Management
+  // Solar and Battery savings are proportional to their energy offsets
+  // Battery Load Management includes both battery charged at cheap hours and grid after optimization
+  const solarSavings = solarOffset // Solar contributes its energy offset as savings
+  const batterySavings = batteryOffset // Battery from solar capture only (solar-charged battery)
+  // Battery Load Management = Battery Charged at Cheap Hours + Grid After Optimization
+  const batteryLoadManagementTotal = batteryLoadManagementSavings + optimizedGridPurchase
+  
   return (
     <div className="p-4 bg-white rounded-xl border-2 border-gray-200 shadow-lg">
       {/* Title */}
@@ -372,22 +380,8 @@ function EnergyFlowDiagram({
       {/* Circular flow visualization - Donut Chart showing savings breakdown */}
       <div className="relative w-full max-w-xs mx-auto aspect-square">
         <svg viewBox="0 0 200 200" className="w-full h-full transform -rotate-90" style={{ overflow: 'visible' }}>
-          {/* Buy from Grid Cost (gray) - Base layer, drawn first so it appears underneath */}
-          {/* This represents the remaining cost (5.49%), not energy percentage */}
-          {costOfEnergyBoughtFromGrid > 0 && (
-          <circle
-            cx="100"
-            cy="100"
-            r="90"
-            fill="none"
-            stroke="#9CA3AF"
-            strokeWidth="20"
-            strokeDasharray={`${costOfEnergyBoughtFromGrid * 5.65} ${circumference}`}
-          />
-          )}
-          
-          {/* Free Energy (green) - Total Solar & Battery Offset - drawn on top */}
-          {totalEnergyOffset > 0 && (
+          {/* Solar (green) - drawn first */}
+          {solarSavings > 0 && (
           <circle
             cx="100"
             cy="100"
@@ -395,13 +389,13 @@ function EnergyFlowDiagram({
             fill="none"
             stroke="#34A853"
             strokeWidth="20"
-            strokeDasharray={`${totalEnergyOffset * 5.65} ${circumference}`}
-            strokeDashoffset={-costOfEnergyBoughtFromGrid * 5.65}
+            strokeDasharray={`${solarSavings * 5.65} ${circumference}`}
+            strokeDashoffset={0}
           />
           )}
           
-          {/* Grid After Optimization (blue) - drawn on top */}
-          {optimizedGridPurchase > 0 && (
+          {/* Battery (blue) - drawn on top */}
+          {batterySavings > 0 && (
           <circle
             cx="100"
             cy="100"
@@ -409,13 +403,13 @@ function EnergyFlowDiagram({
             fill="none"
             stroke="#1A73E8"
             strokeWidth="20"
-            strokeDasharray={`${optimizedGridPurchase * 5.65} ${circumference}`}
-            strokeDashoffset={-(costOfEnergyBoughtFromGrid + totalEnergyOffset) * 5.65}
+            strokeDasharray={`${batterySavings * 5.65} ${circumference}`}
+            strokeDashoffset={-solarSavings * 5.65}
           />
           )}
           
           {/* Battery Load Management (yellow/amber) - drawn on top */}
-          {batteryLoadManagementSavings > 0 && (
+          {batteryLoadManagementTotal > 0 && (
           <circle
             cx="100"
             cy="100"
@@ -423,8 +417,8 @@ function EnergyFlowDiagram({
             fill="none"
             stroke="#F9A825"
             strokeWidth="20"
-            strokeDasharray={`${batteryLoadManagementSavings * 5.65} ${circumference}`}
-            strokeDashoffset={-(costOfEnergyBoughtFromGrid + totalEnergyOffset + optimizedGridPurchase) * 5.65}
+            strokeDasharray={`${batteryLoadManagementTotal * 5.65} ${circumference}`}
+            strokeDashoffset={-(solarSavings + batterySavings) * 5.65}
           />
           )}
         </svg>
@@ -439,61 +433,40 @@ function EnergyFlowDiagram({
           </div>
         </div>
       </div>
-
-      {/* Legend - Primary energy sources (totals 100%) */}
-      <div className="grid gap-3 mt-6 grid-cols-2">
-        {/* Total Solar & Battery Offset - Free energy */}
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-full bg-green-500"></div>
-          <div className="text-sm">
-            <div className="font-semibold text-gray-700">Total Solar & Battery Offset</div>
-            <div className="text-xs text-gray-500">{totalEnergyOffset.toFixed(2)}%</div>
-            <div className="text-[10px] text-gray-400">Free energy from solar and stored solar battery</div>
-          </div>
-        </div>
-        
-        {/* Buy from Grid - Remaining energy purchased */}
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-full bg-gray-400"></div>
-          <div className="text-sm">
-            <div className="font-semibold text-gray-700">Buy from Grid</div>
-            <div className="text-xs text-gray-500">{boughtFromGrid.toFixed(2)}%</div>
-            <div className="text-[10px] text-gray-400">Annual % of leftover electricity purchased</div>
-          </div>
-        </div>
-      </div>
       
       {/* Savings components breakdown */}
       <div className="mt-4 pt-4 border-t border-gray-200">
         <div className="text-xs font-semibold text-gray-600 mb-3 text-center">How You Saved {totalBillSavings.toFixed(2)}%:</div>
-        <div className={`grid gap-3 ${selectedBatteryIds.length > 0 && batteryLoadManagementSavings > 0 ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-2'}`}>
-          {/* Free energy from solar */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Solar */}
+          {solarSavings > 0 && (
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-green-500"></div>
             <div className="text-xs">
-              <div className="font-semibold text-gray-700">Free Energy</div>
-              <div className="text-xs text-gray-500">{totalEnergyOffset.toFixed(2)}%</div>
-            </div>
-          </div>
-          
-          {/* Grid After Optimization */}
-          {optimizedGridPurchase > 0 && (
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-            <div className="text-xs">
-              <div className="font-semibold text-gray-700">Grid After Optimization</div>
-              <div className="text-xs text-gray-500">{optimizedGridPurchase.toFixed(2)}%</div>
+              <div className="font-semibold text-gray-700">Solar</div>
+              <div className="text-xs text-gray-500">{solarSavings.toFixed(2)}%</div>
             </div>
           </div>
           )}
           
-          {/* Battery Charged at Cheap Hours */}
-          {selectedBatteryIds.length > 0 && batteryLoadManagementSavings > 0 && (
+          {/* Battery */}
+          {batterySavings > 0 && (
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+            <div className="text-xs">
+              <div className="font-semibold text-gray-700">Battery</div>
+              <div className="text-xs text-gray-500">{batterySavings.toFixed(2)}%</div>
+            </div>
+          </div>
+          )}
+          
+          {/* Battery Load Management */}
+          {selectedBatteryIds.length > 0 && batteryLoadManagementTotal > 0 && (
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#F9A825' }}></div>
             <div className="text-xs">
-              <div className="font-semibold text-gray-700">Battery Charged at Cheap Hours</div>
-              <div className="text-xs text-gray-500">{batteryLoadManagementSavings.toFixed(2)}%</div>
+              <div className="font-semibold text-gray-700">Battery Load Management</div>
+              <div className="text-xs text-gray-500">{batteryLoadManagementTotal.toFixed(2)}%</div>
             </div>
           </div>
           )}
