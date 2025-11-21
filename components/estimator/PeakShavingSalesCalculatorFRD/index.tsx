@@ -2688,11 +2688,11 @@ export function PeakShavingSalesCalculatorFRD({
                           <>
                         <li><strong>Battery (Solar-charged):</strong> Energy from battery charged by solar (free)</li>
                             {batteryGridChargedKwh > 0 && (
-                        <li><strong>Battery Optimization:</strong> Energy from battery charged from grid at cheap rates via Battery Load Management</li>
+                        <li><strong>Battery Charged at Cheap Rates:</strong> Energy from battery charged from grid at cheap rates via Battery Load Management</li>
                             )}
                           </>
                         )}
-                        <li><strong>Remaining Grid After Optimization:</strong> Grid usage remaining after solar and battery optimization</li>
+                        <li><strong>Optimized Grid Usage:</strong> Grid usage remaining after solar and battery optimization, purchased at cheapest available rates</li>
                       </ul>
                     </div>
                     <table className="w-full">
@@ -2726,7 +2726,7 @@ export function PeakShavingSalesCalculatorFRD({
                         </tr>
                         {batteryGridChargedKwh > 0 && (
                           <tr>
-                            <td className="py-3 px-4 text-gray-700">Battery Optimization</td>
+                            <td className="py-3 px-4 text-gray-700">Battery Charged at Cheap Rates</td>
                             <td className="py-3 px-4 text-right text-gray-600">
                               {batteryGridChargedKwh.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
@@ -2738,7 +2738,7 @@ export function PeakShavingSalesCalculatorFRD({
                           </>
                         )}
                         <tr className="bg-gray-50">
-                          <td className="py-3 px-4 font-semibold text-gray-800">Remaining Grid After Optimization</td>
+                          <td className="py-3 px-4 font-semibold text-gray-800">Optimized Grid Usage</td>
                           <td className="py-3 px-4 text-right font-semibold text-gray-600">
                             {gridRemainingKwh.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
