@@ -17,7 +17,8 @@ import {
   Lightbulb,
   CheckCircle,
   ArrowRight,
-  Leaf
+  Leaf,
+  Clock
 } from 'lucide-react'
 import { formatCurrency, formatKw, formatKwh } from '@/lib/utils'
 import { computeSolarBatteryOffsetCap } from '@/lib/peak-shaving/offset-cap'
@@ -133,14 +134,16 @@ export function ResultsPage({
   tou,
   ulo,
   onMatchInstaller,
-  onExportPDF 
-}: ResultsPageProps) {
+  onExportPDF,
+  ...data // Accept additional data props (including touBeforeAfter, uloBeforeAfter, annualEscalator)
+}: ResultsPageProps & { [key: string]: any }) {
   const [showFeedbackForm, setShowFeedbackForm] = useState(false)
   const [installerMatchRequested, setInstallerMatchRequested] = useState(false)
   const [imageModalOpen, setImageModalOpen] = useState(false)
   const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string; title: string } | null>(null)
   const [isMobile, setIsMobile] = useState(false)
   const [activeSummaryTab, setActiveSummaryTab] = useState<'overview' | 'savings' | 'environmental'>('overview')
+  const [copyButtonText, setCopyButtonText] = useState('Copy Link')
   
   // Mobile detection
   useEffect(() => {
@@ -194,20 +197,45 @@ export function ResultsPage({
   // Determine which rate plan is being used (TOU or ULO) - needed for battery capture
   const ratePlanForOffset = displayPlan || peakShaving?.ratePlan || 'tou'
   
-  // Get solar production and battery solar capture
-  const solarProduction = estimate?.production?.annualKwh || 0
-  
-  // Get battery solar capture from the appropriate rate plan
+  // Get total offset percentage from saved data (matches Step 4 display)
+  // This is the capped percentage calculated in Step 4 (e.g., 85.64%)
   // Check direct tou/ulo props first, then peakShaving structure
+  let percentageOffset = 0
+  
+  if (ratePlanForOffset === 'ulo') {
+    // Get from ULO plan
+    if (ulo?.totalOffset !== undefined && typeof ulo.totalOffset === 'number') {
+      // totalOffset is already a percentage from Step 4
+      percentageOffset = Math.round(ulo.totalOffset)
+    } else if (peakShaving?.ulo?.result?.offsetPercentages) {
+      // Calculate from offsetPercentages if available
+      const solarDirect = peakShaving.ulo.result.offsetPercentages.solarDirect || 0
+      const solarChargedBattery = peakShaving.ulo.result.offsetPercentages.solarChargedBattery || 0
+      percentageOffset = Math.round(solarDirect + solarChargedBattery)
+    }
+  } else {
+    // Get from TOU plan
+    if (tou?.totalOffset !== undefined && typeof tou.totalOffset === 'number') {
+      // totalOffset is already a percentage from Step 4
+      percentageOffset = Math.round(tou.totalOffset)
+    } else if (peakShaving?.tou?.result?.offsetPercentages) {
+      // Calculate from offsetPercentages if available
+      const solarDirect = peakShaving.tou.result.offsetPercentages.solarDirect || 0
+      const solarChargedBattery = peakShaving.tou.result.offsetPercentages.solarChargedBattery || 0
+      percentageOffset = Math.round(solarDirect + solarChargedBattery)
+    }
+  }
+  
+  // Fallback: calculate from solar production and battery capture if percentage not available
+  if (percentageOffset === 0) {
+    const solarProduction = estimate?.production?.annualKwh || 0
   const batterySolarCapture = ratePlanForOffset === 'ulo' 
     ? (ulo?.batterySolarCapture ?? peakShaving?.ulo?.batterySolarCapture ?? 0)
     : (tou?.batterySolarCapture ?? peakShaving?.tou?.batterySolarCapture ?? 0)
   
-  // Calculate energy offset: (solar + battery solar capture) / annual usage * 100
   const totalEnergyOffset = solarProduction + batterySolarCapture
   
   // Calculate offset cap to account for winter limits (same as PeakShavingSalesCalculatorFRD)
-  // Get roof azimuth from estimate or roofData, default to 180 (south-facing)
   const roofAzimuth = (estimate as any)?.roof?.azimuth ?? 
                       (roofData as any)?.roofAzimuth ?? 
                       ((roofData?.roofPolygon?.features?.[0]?.properties as any)?.azimuth) ??
@@ -230,15 +258,17 @@ export function ResultsPage({
   
   // Apply offset cap (typically 90-93% to reflect winter limits)
   const cappedPercentage = Math.min(uncappedPercentage, offsetCapInfo.capFraction * 100)
-  const percentageOffset = Math.round(cappedPercentage)
+    percentageOffset = Math.round(cappedPercentage)
+  }
   
   // Calculate monthly production average
   const avgMonthlyProduction = estimate?.production?.annualKwh ? estimate.production.annualKwh / 12 : 0
 
   // Determine which rate plan is being used (TOU or ULO)
   const ratePlan = displayPlan || peakShaving?.ratePlan || 'tou'
-  const touData = peakShaving?.tou
-  const uloData = peakShaving?.ulo
+  // For easy mode, tou/ulo props have the data directly; for detailed mode, it's in peakShaving
+  const touData = tou || peakShaving?.tou
+  const uloData = ulo || peakShaving?.ulo
   
   // Get rebate amounts (use provided values or calculate from estimate)
   const solarRebateAmount = solarRebate ?? estimate?.costs?.incentives ?? 0
@@ -249,68 +279,204 @@ export function ResultsPage({
   const finalTotalCost = combinedTotalCost ?? estimate?.costs?.totalCost ?? 0
   const finalNetCost = combinedNetCost ?? estimate?.costs?.netCost ?? 0
   
-  // Get combined savings from TOU/ULO if available, otherwise use estimate savings
-  const getCombinedAnnual = (plan: any) =>
-    plan?.allResults?.combined?.combined?.annual ||
-    plan?.allResults?.combined?.annual ||
-    plan?.combined?.annual ||
-    null
+  // Get touBeforeAfter and uloBeforeAfter from data (same as StepReview)
+  // These are pre-calculated in step 4 and should be used directly
+  // Also check tou/ulo props directly for beforeSolar/afterSolar (for easy mode)
+  const touBeforeAfter = (peakShaving as any)?.touBeforeAfter || 
+                        (data as any)?.touBeforeAfter || 
+                        (tou?.beforeSolar !== undefined && tou?.afterSolar !== undefined ? {
+                          before: tou.beforeSolar,
+                          after: tou.afterSolar,
+                          savings: tou.beforeSolar - tou.afterSolar
+                        } : null)
+  const uloBeforeAfter = (peakShaving as any)?.uloBeforeAfter || 
+                        (data as any)?.uloBeforeAfter || 
+                        (ulo?.beforeSolar !== undefined && ulo?.afterSolar !== undefined ? {
+                          before: ulo.beforeSolar,
+                          after: ulo.afterSolar,
+                          savings: ulo.beforeSolar - ulo.afterSolar
+                        } : null)
   
-  const getCombinedMonthly = (plan: any) =>
-    plan?.allResults?.combined?.combined?.monthly ||
-    plan?.allResults?.combined?.monthly ||
-    plan?.combined?.monthly ||
-    null
+  // Calculate annual savings from touBeforeAfter/uloBeforeAfter (same as StepReview)
+  // StepReview calculates: touSavings = touBefore - touAfter
+  const touCombinedAnnual = touBeforeAfter && touBeforeAfter.before > 0 && touBeforeAfter.after >= 0
+    ? touBeforeAfter.before - touBeforeAfter.after
+    : (() => {
+        // Check tou prop directly (for easy mode)
+        if (tou?.beforeSolar !== undefined && tou?.afterSolar !== undefined && tou.beforeSolar > 0 && tou.afterSolar >= 0) {
+          return tou.beforeSolar - tou.afterSolar
+        }
+        
+        // Fallback: try to get from nested structure
+        const combined = touData?.allResults?.combined?.combined || 
+                        touData?.allResults?.combined || 
+                        touData?.combined?.combined ||
+                        touData?.combined ||
+                        tou?.combined?.combined ||
+                        tou?.combined
+        
+        if (!combined) return null
+        
+        const before = combined.baselineAnnualBill || combined.baselineAnnualBillEnergyOnly || tou?.beforeSolar || 0
+        const after = combined.postSolarBatteryAnnualBill || combined.postSolarBatteryAnnualBillEnergyOnly || tou?.afterSolar || 0
+        
+        if (before > 0 && after >= 0) {
+          return before - after
+        }
+        
+        return combined.annual || combined.combinedAnnualSavings || tou?.savings || null
+      })()
   
-  const touCombinedAnnual = getCombinedAnnual(touData)
-  const uloCombinedAnnual = getCombinedAnnual(uloData)
-  const touCombinedMonthly = getCombinedMonthly(touData)
-  const uloCombinedMonthly = getCombinedMonthly(uloData)
+  const uloCombinedAnnual = uloBeforeAfter && uloBeforeAfter.before > 0 && uloBeforeAfter.after >= 0
+    ? uloBeforeAfter.before - uloBeforeAfter.after
+    : (() => {
+        // Check ulo prop directly (for easy mode)
+        if (ulo?.beforeSolar !== undefined && ulo?.afterSolar !== undefined && ulo.beforeSolar > 0 && ulo.afterSolar >= 0) {
+          return ulo.beforeSolar - ulo.afterSolar
+        }
+        
+        // Fallback: try to get from nested structure
+        const combined = uloData?.allResults?.combined?.combined || 
+                        uloData?.allResults?.combined || 
+                        uloData?.combined?.combined ||
+                        uloData?.combined ||
+                        ulo?.combined?.combined ||
+                        ulo?.combined
+        
+        if (!combined) return null
   
-  // Get total bill savings percentage for both plans
-  const getTotalBillSavingsPercent = (plan: any, directPlan: any) => {
-    // First try to get from direct plan props (simplified data structure)
-    if (directPlan?.totalBillSavingsPercent !== undefined) return directPlan.totalBillSavingsPercent
+        const before = combined.baselineAnnualBill || combined.baselineAnnualBillEnergyOnly || ulo?.beforeSolar || 0
+        const after = combined.postSolarBatteryAnnualBill || combined.postSolarBatteryAnnualBillEnergyOnly || ulo?.afterSolar || 0
+        
+        if (before > 0 && after >= 0) {
+          return before - after
+        }
+        
+        return combined.annual || combined.combinedAnnualSavings || ulo?.savings || null
+      })()
+  
+  const touCombinedMonthly = touCombinedAnnual !== null ? touCombinedAnnual / 12 : null
+  const uloCombinedMonthly = uloCombinedAnnual !== null ? uloCombinedAnnual / 12 : null
+  
+  // Calculate total bill savings percentage from touBeforeAfter/uloBeforeAfter (same as StepReview)
+  // StepReview calculates: (before - after) / before * 100
+  const touBillSavingsPercent = touBeforeAfter && touBeforeAfter.before > 0
+    ? ((touBeforeAfter.before - touBeforeAfter.after) / touBeforeAfter.before) * 100
+    : (() => {
+        // Check tou prop directly first (for easy mode)
+        if (tou?.beforeSolar !== undefined && tou?.afterSolar !== undefined && tou.beforeSolar > 0) {
+          return ((tou.beforeSolar - tou.afterSolar) / tou.beforeSolar) * 100
+        }
     
-    // Then try to get from plan data (nested structure)
-    if (plan?.totalBillSavingsPercent !== undefined) return plan.totalBillSavingsPercent
+        // Fallback: calculate from nested structure
+        const beforeSolar = touData?.combined?.baselineAnnualBill || 
+                           touData?.combined?.combined?.baselineAnnualBill ||
+                           touData?.allResults?.combined?.combined?.baselineAnnualBill ||
+                           tou?.combined?.combined?.baselineAnnualBill ||
+                           tou?.combined?.baselineAnnualBill ||
+                           tou?.beforeSolar ||
+                           0
+        const afterSolar = touData?.combined?.postSolarBatteryAnnualBill || 
+                          touData?.combined?.combined?.postSolarBatteryAnnualBill ||
+                          touData?.combined?.postSolarAnnualBill ||
+                          touData?.allResults?.combined?.combined?.postSolarBatteryAnnualBill ||
+                          tou?.combined?.combined?.postSolarBatteryAnnualBill ||
+                          tou?.combined?.postSolarBatteryAnnualBill ||
+                          tou?.afterSolar ||
+                          0
     
-    // Calculate from before/after if available
-    const beforeSolar = plan?.combined?.baselineAnnualBill || 
-                       plan?.allResults?.combined?.combined?.baselineAnnualBill ||
-                       directPlan?.beforeSolar
-    const afterSolar = plan?.combined?.postSolarBatteryAnnualBill || 
-                      plan?.combined?.postSolarAnnualBill ||
-                      plan?.allResults?.combined?.combined?.postSolarBatteryAnnualBill ||
-                      directPlan?.afterSolar
-    
-    if (beforeSolar && afterSolar && beforeSolar > 0) {
+        if (beforeSolar > 0 && afterSolar >= 0) {
       return ((beforeSolar - afterSolar) / beforeSolar) * 100
     }
+        
+        if (tou?.totalBillSavingsPercent !== undefined) return tou.totalBillSavingsPercent
     return null
-  }
+      })()
   
-  const touBillSavingsPercent = getTotalBillSavingsPercent(touData, tou)
-  const uloBillSavingsPercent = getTotalBillSavingsPercent(uloData, ulo)
-  
-  // Get 25-year savings/profit for both plans
-  const get25YearSavings = (plan: any, directPlan: any, annualSavings: number | null) => {
-    // First try to get from direct plan props (simplified data structure)
-    if (directPlan?.profit25Year !== undefined && directPlan.profit25Year > 0) return directPlan.profit25Year
+  const uloBillSavingsPercent = uloBeforeAfter && uloBeforeAfter.before > 0
+    ? ((uloBeforeAfter.before - uloBeforeAfter.after) / uloBeforeAfter.before) * 100
+    : (() => {
+        // Check ulo prop directly first (for easy mode)
+        if (ulo?.beforeSolar !== undefined && ulo?.afterSolar !== undefined && ulo.beforeSolar > 0) {
+          return ((ulo.beforeSolar - ulo.afterSolar) / ulo.beforeSolar) * 100
+        }
+        
+        // Fallback: calculate from nested structure
+        const beforeSolar = uloData?.combined?.baselineAnnualBill || 
+                           uloData?.combined?.combined?.baselineAnnualBill ||
+                           uloData?.allResults?.combined?.combined?.baselineAnnualBill ||
+                           ulo?.combined?.combined?.baselineAnnualBill ||
+                           ulo?.combined?.baselineAnnualBill ||
+                           ulo?.beforeSolar ||
+                           0
+        const afterSolar = uloData?.combined?.postSolarBatteryAnnualBill || 
+                          uloData?.combined?.combined?.postSolarBatteryAnnualBill ||
+                          uloData?.combined?.postSolarAnnualBill ||
+                          uloData?.allResults?.combined?.combined?.postSolarBatteryAnnualBill ||
+                          ulo?.combined?.combined?.postSolarBatteryAnnualBill ||
+                          ulo?.combined?.postSolarBatteryAnnualBill ||
+                          ulo?.afterSolar ||
+                          0
+        
+        if (beforeSolar > 0 && afterSolar >= 0) {
+          return ((beforeSolar - afterSolar) / beforeSolar) * 100
+        }
+        
+        if (ulo?.totalBillSavingsPercent !== undefined) return ulo.totalBillSavingsPercent
+        return null
+      })()
+
+  // Get net costs for TOU and ULO (needed for 25-year profit calculation)
+  const touCombinedNet = (peakShaving as any)?.tou?.combined?.netCost ?? 
+                        (peakShaving as any)?.tou?.allResults?.combined?.combined?.netCost ??
+                        finalNetCost
+  const uloCombinedNet = (peakShaving as any)?.ulo?.combined?.netCost ?? 
+                        (peakShaving as any)?.ulo?.allResults?.combined?.combined?.netCost ??
+                        finalNetCost
+
+  // Get annual escalator (default to 4.5% if not provided)
+  const annualEscalator = (data as any)?.annualEscalator ?? 4.5
+  const escalation = annualEscalator / 100 // Convert percentage to decimal
+
+  // Get 25-year profit for both plans - calculate same way as SavingsTab
+  // Always calculate to ensure it matches the Complete Estimate Summary
+  const get25YearProfit = (plan: any, directPlan: any, annualSavings: number | null, netCost: number) => {
+    // Always calculate same way as SavingsTab: cumulative savings over 25 years with escalation, minus net cost
+    // This ensures consistency with the Complete Estimate Summary
+    if (annualSavings && annualSavings > 0 && netCost > 0) {
+      let cumulativeSavings = 0
+      for (let year = 1; year <= 25; year++) {
+        const yearSavings = annualSavings * Math.pow(1 + escalation, year - 1)
+        cumulativeSavings += yearSavings
+      }
+      // Profit = cumulative savings - net investment (same as SavingsTab)
+      return cumulativeSavings - netCost
+    }
     
-    // Then try to get from plan data (nested structure)
+    // Fallback: try to get from stored values only if calculation is not possible
+    if (directPlan?.profit25Year !== undefined && directPlan.profit25Year > 0) return directPlan.profit25Year
     if (plan?.combined?.projection?.netProfit25Year !== undefined) return plan.combined.projection.netProfit25Year
     if (plan?.allResults?.combined?.combined?.projection?.netProfit25Year !== undefined) return plan.allResults.combined.combined.projection.netProfit25Year
     
-    // Fallback: calculate from annual savings
-    if (annualSavings && annualSavings > 0) {
-      return annualSavings * 25
-    }
     return null
   }
   
-  const tou25YearSavings = get25YearSavings(touData, tou, touCombinedAnnual)
-  const ulo25YearSavings = get25YearSavings(uloData, ulo, uloCombinedAnnual)
+  const tou25YearSavings = get25YearProfit(touData, tou, touCombinedAnnual, touCombinedNet)
+  const ulo25YearSavings = get25YearProfit(uloData, ulo, uloCombinedAnnual, uloCombinedNet)
+  
+  // Debug logging to verify calculation
+  console.log('🔍 25-Year Profit Calculation:', {
+    touCombinedAnnual,
+    touCombinedNet,
+    tou25YearSavings,
+    uloCombinedAnnual,
+    uloCombinedNet,
+    ulo25YearSavings,
+    escalation,
+    annualEscalator,
+    touProfit25Year: tou?.profit25Year,
+    uloProfit25Year: ulo?.profit25Year,
+  })
   
   // Calculate lifetime savings (25 years) - use best plan or fallback
   const lifetimeSavings = tou25YearSavings !== null && ulo25YearSavings !== null
@@ -330,25 +496,48 @@ export function ResultsPage({
     ? touCombinedMonthly 
     : (batteryImpact?.monthlySavings && estimate?.savings?.monthlySavings ? estimate.savings.monthlySavings + batteryImpact.monthlySavings : (estimate?.savings?.monthlySavings ?? 0))
   
-  // Get payback period from data if available, otherwise calculate
-  const getPaybackYears = (plan: any, directPlan: any, annualSavings: number | null) => {
-    // First try to get from direct plan props (simplified data structure)
-    if (directPlan?.paybackPeriod !== undefined && directPlan.paybackPeriod > 0) return directPlan.paybackPeriod
-    
-    // Then try to get from plan data (nested structure)
-    if (plan?.paybackPeriod !== undefined && plan.paybackPeriod > 0) return plan.paybackPeriod
-    if (plan?.combined?.projection?.paybackYears !== undefined) return plan.combined.projection.paybackYears
-    if (plan?.allResults?.combined?.combined?.projection?.paybackYears !== undefined) return plan.allResults.combined.combined.projection.paybackYears
-    
-    // Fallback: calculate from net cost and annual savings
-    if (finalNetCost > 0 && annualSavings && annualSavings > 0) {
-      return finalNetCost / annualSavings
+  // Calculate payback period using same logic as StepReview
+  // StepReview uses calculatePayback which accumulates savings year by year with escalation
+  
+  // Calculate payback using same function as StepReview
+  const calculatePayback = (firstYearSavings: number, netCost: number, escalationRate: number): number => {
+    if (netCost <= 0 || firstYearSavings <= 0) return 0
+    let cumulativeSavings = 0
+    for (let year = 1; year <= 25; year++) {
+      const yearSavings = firstYearSavings * Math.pow(1 + escalationRate, year - 1)
+      cumulativeSavings += yearSavings
+      if (cumulativeSavings >= netCost) {
+        // Interpolate to get fractional year
+        const prevYearSavings = year > 1 ? firstYearSavings * Math.pow(1 + escalationRate, year - 2) : 0
+        const prevCumulative = cumulativeSavings - yearSavings
+        const remaining = netCost - prevCumulative
+        const fraction = remaining / yearSavings
+        return (year - 1) + fraction
+      }
     }
-    return null
+    return Infinity
   }
   
-  const touPaybackYears = getPaybackYears(touData, tou, touCombinedAnnual)
-  const uloPaybackYears = getPaybackYears(uloData, ulo, uloCombinedAnnual)
+  // Calculate payback for both plans
+  const touPaybackYears = touCombinedAnnual !== null && touCombinedAnnual > 0
+    ? calculatePayback(touCombinedAnnual, touCombinedNet, escalation)
+    : (() => {
+        // Fallback: try to get from stored value
+        if (tou?.paybackPeriod !== undefined && tou.paybackPeriod > 0) return tou.paybackPeriod
+        if (touData?.combined?.projection?.paybackYears !== undefined) return touData.combined.projection.paybackYears
+        if (touData?.allResults?.combined?.combined?.projection?.paybackYears !== undefined) return touData.allResults.combined.combined.projection.paybackYears
+        return null
+      })()
+  
+  const uloPaybackYears = uloCombinedAnnual !== null && uloCombinedAnnual > 0
+    ? calculatePayback(uloCombinedAnnual, uloCombinedNet, escalation)
+    : (() => {
+        // Fallback: try to get from stored value
+        if (ulo?.paybackPeriod !== undefined && ulo.paybackPeriod > 0) return ulo.paybackPeriod
+        if (uloData?.combined?.projection?.paybackYears !== undefined) return uloData.combined.projection.paybackYears
+        if (uloData?.allResults?.combined?.combined?.projection?.paybackYears !== undefined) return uloData.allResults.combined.combined.projection.paybackYears
+        return null
+      })()
   
   // Use the selected plan's payback, or fallback to estimate
   const finalPaybackYears = ratePlan === 'ulo' && uloPaybackYears !== null
@@ -377,7 +566,8 @@ export function ResultsPage({
   }
 
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen bg-white flex flex-col">
+      <div className="flex-1 flex flex-col">
       <Header />
 
       {/* Hero Section */}
@@ -388,89 +578,137 @@ export function ResultsPage({
               Your Solar Savings Results
             </h1>
             {leadData?.address && (
-              <p className="text-xl text-white/90">
+              <p className="text-xl text-white/90 mb-4">
                 {leadData.address}
               </p>
             )}
+            {/* Tracking ID Display */}
+            {typeof window !== 'undefined' && (() => {
+              const urlParams = new URLSearchParams(window.location.search)
+              const leadId = urlParams.get('leadId')
+              return leadId ? (
+                <div className="mt-6 flex flex-col items-center gap-4">
+                  <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+                    <span className="text-sm text-white/80 font-medium">Tracking ID:</span>
+                    <code className="text-sm font-mono font-bold text-white bg-white/20 px-3 py-1 rounded">
+                      {leadId}
+                    </code>
+                    <button
+                      onClick={async () => {
+                        const trackingUrl = `https://solarclaculatorcanada.org/track/${leadId}`
+                        try {
+                          await navigator.clipboard.writeText(trackingUrl)
+                          // Show temporary success message
+                          setCopyButtonText('✓ Copied!')
+                          setTimeout(() => {
+                            setCopyButtonText('Copy Link')
+                          }, 2000)
+                        } catch (err) {
+                          console.error('Failed to copy:', err)
+                        }
+                      }}
+                      className={`text-xs px-3 py-1 rounded transition-colors font-medium ${
+                        copyButtonText === '✓ Copied!' 
+                          ? 'bg-green-500 text-white' 
+                          : 'bg-white/20 hover:bg-white/30 text-white'
+                      }`}
+                      title="Copy tracking link"
+                    >
+                      {copyButtonText}
+                    </button>
+                  </div>
+                  <Link
+                    href={`/track/${leadId}`}
+                    className="inline-flex items-center gap-2 bg-white text-forest-600 hover:bg-white/90 px-6 py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl"
+                  >
+                    <ArrowRight className="rotate-[-45deg]" size={18} />
+                    Track My Estimate
+                  </Link>
+                </div>
+              ) : null
+            })()}
           </div>
         </div>
       </section>
 
       {/* Key Metrics Section */}
-      <section className="py-12 bg-white border-b border-gray-200">
+      <section className="py-16 bg-gradient-to-b from-white via-gray-50 to-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-6">
             {/* System Size */}
-            <div className="bg-forest-50 rounded-xl p-6 text-center border border-forest-100">
-              <div className="w-12 h-12 bg-forest-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                <Zap className="text-white" size={24} />
+            <div className="bg-gradient-to-br from-forest-50 to-forest-100 rounded-2xl p-6 text-center border-2 border-forest-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <div className="w-14 h-14 bg-gradient-to-br from-forest-500 to-forest-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+                <Zap className="text-white" size={26} />
               </div>
-              <div className="text-3xl font-bold text-forest-600 mb-1">
+              <div className="text-4xl font-bold text-forest-700 mb-2">
                 {formatKw(systemSizeKw)}
               </div>
-              <div className="text-sm text-gray-600 font-medium">
+              <div className="text-sm text-gray-700 font-semibold">
                 System Size
               </div>
-              <div className="text-xs text-gray-500 mt-1">
+              <div className="text-xs text-gray-600 mt-2 font-medium">
                 {numPanels} panels
               </div>
             </div>
 
             {/* Percentage Offset */}
-            <div className="bg-sky-50 rounded-xl p-6 text-center border border-sky-100">
-              <div className="w-12 h-12 bg-sky-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                <TrendingUp className="text-white" size={24} />
+            <div className="bg-gradient-to-br from-sky-50 to-sky-100 rounded-2xl p-6 text-center border-2 border-sky-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <div className="w-14 h-14 bg-gradient-to-br from-sky-500 to-sky-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+                <TrendingUp className="text-white" size={26} />
               </div>
-              <div className="text-3xl font-bold text-sky-600 mb-1">
+              <div className="text-4xl font-bold text-sky-700 mb-2">
                 {percentageOffset}%
               </div>
-              <div className="text-sm text-gray-600 font-medium">
+              <div className="text-sm text-gray-700 font-semibold">
                 Energy Offset
               </div>
-              <div className="text-xs text-gray-500 mt-1">
+              <div className="text-xs text-gray-600 mt-2 font-medium">
                 of your usage
               </div>
             </div>
 
             {/* Total Bill Savings - Show both plans if available */}
-            <div className="bg-purple-50 rounded-xl p-6 text-center border border-purple-100">
-              <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                <DollarSign className="text-white" size={24} />
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-6 text-center border-2 border-purple-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+                <DollarSign className="text-white" size={26} />
               </div>
               {touBillSavingsPercent !== null && uloBillSavingsPercent !== null ? (
                 <>
-                  <div className="text-3xl font-bold text-purple-600 mb-1">
-                    {Math.max(touBillSavingsPercent, uloBillSavingsPercent).toFixed(1)}%
-                  </div>
-                  <div className="text-sm text-gray-600 font-medium mb-1">
+                  <div className="text-sm text-gray-700 font-semibold mb-3">
                     Total Bill Savings
                   </div>
-                  <div className="text-xs text-gray-500 space-y-0.5">
-                    <div>TOU: {touBillSavingsPercent.toFixed(1)}%</div>
-                    <div>ULO: {uloBillSavingsPercent.toFixed(1)}%</div>
+                  <div className="text-xs text-gray-600 space-y-2">
+                    <div className="flex items-center justify-between bg-white/60 rounded-lg px-3 py-2">
+                      <span className="font-medium">TOU:</span>
+                      <span className="text-xl font-bold text-purple-700">{touBillSavingsPercent.toFixed(1)}%</span>
+                    </div>
+                    <div className="flex items-center justify-between bg-white/60 rounded-lg px-3 py-2">
+                      <span className="font-medium">ULO:</span>
+                      <span className="text-xl font-bold text-purple-700">{uloBillSavingsPercent.toFixed(1)}%</span>
+                    </div>
                   </div>
                 </>
               ) : touBillSavingsPercent !== null ? (
                 <>
-                  <div className="text-3xl font-bold text-purple-600 mb-1">
+                  <div className="text-4xl font-bold text-purple-700 mb-2">
                     {touBillSavingsPercent.toFixed(1)}%
                   </div>
-                  <div className="text-sm text-gray-600 font-medium">
+                  <div className="text-sm text-gray-700 font-semibold">
                     Total Bill Savings
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-gray-600 mt-2 font-medium">
                     TOU Plan
                   </div>
                 </>
               ) : uloBillSavingsPercent !== null ? (
                 <>
-                  <div className="text-3xl font-bold text-purple-600 mb-1">
+                  <div className="text-4xl font-bold text-purple-700 mb-2">
                     {uloBillSavingsPercent.toFixed(1)}%
                   </div>
-                  <div className="text-sm text-gray-600 font-medium">
+                  <div className="text-sm text-gray-700 font-semibold">
                     Total Bill Savings
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-gray-600 mt-2 font-medium">
                     ULO Plan
                   </div>
                 </>
@@ -478,72 +716,93 @@ export function ResultsPage({
             </div>
 
             {/* Payback Period - Show both plans if available */}
-            <div className="bg-maple-50 rounded-xl p-6 text-center border border-maple-100">
-              <div className="w-12 h-12 bg-maple-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                <DollarSign className="text-white" size={24} />
+            <div className="bg-gradient-to-br from-maple-50 to-maple-100 rounded-2xl p-6 text-center border-2 border-maple-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <div className="w-14 h-14 bg-gradient-to-br from-maple-500 to-maple-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+                <Clock className="text-white" size={26} />
               </div>
               {touPaybackYears !== null && uloPaybackYears !== null ? (
                 <>
-                  <div className="text-3xl font-bold text-maple-600 mb-1">
-                    {Math.min(touPaybackYears, uloPaybackYears).toFixed(1)}
-                  </div>
-                  <div className="text-sm text-gray-600 font-medium mb-1">
+                  <div className="text-sm text-gray-700 font-semibold mb-3">
                     Payback Period
                   </div>
-                  <div className="text-xs text-gray-500 space-y-0.5">
-                    <div>TOU: {touPaybackYears.toFixed(1)} years</div>
-                    <div>ULO: {uloPaybackYears.toFixed(1)} years</div>
+                  <div className="text-xs text-gray-600 space-y-2">
+                    <div className="flex items-center justify-between bg-white/60 rounded-lg px-3 py-2">
+                      <span className="font-medium">TOU:</span>
+                      <span className="text-xl font-bold text-maple-700">{touPaybackYears.toFixed(1)} yrs</span>
+                    </div>
+                    <div className="flex items-center justify-between bg-white/60 rounded-lg px-3 py-2">
+                      <span className="font-medium">ULO:</span>
+                      <span className="text-xl font-bold text-maple-700">{uloPaybackYears.toFixed(1)} yrs</span>
+                    </div>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="text-3xl font-bold text-maple-600 mb-1">
+                  <div className="text-4xl font-bold text-maple-700 mb-2">
                     {finalPaybackYears.toFixed(1)}
                   </div>
-                  <div className="text-sm text-gray-600 font-medium">
+                  <div className="text-sm text-gray-700 font-semibold">
                     Payback Period
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-gray-600 mt-2 font-medium">
                     years
                   </div>
                 </>
               )}
             </div>
 
-            {/* Annual Savings - Show both plans if available */}
-            <div className="bg-green-50 rounded-xl p-6 text-center border border-green-100">
-              <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                <TrendingUp className="text-white" size={24} />
+            {/* 25-Year Lifetime Savings/Profit - Show both plans if available */}
+            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl p-6 text-center border-2 border-emerald-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+                <TrendingUp className="text-white" size={26} />
               </div>
-              {touCombinedAnnual && uloCombinedAnnual ? (
+              {tou25YearSavings !== null && ulo25YearSavings !== null ? (
                 <>
-                  <div className="text-3xl font-bold text-green-600 mb-1">
-                    {formatCurrency(Math.max(touCombinedAnnual, uloCombinedAnnual))}
+                  <div className="text-sm text-gray-700 font-semibold mb-3">
+                    25-Year Lifetime Savings
                   </div>
-                  <div className="text-sm text-gray-600 font-medium mb-1">
-                    Annual Savings
+                  <div className="text-xs text-gray-600 space-y-2">
+                    <div className="flex items-center justify-between bg-white/60 rounded-lg px-3 py-2">
+                      <span className="font-medium">TOU:</span>
+                      <span className="text-lg font-bold text-emerald-700">{formatCurrency(Math.round(tou25YearSavings))}</span>
                   </div>
-                  <div className="text-xs text-gray-500 space-y-0.5">
-                    <div>TOU: {formatCurrency(touCombinedMonthly)}/month</div>
-                    <div>ULO: {formatCurrency(uloCombinedMonthly)}/month</div>
+                    <div className="flex items-center justify-between bg-white/60 rounded-lg px-3 py-2">
+                      <span className="font-medium">ULO:</span>
+                      <span className="text-lg font-bold text-emerald-700">{formatCurrency(Math.round(ulo25YearSavings))}</span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-3 pt-3 border-t border-emerald-200">
+                    After payback period
                   </div>
                 </>
-              ) : (
+              ) : lifetimeSavings > 0 ? (
                 <>
-                  <div className="text-3xl font-bold text-green-600 mb-1">
-                    {formatCurrency(finalAnnualSavings)}
+                  <div className="text-3xl sm:text-4xl font-bold text-emerald-700 mb-2">
+                    {formatCurrency(Math.round(lifetimeSavings))}
                   </div>
-                  <div className="text-sm text-gray-600 font-medium">
-                    Annual Savings
+                  <div className="text-sm text-gray-700 font-semibold">
+                    25-Year Lifetime Savings
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {formatCurrency(finalMonthlySavings)}/month
+                  <div className="text-xs text-gray-600 mt-2 font-medium">
+                    {formatCurrency(Math.round(finalAnnualSavings))}/yr × 25 years
                   </div>
                   {ratePlan && (
-                    <div className="text-xs text-forest-600 mt-1 font-semibold">
+                    <div className="text-xs text-forest-700 mt-2 font-semibold">
                       {ratePlan.toUpperCase()} Plan
                     </div>
                   )}
+                </>
+              ) : (
+                <>
+                  <div className="text-3xl sm:text-4xl font-bold text-emerald-700 mb-2">
+                    {formatCurrency(Math.round(finalAnnualSavings * 25))}
+                  </div>
+                  <div className="text-sm text-gray-700 font-semibold">
+                    25-Year Projected Savings
+                  </div>
+                  <div className="text-xs text-gray-600 mt-2 font-medium">
+                    Based on annual savings
+                  </div>
                 </>
               )}
             </div>
@@ -552,13 +811,13 @@ export function ResultsPage({
       </section>
 
       {/* Main Results Content */}
-      <section className="py-16 bg-gray-50">
+      <section className="pt-20 pb-32 bg-gradient-to-b from-gray-50 via-white to-gray-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Left Column - Main Results */}
             <div className="lg:col-span-2 space-y-8">
               {/* What These Results Mean */}
-              <div className="bg-white rounded-2xl p-8 shadow-md">
+              <div className="bg-white rounded-3xl p-10 shadow-xl border border-gray-100">
                 <h2 className="text-2xl font-bold text-forest-500 mb-6 flex items-center gap-3">
                   <Lightbulb className="text-maple-500" size={28} />
                   What These Results Mean
@@ -607,10 +866,10 @@ export function ResultsPage({
                     <h3 className="font-bold text-gray-900 mb-2">
                       Environmental Impact
                     </h3>
-                    {estimate.environmental && (
+                    {estimate?.environmental && (
                       <p className="text-gray-700 leading-relaxed">
-                        Your solar system will offset approximately {estimate.environmental.co2OffsetTonsPerYear.toFixed(1)} tons of CO₂ per year. 
-                        That's equivalent to planting {estimate.environmental.treesEquivalent} trees or taking {estimate.environmental.carsOffRoadEquivalent.toFixed(1)} cars off the road annually.
+                        Your solar system will offset approximately {estimate.environmental.co2OffsetTonsPerYear?.toFixed(1) || '0'} tons of CO₂ per year. 
+                        That's equivalent to planting {estimate.environmental.treesEquivalent || 0} trees or taking {estimate.environmental.carsOffRoadEquivalent?.toFixed(1) || '0'} cars off the road annually.
                       </p>
                     )}
                   </div>
@@ -694,7 +953,8 @@ export function ResultsPage({
                 <div className="space-y-3">
                   {estimate?.production?.monthlyKwh?.map((kwh, index) => {
                     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                    const maxKwh = estimate.production.monthlyKwh.length > 0 ? Math.max(...estimate.production.monthlyKwh) : 0
+                    const monthlyKwh = estimate?.production?.monthlyKwh || []
+                    const maxKwh = monthlyKwh.length > 0 ? Math.max(...monthlyKwh) : 0
                     const percentage = maxKwh > 0 ? (kwh / maxKwh) * 100 : 0
                     
                     return (
@@ -999,14 +1259,40 @@ export function ResultsPage({
                     peakShaving={peakShaving}
                     combinedNetCost={combinedNetCost || estimate?.costs?.netCost || 0}
                     isMobile={isMobile}
+                    touBeforeAfter={(() => {
+                      const touCombined = tou?.allResults?.combined?.combined || 
+                                        tou?.combined?.combined ||
+                                        tou?.combined
+                      if (touCombined) {
+                        const before = touCombined.baselineAnnualBill || 0
+                        const after = touCombined.postSolarBatteryAnnualBill || 0
+                        if (before > 0 && after >= 0) {
+                          return { before, after, savings: before - after }
+                        }
+                      }
+                      return null
+                    })()}
+                    uloBeforeAfter={(() => {
+                      const uloCombined = ulo?.allResults?.combined?.combined || 
+                                        ulo?.combined?.combined ||
+                                        ulo?.combined
+                      if (uloCombined) {
+                        const before = uloCombined.baselineAnnualBill || 0
+                        const after = uloCombined.postSolarBatteryAnnualBill || 0
+                        if (before > 0 && after >= 0) {
+                          return { before, after, savings: before - after }
+                        }
+                      }
+                      return null
+                    })()}
                   />
                 )}
 
-                {activeSummaryTab === 'environmental' && estimate.environmental && (
+                {activeSummaryTab === 'environmental' && estimate?.environmental && (
                   <EnvironmentalTab
-                    co2OffsetTonsPerYear={estimate.environmental.co2OffsetTonsPerYear}
-                    treesEquivalent={estimate.environmental.treesEquivalent}
-                    carsOffRoadEquivalent={estimate.environmental.carsOffRoadEquivalent}
+                    co2OffsetTonsPerYear={estimate.environmental.co2OffsetTonsPerYear || 0}
+                    treesEquivalent={estimate.environmental.treesEquivalent || 0}
+                    carsOffRoadEquivalent={estimate.environmental.carsOffRoadEquivalent || 0}
                   />
                 )}
               </div>
@@ -1015,9 +1301,9 @@ export function ResultsPage({
             {/* Right Column - Actions & Next Steps */}
             <div className="space-y-6">
               {/* Match with Installer CTA */}
-              <div className="bg-white rounded-2xl p-8 shadow-md border-2 border-forest-200">
+              <div className="bg-white rounded-3xl p-8 shadow-xl border border-gray-100">
                 <div className="text-center mb-6">
-                  <div className="w-16 h-16 bg-forest-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <div className="w-16 h-16 bg-gradient-to-br from-forest-500 to-forest-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
                     <Handshake className="text-white" size={32} />
                   </div>
                   <h2 className="text-2xl font-bold text-forest-500 mb-2">
@@ -1028,23 +1314,15 @@ export function ResultsPage({
                   </p>
                 </div>
 
-                {installerMatchRequested ? (
-                  <div className="bg-forest-50 border-2 border-forest-500 rounded-lg p-6 text-center">
-                    <CheckCircle className="text-forest-500 mx-auto mb-3" size={48} />
-                    <h3 className="font-bold text-forest-500 mb-2">Request Submitted!</h3>
-                    <p className="text-sm text-gray-700">
-                      We'll match you with vetted installers in your area. You'll receive quotes within 24-48 hours.
-                    </p>
-                  </div>
-                ) : (
                   <button
-                    onClick={handleMatchInstaller}
-                    className="btn-primary w-full h-14 text-lg inline-flex items-center justify-center"
+                  disabled
+                  className="w-full h-14 text-lg inline-flex items-center justify-center bg-gray-100 text-gray-400 cursor-not-allowed rounded-lg font-semibold relative"
                   >
-                    Match Me with a Vetted Installer
-                    <ArrowRight className="ml-2" size={20} />
+                  <span>Match Me with a Vetted Installer</span>
+                  <span className="ml-2 px-2 py-0.5 bg-gray-200 text-gray-500 text-xs font-bold rounded-full">
+                    COMING SOON
+                  </span>
                   </button>
-                )}
 
                 <div className="mt-6 space-y-3 text-sm text-gray-600">
                   <div className="flex items-start gap-2">
@@ -1063,9 +1341,23 @@ export function ResultsPage({
               </div>
 
               {/* Export Options */}
-              <div className="bg-white rounded-2xl p-6 shadow-md">
+              <div className="bg-white rounded-3xl p-6 shadow-xl border border-gray-100">
                 <h3 className="font-bold text-gray-900 mb-4">Export Your Results</h3>
                 <div className="space-y-3">
+                  {/* Track My Estimate Button */}
+                  {typeof window !== 'undefined' && (() => {
+                    const urlParams = new URLSearchParams(window.location.search)
+                    const leadId = urlParams.get('leadId')
+                    return leadId ? (
+                      <Link
+                        href={`/track/${leadId}`}
+                        className="w-full btn-primary inline-flex items-center justify-center"
+                      >
+                        <ArrowRight className="mr-2" size={18} />
+                        Track My Estimate
+                      </Link>
+                    ) : null
+                  })()}
                   <button
                     onClick={handleExportPDF}
                     className="w-full btn-outline border-forest-500 text-forest-500 hover:bg-forest-50 inline-flex items-center justify-center"
@@ -1148,8 +1440,12 @@ export function ResultsPage({
         />
       )}
 
+      </div>
       <Footer />
     </main>
   )
 }
+
+
+
 

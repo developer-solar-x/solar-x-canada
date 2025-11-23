@@ -224,21 +224,26 @@ export function OverviewTab({
             )}
           </h3>
           
-          {/* Roof Snapshot, fallback to first uploaded photo */}
-          {lead.map_snapshot_url ? (
+          {/* Roof Snapshot from roof drawing step - prioritize map_snapshot from hrs_residential_leads */}
+          {/* Support both map_snapshot (hrs_residential_leads) and map_snapshot_url (leads_v3) */}
+          {/* Do NOT fall back to photos - only show map snapshot from roof drawing */}
+          {(lead.map_snapshot || lead.map_snapshot_url) ? (
             <div className="rounded-lg overflow-hidden mb-4" style={{ height: '400px' }}>
               <img
-                src={typeof lead.map_snapshot_url === 'string' ? lead.map_snapshot_url : ''}
-                alt="Roof snapshot"
+                src={typeof (lead.map_snapshot || lead.map_snapshot_url) === 'string' 
+                  ? (lead.map_snapshot || lead.map_snapshot_url) 
+                  : ''}
+                alt="Roof drawing snapshot from map"
                 className="w-full h-full object-cover"
-              />
-            </div>
-          ) : photoUrls.length > 0 ? (
-            <div className="rounded-lg overflow-hidden mb-4" style={{ height: '400px' }}>
-              <img
-                src={photoUrls[0]}
-                alt="Uploaded roof photo"
-                className="w-full h-full object-cover"
+                onError={(e) => {
+                  // If map snapshot fails to load, show placeholder instead of falling back to photos
+                  const target = e.target as HTMLImageElement
+                  target.style.display = 'none'
+                  const parent = target.parentElement
+                  if (parent) {
+                    parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100"><div class="text-center"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mx-auto mb-2 opacity-50"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg><p class="text-sm">Map Snapshot Not Available</p><p class="text-xs mt-1">Roof polygon data stored: ' + (lead.roof_polygon ? 'Yes' : 'No') + '</p></div></div>'
+                  }
+                }}
               />
             </div>
           ) : (
@@ -246,7 +251,7 @@ export function OverviewTab({
               <div className="w-full h-full flex items-center justify-center text-gray-400">
                 <div className="text-center">
                   <MapPin size={48} className="mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Satellite View Not Available in Demo</p>
+                  <p className="text-sm">Roof Drawing Snapshot Not Available</p>
                   <p className="text-xs mt-1">Roof polygon data stored: {lead.roof_polygon ? 'Yes' : 'No'}</p>
                 </div>
               </div>
@@ -380,11 +385,11 @@ export function OverviewTab({
                 {formatCurrency(combinedTotalIncentives)}
               </div>
               <div className="text-xs text-green-600 mt-1">
-                Solar + Battery incentives
+                Solar + Battery rebates
               </div>
             </div>
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
-              <div className="text-xs text-blue-600 mb-1">Net After Incentives</div>
+              <div className="text-xs text-blue-600 mb-1">Net After Rebates</div>
               <div className="text-3xl font-bold text-blue-600">
                 {formatCurrency(combinedNetAfterIncentives)}
               </div>
@@ -420,11 +425,11 @@ export function OverviewTab({
                 <span className="ml-2 font-semibold text-navy-700">{formatCurrency(combinedTotalSystemCost)}</span>
               </div>
               <div>
-                <span className="text-gray-600">Total Incentives:</span>
+                <span className="text-gray-600">Total Rebates:</span>
                 <span className="ml-2 font-semibold text-green-700">{formatCurrency(combinedTotalIncentives)}</span>
               </div>
               <div className="col-span-2">
-                <span className="text-gray-600">Net After Incentives:</span>
+                <span className="text-gray-600">Net After Rebates:</span>
                 <span className="ml-2 font-semibold text-green-700">{formatCurrency(combinedNetAfterIncentives)}</span>
               </div>
             </div>
@@ -456,28 +461,120 @@ export function OverviewTab({
         </div>
 
         {/* Peak Shaving / Plan Comparison */}
-        {lead.peak_shaving && (
+        {(lead.peak_shaving || lead.tou_total_offset || lead.ulo_total_offset) && (
           <div className="card p-6">
             <h3 className="text-lg font-bold text-navy-500 mb-4">Rate Plan Comparison</h3>
-            <div className="grid md:grid-cols-2 gap-4 text-sm">
-              {peakShaving?.tou && (
-                <div className="border rounded-lg p-3">
-                  <div className="text-xs text-gray-600 mb-1">TOU</div>
-                  <div>Annual: <span className="font-semibold text-navy-600">{touAnnual ? formatCurrency(touAnnual) : '—'}</span></div>
-                  <div>Payback: <span className="font-semibold text-navy-600">{typeof touPayback === 'number' ? `${touPayback} yrs` : '—'}</span></div>
+            <div className="grid md:grid-cols-2 gap-4">
+              {/* TOU Plan */}
+              {(peakShaving?.tou || lead.tou_total_offset !== undefined) && (
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-5 border-2 border-blue-200">
+                  <div className="text-sm font-bold text-blue-700 mb-4 uppercase tracking-wide">TOU Plan</div>
+                  <div className="space-y-3">
+                    {/* Energy Offset */}
+                    {lead.tou_total_offset !== undefined && (
+                      <div className="bg-white/70 rounded-lg p-3">
+                        <div className="text-xs text-gray-600 mb-1">Energy Offset</div>
+                        <div className="text-2xl font-bold text-blue-700">
+                          {typeof lead.tou_total_offset === 'number' ? lead.tou_total_offset.toFixed(1) : lead.tou_total_offset}%
+                        </div>
+                      </div>
+                    )}
+                    {/* Total Bill Savings */}
+                    {lead.tou_total_bill_savings_percent !== undefined && (
+                      <div className="bg-white/70 rounded-lg p-3">
+                        <div className="text-xs text-gray-600 mb-1">Total Bill Savings</div>
+                        <div className="text-2xl font-bold text-purple-700">
+                          {typeof lead.tou_total_bill_savings_percent === 'number' ? lead.tou_total_bill_savings_percent.toFixed(1) : lead.tou_total_bill_savings_percent}%
+                        </div>
+                      </div>
+                    )}
+                    {/* Payback Period */}
+                    {lead.tou_payback_period !== undefined && (
+                      <div className="bg-white/70 rounded-lg p-3">
+                        <div className="text-xs text-gray-600 mb-1">Payback Period</div>
+                        <div className="text-2xl font-bold text-maple-700">
+                          {typeof lead.tou_payback_period === 'number' ? lead.tou_payback_period.toFixed(1) : lead.tou_payback_period} yrs
+                        </div>
+                      </div>
+                    )}
+                    {/* Annual Savings */}
+                    <div className="bg-white/70 rounded-lg p-3">
+                      <div className="text-xs text-gray-600 mb-1">Annual Savings</div>
+                      <div className="text-2xl font-bold text-green-700">
+                        {touAnnual ? formatCurrency(touAnnual) : (lead.tou_annual_savings ? formatCurrency(lead.tou_annual_savings) : '—')}
+                      </div>
+                      {lead.tou_monthly_savings && (
+                        <div className="text-xs text-gray-600 mt-1">
+                          {formatCurrency(lead.tou_monthly_savings)}/month
+                        </div>
+                      )}
+                    </div>
+                    {/* 25-Year Profit */}
                   {getCombinedBlock(peakShaving?.tou)?.projection?.netProfit25Year !== undefined && (
-                    <div>Profit 25y: <span className="font-semibold text-green-700">{formatCurrency(getCombinedBlock(peakShaving?.tou)?.projection?.netProfit25Year || 0)}</span></div>
+                      <div className="bg-white/70 rounded-lg p-3">
+                        <div className="text-xs text-gray-600 mb-1">25-Year Profit</div>
+                        <div className="text-xl font-bold text-green-700">
+                          {formatCurrency(getCombinedBlock(peakShaving?.tou)?.projection?.netProfit25Year || 0)}
+                        </div>
+                      </div>
                   )}
+                  </div>
                 </div>
               )}
-              {peakShaving?.ulo && (
-                <div className="border rounded-lg p-3">
-                  <div className="text-xs text-gray-600 mb-1">ULO</div>
-                  <div>Annual: <span className="font-semibold text-navy-600">{uloAnnual ? formatCurrency(uloAnnual) : '—'}</span></div>
-                  <div>Payback: <span className="font-semibold text-navy-600">{typeof uloPayback === 'number' ? `${uloPayback} yrs` : '—'}</span></div>
+              {/* ULO Plan */}
+              {(peakShaving?.ulo || lead.ulo_total_offset !== undefined) && (
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-5 border-2 border-green-200">
+                  <div className="text-sm font-bold text-green-700 mb-4 uppercase tracking-wide">ULO Plan</div>
+                  <div className="space-y-3">
+                    {/* Energy Offset */}
+                    {lead.ulo_total_offset !== undefined && (
+                      <div className="bg-white/70 rounded-lg p-3">
+                        <div className="text-xs text-gray-600 mb-1">Energy Offset</div>
+                        <div className="text-2xl font-bold text-blue-700">
+                          {typeof lead.ulo_total_offset === 'number' ? lead.ulo_total_offset.toFixed(1) : lead.ulo_total_offset}%
+                        </div>
+                      </div>
+                    )}
+                    {/* Total Bill Savings */}
+                    {lead.ulo_total_bill_savings_percent !== undefined && (
+                      <div className="bg-white/70 rounded-lg p-3">
+                        <div className="text-xs text-gray-600 mb-1">Total Bill Savings</div>
+                        <div className="text-2xl font-bold text-purple-700">
+                          {typeof lead.ulo_total_bill_savings_percent === 'number' ? lead.ulo_total_bill_savings_percent.toFixed(1) : lead.ulo_total_bill_savings_percent}%
+                        </div>
+                      </div>
+                    )}
+                    {/* Payback Period */}
+                    {lead.ulo_payback_period !== undefined && (
+                      <div className="bg-white/70 rounded-lg p-3">
+                        <div className="text-xs text-gray-600 mb-1">Payback Period</div>
+                        <div className="text-2xl font-bold text-maple-700">
+                          {typeof lead.ulo_payback_period === 'number' ? lead.ulo_payback_period.toFixed(1) : lead.ulo_payback_period} yrs
+                        </div>
+                      </div>
+                    )}
+                    {/* Annual Savings */}
+                    <div className="bg-white/70 rounded-lg p-3">
+                      <div className="text-xs text-gray-600 mb-1">Annual Savings</div>
+                      <div className="text-2xl font-bold text-green-700">
+                        {uloAnnual ? formatCurrency(uloAnnual) : (lead.ulo_annual_savings ? formatCurrency(lead.ulo_annual_savings) : '—')}
+                      </div>
+                      {lead.ulo_monthly_savings && (
+                        <div className="text-xs text-gray-600 mt-1">
+                          {formatCurrency(lead.ulo_monthly_savings)}/month
+                        </div>
+                      )}
+                    </div>
+                    {/* 25-Year Profit */}
                   {getCombinedBlock(peakShaving?.ulo)?.projection?.netProfit25Year !== undefined && (
-                    <div>Profit 25y: <span className="font-semibold text-green-700">{formatCurrency(getCombinedBlock(peakShaving?.ulo)?.projection?.netProfit25Year || 0)}</span></div>
+                      <div className="bg-white/70 rounded-lg p-3">
+                        <div className="text-xs text-gray-600 mb-1">25-Year Profit</div>
+                        <div className="text-xl font-bold text-green-700">
+                          {formatCurrency(getCombinedBlock(peakShaving?.ulo)?.projection?.netProfit25Year || 0)}
+                        </div>
+                      </div>
                   )}
+                  </div>
                 </div>
               )}
             </div>

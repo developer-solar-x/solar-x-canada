@@ -34,9 +34,12 @@ function ResultsPageContent() {
   const [loading, setLoading] = useState(true)
 
   // Helper function to transform simplified data structure to ResultsPage format
-  const transformSimplifiedData = (simplifiedData: any) => {
+  const transformSimplifiedData = (simplifiedData: any, leadFields?: any) => {
     // Check if this is the simplified data structure (has estimatorMode, programType, etc.)
     const isSimplifiedData = simplifiedData?.estimatorMode || simplifiedData?.programType
+    
+    // For easy mode, check if peakShaving is nested in full_data_json
+    const peakShaving = simplifiedData?.peakShaving || simplifiedData?.estimate?.peakShaving
     
     console.log('🔄 Transforming data:', {
       isSimplifiedData,
@@ -45,33 +48,188 @@ function ResultsPageContent() {
       hasSystemSizeKw: !!simplifiedData?.systemSizeKw,
       hasProduction: !!simplifiedData?.production,
       hasCosts: !!simplifiedData?.costs,
+      hasPeakShaving: !!peakShaving,
+      hasLeadFields: !!leadFields,
     })
     
     if (isSimplifiedData) {
-      // Transform simplified data to ResultsPage format
+      // Extract TOU/ULO data - prioritize leadFields (database) for beforeSolar/afterSolar
+      // since those are the correct values saved from calculations
+      let touData = simplifiedData.tou
+      let uloData = simplifiedData.ulo
+      
+      // For easy mode (quick estimate), prioritize leadFields values for beforeSolar/afterSolar
+      // These are the correct values calculated and saved to the database
+      if (leadFields) {
+        const touBefore = parseFloat(leadFields.tou_before_solar) || 0
+        const touAfter = parseFloat(leadFields.tou_after_solar) || 0
+        const uloBefore = parseFloat(leadFields.ulo_before_solar) || 0
+        const uloAfter = parseFloat(leadFields.ulo_after_solar) || 0
+        
+        // If we have database values, use them (they're the source of truth)
+        if (touBefore > 0 || touAfter >= 0) {
+          touData = {
+            ...touData,
+            beforeSolar: touBefore,
+            afterSolar: touAfter,
+            // Calculate annual savings from before/after (same as step 4)
+            annualSavings: touBefore > 0 && touAfter >= 0 ? touBefore - touAfter : (touData?.annualSavings || parseFloat(leadFields.tou_annual_savings) || 0),
+            monthlySavings: touData?.monthlySavings || parseFloat(leadFields.tou_monthly_savings) || 0,
+            paybackPeriod: touData?.paybackPeriod || parseFloat(leadFields.tou_payback_period) || 0,
+            profit25Year: touData?.profit25Year || parseFloat(leadFields.tou_profit_25_year) || 0,
+            totalBillSavingsPercent: touData?.totalBillSavingsPercent || parseFloat(leadFields.tou_total_bill_savings_percent) || 0,
+            totalOffset: touData?.totalOffset || parseFloat(leadFields.tou_total_offset) || 0, // Add totalOffset for energy offset display
+          }
+        }
+        
+        if (uloBefore > 0 || uloAfter >= 0) {
+          uloData = {
+            ...uloData,
+            beforeSolar: uloBefore,
+            afterSolar: uloAfter,
+            // Calculate annual savings from before/after (same as step 4)
+            annualSavings: uloBefore > 0 && uloAfter >= 0 ? uloBefore - uloAfter : (uloData?.annualSavings || parseFloat(leadFields.ulo_annual_savings) || 0),
+            monthlySavings: uloData?.monthlySavings || parseFloat(leadFields.ulo_monthly_savings) || 0,
+            paybackPeriod: uloData?.paybackPeriod || parseFloat(leadFields.ulo_payback_period) || 0,
+            profit25Year: uloData?.profit25Year || parseFloat(leadFields.ulo_profit_25_year) || 0,
+            totalBillSavingsPercent: uloData?.totalBillSavingsPercent || parseFloat(leadFields.ulo_total_bill_savings_percent) || 0,
+            totalOffset: uloData?.totalOffset || parseFloat(leadFields.ulo_total_offset) || 0, // Add totalOffset for energy offset display
+          }
+        }
+      }
+      
+      // If still no data, try to extract from peakShaving nested structure
+      if (!touData && peakShaving?.tou) {
+        const touCombined = peakShaving.tou?.allResults?.combined?.combined || 
+                           peakShaving.tou?.combined?.combined ||
+                           peakShaving.tou?.combined
+        touData = {
+          beforeSolar: touCombined?.baselineAnnualBill || leadFields?.tou_before_solar || 0,
+          afterSolar: touCombined?.postSolarBatteryAnnualBill || leadFields?.tou_after_solar || 0,
+          annualSavings: touCombined?.annual || peakShaving.tou?.result?.annualSavings || leadFields?.tou_annual_savings || 0,
+          monthlySavings: touCombined?.monthly || peakShaving.tou?.result?.monthlySavings || leadFields?.tou_monthly_savings || 0,
+          paybackPeriod: touCombined?.projection?.paybackYears || leadFields?.tou_payback_period || 0,
+          profit25Year: touCombined?.projection?.netProfit25Year || leadFields?.tou_profit_25_year || 0,
+          totalBillSavingsPercent: leadFields?.tou_total_bill_savings_percent || 0,
+        }
+      }
+      
+      if (!uloData && peakShaving?.ulo) {
+        const uloCombined = peakShaving.ulo?.allResults?.combined?.combined || 
+                           peakShaving.ulo?.combined?.combined ||
+                           peakShaving.ulo?.combined
+        uloData = {
+          beforeSolar: uloCombined?.baselineAnnualBill || leadFields?.ulo_before_solar || 0,
+          afterSolar: uloCombined?.postSolarBatteryAnnualBill || leadFields?.ulo_after_solar || 0,
+          annualSavings: uloCombined?.annual || peakShaving.ulo?.result?.annualSavings || leadFields?.ulo_annual_savings || 0,
+          monthlySavings: uloCombined?.monthly || peakShaving.ulo?.result?.monthlySavings || leadFields?.ulo_monthly_savings || 0,
+          paybackPeriod: uloCombined?.projection?.paybackYears || leadFields?.ulo_payback_period || 0,
+          profit25Year: uloCombined?.projection?.netProfit25Year || leadFields?.ulo_profit_25_year || 0,
+          totalBillSavingsPercent: leadFields?.ulo_total_bill_savings_percent || 0,
+        }
+      }
+      
+      // Calculate annual savings from before/after (same as step 4)
+      const touAnnualSavings = touData?.beforeSolar && touData?.afterSolar !== undefined
+        ? touData.beforeSolar - touData.afterSolar
+        : touData?.annualSavings || 0
+      const uloAnnualSavings = uloData?.beforeSolar && uloData?.afterSolar !== undefined
+        ? uloData.beforeSolar - uloData.afterSolar
+        : uloData?.annualSavings || 0
+      
+      // For quick estimates, prioritize calculated value from full_data_json over database value
+      // The calculated value (6.5 kW from 13 panels) is more accurate than stored database value (6.7 kW)
+      // Calculate from numPanels first: 13 panels * 500W = 6.5 kW
+      const systemSizeKw = simplifiedData.estimate?.system?.sizeKw ||  // Calculated value from step review (6.5 kW)
+                           (simplifiedData.numPanels ? (simplifiedData.numPanels * 500) / 1000 : 0) ||  // Calculate from numPanels in simplifiedData (13 * 500 / 1000 = 6.5)
+                           (simplifiedData.estimate?.system?.numPanels ? (simplifiedData.estimate.system.numPanels * 500) / 1000 : 0) ||  // Calculate from estimate.numPanels
+                           simplifiedData.systemSizeKw ||              // Direct value in simplifiedData
+                           (leadFields?.num_panels ? (parseFloat(String(leadFields.num_panels)) * 500) / 1000 : 0) ||  // Calculate from database num_panels (13 * 500 / 1000 = 6.5)
+                           (leadFields?.system_size_kw ? parseFloat(String(leadFields.system_size_kw)) : 0) || 0  // Fallback to database value (6.7)
+      
+      const numPanels = simplifiedData.numPanels ||                    // From simplifiedData (13)
+                       simplifiedData.estimate?.system?.numPanels ||   // From estimate (13)
+                       (leadFields?.num_panels ? parseFloat(String(leadFields.num_panels)) : 0) || 0  // From database (13)
+      
+      console.log('🔍 System Size Extraction:', {
+        estimateSystemSizeKw: simplifiedData.estimate?.system?.sizeKw,
+        simplifiedDataSystemSizeKw: simplifiedData.systemSizeKw,
+        simplifiedDataNumPanels: simplifiedData.numPanels,
+        estimateNumPanels: simplifiedData.estimate?.system?.numPanels,
+        leadFieldsSystemSizeKw: leadFields?.system_size_kw,
+        leadFieldsNumPanels: leadFields?.num_panels,
+        calculatedFromNumPanels: simplifiedData.numPanels ? (simplifiedData.numPanels * 500) / 1000 : 0,
+        calculatedFromLeadFieldsNumPanels: leadFields?.num_panels ? (parseFloat(String(leadFields.num_panels)) * 500) / 1000 : 0,
+        extractedSystemSizeKw: systemSizeKw,
+        extractedNumPanels: numPanels,
+        fullSimplifiedData: JSON.stringify(simplifiedData).substring(0, 500), // First 500 chars for debugging
+      })
+      
       const transformed = {
         estimate: {
           system: {
-            sizeKw: simplifiedData.systemSizeKw || 0,
-            numPanels: simplifiedData.numPanels || 0,
+            sizeKw: systemSizeKw,
+            numPanels: numPanels,
           },
-          production: simplifiedData.production || {
+          production: simplifiedData.production || (leadFields ? {
+            annualKwh: parseFloat(leadFields.production_annual_kwh) || 0,
+            monthlyKwh: Array.isArray(leadFields.production_monthly_kwh) 
+              ? leadFields.production_monthly_kwh.map((v: any) => parseFloat(v) || 0)
+              : typeof leadFields.production_monthly_kwh === 'string'
+                ? JSON.parse(leadFields.production_monthly_kwh).map((v: any) => parseFloat(v) || 0)
+                : [],
+            dailyAverageKwh: parseFloat(leadFields.production_daily_average_kwh) || 0,
+          } : {
             annualKwh: 0,
             monthlyKwh: [],
             dailyAverageKwh: 0,
-          },
+          }),
           costs: {
-            ...(simplifiedData.costs || {}),
-            totalCost: (simplifiedData.costs?.systemCost || 0) + (simplifiedData.costs?.batteryCost || 0),
-            incentives: (simplifiedData.costs?.solarRebate || 0) + (simplifiedData.costs?.batteryRebate || 0),
+            ...(simplifiedData.costs || simplifiedData.estimate?.costs || {}),
+            systemCost: simplifiedData.costs?.systemCost || 
+                       simplifiedData.estimate?.costs?.systemCost || 
+                       parseFloat(leadFields?.system_cost) || 0,
+            batteryCost: simplifiedData.costs?.batteryCost || 
+                        simplifiedData.estimate?.costs?.batteryCost || 
+                        parseFloat(leadFields?.battery_cost) || 0,
+            solarRebate: simplifiedData.costs?.solarRebate || 
+                        simplifiedData.estimate?.costs?.solarRebate || 
+                        simplifiedData.estimate?.costs?.incentives || 
+                        parseFloat(leadFields?.solar_rebate) || 0,
+            batteryRebate: simplifiedData.costs?.batteryRebate || 
+                          simplifiedData.estimate?.costs?.batteryRebate || 
+                          parseFloat(leadFields?.battery_rebate) || 0,
+            netCost: simplifiedData.costs?.netCost || 
+                    simplifiedData.estimate?.costs?.netCost || 
+                    parseFloat(leadFields?.net_cost) || 0,
+            totalCost: simplifiedData.costs?.totalCost || 
+                      simplifiedData.estimate?.costs?.totalCost ||
+                      (simplifiedData.costs?.systemCost || 
+                       simplifiedData.estimate?.costs?.systemCost || 
+                       parseFloat(leadFields?.system_cost) || 0) + 
+                      (simplifiedData.costs?.batteryCost || 
+                       simplifiedData.estimate?.costs?.batteryCost || 
+                       parseFloat(leadFields?.battery_cost) || 0),
+            incentives: simplifiedData.costs?.incentives ||
+                       simplifiedData.estimate?.costs?.incentives ||
+                       (simplifiedData.costs?.solarRebate || 
+                        simplifiedData.estimate?.costs?.solarRebate || 
+                        parseFloat(leadFields?.solar_rebate) || 0) + 
+                       (simplifiedData.costs?.batteryRebate || 
+                        simplifiedData.estimate?.costs?.batteryRebate || 
+                        parseFloat(leadFields?.battery_rebate) || 0),
           },
           savings: {
-            annualSavings: simplifiedData.tou?.annualSavings || simplifiedData.ulo?.annualSavings || 0,
-            monthlySavings: simplifiedData.tou?.monthlySavings || simplifiedData.ulo?.monthlySavings || 0,
-            paybackYears: simplifiedData.tou?.paybackPeriod || simplifiedData.ulo?.paybackPeriod || 0,
-            lifetimeSavings: (simplifiedData.tou?.profit25Year || simplifiedData.ulo?.profit25Year || 0),
+            annualSavings: Math.max(touAnnualSavings, uloAnnualSavings) || 0,
+            monthlySavings: Math.max(touAnnualSavings, uloAnnualSavings) / 12 || 0,
+            paybackYears: touData?.paybackPeriod || uloData?.paybackPeriod || 0,
+            lifetimeSavings: (touData?.profit25Year || uloData?.profit25Year || 0),
           },
-          environmental: simplifiedData.environmental || undefined,
+          environmental: simplifiedData.environmental || (leadFields ? {
+            co2OffsetTonsPerYear: parseFloat(leadFields.co2_offset_tons_per_year) || 0,
+            treesEquivalent: parseFloat(leadFields.trees_equivalent) || 0,
+            carsOffRoadEquivalent: parseFloat(leadFields.cars_off_road_equivalent) || 0,
+          } : undefined),
         },
         leadData: {
           firstName: simplifiedData.fullName?.split(' ')[0] || '',
@@ -81,146 +239,245 @@ function ResultsPageContent() {
           province: simplifiedData.province || 'ON',
         },
         solarOverride: {
-          sizeKw: simplifiedData.systemSizeKw,
-          numPanels: simplifiedData.numPanels,
+          sizeKw: systemSizeKw, // Use the same extracted systemSizeKw
+          numPanels: numPanels,  // Use the same extracted numPanels
         },
-        solarRebate: simplifiedData.costs?.solarRebate,
-        batteryRebate: simplifiedData.costs?.batteryRebate,
-        combinedTotalCost: (simplifiedData.costs?.systemCost || 0) + (simplifiedData.costs?.batteryCost || 0),
-        combinedNetCost: simplifiedData.costs?.netCost,
+        solarRebate: simplifiedData.costs?.solarRebate || 
+                    simplifiedData.estimate?.costs?.solarRebate || 
+                    simplifiedData.estimate?.costs?.incentives || 
+                    parseFloat(leadFields?.solar_rebate) || 0,
+        batteryRebate: simplifiedData.costs?.batteryRebate || 
+                      simplifiedData.estimate?.costs?.batteryRebate || 
+                      parseFloat(leadFields?.battery_rebate) || 0,
+        combinedTotalCost: simplifiedData.costs?.totalCost || 
+                          simplifiedData.estimate?.costs?.totalCost ||
+                          (simplifiedData.costs?.systemCost || 
+                           simplifiedData.estimate?.costs?.systemCost || 
+                           parseFloat(leadFields?.system_cost) || 0) + 
+                          (simplifiedData.costs?.batteryCost || 
+                           simplifiedData.estimate?.costs?.batteryCost || 
+                           parseFloat(leadFields?.battery_cost) || 0),
+        combinedNetCost: simplifiedData.costs?.netCost || 
+                        simplifiedData.estimate?.costs?.netCost || 
+                        parseFloat(leadFields?.net_cost) || 0,
         // Set displayPlan to show which is better, but both plans will be displayed for comparison
         // Don't set displayPlan if we want to show both plans equally
-        displayPlan: simplifiedData.ulo?.annualSavings && simplifiedData.tou?.annualSavings
-          ? (simplifiedData.ulo.annualSavings > simplifiedData.tou.annualSavings ? 'ulo' : 'tou')
-          : (simplifiedData.ulo ? 'ulo' : simplifiedData.tou ? 'tou' : undefined),
+        displayPlan: uloAnnualSavings > 0 && touAnnualSavings > 0
+          ? (uloAnnualSavings > touAnnualSavings ? 'ulo' : 'tou')
+          : (uloAnnualSavings > 0 ? 'ulo' : touAnnualSavings > 0 ? 'tou' : undefined),
         mapSnapshot: simplifiedData.mapSnapshot,
         roofData: {
-          roofAreaSqft: simplifiedData.roofAreaSqft,
-          roofType: simplifiedData.roofType,
-          roofPitch: simplifiedData.roofPitch,
-          shadingLevel: simplifiedData.shadingLevel,
-          roofAge: simplifiedData.roofAge,
-          roofPolygon: simplifiedData.roofPolygon,
+          roofAreaSqft: simplifiedData.roofAreaSqft || 
+                       (leadFields?.roof_area_sqft ? parseFloat(String(leadFields.roof_area_sqft)) : 0) ||
+                       (leadFields?.roof_area_square_feet ? parseFloat(String(leadFields.roof_area_square_feet)) : 0),
+          roofType: simplifiedData.roofType || leadFields?.roof_type || '',
+          roofPitch: simplifiedData.roofPitch || leadFields?.roof_pitch || '',
+          shadingLevel: simplifiedData.shadingLevel || leadFields?.shading_level || '',
+          roofAge: simplifiedData.roofAge || leadFields?.roof_age || '',
+          roofPolygon: simplifiedData.roofPolygon || leadFields?.roof_polygon || null,
         },
-        photos: simplifiedData.photos || [],
-        photoSummary: simplifiedData.photoSummary,
+        photos: simplifiedData.photos || (leadFields?.photo_urls ? (Array.isArray(leadFields.photo_urls) ? leadFields.photo_urls : JSON.parse(leadFields.photo_urls || '[]')) : []),
+        photoSummary: simplifiedData.photoSummary || (leadFields?.photo_summary ? (typeof leadFields.photo_summary === 'string' ? JSON.parse(leadFields.photo_summary) : leadFields.photo_summary) : undefined),
         monthlyBill: typeof simplifiedData.monthlyBill === 'string' 
           ? parseFloat(simplifiedData.monthlyBill) 
-          : simplifiedData.monthlyBill,
-        energyUsage: simplifiedData.energyUsage || (simplifiedData.annualUsageKwh ? {
+          : simplifiedData.monthlyBill || 
+            (leadFields?.monthly_bill ? parseFloat(String(leadFields.monthly_bill)) : undefined),
+        energyUsage: simplifiedData.energyUsage || 
+                     (leadFields?.energy_usage ? (typeof leadFields.energy_usage === 'string' ? JSON.parse(leadFields.energy_usage) : leadFields.energy_usage) : undefined) ||
+                     (simplifiedData.annualUsageKwh ? {
           annualKwh: simplifiedData.annualUsageKwh,
           monthlyKwh: simplifiedData.annualUsageKwh / 12,
           dailyKwh: simplifiedData.annualUsageKwh / 365,
-        } : undefined),
+                     } : (leadFields?.annual_usage_kwh ? {
+                       annualKwh: parseFloat(String(leadFields.annual_usage_kwh)),
+                       monthlyKwh: parseFloat(String(leadFields.annual_usage_kwh)) / 12,
+                       dailyKwh: parseFloat(String(leadFields.annual_usage_kwh)) / 365,
+                     } : undefined)),
         // Transform tou/ulo to match ResultsPage expected structure
-        tou: simplifiedData.tou ? {
+        // Use extracted touData/uloData (from simplifiedData, peakShaving, or leadFields)
+        tou: touData ? (() => {
+          const before = touData.beforeSolar || 0
+          const after = touData.afterSolar || 0
+          const annualSavings = touAnnualSavings
+          const monthlySavings = touData.monthlySavings || annualSavings / 12
+          const paybackPeriod = touData.paybackPeriod || 0
+          const profit25Year = touData.profit25Year || 0
+          
+          return {
           // For SavingsTab
           result: {
-            annualSavings: simplifiedData.tou.annualSavings,
-            monthlySavings: simplifiedData.tou.monthlySavings,
+              annualSavings,
+              monthlySavings,
           },
           // For ResultsPage nested structure
           combined: {
             combined: {
-              annual: simplifiedData.tou.annualSavings,
-              monthly: simplifiedData.tou.monthlySavings,
-              baselineAnnualBill: simplifiedData.tou.beforeSolar,
-              postSolarBatteryAnnualBill: simplifiedData.tou.afterSolar,
-            },
-            combinedAnnualSavings: simplifiedData.tou.annualSavings,
-            combinedMonthlySavings: simplifiedData.tou.monthlySavings,
+                annual: annualSavings,
+                monthly: monthlySavings,
+                baselineAnnualBill: before,
+                postSolarBatteryAnnualBill: after,
+              },
+              combinedAnnualSavings: annualSavings,
+              combinedMonthlySavings: monthlySavings,
+              projection: {
+                paybackYears: paybackPeriod,
+                netProfit25Year: profit25Year,
+              },
           },
           allResults: {
             combined: {
               combined: {
-                annual: simplifiedData.tou.annualSavings,
-                monthly: simplifiedData.tou.monthlySavings,
-                baselineAnnualBill: simplifiedData.tou.beforeSolar,
-                postSolarBatteryAnnualBill: simplifiedData.tou.afterSolar,
-              },
+                  annual: annualSavings,
+                  monthly: monthlySavings,
+                  baselineAnnualBill: before,
+                  postSolarBatteryAnnualBill: after,
+                  projection: {
+                    paybackYears: paybackPeriod,
+                    netProfit25Year: profit25Year,
+                  },
+                },
             },
           },
           // Include all original simplified data for direct access
-          ...simplifiedData.tou,
-        } : undefined,
-        ulo: simplifiedData.ulo ? {
+            beforeSolar: before,
+            afterSolar: after,
+            paybackPeriod: paybackPeriod,
+            profit25Year: profit25Year,
+            totalOffset: touData.totalOffset || 0,
+            totalBillSavingsPercent: touData.totalBillSavingsPercent || 0,
+            ...touData,
+          }
+        })() : undefined,
+        ulo: uloData ? (() => {
+          const before = uloData.beforeSolar || 0
+          const after = uloData.afterSolar || 0
+          const annualSavings = uloAnnualSavings
+          const monthlySavings = uloData.monthlySavings || annualSavings / 12
+          const paybackPeriod = uloData.paybackPeriod || 0
+          const profit25Year = uloData.profit25Year || 0
+          
+          return {
           // For SavingsTab
           result: {
-            annualSavings: simplifiedData.ulo.annualSavings,
-            monthlySavings: simplifiedData.ulo.monthlySavings,
-          },
-          // For ResultsPage nested structure
-          combined: {
-            combined: {
-              annual: simplifiedData.ulo.annualSavings,
-              monthly: simplifiedData.ulo.monthlySavings,
-              baselineAnnualBill: simplifiedData.ulo.beforeSolar,
-              postSolarBatteryAnnualBill: simplifiedData.ulo.afterSolar,
+              annualSavings,
+              monthlySavings,
             },
-            combinedAnnualSavings: simplifiedData.ulo.annualSavings,
-            combinedMonthlySavings: simplifiedData.ulo.monthlySavings,
-          },
-          allResults: {
+            // For ResultsPage nested structure
             combined: {
               combined: {
-                annual: simplifiedData.ulo.annualSavings,
-                monthly: simplifiedData.ulo.monthlySavings,
-                baselineAnnualBill: simplifiedData.ulo.beforeSolar,
-                postSolarBatteryAnnualBill: simplifiedData.ulo.afterSolar,
+                annual: annualSavings,
+                monthly: monthlySavings,
+                baselineAnnualBill: before,
+                postSolarBatteryAnnualBill: after,
+              },
+              combinedAnnualSavings: annualSavings,
+              combinedMonthlySavings: monthlySavings,
+              projection: {
+                paybackYears: paybackPeriod,
+                netProfit25Year: profit25Year,
               },
             },
-          },
-          // Include all original simplified data for direct access
-          ...simplifiedData.ulo,
-        } : undefined,
+            allResults: {
+              combined: {
+                combined: {
+                  annual: annualSavings,
+                  monthly: monthlySavings,
+                  baselineAnnualBill: before,
+                  postSolarBatteryAnnualBill: after,
+                  projection: {
+                    paybackYears: paybackPeriod,
+                    netProfit25Year: profit25Year,
+                  },
+                },
+              },
+            },
+            // Include all original simplified data for direct access
+            beforeSolar: before,
+            afterSolar: after,
+            paybackPeriod: paybackPeriod,
+            profit25Year: profit25Year,
+            totalOffset: uloData.totalOffset || 0,
+            totalBillSavingsPercent: uloData.totalBillSavingsPercent || 0,
+            ...uloData,
+          }
+        })() : undefined,
         peakShaving: {
-          tou: simplifiedData.tou ? {
-            combined: {
-              combined: {
-                annual: simplifiedData.tou.annualSavings,
-                monthly: simplifiedData.tou.monthlySavings,
-                baselineAnnualBill: simplifiedData.tou.beforeSolar,
-                postSolarBatteryAnnualBill: simplifiedData.tou.afterSolar,
-              },
-              combinedAnnualSavings: simplifiedData.tou.annualSavings,
-              combinedMonthlySavings: simplifiedData.tou.monthlySavings,
-            },
-            allResults: {
+          tou: touData ? (() => {
+            const before = touData.beforeSolar || 0
+            const after = touData.afterSolar || 0
+            const annualSavings = touAnnualSavings
+            const monthlySavings = touData.monthlySavings || annualSavings / 12
+            
+            return {
               combined: {
                 combined: {
-                  annual: simplifiedData.tou.annualSavings,
-                  monthly: simplifiedData.tou.monthlySavings,
-                  baselineAnnualBill: simplifiedData.tou.beforeSolar,
-                  postSolarBatteryAnnualBill: simplifiedData.tou.afterSolar,
+                  annual: annualSavings,
+                  monthly: monthlySavings,
+                  baselineAnnualBill: before,
+                  postSolarBatteryAnnualBill: after,
+                },
+                combinedAnnualSavings: annualSavings,
+                combinedMonthlySavings: monthlySavings,
+              },
+              allResults: {
+                combined: {
+                  combined: {
+                    annual: annualSavings,
+                    monthly: monthlySavings,
+                    baselineAnnualBill: before,
+                    postSolarBatteryAnnualBill: after,
+                  },
                 },
               },
-            },
-          } : undefined,
-          ulo: simplifiedData.ulo ? {
-            combined: {
-              combined: {
-                annual: simplifiedData.ulo.annualSavings,
-                monthly: simplifiedData.ulo.monthlySavings,
-                baselineAnnualBill: simplifiedData.ulo.beforeSolar,
-                postSolarBatteryAnnualBill: simplifiedData.ulo.afterSolar,
-              },
-              combinedAnnualSavings: simplifiedData.ulo.annualSavings,
-              combinedMonthlySavings: simplifiedData.ulo.monthlySavings,
-            },
-            allResults: {
+            }
+          })() : undefined,
+          ulo: uloData ? (() => {
+            const before = uloData.beforeSolar || 0
+            const after = uloData.afterSolar || 0
+            const annualSavings = uloAnnualSavings
+            const monthlySavings = uloData.monthlySavings || annualSavings / 12
+            
+            return {
               combined: {
                 combined: {
-                  annual: simplifiedData.ulo.annualSavings,
-                  monthly: simplifiedData.ulo.monthlySavings,
-                  baselineAnnualBill: simplifiedData.ulo.beforeSolar,
-                  postSolarBatteryAnnualBill: simplifiedData.ulo.afterSolar,
+                  annual: annualSavings,
+                  monthly: monthlySavings,
+                  baselineAnnualBill: before,
+                  postSolarBatteryAnnualBill: after,
+                },
+                combinedAnnualSavings: annualSavings,
+                combinedMonthlySavings: monthlySavings,
+              },
+              allResults: {
+                combined: {
+                  combined: {
+                    annual: annualSavings,
+                    monthly: monthlySavings,
+                    baselineAnnualBill: before,
+                    postSolarBatteryAnnualBill: after,
+                  },
                 },
               },
-            },
-          } : undefined,
-          ratePlan: simplifiedData.ulo?.annualSavings && simplifiedData.tou?.annualSavings
-            ? (simplifiedData.ulo.annualSavings > simplifiedData.tou.annualSavings ? 'ulo' : 'tou')
+            }
+          })() : undefined,
+          ratePlan: uloAnnualSavings > 0 && touAnnualSavings > 0
+            ? (uloAnnualSavings > touAnnualSavings ? 'ulo' : 'tou')
             : 'tou',
+          // Include touBeforeAfter and uloBeforeAfter from extracted data (from step 4, peakShaving, or database fields)
+          touBeforeAfter: touData && touData.beforeSolar && touData.afterSolar !== undefined
+            ? {
+                before: touData.beforeSolar,
+                after: touData.afterSolar,
+                savings: touAnnualSavings
+              }
+            : null,
+          uloBeforeAfter: uloData && uloData.beforeSolar && uloData.afterSolar !== undefined
+            ? {
+                before: uloData.beforeSolar,
+                after: uloData.afterSolar,
+                savings: uloAnnualSavings
+              }
+            : null,
         },
       }
       
@@ -235,36 +492,193 @@ function ResultsPageContent() {
     }
     
     // Return original structure if not simplified data
+    // But ensure it has the expected structure to prevent crashes
     console.log('⚠️ Not simplified data, returning original structure')
-    return simplifiedData
+    
+    // Ensure the returned object has at least the basic structure
+    return {
+      estimate: simplifiedData?.estimate || {
+        system: { sizeKw: 0, numPanels: 0 },
+        production: { annualKwh: 0, monthlyKwh: [] },
+        costs: { totalCost: 0, netCost: 0, incentives: 0 },
+        savings: { annualSavings: 0, monthlySavings: 0, paybackYears: 0 },
+      },
+      leadData: simplifiedData?.leadData || {},
+      batteryImpact: simplifiedData?.batteryImpact,
+      peakShaving: simplifiedData?.peakShaving,
+      solarRebate: simplifiedData?.solarRebate,
+      batteryRebate: simplifiedData?.batteryRebate,
+      combinedTotalCost: simplifiedData?.combinedTotalCost,
+      combinedNetCost: simplifiedData?.combinedNetCost,
+      displayPlan: simplifiedData?.displayPlan,
+      solarOverride: simplifiedData?.solarOverride,
+      selectedBattery: simplifiedData?.selectedBattery,
+      batteryDetails: simplifiedData?.batteryDetails,
+      mapSnapshot: simplifiedData?.mapSnapshot,
+      roofData: simplifiedData?.roofData,
+      photos: simplifiedData?.photos || [],
+      photoSummary: simplifiedData?.photoSummary,
+      monthlyBill: simplifiedData?.monthlyBill,
+      energyUsage: simplifiedData?.energyUsage,
+      appliances: simplifiedData?.appliances || [],
+      addOns: simplifiedData?.addOns || [],
+      tou: simplifiedData?.tou,
+      ulo: simplifiedData?.ulo,
+      ...simplifiedData, // Spread original data to preserve any additional fields
+    }
   }
 
   useEffect(() => {
     // Get lead ID from URL params
     const leadId = searchParams.get('leadId')
     
-    // First, try to get data from localStorage (keyed by leadId)
-    const resultsKey = leadId ? `solarx_results_${leadId}` : null
-    let storedResults: string | null = null
-    
-    if (resultsKey) {
-      storedResults = localStorage.getItem(resultsKey)
-      console.log('🔍 Checking localStorage:', resultsKey, !!storedResults)
+    // Try to get leadId from sessionStorage (for immediate redirect)
+    // If not in sessionStorage, use leadId from URL
+    let sessionData: any = null
+    try {
+      const sessionResults = sessionStorage.getItem('calculatorResults')
+      if (sessionResults) {
+        sessionData = JSON.parse(sessionResults)
+        console.log('🔍 Found sessionStorage data:', sessionData)
+      }
+    } catch (e) {
+      console.warn('Failed to parse sessionStorage data:', e)
     }
     
-    // Fallback to sessionStorage for immediate redirect (backward compatibility)
-    if (!storedResults) {
-      storedResults = sessionStorage.getItem('calculatorResults')
-      console.log('🔍 Checking sessionStorage:', !!storedResults)
+    // Use leadId from sessionStorage or URL
+    const effectiveLeadId = sessionData?.leadId || leadId
+    
+    // If we have a leadId, fetch from database
+    if (effectiveLeadId && !effectiveLeadId.startsWith('mock-')) {
+      console.log('🔍 Fetching data from database for leadId:', effectiveLeadId)
+      
+      // Fetch lead data from API
+      fetch(`/api/leads/${effectiveLeadId}`)
+        .then(async res => {
+          if (!res.ok) {
+            throw new Error(`Failed to fetch lead: ${res.status} ${res.statusText}`)
+          }
+          const text = await res.text()
+          if (!text) {
+            throw new Error('Empty response from server')
+          }
+          try {
+            return JSON.parse(text)
+          } catch (e) {
+            throw new Error(`Invalid JSON response: ${text.substring(0, 100)}`)
+          }
+        })
+        .then(data => {
+          if (data.success) {
+            const lead = data.lead
+            console.log('✅ Fetched lead from database:', {
+              leadId: effectiveLeadId,
+              hasFullDataJson: !!lead.full_data_json,
+              hasHrsResidentialData: !!lead.hrs_residential_data,
+            })
+            
+            // Check if this is HRS residential lead with simplified data structure
+            // full_data_json is the simplified data structure saved from StepContact
+            if (lead.full_data_json) {
+              // full_data_json is already parsed by the API
+              const simplifiedData = lead.full_data_json
+              console.log('✅ Found full_data_json, transforming:', {
+                hasTou: !!simplifiedData.tou,
+                hasUlo: !!simplifiedData.ulo,
+                hasCosts: !!simplifiedData.costs,
+                hasProduction: !!simplifiedData.production,
+                hasPeakShaving: !!simplifiedData.peakShaving,
+                hasHrsData: !!lead.hrs_residential_data,
+              })
+              // Pass lead.hrs_residential_data as leadFields for easy mode fallback
+              const transformedData = transformSimplifiedData(simplifiedData, lead.hrs_residential_data)
+              
+              setEstimate(transformedData.estimate)
+              setLeadData(transformedData.leadData || {})
+              setBatteryImpact(transformedData.batteryImpact)
+              setPeakShaving(transformedData.peakShaving)
+              setSolarRebate(transformedData.solarRebate)
+              setBatteryRebate(transformedData.batteryRebate)
+              setCombinedTotalCost(transformedData.combinedTotalCost)
+              setCombinedNetCost(transformedData.combinedNetCost)
+              setDisplayPlan(transformedData.displayPlan)
+              setSolarOverride(transformedData.solarOverride)
+              setSelectedBattery(transformedData.selectedBattery)
+              setBatteryDetails(transformedData.batteryDetails)
+              setMapSnapshot(transformedData.mapSnapshot)
+              setRoofData(transformedData.roofData)
+              setPhotos(transformedData.photos || [])
+              setPhotoSummary(transformedData.photoSummary)
+              setMonthlyBill(transformedData.monthlyBill)
+              setEnergyUsage(transformedData.energyUsage)
+              setAppliances(transformedData.appliances || [])
+              setAddOns(transformedData.addOns || [])
+              setTou(transformedData.tou)
+              setUlo(transformedData.ulo)
+              setLoading(false)
+              // Clear sessionStorage after reading
+              sessionStorage.removeItem('calculatorResults')
+              console.log('✅ Results loaded from database successfully')
+              return
+            }
+            
+            // Fallback: try to construct from lead fields if full_data_json not available
+            console.warn('⚠️ No full_data_json found, constructing from lead fields')
+            setEstimate({
+              system: {
+                sizeKw: lead.system_size_kw || 0,
+                numPanels: lead.num_panels || 0,
+              },
+              production: {
+                annualKwh: lead.production_annual_kwh || 0,
+                monthlyKwh: lead.production_monthly_kwh || [],
+              },
+              costs: {
+                totalCost: lead.solar_total_cost || 0,
+                netCost: lead.solar_net_cost || 0,
+                incentives: lead.solar_incentives || 0,
+              },
+              savings: {
+                annualSavings: lead.solar_annual_savings || 0,
+                monthlySavings: lead.solar_monthly_savings || 0,
+                paybackYears: lead.payback_years || 0,
+              },
+            })
+            setLeadData({
+              firstName: lead.full_name?.split(' ')[0] || '',
+              lastName: lead.full_name?.split(' ').slice(1).join(' ') || '',
+              email: lead.email || '',
+              address: lead.address || '',
+              province: lead.province || 'ON',
+            })
+            setLoading(false)
+            sessionStorage.removeItem('calculatorResults')
+            return
+          }
+        })
+        .catch(err => {
+          console.error('Error fetching lead from database:', err)
+          setLoading(false)
+        })
+      
+      return // Exit early, don't try localStorage/sessionStorage
     }
     
+    // Fallback: try sessionStorage for backward compatibility (old format)
+    const storedResults = sessionStorage.getItem('calculatorResults')
     if (storedResults) {
       try {
         const results = JSON.parse(storedResults)
-        const source = resultsKey && localStorage.getItem(resultsKey) === storedResults ? 'localStorage' : 'sessionStorage'
-        console.log(`📦 Loaded from ${source}:`, {
-          leadId,
-          resultsKey,
+        
+        // If it's just a leadId, fetch from database
+        if (results.leadId) {
+          console.log('🔍 Found leadId in sessionStorage, fetching from database:', results.leadId)
+          // Will be handled by the fetch above on next render
+          return
+        }
+        
+        // Otherwise, it's the old format with full data
+        console.log('📦 Loaded from sessionStorage (old format):', {
           hasEstimatorMode: !!results.estimatorMode,
           hasProgramType: !!results.programType,
           hasEstimate: !!results.estimate,
@@ -275,10 +689,10 @@ function ResultsPageContent() {
         const transformedData = transformSimplifiedData(results)
         
         // Always use transformed data if it has an estimate, otherwise check if original has estimate
-        if (transformedData.estimate) {
+        if (transformedData?.estimate) {
           console.log('✅ Using transformed data')
           setEstimate(transformedData.estimate)
-          setLeadData(transformedData.leadData)
+          setLeadData(transformedData.leadData || {})
           setBatteryImpact(transformedData.batteryImpact)
           setPeakShaving(transformedData.peakShaving)
           setSolarRebate(transformedData.solarRebate)
@@ -299,11 +713,11 @@ function ResultsPageContent() {
           setAddOns(transformedData.addOns || [])
           setTou(transformedData.tou)
           setUlo(transformedData.ulo)
-        } else if (results.estimate) {
+        } else if (results?.estimate) {
           // Use original structure
           console.log('✅ Using original structure')
           setEstimate(results.estimate)
-          setLeadData(results.leadData)
+          setLeadData(results.leadData || {})
           setBatteryImpact(results.batteryImpact)
           setPeakShaving(results.peakShaving)
           setSolarRebate(results.solarRebate)
@@ -325,13 +739,21 @@ function ResultsPageContent() {
           setTou(results.tou)
           setUlo(results.ulo)
         } else {
-          console.error('❌ No estimate found in data:', results)
+          // No estimate found - set safe defaults
+          console.warn('⚠️ No estimate found in data, setting defaults')
+          setEstimate({
+            system: { sizeKw: 0, numPanels: 0 },
+            production: { annualKwh: 0, monthlyKwh: [] },
+            costs: { totalCost: 0, netCost: 0, incentives: 0 },
+            savings: { annualSavings: 0, monthlySavings: 0, paybackYears: 0 },
+          })
+          setLeadData(results?.leadData || {})
         }
         
         setLoading(false)
-        // Clear sessionStorage after reading (but keep localStorage for future visits)
+        // Clear sessionStorage after reading
         sessionStorage.removeItem('calculatorResults')
-        console.log('✅ Results loaded successfully')
+        console.log('✅ Results loaded from sessionStorage successfully')
         return
       } catch (err) {
         console.error('Error parsing stored results:', err)
@@ -339,8 +761,8 @@ function ResultsPageContent() {
       }
     }
     
-    // If no sessionStorage data, try to fetch from API
-    if (leadId && !leadId.startsWith('mock-')) {
+    // If no data found and we have a leadId, try to fetch from API
+    if (effectiveLeadId && !effectiveLeadId.startsWith('mock-')) {
       // Fetch lead data and estimate from API
       fetch(`/api/leads/${leadId}`)
         .then(async res => {
@@ -364,7 +786,8 @@ function ResultsPageContent() {
             // Check if this is HRS residential lead with simplified data structure
             if (lead.hrs_residential_data || lead.full_data_json) {
               const simplifiedData = lead.full_data_json || lead.hrs_residential_data
-              const transformedData = transformSimplifiedData(simplifiedData)
+              // Pass hrs_residential_data as leadFields so we can prioritize database values
+              const transformedData = transformSimplifiedData(simplifiedData, lead.hrs_residential_data)
               
               setEstimate(transformedData.estimate)
               setLeadData(transformedData.leadData)

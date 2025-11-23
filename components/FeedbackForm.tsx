@@ -3,7 +3,7 @@
 // Feedback form component (modal or page)
 
 import { useState, FormEvent } from 'react'
-import { X, Send, CheckCircle, AlertCircle, Lightbulb, Bug, Package } from 'lucide-react'
+import { X, Send, CheckCircle, AlertCircle, Lightbulb, Bug, Package, Loader2 } from 'lucide-react'
 
 interface FeedbackFormProps {
   isModal?: boolean
@@ -55,12 +55,34 @@ export function FeedbackForm({ isModal = false, onClose, onSuccess }: FeedbackFo
 
     setLoading(true)
     
-    // Simulate form submission (UI only, no backend yet)
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: formData.type,
+          description: formData.description,
+          province: formData.province || null,
+          email: formData.email || null,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to submit feedback')
+      }
+
       setSubmitted(true)
       setLoading(false)
       if (onSuccess) onSuccess()
-    }, 1000)
+    } catch (err) {
+      console.error('Error submitting feedback:', err)
+      setError(err instanceof Error ? err.message : 'Failed to submit feedback. Please try again.')
+      setLoading(false)
+    }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -84,7 +106,19 @@ export function FeedbackForm({ isModal = false, onClose, onSuccess }: FeedbackFo
         </div>
       )}
 
-      {submitted ? (
+      {loading ? (
+        <div className="bg-white border-2 border-forest-200 rounded-xl p-12 text-center">
+          <div className="w-20 h-20 bg-forest-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Loader2 className="text-forest-500 animate-spin" size={40} />
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-2">
+            Submitting Your Feedback
+          </h3>
+          <p className="text-gray-600">
+            Please wait while we process your submission...
+          </p>
+        </div>
+      ) : submitted ? (
         <div className="bg-forest-50 border-2 border-forest-500 rounded-xl p-8 text-center">
           <div className="w-16 h-16 bg-forest-500 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="text-white" size={32} />
@@ -227,22 +261,17 @@ export function FeedbackForm({ isModal = false, onClose, onSuccess }: FeedbackFo
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary flex-1 h-12 inline-flex items-center justify-center"
+              className="btn-primary flex-1 h-12 inline-flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? (
-                'Submitting...'
-              ) : (
-                <>
-                  <Send className="mr-2" size={18} />
-                  Submit Feedback
-                </>
-              )}
+              <Send className="mr-2" size={18} />
+              Submit Feedback
             </button>
             {isModal && onClose && (
               <button
                 type="button"
                 onClick={onClose}
-                className="btn-outline h-12 px-6"
+                disabled={loading}
+                className="btn-outline h-12 px-6 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>

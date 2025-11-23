@@ -26,10 +26,18 @@ export function saveEstimatorProgress(data: EstimatorData, currentStep: number):
     }
     
     // Save to localStorage
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData))
+    const jsonString = JSON.stringify(saveData)
+    localStorage.setItem(STORAGE_KEY, jsonString)
     localStorage.setItem(TIMESTAMP_KEY, new Date().toISOString())
     
     console.log('✅ Progress saved (simplified):', { step: currentStep, timestamp: saveData.timestamp })
+    
+    // Log the full JSON being saved
+    console.log('💾 JSON Being Saved to localStorage:')
+    console.log('📦 Full JSON:', jsonString)
+    console.log('📏 JSON Size:', jsonString.length, 'bytes')
+    console.log('📋 Pretty JSON:')
+    console.log(JSON.stringify(saveData, null, 2))
     
     // Log final simplified data structure for debugging (only on steps 8+)
     if (currentStep >= 8) {

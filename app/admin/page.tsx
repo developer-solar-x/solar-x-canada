@@ -40,6 +40,46 @@ interface Lead {
   created_at: string
   hubspot_synced?: boolean
   rate_plan?: string
+  // New fields from updated schema
+  estimator_mode?: string
+  program_type?: string
+  lead_type?: string
+  has_battery?: boolean
+  selected_battery_ids?: string[]
+  annual_escalator?: number
+  // TOU fields
+  tou_solar?: number
+  tou_battery_solar_capture?: number
+  tou_total_offset?: number
+  tou_buy_from_grid?: number
+  tou_actual_cost_after_battery_optimization?: number
+  tou_savings?: number
+  tou_annual_savings?: number
+  tou_monthly_savings?: number
+  tou_profit_25_year?: number
+  tou_payback_period?: number
+  tou_total_bill_savings_percent?: number
+  tou_before_solar?: number
+  tou_after_solar?: number
+  // ULO fields
+  ulo_solar?: number
+  ulo_battery_solar_capture?: number
+  ulo_total_offset?: number
+  ulo_buy_from_grid?: number
+  ulo_actual_cost_after_battery_optimization?: number
+  ulo_savings?: number
+  ulo_annual_savings?: number
+  ulo_monthly_savings?: number
+  ulo_profit_25_year?: number
+  ulo_payback_period?: number
+  ulo_total_bill_savings_percent?: number
+  ulo_before_solar?: number
+  ulo_after_solar?: number
+  // Battery cost fields
+  battery_cost?: number
+  battery_rebate?: number
+  // Full data JSON
+  full_data_json?: string
   [key: string]: any // Allow other database fields
 }
 
@@ -69,6 +109,10 @@ export default function AdminPage() {
   const [installersLoading, setInstallersLoading] = useState(false)
   const [selectedInstaller, setSelectedInstaller] = useState<any>(null)
   const [installerStatusFilter, setInstallerStatusFilter] = useState('all')
+  
+  // Navigation loading states
+  const [logoutLoading, setLogoutLoading] = useState(false)
+  const [exitLoading, setExitLoading] = useState(false)
 
   // Feedback state
   const [feedbackEntries, setFeedbackEntries] = useState<any[]>([])
@@ -93,12 +137,21 @@ export default function AdminPage() {
         }
         
         const response = await fetch(`/api/leads?${params.toString()}`)
+        const result = await response.json()
+        
         if (!response.ok) {
-          throw new Error('Failed to fetch leads')
+          console.error('Failed to fetch leads:', response.status, result)
+          // Show error message to user
+          alert(`Error loading leads: ${result.error || result.details || response.statusText}\n\n${result.hint || ''}`)
+          setLeads([])
+          return
         }
         
-        const result = await response.json()
-        if (result.success && result.data.leads) {
+        console.log('Leads API response:', { success: result.success, leadsCount: result.data?.leads?.length, result })
+        
+        if (result.success && result.data) {
+          const leadsData = result.data.leads || result.data || []
+          if (Array.isArray(leadsData) && leadsData.length > 0) {
           // Map database fields to expected format (coerce strings -> numbers)
           const toNumber = (v: any) => typeof v === 'number' ? v : (v != null ? Number(v) : 0) || 0
           const parsedLeads = result.data.leads.map((l: any) => ({ ...l }))
@@ -126,6 +179,35 @@ export default function AdminPage() {
             lead.combined_monthly_savings = toNumber(lead.combined_monthly_savings)
             lead.combined_annual_savings = toNumber(lead.combined_annual_savings)
             lead.combined_payback_years = toNumber(lead.combined_payback_years)
+            // New TOU fields
+            lead.tou_solar = toNumber(lead.tou_solar)
+            lead.tou_battery_solar_capture = toNumber(lead.tou_battery_solar_capture)
+            lead.tou_total_offset = toNumber(lead.tou_total_offset)
+            lead.tou_buy_from_grid = toNumber(lead.tou_buy_from_grid)
+            lead.tou_actual_cost_after_battery_optimization = toNumber(lead.tou_actual_cost_after_battery_optimization)
+            lead.tou_savings = toNumber(lead.tou_savings)
+            lead.tou_monthly_savings = toNumber(lead.tou_monthly_savings)
+            lead.tou_profit_25_year = toNumber(lead.tou_profit_25_year)
+            lead.tou_payback_period = toNumber(lead.tou_payback_period)
+            lead.tou_total_bill_savings_percent = toNumber(lead.tou_total_bill_savings_percent)
+            lead.tou_before_solar = toNumber(lead.tou_before_solar)
+            lead.tou_after_solar = toNumber(lead.tou_after_solar)
+            // New ULO fields
+            lead.ulo_solar = toNumber(lead.ulo_solar)
+            lead.ulo_battery_solar_capture = toNumber(lead.ulo_battery_solar_capture)
+            lead.ulo_total_offset = toNumber(lead.ulo_total_offset)
+            lead.ulo_buy_from_grid = toNumber(lead.ulo_buy_from_grid)
+            lead.ulo_actual_cost_after_battery_optimization = toNumber(lead.ulo_actual_cost_after_battery_optimization)
+            lead.ulo_savings = toNumber(lead.ulo_savings)
+            lead.ulo_monthly_savings = toNumber(lead.ulo_monthly_savings)
+            lead.ulo_profit_25_year = toNumber(lead.ulo_profit_25_year)
+            lead.ulo_payback_period = toNumber(lead.ulo_payback_period)
+            lead.ulo_total_bill_savings_percent = toNumber(lead.ulo_total_bill_savings_percent)
+            lead.ulo_before_solar = toNumber(lead.ulo_before_solar)
+            lead.ulo_after_solar = toNumber(lead.ulo_after_solar)
+            // Battery fields
+            lead.battery_cost = toNumber(lead.battery_cost)
+            lead.battery_rebate = toNumber(lead.battery_rebate)
             return {
               ...lead,
               city,
@@ -134,7 +216,13 @@ export default function AdminPage() {
             }
           })
           setLeads(mappedLeads)
+            console.log('Mapped leads:', mappedLeads.length, 'leads')
+          } else {
+            console.log('No leads found in database')
+            setLeads([])
+          }
         } else {
+          console.warn('Unexpected response format:', result)
           setLeads([])
         }
       } catch (error) {
@@ -189,13 +277,25 @@ export default function AdminPage() {
 
   // Handle logout
   const handleLogout = async () => {
+    setLogoutLoading(true)
     try {
       await fetch('/api/admin/logout', { method: 'POST' })
       router.push('/admin/login')
       router.refresh()
     } catch (error) {
       console.error('Logout failed:', error)
+      setLogoutLoading(false)
     }
+  }
+  
+  // Handle exit to site
+  const handleExitToSite = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault()
+    setExitLoading(true)
+    // Small delay to show loading state
+    setTimeout(() => {
+      window.location.href = '/'
+    }, 300)
   }
   
   // Fetch users
@@ -226,78 +326,69 @@ export default function AdminPage() {
     if (activeSection === 'feedback') {
       fetchFeedbackEntries()
     }
-  }, [activeSection])
+  }, [activeSection, installerStatusFilter, searchTerm, feedbackStatusFilter, feedbackTypeFilter, feedbackProvinceFilter, feedbackDateRangeFilter])
 
-  // Fetch installer applications (mock data for now)
+  // Fetch installer applications
   const fetchInstallerApplications = async () => {
     setInstallersLoading(true)
     try {
-      // TODO: Replace with actual API call when backend is ready
-      // For now, use mock data from sessionStorage or create mock data
-      const mockApplications = [
-        {
-          id: 'app-1',
-          companyName: 'Solar Solutions Inc.',
-          contactPersonName: 'John Smith',
-          contactEmail: 'john@solarsolutions.ca',
-          contactPhone: '(416) 555-0123',
-          websiteUrl: 'https://www.solarsolutions.ca',
-          yearsInBusiness: '5+ years',
-          primaryServiceProvinces: ['Ontario', 'Alberta'],
-          serviceAreaDescription: 'Greater Toronto Area and surrounding regions',
-          certifications: {
-            esa: true,
-            provincial: false,
-            manufacturer: ['Tesla', 'Enphase'],
-            other: '',
-          },
-          generalLiabilityCoverage: '$2,000,000',
-          numberOfInstalls: '150+',
-          typicalSystemSizeRange: '5-15 kW',
-          workmanshipWarrantyYears: '10 years',
-          productWarrantySupport: 'Full manufacturer warranty support',
-          status: 'pending_review',
-          submittedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        {
-          id: 'app-2',
-          companyName: 'Green Energy Installers',
-          contactPersonName: 'Sarah Johnson',
-          contactEmail: 'sarah@greenenergy.ca',
-          contactPhone: '(905) 555-0456',
-          yearsInBusiness: '3-5 years',
-          primaryServiceProvinces: ['Ontario'],
-          certifications: {
-            esa: true,
-            provincial: true,
-            manufacturer: ['SolarEdge'],
-            other: 'CEC Certified',
-          },
-          generalLiabilityCoverage: '$1,500,000',
-          numberOfInstalls: '75+',
-          typicalSystemSizeRange: '7-12 kW',
-          workmanshipWarrantyYears: '5 years',
-          status: 'approved',
-          submittedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          reviewedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-          reviewedBy: 'Admin User',
-        },
-      ]
-      
-      // Try to get from sessionStorage if available (from installer form submission)
-      const stored = sessionStorage.getItem('installerApplication')
-      if (stored) {
-        try {
-          const storedApp = JSON.parse(stored)
-          mockApplications.unshift(storedApp)
-        } catch (err) {
-          console.error('Error parsing stored application:', err)
-        }
+      const params = new URLSearchParams()
+      if (installerStatusFilter && installerStatusFilter !== 'all') {
+        params.append('status', installerStatusFilter)
+      }
+      if (searchTerm) {
+        params.append('search', searchTerm)
       }
       
-      setInstallerApplications(mockApplications)
+      const response = await fetch(`/api/installers?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch installer applications')
+      }
+      
+      const result = await response.json()
+      if (result.success && result.applications) {
+        // Map database fields to component interface
+        const mappedApplications = result.applications.map((app: any) => ({
+          id: app.id,
+          companyName: app.company_name,
+          contactPersonName: app.contact_person_name,
+          contactEmail: app.contact_email,
+          contactPhone: app.contact_phone,
+          websiteUrl: app.website_url,
+          yearsInBusiness: app.years_in_business,
+          primaryServiceProvinces: app.primary_service_provinces || [],
+          serviceAreaDescription: app.service_area_description,
+          province: app.primary_service_provinces?.[0] || 'N/A',
+          status: app.status || 'pending_review',
+          submittedAt: app.created_at, // Map created_at to submittedAt
+          reviewedAt: app.reviewed_at,
+          reviewedBy: app.reviewed_by,
+          reviewNotes: app.review_notes,
+          numberOfInstalls: app.number_of_installs,
+          typicalSystemSizeRange: app.typical_system_size_range,
+          workmanshipWarrantyYears: app.workmanship_warranty_years,
+          productWarrantySupport: app.product_warranty_support,
+          generalLiabilityCoverage: app.general_liability_coverage,
+          certifications: {
+            esa: app.certification_esa_url,
+            provincial: app.certification_provincial_url,
+            manufacturer: app.certification_manufacturer || [],
+            other: app.certification_other_url,
+            otherDescription: app.certification_other_description,
+          },
+          insuranceProof: app.insurance_proof_url,
+          projectPhotos: app.project_photos_urls || [],
+          agreeToVetting: app.agree_to_vetting,
+          agreeToDoubleWarranty: app.agree_to_double_warranty,
+          fullApplicationData: app.full_application_data,
+        }))
+        setInstallerApplications(mappedApplications)
+      } else {
+        setInstallerApplications([])
+      }
     } catch (error) {
       console.error('Error fetching installer applications:', error)
+      setInstallerApplications([])
     } finally {
       setInstallersLoading(false)
     }
@@ -479,77 +570,37 @@ export default function AdminPage() {
     needMoreInfo: installerApplications.filter(app => app.status === 'need_more_info').length,
   }
 
-  // Fetch feedback entries (mock data for now)
+  // Fetch feedback entries
   const fetchFeedbackEntries = async () => {
     setFeedbackLoading(true)
     try {
-      // TODO: Replace with actual API call when backend is ready
-      // For now, use mock data
-      const mockFeedback = [
-        {
-          id: 'feedback-1',
-          type: 'product',
-          province: 'ON',
-          email: 'user1@example.com',
-          description: 'It would be great to add support for heat pump calculations. Many homeowners are interested in combining solar with heat pumps for maximum energy efficiency.',
-          status: 'new',
-          reviewed: false,
-          created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        {
-          id: 'feedback-2',
-          type: 'improvement',
-          province: 'ON',
-          email: 'user2@example.com',
-          description: 'The calculator would be more helpful if it showed a comparison between different battery sizes. Currently it only shows one option.',
-          status: 'reviewed',
-          reviewed: true,
-          reviewedBy: 'Admin User',
-          reviewedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-          reviewNotes: 'Good suggestion. Consider adding battery comparison feature.',
-          created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        {
-          id: 'feedback-3',
-          type: 'bug',
-          province: 'AB',
-          email: 'user3@example.com',
-          description: 'When I select Alberta as my province, the calculator still shows Ontario incentives. This seems like a bug since Alberta has different programs.',
-          status: 'in_progress',
-          reviewed: true,
-          reviewedBy: 'Admin User',
-          reviewedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-          reviewNotes: 'Confirmed bug. Alberta calculator logic needs to be implemented.',
-          created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        {
-          id: 'feedback-4',
-          type: 'product',
-          province: 'ON',
-          email: '',
-          description: 'Could you add EV charger integration? Many solar customers also have electric vehicles.',
-          status: 'new',
-          reviewed: false,
-          created_at: new Date(Date.now() - 0.5 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        {
-          id: 'feedback-5',
-          type: 'improvement',
-          province: 'ON',
-          email: 'user5@example.com',
-          description: 'The results page is great but it would be nice to see a breakdown of monthly savings over the first year, not just annual totals.',
-          status: 'resolved',
-          reviewed: true,
-          reviewedBy: 'Admin User',
-          reviewedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-          reviewNotes: 'Feature added in latest update.',
-          created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-      ]
-      
-      setFeedbackEntries(mockFeedback)
+      const params = new URLSearchParams()
+      if (feedbackStatusFilter !== 'all') {
+        params.append('status', feedbackStatusFilter)
+      }
+      if (feedbackTypeFilter !== 'all') {
+        params.append('type', feedbackTypeFilter)
+      }
+      if (feedbackProvinceFilter !== 'all') {
+        params.append('province', feedbackProvinceFilter)
+      }
+      if (feedbackDateRangeFilter.start) {
+        params.append('startDate', feedbackDateRangeFilter.start)
+      }
+      if (feedbackDateRangeFilter.end) {
+        params.append('endDate', feedbackDateRangeFilter.end)
+      }
+
+      const response = await fetch(`/api/feedback?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch feedback')
+      }
+
+      const result = await response.json()
+      setFeedbackEntries(result.feedback || [])
     } catch (error) {
       console.error('Error fetching feedback entries:', error)
+      setFeedbackEntries([])
     } finally {
       setFeedbackLoading(false)
     }
@@ -581,35 +632,39 @@ export default function AdminPage() {
 
   // Handle feedback status update
   const handleFeedbackStatusUpdate = async (id: string, status: string, notes?: string) => {
-    // TODO: Replace with actual API call when backend is ready
+    try {
+      const response = await fetch('/api/feedback', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          status,
+          reviewNotes: notes,
+          reviewedBy: 'Admin User', // TODO: Get from auth context
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update feedback')
+      }
+
+      const result = await response.json()
+      
+      // Update local state
     setFeedbackEntries(prevFeedback =>
       prevFeedback.map(f =>
-        f.id === id
-          ? {
-              ...f,
-              status,
-              reviewNotes: notes || '',
-              reviewed: true,
-              reviewedAt: new Date().toISOString(),
-              reviewedBy: 'Admin User', // TODO: Get from auth context
-            }
-          : f
+          f.id === id ? result.feedback : f
       )
     )
     
     if (selectedFeedback && selectedFeedback.id === id) {
-      setSelectedFeedback({
-        ...selectedFeedback,
-        status,
-        reviewNotes: notes || '',
-        reviewed: true,
-        reviewedAt: new Date().toISOString(),
-        reviewedBy: 'Admin User',
-      })
+        setSelectedFeedback(result.feedback)
+      }
+    } catch (error) {
+      console.error('Error updating feedback:', error)
+      throw error
     }
-    
-    // Refresh the list
-    await fetchFeedbackEntries()
   }
 
 
@@ -629,6 +684,9 @@ export default function AdminPage() {
         onLogout={handleLogout}
         mobileMenuOpen={mobileMenuOpen}
         onMobileMenuClose={() => setMobileMenuOpen(false)}
+        logoutLoading={logoutLoading}
+        exitLoading={exitLoading}
+        onExitToSite={handleExitToSite}
         totalLeads={stats.totalLeads}
         totalPartialLeads={partialStats.total}
         totalInstallers={installerStats.total}

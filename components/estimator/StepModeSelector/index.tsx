@@ -22,12 +22,13 @@ export function StepModeSelector({ onComplete }: StepModeSelectorProps) {
     setShowProgramModal(true)
   }
 
-  const handleProgramSelect = (programType: 'net_metering' | 'hrs_residential', leadType: 'residential' | 'commercial') => {
+  const handleProgramSelect = (programType: 'net_metering' | 'hrs_residential' | 'quick', leadType: 'residential' | 'commercial', hasBattery?: boolean) => {
     if (selectedMode) {
       onComplete({ 
         estimatorMode: selectedMode,
         programType,
-        leadType
+        leadType,
+        hasBattery
       })
     }
   }
@@ -129,6 +130,7 @@ export function StepModeSelector({ onComplete }: StepModeSelectorProps) {
         isOpen={showProgramModal}
         onSelect={handleProgramSelect}
         onClose={() => setShowProgramModal(false)}
+        isQuickEstimate={selectedMode === 'easy'}
       />
     </div>
   )

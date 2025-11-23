@@ -1,6 +1,6 @@
 'use client'
 
-import { Users, DollarSign, Zap, TrendingUp, Search, Download } from 'lucide-react'
+import { Users, DollarSign, Zap, TrendingUp, Search, Download, Mail, MapPin, Battery, Calendar, CheckCircle, Eye } from 'lucide-react'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils'
 import { getStatusColor, getProgramBadgeColor, formatProgramType } from '../utils'
 import { SkeletonStatsGrid, SkeletonTableRow } from '@/components/admin/SkeletonLoader'
@@ -17,6 +17,12 @@ interface Lead {
   program_type?: string
   created_at: string
   hubspot_synced?: boolean
+  has_battery?: boolean
+  selected_battery_ids?: string[]
+  tou_annual_savings?: number
+  ulo_annual_savings?: number
+  tou_total_bill_savings_percent?: number
+  ulo_total_bill_savings_percent?: number
   [key: string]: any
 }
 
@@ -59,55 +65,66 @@ export function LeadsSection({
         <SkeletonStatsGrid />
       ) : (
         <div className="grid md:grid-cols-4 gap-6 mb-8">
-          <div className="card p-6">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all">
             <div className="flex items-center justify-between mb-4">
-              <Users className="text-blue-500" size={32} />
-              <span className="text-3xl font-bold text-navy-500">{stats.totalLeads}</span>
+              <div className="p-3 bg-blue-500 rounded-lg">
+                <Users className="text-white" size={28} />
+              </div>
+              <span className="text-4xl font-bold text-blue-700">{stats.totalLeads}</span>
             </div>
-            <div className="text-sm text-gray-600">Total Leads</div>
-            <div className="text-xs text-green-600 mt-1">↑ {stats.newLeads} new</div>
+            <div className="text-sm font-semibold text-blue-600 uppercase tracking-wide">Total Leads</div>
+            <div className="text-xs text-green-600 mt-2 font-semibold flex items-center gap-1">
+              <TrendingUp size={12} />
+              {stats.newLeads} new
+            </div>
           </div>
 
-          <div className="card p-6">
+          <div className="bg-gradient-to-br from-orange-50 to-orange-100 border-2 border-orange-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all">
             <div className="flex items-center justify-between mb-4">
-              <Zap className="text-red-500" size={32} />
-              <span className="text-3xl font-bold text-navy-500">
+              <div className="p-3 bg-orange-500 rounded-lg">
+                <Zap className="text-white" size={28} />
+              </div>
+              <span className="text-4xl font-bold text-orange-700">
                 {stats.avgSystemSize.toFixed(1)} kW
               </span>
             </div>
-            <div className="text-sm text-gray-600">Avg System Size</div>
+            <div className="text-sm font-semibold text-orange-600 uppercase tracking-wide">Avg System Size</div>
           </div>
 
-          <div className="card p-6">
+          <div className="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all">
             <div className="flex items-center justify-between mb-4">
-              <DollarSign className="text-green-500" size={32} />
-              <span className="text-3xl font-bold text-navy-500">
+              <div className="p-3 bg-green-500 rounded-lg">
+                <DollarSign className="text-white" size={28} />
+              </div>
+              <span className="text-4xl font-bold text-green-700">
                 {formatCurrency(stats.totalSavings)}
               </span>
             </div>
-            <div className="text-sm text-gray-600">Total Annual Savings</div>
+            <div className="text-sm font-semibold text-green-600 uppercase tracking-wide">Total Annual Savings</div>
           </div>
 
-          <div className="card p-6">
+          <div className="bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all">
             <div className="flex items-center justify-between mb-4">
-              <TrendingUp className="text-purple-500" size={32} />
-              <span className="text-3xl font-bold text-navy-500">
+              <div className="p-3 bg-purple-500 rounded-lg">
+                <TrendingUp className="text-white" size={28} />
+              </div>
+              <span className="text-4xl font-bold text-purple-700">
                 {((stats.newLeads / stats.totalLeads) * 100 || 0).toFixed(0)}%
               </span>
             </div>
-            <div className="text-sm text-gray-600">Conversion Rate</div>
+            <div className="text-sm font-semibold text-purple-600 uppercase tracking-wide">Conversion Rate</div>
           </div>
         </div>
       )}
 
       {/* Filters bar */}
-      <div className="card p-6 mb-6">
+      <div className="bg-white border-2 border-gray-100 rounded-xl p-6 mb-6 shadow-sm">
         <div className="flex flex-col md:flex-row gap-4">
           {/* Status filter */}
           <select
             value={statusFilter}
             onChange={(e) => onStatusFilterChange(e.target.value)}
-            className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 outline-none"
+            className="px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-all bg-gray-50 focus:bg-white font-medium"
           >
             <option value="all">All Statuses</option>
             <option value="new">New</option>
@@ -118,18 +135,18 @@ export function LeadsSection({
 
           {/* Search */}
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
               placeholder="Search by name, email, or address..."
               value={searchTerm}
               onChange={(e) => onSearchTermChange(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 outline-none"
+              className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-all bg-gray-50 focus:bg-white"
             />
           </div>
 
           {/* Export button */}
-          <button className="btn-outline border-navy-500 text-navy-500 inline-flex items-center gap-2">
+          <button className="inline-flex items-center gap-2 px-6 py-3 border-2 border-navy-500 text-navy-600 hover:bg-navy-50 rounded-lg font-semibold transition-all shadow-sm hover:shadow-md">
             <Download size={18} />
             Export CSV
           </button>
@@ -137,93 +154,150 @@ export function LeadsSection({
       </div>
 
       {/* Leads table */}
-      <div className="card overflow-hidden">
+      <div className="bg-white border-2 border-gray-100 rounded-xl shadow-lg overflow-hidden">
         {loading ? (
-          <>
-            <div className="bg-navy-500 h-12"></div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px]">
-                <thead className="bg-navy-500 text-white">
+            <table className="w-full min-w-[1000px]">
+              <thead className="bg-gradient-to-r from-navy-500 to-navy-600">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Name</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Program</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Location</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">System Size</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Savings/Year</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Created</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">HubSpot</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Program</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Location</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">System</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Bill Savings %</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Created</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">HubSpot</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-gray-100">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <SkeletonTableRow key={i} />
                   ))}
                 </tbody>
               </table>
             </div>
-          </>
         ) : leads.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">No leads found</div>
+          <div className="p-16 text-center">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gray-100 rounded-full mb-4">
+              <Users className="text-gray-400" size={40} />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No leads found</h3>
+            <p className="text-gray-600">Try adjusting your search or filter criteria</p>
+          </div>
         ) : (
           <>
-            <div className="bg-blue-50 border-b border-blue-200 px-4 py-2">
-              <p className="text-xs text-blue-700">
-                💡 <strong>Tip:</strong> Click on any row to view complete lead details including roof visualization, photos, and full estimate breakdown
+            <div className="bg-gradient-to-r from-blue-50 to-sky-50 border-b border-blue-200 px-6 py-3">
+              <p className="text-xs text-blue-700 flex items-center gap-2">
+                <Eye size={14} />
+                <strong>Tip:</strong> Click on any row to view complete lead details including roof visualization, photos, and full estimate breakdown
               </p>
             </div>
-            <div className="overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0">
-              <table className="w-full min-w-[900px]">
-                <thead className="bg-navy-500 text-white">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1000px]">
+                <thead className="bg-gradient-to-r from-navy-500 to-navy-600">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Name</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Program</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Location</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">System Size</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Savings/Year</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Created</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">HubSpot</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Name</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Program</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Location</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">System</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Bill Savings %</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Created</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">HubSpot</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="bg-white divide-y divide-gray-100">
                   {leads.map((lead) => (
                     <tr 
                       key={lead.id} 
                       onClick={() => onLeadClick(lead)}
-                      className="hover:bg-blue-50 transition-colors cursor-pointer"
+                      className="hover:bg-gradient-to-r hover:from-navy-50 hover:to-blue-50 cursor-pointer transition-all group border-l-4 border-transparent hover:border-navy-400"
                     >
-                      <td className="px-4 py-3">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(lead.status)}`}>
+                      <td className="px-6 py-5">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border-2 shadow-sm ${getStatusColor(lead.status)}`}>
                           {lead.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-navy-500">{lead.full_name}</div>
-                        <div className="text-sm text-gray-500">{lead.email}</div>
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-navy-100 to-blue-100 rounded-lg flex items-center justify-center group-hover:from-navy-200 group-hover:to-blue-200 transition-all">
+                            <Users size={20} className="text-navy-600" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-gray-900 group-hover:text-navy-700 transition-colors">{lead.full_name}</div>
+                            <div className="text-xs text-gray-600 flex items-center gap-1.5 mt-0.5">
+                              <Mail size={12} className="text-gray-400" />
+                              <span className="truncate max-w-[200px]">{lead.email}</span>
+                            </div>
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        <span className={`inline-flex items-center gap-2 px-2 py-1 rounded text-xs font-semibold uppercase tracking-wide ${getProgramBadgeColor(lead.program_type)}`}>
+                      <td className="px-6 py-5">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide shadow-sm ${getProgramBadgeColor(lead.program_type)}`}>
                           {formatProgramType(lead.program_type)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        {lead.city}, {lead.province}
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 bg-sky-100 rounded-lg">
+                            <MapPin size={14} className="text-sky-600" />
+                          </div>
+                          <span className="text-sm font-medium text-gray-900">
+                            {lead.city ? `${lead.city}, ` : ''}{lead.province}
+                          </span>
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-sm font-medium">
-                        {lead.system_size_kw ? `${lead.system_size_kw.toFixed(1)} kW` : '-'}
+                      <td className="px-6 py-5">
+                        <div className="space-y-1">
+                          {lead.system_size_kw ? (
+                            <div className="flex items-center gap-2">
+                              <Zap size={14} className="text-orange-500" />
+                              <span className="text-sm font-bold text-gray-900">{lead.system_size_kw.toFixed(1)} kW</span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">-</span>
+                          )}
+                          {lead.has_battery && lead.selected_battery_ids && lead.selected_battery_ids.length > 0 && (
+                            <div className="flex items-center gap-1.5 text-xs text-blue-600 font-semibold">
+                              <Battery size={12} />
+                              {lead.selected_battery_ids.length} battery{lead.selected_battery_ids.length > 1 ? 'ies' : ''}
+                            </div>
+                          )}
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-sm font-medium text-green-600">
-                        {lead.annual_savings ? formatCurrency(lead.annual_savings) : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
-                        {formatRelativeTime(new Date(lead.created_at))}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {lead.hubspot_synced ? (
-                          <span className="text-green-600">✓</span>
+                      <td className="px-6 py-5">
+                        {lead.tou_total_bill_savings_percent != null ? (
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              <span className="text-sm font-bold text-blue-600">TOU: {lead.tou_total_bill_savings_percent.toFixed(1)}%</span>
+                            </div>
+                            {lead.ulo_total_bill_savings_percent != null && (
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                                <span className="text-sm font-bold text-purple-600">ULO: {lead.ulo_total_bill_savings_percent.toFixed(1)}%</span>
+                              </div>
+                            )}
+                          </div>
                         ) : (
-                          <span className="text-gray-400">-</span>
+                          <span className="text-sm text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-2">
+                          <Calendar size={14} className="text-gray-400" />
+                          <span className="text-sm text-gray-600 font-medium">{formatRelativeTime(new Date(lead.created_at))}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        {lead.hubspot_synced ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50 border border-green-200 rounded-lg">
+                            <CheckCircle size={14} className="text-green-600" />
+                            <span className="text-xs font-semibold text-green-700">Synced</span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">-</span>
                         )}
                       </td>
                     </tr>
@@ -237,18 +311,18 @@ export function LeadsSection({
 
       {/* Pagination placeholder */}
       {leads.length > 0 && (
-        <div className="mt-6 flex items-center justify-between">
-          <p className="text-sm text-gray-600">
-            Showing {leads.length} of {leads.length} leads
+        <div className="mt-6 flex items-center justify-between bg-white border-2 border-gray-100 rounded-xl p-4 shadow-sm">
+          <p className="text-sm font-medium text-gray-700">
+            Showing <span className="font-bold text-navy-600">{leads.length}</span> of <span className="font-bold text-navy-600">{leads.length}</span> leads
           </p>
           <div className="flex gap-2">
-            <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">
+            <button className="px-4 py-2 border-2 border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 text-sm font-medium transition-all">
               Previous
             </button>
-            <button className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm">
+            <button className="px-4 py-2 bg-navy-600 text-white rounded-lg hover:bg-navy-700 text-sm font-semibold shadow-sm hover:shadow-md transition-all">
               1
             </button>
-            <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">
+            <button className="px-4 py-2 border-2 border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 text-sm font-medium transition-all">
               Next
             </button>
           </div>

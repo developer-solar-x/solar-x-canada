@@ -5,7 +5,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Zap } from 'lucide-react'
 import { InputToggle } from './components/InputToggle'
-import { PlanTypeSelector } from './components/PlanTypeSelector'
 import { AnnualUsageInput } from './components/AnnualUsageInput'
 import { MonthlyBillInput } from './components/MonthlyBillInput'
 import { ElectricityBillInflationCalculator } from './components/ElectricityBillInflationCalculator'
@@ -22,7 +21,8 @@ export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: St
   )
   const [monthlyBillInput, setMonthlyBillInput] = useState<string>(data.monthlyBill?.toString() || '')
   const [useMonthlyBill, setUseMonthlyBill] = useState<boolean>(Boolean(data.monthlyBill && Number(data.monthlyBill) > 0))
-  const [planType, setPlanType] = useState<'battery'>('battery')
+  // Use hasBattery from initial selection (from modal), default to true for quick estimate
+  const hasBattery = data.hasBattery !== undefined ? data.hasBattery : true
   const [annualEscalator, setAnnualEscalator] = useState<number>(() => {
     const value = data.annualEscalator ?? 4.5
     return value
@@ -72,8 +72,8 @@ export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: St
 
     const stepData = {
       monthlyBill: useMonthlyBill && monthlyBillInput ? parseFloat(monthlyBillInput) : undefined,
-      systemType: planType === 'battery' ? 'battery_system' : 'grid_tied',
-      hasBattery: planType === 'battery',
+      systemType: hasBattery ? 'battery_system' : 'grid_tied',
+      hasBattery: hasBattery,
       annualUsageKwh: annualUsageKwh || undefined,
       energyUsage: annualUsageKwh
         ? {
@@ -89,7 +89,7 @@ export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: St
     onComplete(stepData)
   }
 
-  const canContinue = finalAnnualUsage > 0 && Boolean(planType)
+  const canContinue = finalAnnualUsage > 0
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -110,12 +110,6 @@ export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: St
         <InputToggle
           useMonthlyBill={useMonthlyBill}
           onToggle={setUseMonthlyBill}
-        />
-
-        {/* Plan selection */}
-        <PlanTypeSelector
-          planType={planType}
-          onPlanTypeChange={setPlanType}
         />
 
         {/* Annual Usage */}

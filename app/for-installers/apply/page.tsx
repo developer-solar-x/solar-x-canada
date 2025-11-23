@@ -13,29 +13,35 @@ export default function InstallerApplyPage() {
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
 
-  const handleSubmit = async (data: InstallerFormData) => {
+  const handleSubmit = async (data: InstallerFormData & { applicationId?: string; apiResult?: any }) => {
+    // Set submitting state immediately to show loading
     setSubmitting(true)
     
-    // TODO: API connection disabled - will be connected later
-    // For now, just simulate success without calling the API
-    console.log('Installer application submission (API disabled):', data)
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    // Store application data in sessionStorage for status page
-    const applicationId = `app-${Date.now()}`
-    sessionStorage.setItem('installerApplication', JSON.stringify({
-      id: applicationId,
-      data,
-      status: 'pending_review',
-      submittedAt: new Date().toISOString(),
-    }))
-    
-    setSubmitting(false)
-    
-    // Redirect to success page
-    router.push(`/for-installers/apply/success?applicationId=${applicationId}`)
+    try {
+      // The form component already called the API, so we just need to handle the result
+      const applicationId = data.applicationId || data.apiResult?.applicationId || `app-${Date.now()}`
+      
+      // Store application data in both sessionStorage and localStorage
+      const applicationData = {
+        id: applicationId,
+        data,
+        status: 'pending_review',
+        submittedAt: new Date().toISOString(),
+      }
+      
+      sessionStorage.setItem('installerApplication', JSON.stringify(applicationData))
+      localStorage.setItem('installerApplication', JSON.stringify(applicationData))
+      
+      // Small delay to ensure loading state is visible before redirect
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      // Redirect to success page
+      router.push(`/for-installers/apply/success?applicationId=${applicationId}`)
+    } catch (error) {
+      console.error('Error handling submission:', error)
+      setSubmitting(false)
+      // Error is already handled in the form component
+    }
   }
 
   const handleCancel = () => {

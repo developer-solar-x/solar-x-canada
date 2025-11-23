@@ -1,7 +1,6 @@
 'use client'
 
-import { Logo } from '@/components/Logo'
-import { Users, Clock, BarChart3, Calculator, Zap, ArrowRightFromLine, ExternalLink, TrendingUp, Building2, MessageSquare } from 'lucide-react'
+import { Users, Clock, BarChart3, Calculator, Zap, ArrowRightFromLine, ExternalLink, TrendingUp, Building2, MessageSquare, Sparkles, LayoutDashboard, Loader2 } from 'lucide-react'
 
 interface AdminSidebarProps {
   activeSection: string
@@ -13,6 +12,9 @@ interface AdminSidebarProps {
   totalPartialLeads: number
   totalInstallers?: number
   totalFeedback?: number
+  logoutLoading?: boolean
+  exitLoading?: boolean
+  onExitToSite?: (e: React.MouseEvent<HTMLAnchorElement>) => void
 }
 
 export function AdminSidebar({
@@ -25,6 +27,9 @@ export function AdminSidebar({
   totalPartialLeads,
   totalInstallers = 0,
   totalFeedback = 0,
+  logoutLoading = false,
+  exitLoading = false,
+  onExitToSite,
 }: AdminSidebarProps) {
   const handleSectionClick = (section: string) => {
     onSectionChange(section)
@@ -34,119 +39,244 @@ export function AdminSidebar({
   return (
     <>
       <aside className={`
-        fixed left-0 top-0 bottom-0 bg-navy-500 text-white p-6 z-40
+        fixed left-0 top-0 bottom-0 bg-gradient-to-b from-navy-600 to-navy-700 text-white z-40
         transition-transform duration-300 ease-in-out
-        w-64
+        w-64 shadow-2xl
         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0
+        border-r border-navy-400/20
       `}>
-        <div className="mb-8 bg-white p-4 rounded-lg">
-          <Logo size="md" />
+        {/* Header Section */}
+        <div className="p-6 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+              <LayoutDashboard className="text-white" size={24} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">Admin Dashboard</h2>
+              <p className="text-xs text-white/70">Management Portal</p>
+            </div>
+          </div>
         </div>
 
-        <nav className="space-y-2">
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-1">
           <button 
             onClick={() => handleSectionClick('analytics')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
-              activeSection === 'analytics' ? 'bg-red-500' : 'hover:bg-navy-600'
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all relative group ${
+              activeSection === 'analytics' 
+                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/30' 
+                : 'hover:bg-white/10 text-white/90 hover:text-white'
             }`}
           >
-            <TrendingUp size={20} className="flex-shrink-0" />
+            <div className={`p-1.5 rounded-lg ${activeSection === 'analytics' ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'}`}>
+              <TrendingUp size={18} className="flex-shrink-0" />
+            </div>
             <span>Analytics</span>
+            {activeSection === 'analytics' && (
+              <div className="absolute right-2 w-1.5 h-1.5 bg-white rounded-full"></div>
+            )}
           </button>
+
           <button 
             onClick={() => handleSectionClick('leads')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
-              activeSection === 'leads' ? 'bg-red-500' : 'hover:bg-navy-600'
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all relative group ${
+              activeSection === 'leads' 
+                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/30' 
+                : 'hover:bg-white/10 text-white/90 hover:text-white'
             }`}
           >
-            <Users size={20} className="flex-shrink-0" />
+            <div className={`p-1.5 rounded-lg ${activeSection === 'leads' ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'}`}>
+              <Users size={18} className="flex-shrink-0" />
+            </div>
             <span className="flex-1 text-left">Leads</span>
-            <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{totalLeads}</span>
+            <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+              activeSection === 'leads' 
+                ? 'bg-white text-red-600' 
+                : 'bg-white/20 text-white'
+            }`}>
+              {totalLeads}
+            </span>
+            {activeSection === 'leads' && (
+              <div className="absolute right-2 w-1.5 h-1.5 bg-white rounded-full"></div>
+            )}
           </button>
+
           <button 
             onClick={() => handleSectionClick('partial-leads')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
-              activeSection === 'partial-leads' ? 'bg-red-500' : 'hover:bg-navy-600'
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all relative group ${
+              activeSection === 'partial-leads' 
+                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/30' 
+                : 'hover:bg-white/10 text-white/90 hover:text-white'
             }`}
           >
-            <Clock size={20} className="flex-shrink-0" />
+            <div className={`p-1.5 rounded-lg ${activeSection === 'partial-leads' ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'}`}>
+              <Clock size={18} className="flex-shrink-0" />
+            </div>
             <span className="flex-1 text-left">Partial Leads</span>
-            <span className="bg-yellow-400 text-navy-500 px-2 py-0.5 rounded-full text-xs font-bold">{totalPartialLeads}</span>
+            <span className="px-2.5 py-1 bg-yellow-400 text-navy-700 rounded-full text-xs font-bold shadow-sm">
+              {totalPartialLeads}
+            </span>
+            {activeSection === 'partial-leads' && (
+              <div className="absolute right-2 w-1.5 h-1.5 bg-white rounded-full"></div>
+            )}
           </button>
+
           <button 
             onClick={() => handleSectionClick('users')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
-              activeSection === 'users' ? 'bg-red-500' : 'hover:bg-navy-600'
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all relative group ${
+              activeSection === 'users' 
+                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/30' 
+                : 'hover:bg-white/10 text-white/90 hover:text-white'
             }`}
           >
-            <Users size={20} className="flex-shrink-0" />
+            <div className={`p-1.5 rounded-lg ${activeSection === 'users' ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'}`}>
+              <Users size={18} className="flex-shrink-0" />
+            </div>
             <span>Users</span>
+            {activeSection === 'users' && (
+              <div className="absolute right-2 w-1.5 h-1.5 bg-white rounded-full"></div>
+            )}
           </button>
+
           <button 
             onClick={() => handleSectionClick('installers')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
-              activeSection === 'installers' ? 'bg-red-500' : 'hover:bg-navy-600'
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all relative group ${
+              activeSection === 'installers' 
+                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/30' 
+                : 'hover:bg-white/10 text-white/90 hover:text-white'
             }`}
           >
-            <Building2 size={20} className="flex-shrink-0" />
+            <div className={`p-1.5 rounded-lg ${activeSection === 'installers' ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'}`}>
+              <Building2 size={18} className="flex-shrink-0" />
+            </div>
             <span className="flex-1 text-left">Installers</span>
-            <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{totalInstallers}</span>
+            <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+              activeSection === 'installers' 
+                ? 'bg-white text-red-600' 
+                : 'bg-white/20 text-white'
+            }`}>
+              {totalInstallers}
+            </span>
+            {activeSection === 'installers' && (
+              <div className="absolute right-2 w-1.5 h-1.5 bg-white rounded-full"></div>
+            )}
           </button>
+
           <button 
             onClick={() => handleSectionClick('feedback')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
-              activeSection === 'feedback' ? 'bg-red-500' : 'hover:bg-navy-600'
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all relative group ${
+              activeSection === 'feedback' 
+                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/30' 
+                : 'hover:bg-white/10 text-white/90 hover:text-white'
             }`}
           >
-            <MessageSquare size={20} className="flex-shrink-0" />
+            <div className={`p-1.5 rounded-lg ${activeSection === 'feedback' ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'}`}>
+              <MessageSquare size={18} className="flex-shrink-0" />
+            </div>
             <span className="flex-1 text-left">Feedback</span>
-            <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{totalFeedback}</span>
+            <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+              activeSection === 'feedback' 
+                ? 'bg-white text-red-600' 
+                : 'bg-white/20 text-white'
+            }`}>
+              {totalFeedback}
+            </span>
+            {activeSection === 'feedback' && (
+              <div className="absolute right-2 w-1.5 h-1.5 bg-white rounded-full"></div>
+            )}
           </button>
+
+          {/* Divider */}
+          <div className="my-4 border-t border-white/10"></div>
+
           <button 
             onClick={() => handleSectionClick('sales-kpi')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
-              activeSection === 'sales-kpi' ? 'bg-red-500' : 'hover:bg-navy-600'
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all relative group ${
+              activeSection === 'sales-kpi' 
+                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/30' 
+                : 'hover:bg-white/10 text-white/90 hover:text-white'
             }`}
           >
-            <BarChart3 size={20} className="flex-shrink-0" />
+            <div className={`p-1.5 rounded-lg ${activeSection === 'sales-kpi' ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'}`}>
+              <BarChart3 size={18} className="flex-shrink-0" />
+            </div>
             <span>Sales KPI</span>
+            {activeSection === 'sales-kpi' && (
+              <div className="absolute right-2 w-1.5 h-1.5 bg-white rounded-full"></div>
+            )}
           </button>
+
           <button 
             onClick={() => handleSectionClick('commercial-calculator')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
-              activeSection === 'commercial-calculator' ? 'bg-red-500' : 'hover:bg-navy-600'
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all relative group ${
+              activeSection === 'commercial-calculator' 
+                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/30' 
+                : 'hover:bg-white/10 text-white/90 hover:text-white'
             }`}
           >
-            <Calculator size={20} className="flex-shrink-0" />
+            <div className={`p-1.5 rounded-lg ${activeSection === 'commercial-calculator' ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'}`}>
+              <Calculator size={18} className="flex-shrink-0" />
+            </div>
             <span>Demand Calc</span>
+            {activeSection === 'commercial-calculator' && (
+              <div className="absolute right-2 w-1.5 h-1.5 bg-white rounded-full"></div>
+            )}
           </button>
+
           <button 
             onClick={() => handleSectionClick('greenbutton')}
             disabled
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors opacity-60 cursor-not-allowed hover:bg-navy-600"
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all opacity-60 cursor-not-allowed relative group"
           >
-            <Zap size={20} className="flex-shrink-0" />
+            <div className="p-1.5 rounded-lg bg-white/5">
+              <Zap size={18} className="flex-shrink-0" />
+            </div>
             <span className="flex-1 text-left">Green Button</span>
-            <span className="text-xs bg-yellow-400 text-navy-500 px-2 py-0.5 rounded-full font-bold">Coming Soon</span>
+            <span className="px-2.5 py-1 bg-yellow-400 text-navy-700 rounded-full text-xs font-bold shadow-sm">
+              Coming Soon
+            </span>
           </button>
+
+          {/* Divider */}
+          <div className="my-4 border-t border-white/10"></div>
+
           <button 
             onClick={() => {
               onLogout()
               onMobileMenuClose()
             }}
-            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-navy-600 rounded-lg transition-colors text-left"
+            disabled={logoutLoading || exitLoading}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all hover:bg-red-500/20 hover:text-red-200 text-white/80 group disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <ArrowRightFromLine size={20} className="flex-shrink-0" />
-            <span>Logout</span>
+            <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-red-500/20">
+              {logoutLoading ? (
+                <Loader2 size={18} className="flex-shrink-0 animate-spin" />
+              ) : (
+                <ArrowRightFromLine size={18} className="flex-shrink-0" />
+              )}
+            </div>
+            <span>{logoutLoading ? 'Logging out...' : 'Logout'}</span>
           </button>
+
           <a 
             href="/" 
-            className="flex items-center gap-3 px-4 py-3 hover:bg-navy-600 rounded-lg transition-colors"
-            onClick={onMobileMenuClose}
+            onClick={(e) => {
+              if (onExitToSite) {
+                onExitToSite(e)
+              }
+              onMobileMenuClose()
+            }}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all hover:bg-white/10 text-white/80 hover:text-white group ${exitLoading || logoutLoading ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
           >
-            <ExternalLink size={20} className="flex-shrink-0" />
-            <span>Exit to Site</span>
+            <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10">
+              {exitLoading ? (
+                <Loader2 size={18} className="flex-shrink-0 animate-spin" />
+              ) : (
+                <ExternalLink size={18} className="flex-shrink-0" />
+              )}
+            </div>
+            <span>{exitLoading ? 'Redirecting...' : 'Exit to Site'}</span>
           </a>
         </nav>
       </aside>

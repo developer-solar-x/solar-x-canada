@@ -4,8 +4,7 @@
 // Protects admin dashboard from unauthorized access
 
 import { useState, FormEvent } from 'react'
-import { Logo } from '@/components/Logo'
-import { Lock, Mail, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { Lock, Mail, AlertCircle, Eye, EyeOff, LayoutDashboard } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 export default function AdminLoginPage() {
@@ -63,8 +62,8 @@ export default function AdminLoginPage() {
         <div className="card bg-white shadow-2xl p-8 md:p-10">
           {/* Logo section */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center mb-6">
-              <Logo size="lg" />
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-navy-500 rounded-xl mb-6">
+              <LayoutDashboard className="text-white" size={32} />
             </div>
             <h1 className="text-2xl font-bold text-navy-500 mb-2">Admin Portal</h1>
             <p className="text-gray-600">Sign in to access the dashboard</p>
@@ -99,7 +98,7 @@ export default function AdminLoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-colors"
-                  placeholder="admin@solarx.ca"
+                  placeholder="admin@example.com"
                   autoComplete="email"
                 />
               </div>
@@ -189,7 +188,7 @@ export default function AdminLoginPage() {
         {/* Footer security notice */}
         <div className="mt-6 text-center">
           <p className="text-sm text-white/80">
-            Secure admin access for SolarX team members only
+            Secure admin access for authorized team members only
           </p>
         </div>
       </div>

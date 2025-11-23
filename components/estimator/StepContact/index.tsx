@@ -9,7 +9,6 @@ import { isValidEmail } from '@/lib/utils'
 import { useContactFormData } from './hooks/useContactFormData'
 import { useAutoSave } from './hooks/useAutoSave'
 import { ContactFormFields } from './components/ContactFormFields'
-import { SuccessView } from './components/SuccessView'
 import { validateContactForm } from './utils/validation'
 import { extractSimplifiedData } from '@/lib/estimator-data-simplifier'
 import type { StepContactProps } from './types'
@@ -28,7 +27,6 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
 
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
   const [leadId, setLeadId] = useState('')
   const [saving, setSaving] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -104,6 +102,10 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
         : {
             ...formData,
             ...data,
+            // Include simplifiedData as full_data_json for quick estimates
+            // This ensures all fields are available in full_data_json
+            full_data_json: simplifiedData,
+            selectedAddOns: data.selectedAddOns || simplifiedData.selectedAddOns || [],
         estimateData: data.estimate,
             systemSizeKw: data.estimate?.system?.sizeKw,
             estimatedCost: data.estimate?.costs?.totalCost,
@@ -128,17 +130,14 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
       const result = await response.json()
       const leadId = result.leadId || result.data?.leadId || `lead-${Date.now()}`
       setLeadId(leadId)
-      setSubmitted(true)
       
-      // Save simplified data structure to localStorage for results page (keyed by leadId)
-      // This allows results to persist across browser sessions
-      const resultsKey = `solarx_results_${leadId}`
-      try {
-        localStorage.setItem(resultsKey, JSON.stringify(simplifiedData))
-        console.log('💾 Saved results to localStorage:', resultsKey)
-      } catch (error) {
-        console.error('Failed to save to localStorage:', error)
-      }
+      // Don't save to localStorage (too large, causes quota exceeded error)
+      // Data is already saved to database via API, will be fetched using leadId
+      console.log('💾 Data saved to database with leadId:', leadId)
+      console.log('📦 Simplified data structure (for reference):')
+      console.log('📏 JSON Size:', JSON.stringify(simplifiedData).length, 'bytes')
+      console.log('📋 Pretty JSON:')
+      console.log(JSON.stringify(simplifiedData, null, 2))
       
       // Store estimate data in sessionStorage for results page
       if (data.estimate) {
@@ -263,22 +262,22 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
         console.log('  🌍 Environmental:', simplifiedData.environmental)
         console.log('📏 Total Data Size:', JSON.stringify(simplifiedData).length, 'bytes')
         
-        // Save simplified data structure to localStorage for results page (keyed by leadId)
-        // This allows results to persist across browser sessions
-        const resultsKey = `solarx_results_${leadId}`
-        try {
-          localStorage.setItem(resultsKey, JSON.stringify(simplifiedData))
-          console.log('💾 Saved results to localStorage:', resultsKey)
-        } catch (error) {
-          console.error('Failed to save to localStorage:', error)
-        }
+        // Don't save to localStorage (too large, causes quota exceeded error)
+        // Data is already saved to database via API, will be fetched using leadId
+        console.log('💾 Data saved to database with leadId:', leadId)
         
-        // Also save to sessionStorage for immediate redirect (backward compatibility)
-        sessionStorage.setItem('calculatorResults', JSON.stringify(simplifiedData))
-        console.log('✅ Final results saved to sessionStorage and localStorage')
+        // Save minimal data to sessionStorage for immediate redirect (just leadId)
+        // The results page will fetch full data from database using leadId
+        try {
+          sessionStorage.setItem('calculatorResults', JSON.stringify({ leadId }))
+          console.log('✅ LeadId saved to sessionStorage for immediate redirect')
+        } catch (error) {
+          console.warn('Failed to save leadId to sessionStorage:', error)
+          // Non-critical, results page can still fetch from API using leadId from URL
+        }
       }
       
-      // Redirect to results page
+      // Redirect to results page immediately
       router.push(`/results?leadId=${leadId}`)
       
       // Call onComplete with contact form data
@@ -287,19 +286,23 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
     } catch (error) {
       console.error('Submission error:', error)
       setErrors({ submit: 'Failed to submit. Please try again.' })
-    } finally {
       setSubmitting(false)
     }
   }
 
-  // Success view
-  if (submitted) {
-    return <SuccessView email={formData.email} leadId={leadId} />
-  }
-
   // Form view
   return (
-    <div className="max-w-2xl mx-auto">
+    <>
+      {/* Full-page loading overlay during submission - fixed to viewport */}
+      {submitting && (
+        <div className="fixed inset-0 bg-white/95 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center">
+          <Loader2 className="animate-spin text-red-500 mb-4" size={48} />
+          <p className="text-xl font-semibold text-gray-700 mb-2">Submitting your request...</p>
+          <p className="text-sm text-gray-500">Redirecting to your results</p>
+        </div>
+      )}
+      
+      <div className="max-w-2xl mx-auto relative">
       <div className="card p-8">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-navy-500 mb-2">
@@ -371,6 +374,7 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
         </form>
       </div>
     </div>
+    </>
   )
 }
 

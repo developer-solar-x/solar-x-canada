@@ -4,9 +4,9 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
-import { CheckCircle, XCircle, Clock, AlertCircle, FileText, Mail, Phone, Building2, MapPin } from 'lucide-react'
+import { Logo } from '@/components/Logo'
+import { CheckCircle, XCircle, Clock, AlertCircle, FileText, Mail, Phone, Building2, MapPin, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 
 type ApplicationStatus = 'pending_review' | 'approved' | 'rejected' | 'need_more_info'
@@ -29,9 +29,14 @@ function InstallerApplicationStatusContent() {
   const applicationId = searchParams.get('applicationId')
 
   useEffect(() => {
-    if (applicationId) {
-      // Try to get from sessionStorage
-      const stored = sessionStorage.getItem('installerApplication')
+    const fetchApplication = async () => {
+      if (!applicationId) {
+        setLoading(false)
+        return
+      }
+
+      // Try to get from localStorage first
+      const stored = localStorage.getItem('installerApplication')
       if (stored) {
         try {
           const data = JSON.parse(stored)
@@ -44,8 +49,57 @@ function InstallerApplicationStatusContent() {
           console.error('Error parsing application data:', err)
         }
       }
-    }
+
+      // Try sessionStorage
+      const sessionStored = sessionStorage.getItem('installerApplication')
+      if (sessionStored) {
+        try {
+          const data = JSON.parse(sessionStored)
+          if (data.id === applicationId) {
+            setApplication(data)
+            setLoading(false)
+            return
+          }
+        } catch (err) {
+          console.error('Error parsing application data:', err)
+        }
+      }
+
+      // Fetch from API
+      try {
+        const response = await fetch(`/api/installers?id=${applicationId}`)
+        if (response.ok) {
+          const result = await response.json()
+          if (result.application) {
+            const appData = {
+              id: result.application.id,
+              data: {
+                companyName: result.application.companyName,
+                contactPersonName: result.application.contactPersonName,
+                contactEmail: result.application.contactEmail,
+                contactPhone: result.application.contactPhone,
+                primaryServiceProvinces: result.application.primaryServiceProvinces,
+                serviceAreaDescription: result.application.serviceAreaDescription,
+              },
+              status: result.application.status,
+              submittedAt: result.application.submittedAt,
+              reviewedAt: result.application.reviewedAt,
+              reviewNotes: result.application.reviewNotes,
+              reviewedBy: result.application.reviewedBy,
+            }
+            setApplication(appData)
+            // Save to localStorage for future access
+            localStorage.setItem('installerApplication', JSON.stringify(appData))
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching application from API:', err)
+      } finally {
     setLoading(false)
+      }
+    }
+
+    fetchApplication()
   }, [applicationId])
 
   const getStatusConfig = (status: ApplicationStatus) => {
@@ -92,8 +146,28 @@ function InstallerApplicationStatusContent() {
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-50">
-        <Header />
-        <section className="pt-32 pb-16">
+        <div className="fixed top-0 left-0 right-0 z-50 bg-white shadow-md">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-20">
+              <Link href="/" className="flex-shrink-0">
+                <Logo variant="default" size="md" showTagline={false} />
+              </Link>
+              <nav className="hidden md:flex items-center space-x-6">
+                <Link href="/" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">Home</Link>
+                <Link href="/about" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">About</Link>
+                <Link href="/for-installers" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">For Installers</Link>
+                <Link href="/#how-it-works" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">How It Works</Link>
+                <Link href="/#faq" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">FAQ</Link>
+                <Link href="/contact" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">Contact</Link>
+              </nav>
+              <div className="hidden md:flex items-center">
+                <Link href="/estimator" className="btn-primary text-sm">Get Free Estimate</Link>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="h-20"></div>
+        <section className="pt-12 pb-16">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="bg-white rounded-2xl p-12 shadow-md text-center">
               <p className="text-gray-600">Loading application status...</p>
@@ -108,8 +182,28 @@ function InstallerApplicationStatusContent() {
   if (!application) {
     return (
       <main className="min-h-screen bg-gray-50">
-        <Header />
-        <section className="pt-32 pb-16">
+        <div className="fixed top-0 left-0 right-0 z-50 bg-white shadow-md">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-20">
+              <Link href="/" className="flex-shrink-0">
+                <Logo variant="default" size="md" showTagline={false} />
+              </Link>
+              <nav className="hidden md:flex items-center space-x-6">
+                <Link href="/" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">Home</Link>
+                <Link href="/about" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">About</Link>
+                <Link href="/for-installers" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">For Installers</Link>
+                <Link href="/#how-it-works" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">How It Works</Link>
+                <Link href="/#faq" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">FAQ</Link>
+                <Link href="/contact" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">Contact</Link>
+              </nav>
+              <div className="hidden md:flex items-center">
+                <Link href="/estimator" className="btn-primary text-sm">Get Free Estimate</Link>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="h-20"></div>
+        <section className="pt-12 pb-16">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="bg-white rounded-2xl p-12 shadow-md text-center">
               <AlertCircle className="text-yellow-500 mx-auto mb-4" size={48} />
@@ -133,10 +227,31 @@ function InstallerApplicationStatusContent() {
 
   return (
     <main className="min-h-screen bg-gray-50">
-      <Header />
+      {/* Header wrapper with forced white background */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-white shadow-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
+            <Link href="/" className="flex-shrink-0">
+              <Logo variant="default" size="md" showTagline={false} />
+            </Link>
+            <nav className="hidden md:flex items-center space-x-6">
+              <Link href="/" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">Home</Link>
+              <Link href="/about" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">About</Link>
+              <Link href="/for-installers" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">For Installers</Link>
+              <Link href="/#how-it-works" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">How It Works</Link>
+              <Link href="/#faq" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">FAQ</Link>
+              <Link href="/contact" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">Contact</Link>
+            </nav>
+            <div className="hidden md:flex items-center">
+              <Link href="/estimator" className="btn-primary text-sm">Get Free Estimate</Link>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="h-20"></div>
 
       {/* Status Section */}
-      <section className="pt-32 pb-16">
+      <section className="pt-12 pb-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Status Card */}
           <div className={`bg-white rounded-2xl p-8 shadow-md border-2 ${statusConfig.borderColor} mb-6`}>
@@ -336,8 +451,28 @@ export default function InstallerApplicationStatusPage() {
   return (
     <Suspense fallback={
       <main className="min-h-screen bg-gray-50">
-        <Header />
-        <section className="pt-32 pb-16">
+        <div className="fixed top-0 left-0 right-0 z-50 bg-white shadow-md">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-20">
+              <Link href="/" className="flex-shrink-0">
+                <Logo variant="default" size="md" showTagline={false} />
+              </Link>
+              <nav className="hidden md:flex items-center space-x-6">
+                <Link href="/" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">Home</Link>
+                <Link href="/about" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">About</Link>
+                <Link href="/for-installers" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">For Installers</Link>
+                <Link href="/#how-it-works" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">How It Works</Link>
+                <Link href="/#faq" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">FAQ</Link>
+                <Link href="/contact" className="text-sm font-medium text-gray-700 hover:text-maple-500 transition-colors">Contact</Link>
+              </nav>
+              <div className="hidden md:flex items-center">
+                <Link href="/estimator" className="btn-primary text-sm">Get Free Estimate</Link>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="h-20"></div>
+        <section className="pt-12 pb-16">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="bg-white rounded-2xl p-12 shadow-md text-center">
               <p className="text-gray-600">Loading application status...</p>

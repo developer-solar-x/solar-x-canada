@@ -18,10 +18,17 @@ export function useLeadData(lead: Lead) {
   const city = lead.city || extractCityFromAddress(lead.address)
   
   // Map database fields to expected format
+  // Support multiple sources: solar_estimate, estimate_data, and full_data_json (for hrs_residential_leads)
   const estimateDataRaw = typeof lead.solar_estimate === 'string'
     ? parseJson(lead.solar_estimate)
     : (lead.solar_estimate || lead.estimate_data)
-  const estimateData = estimateDataRaw || null
+  
+  // Also check full_data_json for hrs_residential_leads schema
+  const fullDataJson = typeof lead.full_data_json === 'string' 
+    ? parseJson(lead.full_data_json) 
+    : lead.full_data_json
+  
+  const estimateData = estimateDataRaw || fullDataJson || null
   
   // Parse additional JSONB/string fields
   const peakShaving = parseJson(lead.peak_shaving) || lead.peak_shaving || null
@@ -29,10 +36,12 @@ export function useLeadData(lead: Lead) {
     ? lead.production_monthly_kwh
     : (typeof lead.production_monthly_kwh === 'string' ? parseJson(lead.production_monthly_kwh) : null)
 
-  // Selected batteries (could be JSON string or array)
-  const selectedBatteries: string[] = Array.isArray(lead.selected_batteries)
-    ? lead.selected_batteries
-    : (typeof lead.selected_batteries === 'string' ? (parseJson(lead.selected_batteries) || []) : [])
+  // Selected batteries (could be JSON string or array) - support new field name
+  const selectedBatteries: string[] = Array.isArray(lead.selected_battery_ids)
+    ? lead.selected_battery_ids
+    : (Array.isArray(lead.selected_batteries)
+      ? lead.selected_batteries
+      : (typeof lead.selected_batteries === 'string' ? (parseJson(lead.selected_batteries) || []) : []))
   const selectedBatteryFromPeak: string | null = peakShaving?.selectedBattery || null
   
   // Parse photo URLs - filter out blob URLs (they expire)
@@ -49,10 +58,10 @@ export function useLeadData(lead: Lead) {
   const combinedMonthly = asNumber(combinedTotals?.monthly_savings)
   const combinedProfit25 = asNumber(combinedTotals?.profit_25y)
 
-  // Battery simple values (if present)
-  const batteryPrice = asNumber(lead.battery_price)
+  // Battery simple values (if present) - support new field names
+  const batteryPrice = asNumber(lead.battery_cost) ?? asNumber(lead.battery_price)
   const batteryRebate = asNumber(lead.battery_rebate)
-  const batteryNet = asNumber(lead.battery_net_cost)
+  const batteryNet = asNumber(lead.battery_net_cost) ?? (batteryPrice && batteryRebate ? batteryPrice - batteryRebate : null)
 
   // Map annual savings - prefer combined, then solar-only; coerce strings
   const annualSavings = asNumber(lead.combined_annual_savings) 
@@ -61,10 +70,19 @@ export function useLeadData(lead: Lead) {
     ?? null
 
   // Safe display values with DB fallbacks (coerce numeric strings)
-  const displayTotalCost = asNumber(estimateData?.costs?.totalCost) ?? asNumber(lead.solar_total_cost)
-  const displayIncentives = asNumber(estimateData?.costs?.incentives) ?? asNumber(lead.solar_incentives)
+  // Support both old schema (solar_total_cost, solar_incentives) and new hrs_residential_leads schema (system_cost, solar_rebate)
+  // Note: estimateData.costs uses systemCost (not totalCost) for hrs_residential_leads
+  const displayTotalCost = asNumber(estimateData?.costs?.systemCost) 
+    ?? asNumber(estimateData?.costs?.totalCost) 
+    ?? asNumber(lead.solar_total_cost) 
+    ?? asNumber(lead.system_cost)
+  const displayIncentives = asNumber(estimateData?.costs?.solarRebate) 
+    ?? asNumber(estimateData?.costs?.incentives) 
+    ?? asNumber(lead.solar_incentives) 
+    ?? asNumber(lead.solar_rebate)
   const displayNetCost = asNumber(estimateData?.costs?.netCost) 
     ?? asNumber(lead.solar_net_cost) 
+    ?? asNumber(lead.net_cost)
     ?? asNumber(lead.combined_net_cost)
   const displayPaybackYears = asNumber(estimateData?.savings?.paybackYears) ?? asNumber(lead.combined_payback_years)
   const displayMonthlySavings = asNumber(estimateData?.savings?.monthlySavings) ?? asNumber(lead.solar_monthly_savings)
@@ -76,22 +94,29 @@ export function useLeadData(lead: Lead) {
   // Derived combined figures using saved battery_* columns when available
   const combinedTotalSystemCost = (displayTotalCost ?? 0) + (batteryPrice ?? 0)
   const combinedTotalIncentives = (displayIncentives ?? 0) + (batteryRebate ?? 0)
-  const combinedNetAfterIncentives = (displayNetCost ?? 0) + (batteryNet ?? 0)
+  // Net after incentives = Total System Cost - Total Incentives
+  // Also support direct net_cost field from hrs_residential_leads if available
+  const combinedNetAfterIncentives = asNumber(lead.net_cost) 
+    || (combinedTotalSystemCost - combinedTotalIncentives)
+    || ((displayNetCost ?? 0) + (batteryNet ?? 0))
 
   // Plan comparison values with robust extraction for nested shapes
   const touCombined = getCombinedBlock(peakShaving?.tou)
   const uloCombined = getCombinedBlock(peakShaving?.ulo)
   
+  // Use new direct fields first, then fall back to old structure
   const touAnnual = asNumber(lead.tou_annual_savings)
     ?? asNumber(touCombined?.annual)
     ?? asNumber(peakShaving?.tou?.result?.annualSavings)
   const uloAnnual = asNumber(lead.ulo_annual_savings)
     ?? asNumber(uloCombined?.annual)
     ?? asNumber(peakShaving?.ulo?.result?.annualSavings)
-  const touPayback = asNumber(lead.tou_payback_years)
+  const touPayback = asNumber(lead.tou_payback_period)
+    ?? asNumber(lead.tou_payback_years)
     ?? asNumber(peakShaving?.tou?.projection?.paybackYears)
     ?? asNumber(touCombined?.projection?.paybackYears)
-  const uloPayback = asNumber(lead.ulo_payback_years)
+  const uloPayback = asNumber(lead.ulo_payback_period)
+    ?? asNumber(lead.ulo_payback_years)
     ?? asNumber(peakShaving?.ulo?.projection?.paybackYears)
     ?? asNumber(uloCombined?.projection?.paybackYears)
   

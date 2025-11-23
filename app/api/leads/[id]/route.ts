@@ -27,6 +27,17 @@ export async function GET(
     }
 
     if (hrsLead && !hrsError) {
+      // Parse full_data_json if it's a string
+      let fullDataJson = hrsLead.full_data_json
+      if (typeof fullDataJson === 'string') {
+        try {
+          fullDataJson = JSON.parse(fullDataJson)
+        } catch (e) {
+          console.warn('Failed to parse full_data_json:', e)
+          fullDataJson = null
+        }
+      }
+      
       // Transform HRS residential lead to match expected format
       return NextResponse.json({
         success: true,
@@ -46,7 +57,7 @@ export async function GET(
           annual_savings: hrsLead.tou_annual_savings || hrsLead.ulo_annual_savings || 0,
           payback_years: hrsLead.tou_payback_period || hrsLead.ulo_payback_period || 0,
           // Use full_data_json as estimate_data for backward compatibility
-          estimate_data: hrsLead.full_data_json || {
+          estimate_data: fullDataJson || {
             system: {
               sizeKw: hrsLead.system_size_kw,
               numPanels: hrsLead.num_panels,
@@ -69,7 +80,9 @@ export async function GET(
               carsOffRoadEquivalent: hrsLead.cars_off_road_equivalent,
             },
           },
-          // Include HRS-specific data
+          // Include full_data_json (parsed) for results page
+          full_data_json: fullDataJson,
+          // Include HRS-specific data (full record)
           hrs_residential_data: hrsLead,
         },
       })

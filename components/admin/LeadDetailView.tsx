@@ -36,6 +36,46 @@ interface Lead {
   created_at: string
   hubspot_synced?: boolean
   rate_plan?: string
+  // New fields from updated schema
+  estimator_mode?: string
+  program_type?: string
+  lead_type?: string
+  has_battery?: boolean
+  selected_battery_ids?: string[]
+  annual_escalator?: number
+  // TOU fields
+  tou_solar?: number
+  tou_battery_solar_capture?: number
+  tou_total_offset?: number
+  tou_buy_from_grid?: number
+  tou_actual_cost_after_battery_optimization?: number
+  tou_savings?: number
+  tou_annual_savings?: number
+  tou_monthly_savings?: number
+  tou_profit_25_year?: number
+  tou_payback_period?: number
+  tou_total_bill_savings_percent?: number
+  tou_before_solar?: number
+  tou_after_solar?: number
+  // ULO fields
+  ulo_solar?: number
+  ulo_battery_solar_capture?: number
+  ulo_total_offset?: number
+  ulo_buy_from_grid?: number
+  ulo_actual_cost_after_battery_optimization?: number
+  ulo_savings?: number
+  ulo_annual_savings?: number
+  ulo_monthly_savings?: number
+  ulo_profit_25_year?: number
+  ulo_payback_period?: number
+  ulo_total_bill_savings_percent?: number
+  ulo_before_solar?: number
+  ulo_after_solar?: number
+  // Battery cost fields
+  battery_cost?: number
+  battery_rebate?: number
+  // Full data JSON
+  full_data_json?: string
   [key: string]: any // Allow other database fields
 }
 

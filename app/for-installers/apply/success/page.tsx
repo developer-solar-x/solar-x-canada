@@ -54,9 +54,23 @@ function InstallerApplicationSuccessContent() {
             </p>
 
             {applicationId && (
-              <div className="bg-gray-50 rounded-lg p-4 mb-8">
-                <p className="text-sm text-gray-600 mb-1">Application ID</p>
-                <p className="text-lg font-mono font-semibold text-gray-900">{applicationId}</p>
+              <div className="bg-gradient-to-r from-forest-50 to-sky-50 border-2 border-forest-200 rounded-xl p-6 mb-8">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Your Application ID</p>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(applicationId)
+                      alert('Application ID copied to clipboard!')
+                    }}
+                    className="text-forest-600 hover:text-forest-700 text-sm font-semibold"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p className="text-2xl font-mono font-bold text-forest-700 break-all">{applicationId}</p>
+                <p className="text-xs text-gray-600 mt-2">
+                  Save this ID to check your application status later
+                </p>
               </div>
             )}
 

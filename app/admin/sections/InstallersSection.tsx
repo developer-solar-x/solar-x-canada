@@ -1,8 +1,8 @@
 'use client'
 
-import { Building2, CheckCircle, Clock, XCircle, AlertCircle, Search, Download, FileText, Award, Shield, MapPin } from 'lucide-react'
+import { Building2, CheckCircle, Clock, XCircle, AlertCircle, Search, Download, FileText, Award, Shield, MapPin, Mail, Phone, Eye, TrendingUp } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
-import { SkeletonStatsGrid, SkeletonTableRow } from '@/components/admin/SkeletonLoader'
+import { SkeletonStatsGrid, SkeletonInstallerTableRow } from '@/components/admin/SkeletonLoader'
 
 interface InstallerApplication {
   id: string
@@ -100,52 +100,60 @@ export function InstallersSection({
         <SkeletonStatsGrid />
       ) : (
         <div className="grid md:grid-cols-4 gap-6 mb-8">
-          <div className="card p-6">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all">
             <div className="flex items-center justify-between mb-4">
-              <Building2 className="text-blue-500" size={32} />
-              <span className="text-3xl font-bold text-navy-500">{stats.total}</span>
+              <div className="p-3 bg-blue-500 rounded-lg">
+                <Building2 className="text-white" size={28} />
+              </div>
+              <span className="text-4xl font-bold text-blue-700">{stats.total}</span>
             </div>
-            <div className="text-sm text-gray-600">Total Applications</div>
+            <div className="text-sm font-semibold text-blue-600 uppercase tracking-wide">Total Applications</div>
           </div>
 
-          <div className="card p-6">
+          <div className="bg-gradient-to-br from-sky-50 to-sky-100 border-2 border-sky-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all">
             <div className="flex items-center justify-between mb-4">
-              <Clock className="text-sky-500" size={32} />
-              <span className="text-3xl font-bold text-navy-500">{stats.pending}</span>
+              <div className="p-3 bg-sky-500 rounded-lg">
+                <Clock className="text-white" size={28} />
+              </div>
+              <span className="text-4xl font-bold text-sky-700">{stats.pending}</span>
             </div>
-            <div className="text-sm text-gray-600">Pending Review</div>
+            <div className="text-sm font-semibold text-sky-600 uppercase tracking-wide">Pending Review</div>
           </div>
 
-          <div className="card p-6">
+          <div className="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all">
             <div className="flex items-center justify-between mb-4">
-              <CheckCircle className="text-green-500" size={32} />
-              <span className="text-3xl font-bold text-navy-500">{stats.approved}</span>
+              <div className="p-3 bg-green-500 rounded-lg">
+                <CheckCircle className="text-white" size={28} />
+              </div>
+              <span className="text-4xl font-bold text-green-700">{stats.approved}</span>
             </div>
-            <div className="text-sm text-gray-600">Approved</div>
+            <div className="text-sm font-semibold text-green-600 uppercase tracking-wide">Approved</div>
           </div>
 
-          <div className="card p-6">
+          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-2 border-yellow-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all">
             <div className="flex items-center justify-between mb-4">
-              <AlertCircle className="text-yellow-500" size={32} />
-              <span className="text-3xl font-bold text-navy-500">{stats.needMoreInfo}</span>
+              <div className="p-3 bg-yellow-500 rounded-lg">
+                <AlertCircle className="text-white" size={28} />
+              </div>
+              <span className="text-4xl font-bold text-yellow-700">{stats.needMoreInfo}</span>
             </div>
-            <div className="text-sm text-gray-600">Need More Info</div>
+            <div className="text-sm font-semibold text-yellow-600 uppercase tracking-wide">Need More Info</div>
           </div>
         </div>
       )}
 
       {/* Filters */}
-      <div className="card p-6 mb-6">
+      <div className="bg-white border-2 border-gray-100 rounded-xl p-6 mb-6 shadow-sm">
         <div className="flex flex-col md:flex-row gap-4">
           {/* Search */}
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
               placeholder="Search by company, contact, email, or province..."
               value={searchTerm}
               onChange={(e) => onSearchTermChange(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent"
+              className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-all bg-gray-50 focus:bg-white"
             />
           </div>
 
@@ -153,7 +161,7 @@ export function InstallersSection({
           <select
             value={statusFilter}
             onChange={(e) => onStatusFilterChange(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent"
+            className="px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-all bg-gray-50 focus:bg-white font-medium"
           >
             <option value="all">All Statuses</option>
             <option value="pending_review">Pending Review</option>
@@ -165,89 +173,142 @@ export function InstallersSection({
       </div>
 
       {/* Applications Table */}
-      <div className="card overflow-hidden">
+      <div className="bg-white border-2 border-gray-100 rounded-xl shadow-lg overflow-hidden">
         {loading ? (
-          <div className="p-6">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <SkeletonTableRow key={i} />
-            ))}
-          </div>
-        ) : filteredApplications.length === 0 ? (
-          <div className="p-12 text-center">
-            <Building2 className="mx-auto text-gray-400 mb-4" size={48} />
-            <p className="text-gray-600">No installer applications found</p>
-          </div>
-        ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-gradient-to-r from-navy-500 to-navy-600">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
                     Company
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
                     Contact
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
                     Province
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
                     Submitted
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-right text-xs font-bold text-white uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredApplications.map((app) => {
+              <tbody className="bg-white divide-y divide-gray-100">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <SkeletonInstallerTableRow key={i} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : filteredApplications.length === 0 ? (
+          <div className="p-16 text-center">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gray-100 rounded-full mb-4">
+              <Building2 className="text-gray-400" size={40} />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No applications found</h3>
+            <p className="text-gray-600">Try adjusting your search or filter criteria</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gradient-to-r from-navy-500 to-navy-600">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
+                    Company
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
+                    Contact
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
+                    Province
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
+                    Submitted
+                  </th>
+                  <th className="px-6 py-4 text-right text-xs font-bold text-white uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-100">
+                {filteredApplications.map((app, index) => {
                   const statusConfig = getStatusConfig(app.status)
                   const StatusIcon = statusConfig.icon
 
                   return (
                     <tr
                       key={app.id}
-                      className="hover:bg-gray-50 cursor-pointer transition-colors"
+                      className="hover:bg-gradient-to-r hover:from-navy-50 hover:to-blue-50 cursor-pointer transition-all group border-l-4 border-transparent hover:border-navy-400"
                       onClick={() => onApplicationClick(app)}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-semibold text-gray-900">{app.companyName}</div>
-                        {app.yearsInBusiness && (
-                          <div className="text-sm text-gray-500">{app.yearsInBusiness} in business</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{app.contactPersonName}</div>
-                        <div className="text-sm text-gray-500">{app.contactEmail}</div>
-                        <div className="text-sm text-gray-500">{app.contactPhone}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2 text-sm text-gray-900">
-                          <MapPin size={14} className="text-gray-400" />
-                          {app.province || 'N/A'}
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-navy-100 to-blue-100 rounded-lg flex items-center justify-center group-hover:from-navy-200 group-hover:to-blue-200 transition-all">
+                            <Building2 size={20} className="text-navy-600" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-gray-900 group-hover:text-navy-700 transition-colors">{app.companyName}</div>
+                            {app.yearsInBusiness && (
+                              <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                                <TrendingUp size={12} />
+                                {app.yearsInBusiness} in business
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border ${statusConfig.color}`}>
+                      <td className="px-6 py-5">
+                        <div className="space-y-1">
+                          <div className="font-semibold text-gray-900 text-sm">{app.contactPersonName}</div>
+                          <div className="text-xs text-gray-600 flex items-center gap-1.5">
+                            <Mail size={12} className="text-gray-400" />
+                            <span className="truncate max-w-[200px]">{app.contactEmail}</span>
+                          </div>
+                          <div className="text-xs text-gray-600 flex items-center gap-1.5">
+                            <Phone size={12} className="text-gray-400" />
+                            {app.contactPhone}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 bg-sky-100 rounded-lg">
+                            <MapPin size={14} className="text-sky-600" />
+                          </div>
+                          <span className="text-sm font-medium text-gray-900">{app.province || 'N/A'}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border-2 shadow-sm ${statusConfig.color}`}>
                           <StatusIcon size={14} />
                           {statusConfig.label}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {formatRelativeTime(app.submittedAt)}
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-2">
+                          <Clock size={14} className="text-gray-400" />
+                          <span className="text-sm text-gray-600 font-medium">{formatRelativeTime(app.submittedAt)}</span>
+                        </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <td className="px-6 py-5">
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
                             onApplicationClick(app)
                           }}
-                          className="text-navy-600 hover:text-navy-700 font-semibold text-sm"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-navy-600 hover:bg-navy-700 text-white text-sm font-semibold rounded-lg shadow-sm hover:shadow-md transition-all group/btn"
                         >
-                          View Details
+                          <Eye size={16} />
+                          <span>View</span>
                         </button>
                       </td>
                     </tr>

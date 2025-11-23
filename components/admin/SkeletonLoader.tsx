@@ -127,6 +127,92 @@ export function SkeletonChart() {
   )
 }
 
+export function SkeletonInstallerTableRow() {
+  return (
+    <tr className="animate-pulse border-l-4 border-transparent">
+      <td className="px-6 py-5">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gray-200 rounded-lg"></div>
+          <div className="space-y-2">
+            <div className="h-5 bg-gray-200 rounded w-32"></div>
+            <div className="h-3 bg-gray-200 rounded w-24"></div>
+          </div>
+        </div>
+      </td>
+      <td className="px-6 py-5">
+        <div className="space-y-2">
+          <div className="h-4 bg-gray-200 rounded w-28"></div>
+          <div className="h-3 bg-gray-200 rounded w-36"></div>
+          <div className="h-3 bg-gray-200 rounded w-24"></div>
+        </div>
+      </td>
+      <td className="px-6 py-5">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 bg-gray-200 rounded-lg"></div>
+          <div className="h-4 bg-gray-200 rounded w-20"></div>
+        </div>
+      </td>
+      <td className="px-6 py-5">
+        <div className="h-8 bg-gray-200 rounded-lg w-24"></div>
+      </td>
+      <td className="px-6 py-5">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 bg-gray-200 rounded-full"></div>
+          <div className="h-4 bg-gray-200 rounded w-20"></div>
+        </div>
+      </td>
+      <td className="px-6 py-5 text-right">
+        <div className="h-9 bg-gray-200 rounded-lg w-20 ml-auto"></div>
+      </td>
+    </tr>
+  )
+}
+
+export function SkeletonFeedbackTableRow() {
+  return (
+    <tr className="animate-pulse border-l-4 border-transparent">
+      <td className="px-6 py-5">
+        <div className="h-8 bg-gray-200 rounded-lg w-24"></div>
+      </td>
+      <td className="px-6 py-5">
+        <div className="max-w-lg space-y-2">
+          <div className="flex items-start gap-2">
+            <div className="w-4 h-4 bg-gray-200 rounded mt-0.5"></div>
+            <div className="space-y-1.5 flex-1">
+              <div className="h-4 bg-gray-200 rounded w-full"></div>
+              <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            </div>
+          </div>
+        </div>
+      </td>
+      <td className="px-6 py-5">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 bg-gray-200 rounded-lg"></div>
+          <div className="h-4 bg-gray-200 rounded w-16"></div>
+        </div>
+      </td>
+      <td className="px-6 py-5">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 bg-gray-200 rounded"></div>
+          <div className="h-4 bg-gray-200 rounded w-32"></div>
+        </div>
+      </td>
+      <td className="px-6 py-5">
+        <div className="h-8 bg-gray-200 rounded-lg w-28"></div>
+      </td>
+      <td className="px-6 py-5">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 bg-gray-200 rounded"></div>
+          <div className="h-4 bg-gray-200 rounded w-20"></div>
+        </div>
+      </td>
+      <td className="px-6 py-5 text-right">
+        <div className="h-9 bg-gray-200 rounded-lg w-20 ml-auto"></div>
+      </td>
+    </tr>
+  )
+}
+
 
 
 

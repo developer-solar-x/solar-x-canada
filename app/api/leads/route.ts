@@ -3,6 +3,57 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 
+// Helper function to upload base64 image to Supabase Storage
+async function uploadBase64ToStorage(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  base64Data: string,
+  fileName: string,
+  bucket: string = 'photos'
+): Promise<string | null> {
+  try {
+    // Check if it's a data URL (data:image/...)
+    let base64String = base64Data
+    if (base64Data.startsWith('data:')) {
+      // Extract base64 part after comma
+      base64String = base64Data.split(',')[1]
+    }
+    
+    // Convert base64 to buffer
+    const buffer = Buffer.from(base64String, 'base64')
+    
+    // Generate unique filename with timestamp
+    const timestamp = Date.now()
+    const extension = fileName.includes('.') ? fileName.split('.').pop() : 'png'
+    const uniqueFileName = `${timestamp}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}.${extension}`
+    const filePath = `map-snapshots/${uniqueFileName}`
+    
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .upload(filePath, buffer, {
+        contentType: base64Data.startsWith('data:image/') 
+          ? base64Data.split(';')[0].split(':')[1] 
+          : 'image/png',
+        upsert: false
+      })
+    
+    if (error) {
+      console.error('Error uploading map snapshot to storage:', error)
+      return null
+    }
+    
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(filePath)
+    
+    return urlData.publicUrl
+  } catch (error) {
+    console.error('Error in uploadBase64ToStorage:', error)
+    return null
+  }
+}
+
 export async function POST(request: Request) {
   try {
     // Parse request body
@@ -59,6 +110,27 @@ export async function POST(request: Request) {
 
     // Get Supabase admin client
     const supabase = getSupabaseAdmin()
+
+    // Upload map snapshot to Supabase Storage if provided
+    let mapSnapshotUrl: string | null = null
+    if (body.mapSnapshot || body.mapSnapshotUrl) {
+      const mapSnapshot = body.mapSnapshot || body.mapSnapshotUrl
+      if (mapSnapshot.startsWith('data:image/')) {
+        // Base64 data URL - upload to storage
+        mapSnapshotUrl = await uploadBase64ToStorage(
+          supabase,
+          mapSnapshot,
+          `map-snapshot-${email?.replace(/[^a-zA-Z0-9]/g, '_') || 'unknown'}.png`,
+          'photos'
+        )
+      } else if (mapSnapshot.startsWith('http')) {
+        // Already a URL (Supabase Storage or external) - use it directly
+        mapSnapshotUrl = mapSnapshot
+      } else {
+        // Fallback: use as-is (might be a path or other format)
+        mapSnapshotUrl = mapSnapshot
+      }
+    }
 
     // Calculate peak shaving data before insert
     // Helper to safely extract combined values supporting both shapes:
@@ -133,7 +205,7 @@ export async function POST(request: Request) {
       shading_level: shadingLevel,
       
       // Energy / usage
-      monthly_bill: monthlyBill ?? 0,
+      monthly_bill: monthlyBill ?? body.monthlyBill ?? body.full_data_json?.monthlyBill ?? 0,
       annual_usage_kwh: annualUsageKwh || body.energyUsage?.annualKwh || body.peakShaving?.tou?.result?.totalUsageKwh || body.peakShaving?.ulo?.result?.totalUsageKwh || 0,
       energy_usage: body.energyUsage || (annualUsageKwh ? { annualKwh: annualUsageKwh } : {}),
       
@@ -141,44 +213,71 @@ export async function POST(request: Request) {
       system_type: body.systemType || 'grid_tied',
       has_battery: Boolean((body.selectedAddOns || body.selected_add_ons || []).includes?.('battery') || body.hasBattery || body.selectedBattery || body.selectedBatteries),
       selected_add_ons: body.selectedAddOns || body.selected_add_ons || [],
+      selected_battery_ids: body.selectedBatteryIds || body.selected_battery_ids || body.selectedBatteries?.map((b: any) => b.id || b) || (body.selectedBattery ? [body.selectedBattery] : []),
       
-      // Estimate
-      solar_estimate: estimateData,
+      // Estimate (only for non-HRS tables)
       system_size_kw: systemSizeKw,
       num_panels: body.numPanels || body.num_panels || estimateData?.system?.numPanels || 0,
-      solar_total_cost: estimatedCost,
-      solar_incentives: body.solarIncentives || estimateData?.costs?.incentives || 0,
-      solar_net_cost: netCostAfterIncentives,
-      solar_annual_savings: annualSavings,
-      solar_monthly_savings: body.monthlySavings || estimateData?.savings?.monthlySavings || 0,
       production_annual_kwh: annualProductionKwh ?? 0,
       production_monthly_kwh: estimateData?.production?.monthlyKwh || [],
-      roi_percent: estimateData?.savings?.roi || 0,
+      
+      // Additional metadata
+      estimator_mode: body.estimatorMode || body.estimator_mode || '',
+      program_type: body.programType || body.program_type || '',
+      // Use map_snapshot for hrs_residential_leads, map_snapshot_url for leads_v3
+      map_snapshot: mapSnapshotUrl || body.mapSnapshot || body.mapSnapshotUrl || null,
+      photo_urls: body.photos?.map((p: any) => p.url || p.uploadedUrl || p.preview).filter(Boolean) || body.photoUrls || [],
+      photo_summary: body.photoSummary || body.photo_summary || {},
+      
+      // Status
+      status: 'new',
+      
+      // Contact fields (for HRS)
+      consent: body.consent ?? body.full_data_json?.consent ?? false,
+      financing_option: body.financingOption || body.financingPreference || body.financing_preference || 
+                       body.full_data_json?.financingOption || body.full_data_json?.financingPreference || null,
+    }
+    
+    // For hrs_residential_leads table, add HRS-specific fields and exclude non-existent columns
+    // These fields follow the HRS format from detailed analysis
+    // Quick estimate should also follow HRS format
+    const isHrsResidential = 
+      body.programType === 'hrs_residential' || 
+      body.program_type === 'hrs_residential' ||
+      body.programType === 'quick' ||
+      body.program_type === 'quick'
+    
+    // For non-HRS tables, add additional columns that don't exist in hrs_residential_leads
+    if (!isHrsResidential) {
+      insertData.solar_estimate = estimateData
+      insertData.solar_total_cost = estimatedCost
+      insertData.solar_incentives = body.solarIncentives || estimateData?.costs?.incentives || 0
+      insertData.solar_net_cost = netCostAfterIncentives
+      insertData.solar_annual_savings = annualSavings
+      insertData.solar_monthly_savings = body.monthlySavings || estimateData?.savings?.monthlySavings || 0
+      insertData.roi_percent = estimateData?.savings?.roi || 0
 
       // Peak shaving / rate plan - extract from nested structure
-      rate_plan: '',
-      peak_shaving: fullPeakShaving,
+      insertData.rate_plan = ''
+      insertData.peak_shaving = fullPeakShaving
       // Extract TOU/ULO combined totals for easy querying
-      // These are the "offset comparison" values shown in StepReview
-      tou_annual_savings: touCombinedAnnual || 0,
-      ulo_annual_savings: uloCombinedAnnual || 0,
-      tou_net_cost: getCombinedNetCost(body.peakShaving?.tou) || 0,
-      ulo_net_cost: getCombinedNetCost(body.peakShaving?.ulo) || 0,
-      tou_payback_years: getCombinedProjection(body.peakShaving?.tou)?.paybackYears || 0,
-      ulo_payback_years: getCombinedProjection(body.peakShaving?.ulo)?.paybackYears || 0,
-      tou_profit_25y: getCombinedProjection(body.peakShaving?.tou)?.netProfit25Year || 0,
-      ulo_profit_25y: getCombinedProjection(body.peakShaving?.ulo)?.netProfit25Year || 0,
+      insertData.tou_annual_savings = touCombinedAnnual || 0
+      insertData.ulo_annual_savings = uloCombinedAnnual || 0
+      insertData.tou_net_cost = getCombinedNetCost(body.peakShaving?.tou) || 0
+      insertData.ulo_net_cost = getCombinedNetCost(body.peakShaving?.ulo) || 0
+      insertData.tou_payback_years = getCombinedProjection(body.peakShaving?.tou)?.paybackYears || 0
+      insertData.ulo_payback_years = getCombinedProjection(body.peakShaving?.ulo)?.paybackYears || 0
+      insertData.tou_profit_25y = getCombinedProjection(body.peakShaving?.tou)?.netProfit25Year || 0
+      insertData.ulo_profit_25y = getCombinedProjection(body.peakShaving?.ulo)?.netProfit25Year || 0
 
-      // Combined review totals - extract from best rate plan (ULO if better, otherwise TOU)
-      // This represents the "offset comparison" values shown in StepReview
-      combined_totals: body.combined || (bestCombined ? {
+      // Combined review totals
+      insertData.combined_totals = body.combined || (bestCombined ? {
         total_cost: estimatedCost,
         net_cost: bestCombined?.netCost || 0,
         monthly_savings: bestCombined?.monthly || 0,
         annual_savings: bestCombined?.annual || 0,
         payback_years: (getCombinedProjection(bestCombinedPlan))?.paybackYears || 0,
         profit_25y: (getCombinedProjection(bestCombinedPlan))?.netProfit25Year || 0,
-        // Include both TOU and ULO for comparison
         tou: {
           annual: touCombinedAnnual,
           monthly: getCombinedMonthly(body.peakShaving?.tou),
@@ -193,41 +292,313 @@ export async function POST(request: Request) {
           payback_years: getCombinedProjection(body.peakShaving?.ulo)?.paybackYears ?? null,
           profit_25y: getCombinedProjection(body.peakShaving?.ulo)?.netProfit25Year ?? null,
         },
-      } : null),
-      combined_total_cost: body.combined?.total_cost || estimatedCost || 0,
-      combined_net_cost: body.combined?.net_cost || body.peakShaving?.ulo?.allResults?.combined?.netCost || body.peakShaving?.tou?.allResults?.combined?.netCost || body.peakShaving?.ulo?.combined?.netCost || body.peakShaving?.tou?.combined?.netCost || 0,
-      combined_monthly_savings: body.combined?.monthly_savings || body.peakShaving?.ulo?.allResults?.combined?.monthly || body.peakShaving?.tou?.allResults?.combined?.monthly || body.peakShaving?.ulo?.combined?.monthly || body.peakShaving?.tou?.combined?.monthly || 0,
-      combined_annual_savings: body.combined?.annual_savings || body.peakShaving?.ulo?.allResults?.combined?.annual || body.peakShaving?.tou?.allResults?.combined?.annual || body.peakShaving?.ulo?.combined?.annual || body.peakShaving?.tou?.combined?.annual || 0,
-      combined_payback_years: body.combined?.payback_years || body.peakShaving?.ulo?.allResults?.combined?.combined?.projection?.paybackYears || body.peakShaving?.tou?.allResults?.combined?.combined?.projection?.paybackYears || body.peakShaving?.ulo?.allResults?.combined?.projection?.paybackYears || body.peakShaving?.tou?.allResults?.combined?.projection?.paybackYears || body.peakShaving?.ulo?.combined?.projection?.paybackYears || body.peakShaving?.tou?.combined?.projection?.paybackYears || 0,
-      combined_profit_25y: body.combined?.profit_25y || body.peakShaving?.ulo?.allResults?.combined?.combined?.projection?.netProfit25Year || body.peakShaving?.tou?.allResults?.combined?.combined?.projection?.netProfit25Year || body.peakShaving?.ulo?.allResults?.combined?.projection?.netProfit25Year || body.peakShaving?.tou?.allResults?.combined?.projection?.netProfit25Year || body.peakShaving?.ulo?.combined?.projection?.netProfit25Year || body.peakShaving?.tou?.combined?.projection?.netProfit25Year || 0,
+      } : null)
+      insertData.combined_total_cost = body.combined?.total_cost || estimatedCost || 0
+      insertData.combined_net_cost = body.combined?.net_cost || body.peakShaving?.ulo?.allResults?.combined?.netCost || body.peakShaving?.tou?.allResults?.combined?.netCost || body.peakShaving?.ulo?.combined?.netCost || body.peakShaving?.tou?.combined?.netCost || 0
+      insertData.combined_monthly_savings = body.combined?.monthly_savings || body.peakShaving?.ulo?.allResults?.combined?.monthly || body.peakShaving?.tou?.allResults?.combined?.monthly || body.peakShaving?.ulo?.combined?.monthly || body.peakShaving?.tou?.combined?.monthly || 0
+      insertData.combined_annual_savings = body.combined?.annual_savings || body.peakShaving?.ulo?.allResults?.combined?.annual || body.peakShaving?.tou?.allResults?.combined?.annual || body.peakShaving?.ulo?.combined?.annual || body.peakShaving?.tou?.combined?.annual || 0
+      insertData.combined_payback_years = body.combined?.payback_years || body.peakShaving?.ulo?.allResults?.combined?.combined?.projection?.paybackYears || body.peakShaving?.tou?.allResults?.combined?.combined?.projection?.paybackYears || body.peakShaving?.ulo?.allResults?.combined?.projection?.paybackYears || body.peakShaving?.tou?.allResults?.combined?.projection?.paybackYears || body.peakShaving?.ulo?.combined?.projection?.paybackYears || body.peakShaving?.tou?.combined?.projection?.paybackYears || 0
+      insertData.combined_profit_25y = body.combined?.profit_25y || body.peakShaving?.ulo?.allResults?.combined?.combined?.projection?.netProfit25Year || body.peakShaving?.tou?.allResults?.combined?.combined?.projection?.netProfit25Year || body.peakShaving?.ulo?.allResults?.combined?.projection?.netProfit25Year || body.peakShaving?.tou?.allResults?.combined?.projection?.netProfit25Year || body.peakShaving?.ulo?.combined?.projection?.netProfit25Year || body.peakShaving?.tou?.combined?.projection?.netProfit25Year || 0
 
       // Financing / environmental (optional)
-      financing_preference: body.financingOption || body.financingPreference || body.financing_preference || '',
-      env_co2_offset_tpy: estimateData?.environmental?.co2OffsetTonsPerYear || 0,
-      env_trees_equivalent: estimateData?.environmental?.treesEquivalent || 0,
-      env_cars_off_road: estimateData?.environmental?.carsOffRoadEquivalent || 0,
+      insertData.financing_preference = body.financingOption || body.financingPreference || body.financing_preference || ''
+      insertData.env_co2_offset_tpy = estimateData?.environmental?.co2OffsetTonsPerYear || 0
+      insertData.env_trees_equivalent = estimateData?.environmental?.treesEquivalent || 0
+      insertData.env_cars_off_road = estimateData?.environmental?.carsOffRoadEquivalent || 0
+      insertData.roof_sections = body.roofSections || []
+      insertData.map_snapshot_url = mapSnapshotUrl || body.mapSnapshot || body.mapSnapshotUrl || ''
+      insertData.selected_batteries = body.selectedBatteries || (body.selectedBattery ? [body.selectedBattery] : [])
+      insertData.estimator_data = body
+    }
+    
+    if (isHrsResidential) {
+      // Extract TOU/ULO data from multiple possible locations
+      // For quick estimate: data might be in body.tou/ulo, body.full_data_json, or body.peakShaving
+      // For detailed: data is in body.peakShaving
+      let touData = body.tou
+      let uloData = body.ulo
       
-      // Additional metadata
-      estimator_mode: body.estimatorMode || body.estimator_mode || '',
-      program_type: body.programType || body.program_type || '',
-      roof_sections: body.roofSections || [],
-      map_snapshot_url: body.mapSnapshot || body.mapSnapshotUrl || '',
-      photo_urls: body.photos?.map((p: any) => p.url || p.uploadedUrl || p.preview).filter(Boolean) || body.photoUrls || [],
-      photo_summary: body.photoSummary || body.photo_summary || {},
-      selected_batteries: body.selectedBatteries || (body.selectedBattery ? [body.selectedBattery] : []),
-      battery_price: body.batteryDetails?.battery?.price || 0,
-      battery_rebate: (body.batteryDetails?.battery?.price && body.batteryDetails?.multiYearProjection?.netCost != null)
+      // If not in body.tou/ulo, check full_data_json (for quick estimate)
+      if (!touData && body.full_data_json?.tou) {
+        touData = body.full_data_json.tou
+      }
+      if (!uloData && body.full_data_json?.ulo) {
+        uloData = body.full_data_json.ulo
+      }
+      
+      // If still not found, check peakShaving nested structure
+      if (!touData && body.peakShaving?.tou) {
+        // Extract from peakShaving structure
+        const touCombined = body.peakShaving.tou?.allResults?.combined?.combined || 
+                           body.peakShaving.tou?.combined?.combined ||
+                           body.peakShaving.tou?.combined
+        const touResult = body.peakShaving.tou?.result
+        
+        touData = {
+          solar: touResult?.solarProduction || 0,
+          batterySolarCapture: touResult?.battSolarCharged || 0,
+          totalOffset: touResult?.offsetPercentages ? 
+            (touResult.offsetPercentages.solarDirect || 0) + (touResult.offsetPercentages.solarChargedBattery || 0) : 0,
+          buyFromGrid: touCombined?.postSolarBatteryAnnualBill || 0,
+          actualCostAfterBatteryOptimization: touCombined?.postSolarBatteryAnnualBill || 0,
+          savings: touCombined?.combinedAnnualSavings || 0,
+          annualSavings: touCombined?.combinedAnnualSavings || 0,
+          monthlySavings: touCombined?.combinedMonthlySavings || 0,
+          profit25Year: touCombined?.projection?.netProfit25Year || 0,
+          paybackPeriod: touCombined?.projection?.paybackYears || 0,
+          totalBillSavingsPercent: touCombined?.baselineAnnualBill && touCombined?.postSolarBatteryAnnualBill ?
+            ((touCombined.baselineAnnualBill - touCombined.postSolarBatteryAnnualBill) / touCombined.baselineAnnualBill) * 100 : 0,
+          beforeSolar: touCombined?.baselineAnnualBill || 0,
+          afterSolar: touCombined?.postSolarBatteryAnnualBill || 0,
+        }
+      }
+      
+      if (!uloData && body.peakShaving?.ulo) {
+        // Extract from peakShaving structure
+        const uloCombined = body.peakShaving.ulo?.allResults?.combined?.combined || 
+                           body.peakShaving.ulo?.combined?.combined ||
+                           body.peakShaving.ulo?.combined
+        const uloResult = body.peakShaving.ulo?.result
+        
+        uloData = {
+          solar: uloResult?.solarProduction || 0,
+          batterySolarCapture: uloResult?.battSolarCharged || 0,
+          totalOffset: uloResult?.offsetPercentages ? 
+            (uloResult.offsetPercentages.solarDirect || 0) + (uloResult.offsetPercentages.solarChargedBattery || 0) : 0,
+          buyFromGrid: uloCombined?.postSolarBatteryAnnualBill || 0,
+          actualCostAfterBatteryOptimization: uloCombined?.postSolarBatteryAnnualBill || 0,
+          savings: uloCombined?.combinedAnnualSavings || 0,
+          annualSavings: uloCombined?.combinedAnnualSavings || 0,
+          monthlySavings: uloCombined?.combinedMonthlySavings || 0,
+          profit25Year: uloCombined?.projection?.netProfit25Year || 0,
+          paybackPeriod: uloCombined?.projection?.paybackYears || 0,
+          totalBillSavingsPercent: uloCombined?.baselineAnnualBill && uloCombined?.postSolarBatteryAnnualBill ?
+            ((uloCombined.baselineAnnualBill - uloCombined.postSolarBatteryAnnualBill) / uloCombined.baselineAnnualBill) * 100 : 0,
+          beforeSolar: uloCombined?.baselineAnnualBill || 0,
+          afterSolar: uloCombined?.postSolarBatteryAnnualBill || 0,
+        }
+      }
+      
+      // TOU Plan Data (HRS format) - extract from touData with fallbacks
+      const touCombined = touData?.combined || body.peakShaving?.tou?.combined
+      const touResult = touData?.result || body.peakShaving?.tou?.result
+      const touAllResults = body.peakShaving?.tou?.allResults?.combined?.combined
+      
+      insertData.tou_solar = touData?.solar || 
+                             touResult?.solarProduction || 
+                             (touCombined?.breakdown?.solarAllocation ? 
+                               ((touCombined.breakdown.solarAllocation.offPeak || 0) + 
+                                (touCombined.breakdown.solarAllocation.midPeak || 0) + 
+                                (touCombined.breakdown.solarAllocation.onPeak || 0)) : 0) || 0
+      
+      insertData.tou_battery_solar_capture = touData?.batterySolarCapture || 
+                                            touResult?.battSolarCharged || 0
+      
+      insertData.tou_total_offset = touData?.totalOffset || 
+                                    (touResult?.offsetPercentages ? 
+                                      ((touResult.offsetPercentages.solarDirect || 0) + 
+                                       (touResult.offsetPercentages.solarChargedBattery || 0)) : 0) || 0
+      
+      insertData.tou_buy_from_grid = touData?.buyFromGrid || 
+                                     touCombined?.postSolarBatteryAnnualBill || 
+                                     touAllResults?.postSolarBatteryAnnualBill || 0
+      
+      insertData.tou_actual_cost_after_battery_optimization = touData?.actualCostAfterBatteryOptimization || 
+                                                             touCombined?.postSolarBatteryAnnualBill || 
+                                                             touAllResults?.postSolarBatteryAnnualBill || 0
+      
+      insertData.tou_savings = touData?.savings || 
+                              touCombined?.combinedAnnualSavings || 
+                              touAllResults?.annual || 0
+      
+      insertData.tou_before_solar = touData?.beforeSolar || 
+                                    touCombined?.baselineAnnualBill || 
+                                    touAllResults?.baselineAnnualBill || 0
+      
+      insertData.tou_after_solar = touData?.afterSolar || 
+                                   touCombined?.postSolarBatteryAnnualBill || 
+                                   touAllResults?.postSolarBatteryAnnualBill || 0
+      
+      insertData.tou_annual_savings = touData?.annualSavings || 
+                                     (insertData.tou_before_solar > 0 && insertData.tou_after_solar >= 0 ? 
+                                       insertData.tou_before_solar - insertData.tou_after_solar : 0) ||
+                                     touCombined?.combinedAnnualSavings || 
+                                     touAllResults?.annual || 0
+      
+      insertData.tou_monthly_savings = touData?.monthlySavings || 
+                                      (insertData.tou_annual_savings / 12) || 
+                                      touCombined?.combinedMonthlySavings || 
+                                      touAllResults?.monthly || 0
+      
+      const touProjection = touAllResults?.projection || 
+                           touCombined?.projection || 
+                           body.peakShaving?.tou?.allResults?.combined?.projection
+      
+      insertData.tou_profit_25_year = touData?.profit25Year || 
+                                     touProjection?.netProfit25Year || 0
+      
+      insertData.tou_payback_period = touData?.paybackPeriod || 
+                                     touProjection?.paybackYears || 0
+      
+      insertData.tou_total_bill_savings_percent = touData?.totalBillSavingsPercent || 
+                                                  (insertData.tou_before_solar > 0 ? 
+                                                    ((insertData.tou_before_solar - insertData.tou_after_solar) / insertData.tou_before_solar) * 100 : 0) || 0
+      
+      // ULO Plan Data (HRS format) - extract from uloData with fallbacks
+      const uloCombined = uloData?.combined || body.peakShaving?.ulo?.combined
+      const uloResult = uloData?.result || body.peakShaving?.ulo?.result
+      const uloAllResults = body.peakShaving?.ulo?.allResults?.combined?.combined
+      
+      insertData.ulo_solar = uloData?.solar || 
+                             uloResult?.solarProduction || 
+                             (uloCombined?.breakdown?.solarAllocation ? 
+                               ((uloCombined.breakdown.solarAllocation.ultraLow || 0) + 
+                                (uloCombined.breakdown.solarAllocation.offPeak || 0) + 
+                                (uloCombined.breakdown.solarAllocation.midPeak || 0) + 
+                                (uloCombined.breakdown.solarAllocation.onPeak || 0)) : 0) || 0
+      
+      insertData.ulo_battery_solar_capture = uloData?.batterySolarCapture || 
+                                            uloResult?.battSolarCharged || 0
+      
+      insertData.ulo_total_offset = uloData?.totalOffset || 
+                                    (uloResult?.offsetPercentages ? 
+                                      ((uloResult.offsetPercentages.solarDirect || 0) + 
+                                       (uloResult.offsetPercentages.solarChargedBattery || 0)) : 0) || 0
+      
+      insertData.ulo_buy_from_grid = uloData?.buyFromGrid || 
+                                     uloCombined?.postSolarBatteryAnnualBill || 
+                                     uloAllResults?.postSolarBatteryAnnualBill || 0
+      
+      insertData.ulo_actual_cost_after_battery_optimization = uloData?.actualCostAfterBatteryOptimization || 
+                                                             uloCombined?.postSolarBatteryAnnualBill || 
+                                                             uloAllResults?.postSolarBatteryAnnualBill || 0
+      
+      insertData.ulo_savings = uloData?.savings || 
+                              uloCombined?.combinedAnnualSavings || 
+                              uloAllResults?.annual || 0
+      
+      insertData.ulo_before_solar = uloData?.beforeSolar || 
+                                   uloCombined?.baselineAnnualBill || 
+                                   uloAllResults?.baselineAnnualBill || 0
+      
+      insertData.ulo_after_solar = uloData?.afterSolar || 
+                                  uloCombined?.postSolarBatteryAnnualBill || 
+                                  uloAllResults?.postSolarBatteryAnnualBill || 0
+      
+      insertData.ulo_annual_savings = uloData?.annualSavings || 
+                                     (insertData.ulo_before_solar > 0 && insertData.ulo_after_solar >= 0 ? 
+                                       insertData.ulo_before_solar - insertData.ulo_after_solar : 0) ||
+                                     uloCombined?.combinedAnnualSavings || 
+                                     uloAllResults?.annual || 0
+      
+      insertData.ulo_monthly_savings = uloData?.monthlySavings || 
+                                      (insertData.ulo_annual_savings / 12) || 
+                                      uloCombined?.combinedMonthlySavings || 
+                                      uloAllResults?.monthly || 0
+      
+      const uloProjection = uloAllResults?.projection || 
+                           uloCombined?.projection || 
+                           body.peakShaving?.ulo?.allResults?.combined?.projection
+      
+      insertData.ulo_profit_25_year = uloData?.profit25Year || 
+                                     uloProjection?.netProfit25Year || 0
+      
+      insertData.ulo_payback_period = uloData?.paybackPeriod || 
+                                     uloProjection?.paybackYears || 0
+      
+      insertData.ulo_total_bill_savings_percent = uloData?.totalBillSavingsPercent || 
+                                                 (insertData.ulo_before_solar > 0 ? 
+                                                   ((insertData.ulo_before_solar - insertData.ulo_after_solar) / insertData.ulo_before_solar) * 100 : 0) || 0
+      
+      // Additional HRS fields
+      insertData.system_cost = body.costs?.systemCost || body.estimateData?.costs?.systemCost || 0
+      insertData.battery_cost = body.costs?.batteryCost || body.estimateData?.costs?.batteryCost || 0
+      insertData.solar_rebate = body.costs?.solarRebate || body.estimateData?.costs?.solarRebate || 0
+      insertData.battery_rebate = body.costs?.batteryRebate || body.estimateData?.costs?.batteryRebate || 0
+      insertData.net_cost = body.costs?.netCost || body.estimateData?.costs?.netCost || netCostAfterIncentives || 0
+      
+      // Production data
+      insertData.production_annual_kwh = annualProductionKwh || body.production?.annualKwh || 0
+      insertData.production_monthly_kwh = body.production?.monthlyKwh || body.estimateData?.production?.monthlyKwh || []
+      insertData.production_daily_average_kwh = body.production?.dailyAverageKwh || body.estimateData?.production?.dailyAverageKwh || 0
+      
+      // Environmental data
+      insertData.co2_offset_tons_per_year = body.environmental?.co2OffsetTonsPerYear || body.estimateData?.environmental?.co2OffsetTonsPerYear || 0
+      insertData.trees_equivalent = body.environmental?.treesEquivalent || body.estimateData?.environmental?.treesEquivalent || 0
+      insertData.cars_off_road_equivalent = body.environmental?.carsOffRoadEquivalent || body.estimateData?.environmental?.carsOffRoadEquivalent || 0
+      
+      // Roof area data
+      insertData.roof_area_square_feet = body.roofArea?.squareFeet || body.roofAreaSqft || 0
+      insertData.roof_area_square_meters = body.roofArea?.squareMeters || 0
+      insertData.roof_area_usable_square_feet = body.roofArea?.usableSquareFeet || 0
+      
+      // Full data JSON (simplified format)
+      // For quick estimates, use the full simplifiedData structure if available
+      // Otherwise, construct from available fields
+      if (body.full_data_json) {
+        // If full_data_json is already provided (from StepContact), use it
+        insertData.full_data_json = body.full_data_json
+      } else if (body.tou || body.ulo) {
+        // Construct from available fields (backward compatibility)
+        insertData.full_data_json = {
+          tou: body.tou,
+          ulo: body.ulo,
+          costs: body.costs,
+          email: email,
+          phone: phone,
+          photos: body.photos || [],
+          address: address,
+          consent: body.consent ?? body.full_data_json?.consent ?? false,
+          roofAge: body.roofAge,
+          fullName: fullName,
+          leadType: body.leadType || 'residential',
+          roofArea: body.roofArea || {
+            squareFeet: body.roofAreaSqft || 0,
+            squareMeters: 0,
+            usableSquareFeet: 0,
+          },
+          roofType: roofType,
+          numPanels: body.numPanels || body.num_panels || estimateData?.system?.numPanels || 0,
+          roofPitch: roofPitch,
+          hasBattery: body.hasBattery || Boolean(body.selectedAddOns?.includes('battery')),
+          production: body.production,
+          coordinates: coordinates,
+          mapSnapshot: mapSnapshotUrl || body.mapSnapshot || body.mapSnapshotUrl,
+          // Add missing fields that are in simplifiedData but not in minimal construction
+          estimatorMode: body.estimatorMode || body.estimator_mode || 'easy',
+          programType: body.programType || body.program_type || 'quick',
+          monthlyBill: body.monthlyBill ?? body.full_data_json?.monthlyBill ?? 0,
+          annualUsageKwh: body.annualUsageKwh || body.energyUsage?.annualKwh || 0,
+          energyUsage: body.energyUsage || (body.annualUsageKwh ? {
+            annualKwh: body.annualUsageKwh,
+            monthlyKwh: body.annualUsageKwh / 12,
+            dailyKwh: body.annualUsageKwh / 365,
+          } : undefined),
+          selectedAddOns: body.selectedAddOns || body.selected_add_ons || [],
+          selectedBatteryIds: body.selectedBatteryIds || body.selected_battery_ids || [],
+          systemSizeKw: body.systemSizeKw || body.system_size_kw || systemSizeKw,
+          environmental: body.environmental || estimateData?.environmental || undefined,
+          financingOption: body.financingOption || body.financingPreference || body.financing_preference || null,
+          roofAreaSqft: body.roofAreaSqft,
+          roofPolygon: body.roofPolygon,
+          roofAzimuth: body.roofAzimuth,
+          shadingLevel: body.shadingLevel,
+          photoSummary: body.photoSummary || body.photo_summary || undefined,
+          annualEscalator: body.annualEscalator || body.annual_escalator || undefined,
+        }
+      } else {
+        // Fallback: use body as-is (for non-HRS leads)
+        insertData.full_data_json = body
+      }
+    } else {
+      // For non-HRS tables (leads_v3, homeowner_leads), include battery fields
+      insertData.battery_price = body.batteryDetails?.battery?.price || 0
+      insertData.battery_rebate = (body.batteryDetails?.battery?.price && body.batteryDetails?.multiYearProjection?.netCost != null)
         ? (body.batteryDetails.battery.price - body.batteryDetails.multiYearProjection.netCost)
-        : 0,
-      battery_net_cost: body.batteryDetails?.multiYearProjection?.netCost || 0,
-      battery_annual_savings: body.batteryDetails?.firstYearAnalysis?.totalSavings || body.peakShaving?.tou?.result?.annualSavings || body.peakShaving?.ulo?.result?.annualSavings || 0,
-      battery_monthly_savings: body.batteryDetails?.firstYearAnalysis?.totalSavings ? Math.round(body.batteryDetails.firstYearAnalysis.totalSavings / 12) : 0,
-      
-      // Full snapshot backup
-      estimator_data: body, // Keep full payload for reference
-      
-      // Status
-      status: 'new',
+        : 0
+      insertData.battery_net_cost = body.batteryDetails?.multiYearProjection?.netCost || 0
+      insertData.battery_annual_savings = body.batteryDetails?.firstYearAnalysis?.totalSavings || body.peakShaving?.tou?.result?.annualSavings || body.peakShaving?.ulo?.result?.annualSavings || 0
+      insertData.battery_monthly_savings = body.batteryDetails?.firstYearAnalysis?.totalSavings ? Math.round(body.batteryDetails.firstYearAnalysis.totalSavings / 12) : 0
     }
     
     // Only include city if it's provided (column exists in schema but may not be in database yet)
@@ -243,18 +614,30 @@ export async function POST(request: Request) {
       insertData.lead_type = leadType
     }
     
-    // Try old table first (leads_v3), then new schema (homeowner_leads)
+    // Try different table names in order
     let lead: any = null
     let insertError: any = null
     
-    // Try leads_v3 first (existing schema)
+    // Try hrs_residential_leads first (current table)
+    const { data: hrsLead, error: hrsError } = await supabase
+      .from('hrs_residential_leads')
+      .insert(insertData)
+      .select()
+      .single()
+    
+    if (!hrsError) {
+      lead = hrsLead
+    } else if (hrsError.code === 'PGRST205') {
+      // Try leads_v3 (existing schema)
     const { data: oldLead, error: oldError } = await supabase
       .from('leads_v3')
       .insert(insertData)
       .select()
       .single()
     
-    if (oldError && oldError.code === 'PGRST205') {
+      if (!oldError) {
+        lead = oldLead
+      } else if (oldError && oldError.code === 'PGRST205') {
       // Old table doesn't exist, try new schema table
       // Map fields to new schema format
       const newSchemaData: any = {
@@ -313,6 +696,9 @@ export async function POST(request: Request) {
     } else {
       lead = oldLead
       insertError = oldError
+      }
+    } else {
+      insertError = hrsError
     }
 
     if (insertError) {
@@ -369,7 +755,13 @@ export async function POST(request: Request) {
     }
 
     // Send estimate email to customer (async, don't wait for response)
-    if (email && estimateData) {
+    // Skip email for quick estimates (programType === 'quick' or estimatorMode === 'easy')
+    const isQuickEstimate = body.programType === 'quick' || 
+                           body.program_type === 'quick' ||
+                           body.estimatorMode === 'easy' ||
+                           body.estimator_mode === 'easy'
+    
+    if (email && estimateData && !isQuickEstimate) {
       fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/leads/send-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -383,6 +775,8 @@ export async function POST(request: Request) {
           leadId: lead.id,
         }),
       }).catch(err => console.error('Email send error:', err))
+    } else if (isQuickEstimate) {
+      console.log('📧 Skipping email send for quick estimate')
     }
 
     // Return success with lead ID
@@ -416,21 +810,40 @@ export async function GET(request: Request) {
     // Get Supabase admin client
     const supabase = getSupabaseAdmin()
 
-    // Build query - try new schema first, fallback to old
-    let query = supabase
-      .from('homeowner_leads')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1)
+    // Try different table names in order of likelihood
+    // Based on data structure, hrs_residential_leads is the current table
+    const tableNames = ['hrs_residential_leads', 'leads_v3', 'homeowner_leads', 'leads']
+    let tableName: string | null = null
+    let query: any = null
     
-    // If table doesn't exist, try old table
-    const { error: tableCheckError } = await query.limit(0)
-    if (tableCheckError && tableCheckError.code === 'PGRST205') {
+    // Find which table exists
+    for (const name of tableNames) {
+      const { error: checkError } = await supabase
+        .from(name)
+        .select('id')
+        .limit(1)
+      
+      if (!checkError || checkError.code !== 'PGRST205') {
+        tableName = name
       query = supabase
-        .from('leads_v3')
+          .from(name)
         .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1)
+        break
+      }
+    }
+    
+    // If no table found, return error
+    if (!tableName || !query) {
+      return NextResponse.json(
+        { 
+          error: 'No leads table found', 
+          details: `Tried tables: ${tableNames.join(', ')}. Please ensure one of these tables exists in your database.`,
+          hint: 'Check your Supabase database schema'
+        },
+        { status: 500 }
+      )
     }
 
     // Apply status filter if provided
@@ -439,16 +852,41 @@ export async function GET(request: Request) {
     }
 
     // Apply search filter if provided (search in name, email, or address)
+    // Handle different table schemas
     if (search) {
+      if (tableName === 'homeowner_leads') {
+        // homeowner_leads uses first_name and last_name
+        query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%,street_address.ilike.%${search}%`)
+      } else if (tableName === 'hrs_residential_leads') {
+        // hrs_residential_leads uses full_name and address
+        query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%,address.ilike.%${search}%`)
+      } else {
+        // leads_v3 uses full_name and address
       query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%,address.ilike.%${search}%`)
+      }
     }
 
     // Execute query
     const { data: leads, error, count } = await query
 
     if (error) {
+      console.error('Database query error:', error)
+      // Return more helpful error message
+      if (error.code === 'PGRST205') {
+        return NextResponse.json(
+          { 
+            error: 'Table not found', 
+            details: `Table "${tableName}" does not exist in your database.`,
+            hint: 'Please check your database schema or run migrations'
+          },
+          { status: 500 }
+        )
+      }
       throw error
     }
+    
+    // Log for debugging
+    console.log(`Fetched ${leads?.length || 0} leads from table "${tableName}"`)
 
     // Fetch activities for all leads if we have any
     let leadsWithActivities = leads || []
@@ -511,15 +949,18 @@ export async function GET(request: Request) {
     }
 
     // Return paginated results
+    // Ensure we always return an array, even if empty
+    const leadsArray = Array.isArray(leadsWithActivities) ? leadsWithActivities : (leads || [])
+    
     return NextResponse.json({
       success: true,
       data: {
-        leads: leadsWithActivities,
+        leads: leadsArray,
         pagination: {
           page,
           limit,
-          total: count || 0,
-          totalPages: Math.ceil((count || 0) / limit),
+          total: count || leadsArray.length || 0,
+          totalPages: Math.ceil((count || leadsArray.length || 0) / limit),
         }
       }
     })

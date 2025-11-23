@@ -4,7 +4,7 @@
 
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
-import { Shield, CheckCircle, Users, Award, FileCheck, MapPin, TrendingUp, ArrowRight } from 'lucide-react'
+import { Shield, CheckCircle, Users, Award, FileCheck, MapPin, TrendingUp, ArrowRight, FileText } from 'lucide-react'
 import Link from 'next/link'
 
 export default function ForInstallersPage() {
@@ -90,13 +90,22 @@ export default function ForInstallersPage() {
           <p className="text-xl text-white/90 max-w-2xl mx-auto leading-relaxed mb-8">
             Join our vetted network of quality solar installers. Connect with qualified homeowners and grow your business with trusted leads.
           </p>
-          <Link
-            href="/for-installers/apply"
-            className="btn-primary bg-maple-500 hover:bg-maple-600 inline-flex items-center justify-center text-lg h-14 px-10"
-          >
-            Apply to Join
-            <ArrowRight className="ml-2" size={20} />
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <Link
+              href="/for-installers/apply"
+              className="btn-primary bg-maple-500 hover:bg-maple-600 inline-flex items-center justify-center text-lg h-14 px-10"
+            >
+              Join Installer Network
+              <ArrowRight className="ml-2" size={20} />
+            </Link>
+            <Link
+              href="/for-installers/apply/track"
+              className="btn-outline bg-white/10 hover:bg-white/20 border-2 border-white/30 text-white inline-flex items-center justify-center text-lg h-14 px-10"
+            >
+              Check My Application
+              <FileText className="ml-2" size={20} />
+            </Link>
+          </div>
           <p className="text-white/80 text-sm mt-4">
             Application process typically takes 2-3 business days
           </p>

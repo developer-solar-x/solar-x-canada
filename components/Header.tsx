@@ -5,13 +5,15 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Logo } from './Logo'
-import { Menu, X } from 'lucide-react'
+import { Menu, X, ChevronDown, FileText, Building2 } from 'lucide-react'
 
 export function Header() {
   // Track scroll position for sticky header styling
   const [scrolled, setScrolled] = useState(false)
   // Mobile menu open/closed state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  // Track dropdown open/closed state
+  const [trackDropdownOpen, setTrackDropdownOpen] = useState(false)
 
   // Add scroll listener for header background change
   useEffect(() => {
@@ -22,6 +24,23 @@ export function Header() {
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (trackDropdownOpen) {
+        const target = event.target as HTMLElement
+        if (!target.closest('.track-dropdown-container')) {
+          setTrackDropdownOpen(false)
+        }
+      }
+    }
+
+    if (trackDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [trackDropdownOpen])
 
   // Handle mobile menu toggle
   const handleToggleMenu = () => {
@@ -77,6 +96,56 @@ export function Header() {
                   {link.label}
                 </Link>
               ))}
+              
+              {/* Track Dropdown */}
+              <div className="relative track-dropdown-container">
+                <button
+                  onClick={() => setTrackDropdownOpen(!trackDropdownOpen)}
+                  className={`text-sm font-medium transition-colors hover:text-maple-500 inline-flex items-center gap-1 ${
+                    scrolled ? 'text-gray-700' : 'text-white'
+                  }`}
+                >
+                  Track
+                  <ChevronDown 
+                    size={16} 
+                    className={`transition-transform ${trackDropdownOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                
+                {/* Dropdown Menu */}
+                {trackDropdownOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setTrackDropdownOpen(false)}
+                    />
+                    <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-20 overflow-hidden">
+                      <Link
+                        href="/for-installers/apply/track"
+                        onClick={() => setTrackDropdownOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-gray-700"
+                      >
+                        <Building2 size={18} className="text-forest-500" />
+                        <div>
+                          <div className="font-semibold text-sm">Track My Application</div>
+                          <div className="text-xs text-gray-500">Installer application status</div>
+                        </div>
+                      </Link>
+                      <Link
+                        href="/track"
+                        onClick={() => setTrackDropdownOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-gray-700 border-t border-gray-100"
+                      >
+                        <FileText size={18} className="text-sky-500" />
+                        <div>
+                          <div className="font-semibold text-sm">Track My Estimate</div>
+                          <div className="text-xs text-gray-500">Solar estimate results</div>
+                        </div>
+                      </Link>
+                    </div>
+                  </>
+                )}
+              </div>
             </nav>
 
             {/* CTA button on the right */}
@@ -127,6 +196,27 @@ export function Header() {
                     {link.label}
                   </Link>
                 ))}
+                
+                {/* Mobile Track Links */}
+                <div className="pt-2 border-t border-white/20">
+                  <div className="text-sm font-semibold text-white/80 mb-2 px-2">Track</div>
+                  <Link
+                    href="/for-installers/apply/track"
+                    className="flex items-center gap-3 text-base font-medium text-white hover:text-maple-300 transition-colors py-2 px-2"
+                    onClick={handleCloseMenu}
+                  >
+                    <Building2 size={18} />
+                    Track My Application
+                  </Link>
+                  <Link
+                    href="/track"
+                    className="flex items-center gap-3 text-base font-medium text-white hover:text-maple-300 transition-colors py-2 px-2"
+                    onClick={handleCloseMenu}
+                  >
+                    <FileText size={18} />
+                    Track My Estimate
+                  </Link>
+                </div>
               </nav>
 
               {/* Mobile CTA button */}

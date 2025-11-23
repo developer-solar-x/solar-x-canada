@@ -113,6 +113,9 @@ export interface SimplifiedEstimatorData {
   
   // Financing option (payment method)
   financingOption?: string
+  
+  // Add-ons selection
+  selectedAddOns?: string[]
 }
 
 /**
@@ -180,6 +183,11 @@ export function extractSimplifiedData(data: EstimatorData): SimplifiedEstimatorD
     // If it's a single battery ID, convert to array
     simplified.selectedBatteryIds = [data.selectedBattery]
   }
+  
+  // Add-ons selection
+  if ((data as any).selectedAddOns && Array.isArray((data as any).selectedAddOns)) {
+    simplified.selectedAddOns = (data as any).selectedAddOns
+  }
   // Round system size to nearest 0.5 (divisible by 0.5)
   if (data.solarOverride?.sizeKw !== undefined) {
     simplified.systemSizeKw = Math.round(data.solarOverride.sizeKw * 2) / 2
@@ -228,8 +236,18 @@ export function extractSimplifiedData(data: EstimatorData): SimplifiedEstimatorD
         }
       }
     }
-    // Total offset = combined annual savings (solar + battery)
-    const totalOffset = touCombined.combinedAnnualSavings || 0
+    // Total offset = percentage from FRD result offsetPercentages (solar + battery)
+    // This is the capped percentage that matches Step 4 display (e.g., 85.64%)
+    let totalOffset = 0
+    if (data.peakShaving.tou.result?.offsetPercentages) {
+      const solarDirectPercent = data.peakShaving.tou.result.offsetPercentages.solarDirect || 0
+      const solarChargedBatteryPercent = data.peakShaving.tou.result.offsetPercentages.solarChargedBattery || 0
+      totalOffset = solarDirectPercent + solarChargedBatteryPercent
+    } else {
+      // Fallback: calculate from solar and battery solar capture
+      const totalOffsetKwh = solar + batterySolarCapture
+      totalOffset = annualUsageKwh > 0 ? (totalOffsetKwh / annualUsageKwh) * 100 : 0
+    }
     // Buy from grid = remaining grid purchase after optimization
     const buyFromGrid = touCombined.postSolarBatteryAnnualBill || 0
     const actualCostAfterBatteryOptimization = buyFromGrid
@@ -255,14 +273,29 @@ export function extractSimplifiedData(data: EstimatorData): SimplifiedEstimatorD
       paybackPeriod = data.peakShaving.tou.combined.projection.paybackYears || 0
     }
     
-    // Get before/after solar costs
-    const beforeSolar = touCombined.baselineAnnualBill || 0
-    const afterSolar = touCombined.postSolarBatteryAnnualBill || touCombined.postSolarAnnualBill || 0
+    // Get before/after solar costs - prioritize touBeforeAfter if available (from step 4)
+    let beforeSolar = 0
+    let afterSolar = 0
+    let totalBillSavingsPercent = 0
     
-    // Calculate total bill savings percent
-    const totalBillSavingsPercent = beforeSolar > 0 
+    if ((data as any).touBeforeAfter) {
+      // Use pre-calculated values from step 4 (most accurate)
+      beforeSolar = (data as any).touBeforeAfter.before || 0
+      afterSolar = (data as any).touBeforeAfter.after || 0
+      totalBillSavingsPercent = beforeSolar > 0 
+        ? ((beforeSolar - afterSolar) / beforeSolar) * 100 
+        : 0
+    } else {
+      // Fallback: calculate from combined result
+      beforeSolar = touCombined.baselineAnnualBill || 0
+      afterSolar = touCombined.postSolarBatteryAnnualBill || touCombined.postSolarAnnualBill || 0
+      totalBillSavingsPercent = beforeSolar > 0 
       ? ((beforeSolar - afterSolar) / beforeSolar) * 100 
       : 0
+    }
+    
+    // Recalculate annual savings from before/after to match step 4
+    const recalculatedAnnualSavings = beforeSolar > 0 && afterSolar >= 0 ? beforeSolar - afterSolar : annualSavings
     
     simplified.tou = {
       solar,
@@ -271,8 +304,8 @@ export function extractSimplifiedData(data: EstimatorData): SimplifiedEstimatorD
       buyFromGrid,
       actualCostAfterBatteryOptimization,
       savings,
-      annualSavings,
-      monthlySavings,
+      annualSavings: recalculatedAnnualSavings,
+      monthlySavings: recalculatedAnnualSavings / 12,
       profit25Year,
       paybackPeriod,
       totalBillSavingsPercent: Math.round(totalBillSavingsPercent * 100) / 100, // Round to 2 decimals
@@ -319,7 +352,18 @@ export function extractSimplifiedData(data: EstimatorData): SimplifiedEstimatorD
         }
       }
     }
-    const totalOffset = uloCombined.combinedAnnualSavings || 0
+    // Total offset = percentage from FRD result offsetPercentages (solar + battery)
+    // This is the capped percentage that matches Step 4 display (e.g., 85.64%)
+    let totalOffset = 0
+    if (data.peakShaving.ulo.result?.offsetPercentages) {
+      const solarDirectPercent = data.peakShaving.ulo.result.offsetPercentages.solarDirect || 0
+      const solarChargedBatteryPercent = data.peakShaving.ulo.result.offsetPercentages.solarChargedBattery || 0
+      totalOffset = solarDirectPercent + solarChargedBatteryPercent
+    } else {
+      // Fallback: calculate from solar and battery solar capture
+      const totalOffsetKwh = solar + batterySolarCapture
+      totalOffset = annualUsageKwh > 0 ? (totalOffsetKwh / annualUsageKwh) * 100 : 0
+    }
     const buyFromGrid = uloCombined.postSolarBatteryAnnualBill || 0
     const actualCostAfterBatteryOptimization = buyFromGrid
     const savings = uloCombined.combinedAnnualSavings || 0
@@ -342,14 +386,29 @@ export function extractSimplifiedData(data: EstimatorData): SimplifiedEstimatorD
       paybackPeriod = data.peakShaving.ulo.combined.projection.paybackYears || 0
     }
     
-    // Get before/after solar costs
-    const beforeSolar = uloCombined.baselineAnnualBill || 0
-    const afterSolar = uloCombined.postSolarBatteryAnnualBill || uloCombined.postSolarAnnualBill || 0
+    // Get before/after solar costs - prioritize uloBeforeAfter if available (from step 4)
+    let beforeSolar = 0
+    let afterSolar = 0
+    let totalBillSavingsPercent = 0
     
-    // Calculate total bill savings percent
-    const totalBillSavingsPercent = beforeSolar > 0 
+    if ((data as any).uloBeforeAfter) {
+      // Use pre-calculated values from step 4 (most accurate)
+      beforeSolar = (data as any).uloBeforeAfter.before || 0
+      afterSolar = (data as any).uloBeforeAfter.after || 0
+      totalBillSavingsPercent = beforeSolar > 0 
+        ? ((beforeSolar - afterSolar) / beforeSolar) * 100 
+        : 0
+    } else {
+      // Fallback: calculate from combined result
+      beforeSolar = uloCombined.baselineAnnualBill || 0
+      afterSolar = uloCombined.postSolarBatteryAnnualBill || uloCombined.postSolarAnnualBill || 0
+      totalBillSavingsPercent = beforeSolar > 0 
       ? ((beforeSolar - afterSolar) / beforeSolar) * 100 
       : 0
+    }
+    
+    // Recalculate annual savings from before/after to match step 4
+    const recalculatedAnnualSavings = beforeSolar > 0 && afterSolar >= 0 ? beforeSolar - afterSolar : annualSavings
     
     simplified.ulo = {
       solar,
@@ -358,8 +417,8 @@ export function extractSimplifiedData(data: EstimatorData): SimplifiedEstimatorD
       buyFromGrid,
       actualCostAfterBatteryOptimization,
       savings,
-      annualSavings,
-      monthlySavings,
+      annualSavings: recalculatedAnnualSavings,
+      monthlySavings: recalculatedAnnualSavings / 12,
       profit25Year,
       paybackPeriod,
       totalBillSavingsPercent: Math.round(totalBillSavingsPercent * 100) / 100, // Round to 2 decimals
@@ -455,6 +514,11 @@ export function extractSimplifiedData(data: EstimatorData): SimplifiedEstimatorD
   
   // Financing option (payment method)
   if (data.financingOption) simplified.financingOption = data.financingOption
+  
+  // Add-ons (if not already set above)
+  if (!simplified.selectedAddOns && (data as any).selectedAddOns && Array.isArray((data as any).selectedAddOns)) {
+    simplified.selectedAddOns = (data as any).selectedAddOns
+  }
   
   return simplified
 }

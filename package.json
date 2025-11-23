@@ -31,6 +31,7 @@
     "react-countup": "^6.5.0",
     "react-dom": "^19.0.0",
     "react-dropzone": "^14.3.8",
+    "jspdf": "^2.5.1",
     "recharts": "^2.10.0",
     "tailwind-merge": "^2.2.0",
     "validator": "^13.15.15",

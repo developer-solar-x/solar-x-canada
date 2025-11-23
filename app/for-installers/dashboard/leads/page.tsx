@@ -145,6 +145,8 @@ export default function InstallerLeadsPage() {
         return { color: 'text-yellow-600', label: 'Medium' }
       case 'low':
         return { color: 'text-gray-600', label: 'Low' }
+      default:
+        return { color: 'text-gray-600', label: 'Medium' }
     }
   }
 

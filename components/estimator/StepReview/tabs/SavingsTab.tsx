@@ -14,6 +14,8 @@ interface SavingsTabProps {
   combinedNetCost: number
   isMobile: boolean
   annualEscalator?: number // Annual rate increase from Step 3
+  touBeforeAfter?: { before: number; after: number; savings: number } | null
+  uloBeforeAfter?: { before: number; after: number; savings: number } | null
 }
 
 export function SavingsTab({
@@ -25,24 +27,30 @@ export function SavingsTab({
   combinedNetCost,
   isMobile,
   annualEscalator = 4.5, // Default to 4.5% if not provided
+  touBeforeAfter,
+  uloBeforeAfter,
 }: SavingsTabProps) {
   const solarAnnual = estimate.savings?.annualSavings || 0
   const escalation = (annualEscalator ?? 4.5) / 100 // Convert percentage to decimal
   const years = 25
 
-  const haveTouAndUlo = Boolean(includeBattery && tou?.result?.annualSavings != null && ulo?.result?.annualSavings != null)
-  const touAnnual = (tou?.result?.annualSavings || 0) + solarAnnual
-  const uloAnnual = (ulo?.result?.annualSavings || 0) + solarAnnual
+  // Use beforeAfter values from step 4 if available (most accurate - matches step 4 display)
+  // Calculate annual savings as before - after (same as step 4)
+  const touCombinedAnnual = touBeforeAfter && touBeforeAfter.before > 0 && touBeforeAfter.after >= 0
+    ? touBeforeAfter.before - touBeforeAfter.after
+    : (peakShaving as any)?.tou?.combined?.combinedAnnualSavings ?? 
+      (peakShaving as any)?.tou?.combined?.annual ?? 
+      ((tou?.result?.annualSavings || 0) + solarAnnual)
+  
+  const uloCombinedAnnual = uloBeforeAfter && uloBeforeAfter.before > 0 && uloBeforeAfter.after >= 0
+    ? uloBeforeAfter.before - uloBeforeAfter.after
+    : (peakShaving as any)?.ulo?.combined?.combinedAnnualSavings ?? 
+      (peakShaving as any)?.ulo?.combined?.annual ?? 
+      ((ulo?.result?.annualSavings || 0) + solarAnnual)
+
+  const haveTouAndUlo = Boolean(includeBattery && (touBeforeAfter || tou?.result?.annualSavings != null) && (uloBeforeAfter || ulo?.result?.annualSavings != null))
 
   if (haveTouAndUlo) {
-    // Prefer combined totals from peak-shaving results if available (keeps parity with Before & After Comparison)
-    // Use combinedAnnualSavings to match the Before & After Comparison which uses baseline - after
-    const touCombinedAnnual = (peakShaving as any)?.tou?.combined?.combinedAnnualSavings ?? 
-                              (peakShaving as any)?.tou?.combined?.annual ?? 
-                              touAnnual
-    const uloCombinedAnnual = (peakShaving as any)?.ulo?.combined?.combinedAnnualSavings ?? 
-                              (peakShaving as any)?.ulo?.combined?.annual ?? 
-                              uloAnnual
     const touCombinedNet = (peakShaving as any)?.tou?.combined?.netCost ?? combinedNetCost
     const uloCombinedNet = (peakShaving as any)?.ulo?.combined?.netCost ?? combinedNetCost
 
@@ -248,25 +256,8 @@ export function SavingsTab({
   }
 
   // Fallback: single plan - but show both TOU and ULO
-  // Get TOU and ULO annual savings - use combinedAnnualSavings to match Before & After Comparison
-  const touAnnualFromPeakShaving = (peakShaving as any)?.tou?.combined?.combinedAnnualSavings || 
-                                   (peakShaving as any)?.tou?.combined?.annual ||
-                                   (tou?.result?.annualSavings || 0)
-  const uloAnnualFromPeakShaving = (peakShaving as any)?.ulo?.combined?.combinedAnnualSavings || 
-                                   (peakShaving as any)?.ulo?.combined?.annual ||
-                                   (ulo?.result?.annualSavings || 0)
-  
-  // If combinedAnnualSavings is available, it already includes solar + battery, so don't add solarAnnual again
-  // Otherwise, add solarAnnual to battery savings
-  const touHasCombinedSavings = !!(peakShaving as any)?.tou?.combined?.combinedAnnualSavings
-  const uloHasCombinedSavings = !!(peakShaving as any)?.ulo?.combined?.combinedAnnualSavings
-  
-  const touCombinedAnnual = touHasCombinedSavings 
-    ? touAnnualFromPeakShaving 
-    : solarAnnual + (includeBattery ? touAnnualFromPeakShaving : 0)
-  const uloCombinedAnnual = uloHasCombinedSavings 
-    ? uloAnnualFromPeakShaving 
-    : solarAnnual + (includeBattery ? uloAnnualFromPeakShaving : 0)
+  // Use beforeAfter values if available, otherwise fall back to peakShaving data
+  // touCombinedAnnual and uloCombinedAnnual are already calculated above
   
   // Build TOU and ULO cumulative series
   const series = Array.from({ length: years }, (_, idx) => {

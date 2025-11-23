@@ -2,8 +2,8 @@
 
 // Step 4: Review estimate and results
 
-import { useState, useEffect } from 'react'
-import { Loader2, Battery } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { Loader2, Battery, Sun, Moon } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { BATTERY_SPECS } from '@/config/battery-specs'
 import { ImageModal } from '@/components/ui/ImageModal'
@@ -12,18 +12,244 @@ import { MapSnapshot } from './sections/MapSnapshot'
 import { RoofSummary } from './sections/RoofSummary'
 import { PhotosSummary } from './sections/PhotosSummary'
 import { EnergySummary } from './sections/EnergySummary'
-import { SystemSummaryCards, BeforeAfterComparison } from './sections/SystemSummaryCards'
+import { SystemSummaryCards } from './sections/SystemSummaryCards'
 import { CostBreakdown } from './sections/CostBreakdown'
 import { BatteryDetails } from './sections/BatteryDetails'
 import { FinancingOptions } from './sections/FinancingOptions'
 import { SavingsTab } from './tabs/SavingsTab'
 import { ProductionTab } from './tabs/ProductionTab'
 import { EnvironmentalTab } from './tabs/EnvironmentalTab'
+import { calculateCombinedMultiYear } from '@/lib/simple-peak-shaving'
+import { calculateSystemCost } from '@/config/pricing'
 
 interface StepReviewProps {
   data: any
   onComplete: (data: any) => void
   onBack?: () => void
+}
+
+// BeforeAfterBars component - copied from step 4
+function BeforeAfterBars({ 
+  before, 
+  after, 
+  savings,
+  showContainer = false
+}: { 
+  before: number
+  after: number
+  savings: number
+  showContainer?: boolean
+}) {
+  const maxValue = Math.max(before, after) * 1.1
+  const beforeWidth = (before / maxValue) * 100
+  const afterWidth = (after / maxValue) * 100
+
+  const content = (
+    <div className="space-y-4">
+      <div className="text-center">
+        <h3 className="text-2xl font-bold text-gray-800 mb-2">Your Annual Savings</h3>
+        <p className="text-sm text-gray-600">See how much you'll save on electricity costs each year</p>
+      </div>
+      
+      <div className="space-y-3">
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-semibold text-gray-700">Your Current Electricity Bill</span>
+            <span className="text-base font-bold text-gray-800">${before.toLocaleString()}/yr</span>
+          </div>
+          <div className="w-full h-12 bg-gray-200 rounded-lg overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-red-400 to-red-500 transition-all duration-700 ease-out"
+              style={{ width: `${beforeWidth}%` }}
+            ></div>
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-semibold text-gray-700">With Solar + Battery System</span>
+            <span className="text-base font-bold text-green-600">${after.toLocaleString()}/yr</span>
+          </div>
+          <div className="w-full h-12 bg-gray-200 rounded-lg overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-green-400 to-green-500 transition-all duration-700 ease-out"
+              style={{ width: `${afterWidth}%` }}
+            ></div>
+          </div>
+        </div>
+
+        <div className="pt-4 border-t-2 border-gray-200">
+          <div className="flex items-center justify-between">
+            <span className="text-base font-bold text-gray-800">You Save</span>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-green-600">
+                ${savings.toLocaleString()}/yr
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-700">That's</span>
+              <span className="text-lg font-bold text-green-600">
+                ${(savings / 12).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}/month
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  if (showContainer) {
+    return (
+      <div className="bg-white rounded-xl shadow-md border-2 border-gray-200 overflow-hidden p-4 md:p-5">
+        {content}
+      </div>
+    )
+  }
+
+  return content
+}
+
+// Annual Savings Card component - displays ULO and TOU savings from step 4
+// Uses pre-calculated values from step 4 instead of recalculating
+function AnnualSavingsCard({ 
+  touBeforeAfter,
+  uloBeforeAfter,
+  displayPlan 
+}: { 
+  touBeforeAfter: { before: number; after: number; savings: number } | null
+  uloBeforeAfter: { before: number; after: number; savings: number } | null
+  displayPlan: 'tou' | 'ulo' | undefined
+}) {
+  // Use pre-calculated values directly from step 4
+  const touBefore = touBeforeAfter?.before || 0
+  const touAfter = touBeforeAfter?.after || 0
+  // Calculate savings as before - after (same as step 4 displays)
+  const touSavings = touBefore > 0 && touAfter >= 0 ? touBefore - touAfter : 0
+  
+  const uloBefore = uloBeforeAfter?.before || 0
+  const uloAfter = uloBeforeAfter?.after || 0
+  // Calculate savings as before - after (same as step 4 displays)
+  const uloSavings = uloBefore > 0 && uloAfter >= 0 ? uloBefore - uloAfter : 0
+
+  const hasTouData = touSavings > 0 && touBefore > 0
+  const hasUloData = uloSavings > 0 && uloBefore > 0
+  
+  if (!hasTouData && !hasUloData) {
+    return null
+  }
+
+  return (
+    <div className="card p-6">
+      <div className="text-center mb-4">
+        <h3 className="text-2xl font-bold text-gray-800 mb-2">Annual Savings by Rate Plan</h3>
+        <p className="text-sm text-gray-600">Compare your savings on different electricity rate plans</p>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        {/* TOU Plan */}
+        {hasTouData && (
+          <div className={`p-4 rounded-lg border-2 transition-all ${
+            displayPlan === 'tou' 
+              ? 'bg-blue-50 border-blue-400 shadow-md' 
+              : 'bg-gray-50 border-gray-200'
+          }`}>
+            <div className="flex items-center gap-2 mb-3">
+              <Sun className="text-amber-500" size={20} />
+              <h4 className="font-bold text-gray-800">Time-of-Use (TOU)</h4>
+              {displayPlan === 'tou' && (
+                <span className="ml-auto text-xs bg-blue-500 text-white px-2 py-1 rounded-full">
+                  Selected
+                </span>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Current Bill:</span>
+                <span className="font-semibold text-gray-800">${Math.round(touBefore).toLocaleString()}/yr</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">With System:</span>
+                <span className="font-semibold text-green-600">${Math.round(touAfter).toLocaleString()}/yr</span>
+              </div>
+              <div className="pt-2 border-t-2 border-gray-300">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-gray-800">Annual Savings:</span>
+                  <span className="text-xl font-bold text-green-600">
+                    ${Math.round(touSavings).toLocaleString()}/yr
+                  </span>
+                </div>
+                <div className="flex justify-between items-center mt-1">
+                  <span className="text-xs text-gray-600">Monthly:</span>
+                  <span className="text-sm font-semibold text-green-600">
+                    ${Math.round(touSavings / 12).toLocaleString()}/mo
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ULO Plan */}
+        {hasUloData && (
+          <div className={`p-4 rounded-lg border-2 transition-all ${
+            displayPlan === 'ulo' 
+              ? 'bg-purple-50 border-purple-400 shadow-md' 
+              : 'bg-gray-50 border-gray-200'
+          }`}>
+            <div className="flex items-center gap-2 mb-3">
+              <Moon className="text-indigo-500" size={20} />
+              <h4 className="font-bold text-gray-800">Ultra-Low Overnight (ULO)</h4>
+              {displayPlan === 'ulo' && (
+                <span className="ml-auto text-xs bg-purple-500 text-white px-2 py-1 rounded-full">
+                  Selected
+                </span>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Current Bill:</span>
+                <span className="font-semibold text-gray-800">${Math.round(uloBefore).toLocaleString()}/yr</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">With System:</span>
+                <span className="font-semibold text-green-600">${Math.round(uloAfter).toLocaleString()}/yr</span>
+              </div>
+              <div className="pt-2 border-t-2 border-gray-300">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-gray-800">Annual Savings:</span>
+                  <span className="text-xl font-bold text-green-600">
+                    ${Math.round(uloSavings).toLocaleString()}/yr
+                  </span>
+                </div>
+                <div className="flex justify-between items-center mt-1">
+                  <span className="text-xs text-gray-600">Monthly:</span>
+                  <span className="text-sm font-semibold text-green-600">
+                    ${Math.round(uloSavings / 12).toLocaleString()}/mo
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {hasTouData && hasUloData && (
+        <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-sm text-gray-700 text-center">
+            <strong>Best Plan:</strong> {touSavings >= uloSavings ? 'TOU' : 'ULO'} saves you{' '}
+            <span className="font-bold text-green-600">
+              ${Math.round(Math.abs(touSavings - uloSavings)).toLocaleString()} more
+            </span>{' '}
+            annually
+          </p>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
@@ -95,29 +321,15 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  if (loading || !estimate) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px]">
-        <Loader2 className="animate-spin text-red-500 mb-4" size={48} />
-        <p className="text-lg text-gray-600">Calculating your solar potential...</p>
-        <p className="text-sm text-gray-500 mt-2">Analyzing roof dimensions, weather data, and energy usage</p>
-      </div>
-    )
+  // Calculate values needed for useMemo hooks - must be before early returns
+  const estimateData = estimate || {
+    system: { sizeKw: 0, numPanels: 0 },
+    costs: { totalCost: 0, netCost: 0, incentives: 0 },
+    savings: { monthlySavings: 0 },
+    production: { monthlyKwh: [] }
   }
 
-  const hasBattery = !!(data.selectedBattery && data.batteryDetails && data.batteryDetails.firstYearAnalysis)
-  const productionChartData = estimate.production.monthlyKwh.map((kwh: number, i: number) => ({
-    month: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][i],
-    production: kwh,
-  }))
-
-  const solarTotalCost = estimate.costs?.totalCost || 0
-  const solarNetCost = estimate.costs?.netCost || 0
-  const solarIncentives = estimate.costs?.incentives || 0
-  const solarMonthlySavings = estimate.savings?.monthlySavings || 0
-
   const hasBatteryDetails = !!(data.batteryDetails && (data.peakShaving?.tou || data.peakShaving?.ulo))
-  // Check for selectedBatteryIds (from PeakShavingSalesCalculatorFRD) or selectedBatteries (legacy) or selectedBattery (singular)
   const selectedBatteryIds: string[] = Array.isArray(data.selectedBatteryIds) && data.selectedBatteryIds.length > 0
     ? data.selectedBatteryIds
     : Array.isArray(data.selectedBatteries) && data.selectedBatteries.length > 0
@@ -148,6 +360,104 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
         labels: [...(acc.labels || []), `${cur.brand} ${cur.model}`]
       }), { price: 0, nominalKwh: 0, usableKwh: 0, labels: [] })
     : null
+
+  // Calculate combinedResult and heroMetrics for useMemo
+  const combinedResult = (() => {
+    const planData = displayPlan === 'tou' ? tou : ulo
+    return planData?.combined || 
+           planData?.allResults?.combined?.combined || 
+           planData?.combined?.combined ||
+           null
+  })()
+
+  const heroMetrics = (() => {
+    if (!combinedResult) return null
+    const totalSavings = combinedResult.combinedAnnualSavings || 0
+    const baseline = combinedResult.baselineAnnualBill || combinedResult.baselineAnnualBillEnergyOnly || 0
+    return baseline > 0 ? {
+      totalSavings: (totalSavings / baseline) * 100
+    } : null
+  })()
+
+  // Calculate values needed for multiYearProjection
+  const panelWattage = 500
+  const numPanels = data.solarOverride?.numPanels ?? estimateData.system.numPanels
+  const effectiveSystemSizeKw = numPanels && numPanels > 0
+    ? (numPanels * panelWattage) / 1000
+    : (data.solarOverride?.sizeKw ?? estimateData.system.sizeKw)
+
+  const selectedBattery = aggregatedBattery || (hasBatteryDetails ? data.batteryDetails?.battery : null)
+  const annualUsageKwh = data.peakShaving?.annualUsageKwh || data.energyUsage?.annualKwh || 0
+
+  // Calculate rebates
+  const solarRebateCalc = Math.min(effectiveSystemSizeKw * 1000, 5000)
+  const batteryRebateCalc = selectedBattery ? Math.min((selectedBattery.nominalKwh || 0) * 300, 5000) : 0
+  const totalRebates = solarRebateCalc + batteryRebateCalc
+
+  // All hooks must be called before any early returns
+  const beforeAfterCosts = useMemo(() => {
+    if (!combinedResult) {
+      return { before: 0, after: 0, savings: 0 }
+    }
+
+    const baselineCost = combinedResult.baselineAnnualBill || combinedResult.baselineAnnualBillEnergyOnly || 0
+    const totalSavingsPercent = heroMetrics?.totalSavings ?? 0
+    const savings = baselineCost * (totalSavingsPercent / 100)
+    const afterCost = baselineCost - savings
+
+    return { before: baselineCost, after: afterCost, savings }
+  }, [combinedResult, heroMetrics])
+
+  const multiYearProjection = useMemo(() => {
+    if (!combinedResult || !selectedBattery || annualUsageKwh <= 0) {
+      return null
+    }
+
+    const annualEscalationRate = (data.annualEscalator ?? 4.5) / 100
+    const systemSize = effectiveSystemSizeKw || 0
+    const solarSystemCost = systemSize > 0 ? calculateSystemCost(systemSize) : 0
+    const batteryCost = selectedBattery.price || 0
+    const totalSystemCost = solarSystemCost + batteryCost
+    const netCost = totalSystemCost - totalRebates
+    const firstYearSavings = beforeAfterCosts.savings
+
+    const projection = calculateCombinedMultiYear(
+      firstYearSavings,
+      netCost,
+      annualEscalationRate,
+      0,
+      25,
+      {
+        baselineAnnualBill: beforeAfterCosts.before,
+        offsetCapFraction: undefined
+      }
+    )
+
+    return { ...projection, totalSystemCost, solarSystemCost, batteryCost }
+  }, [combinedResult, selectedBattery, annualUsageKwh, effectiveSystemSizeKw, totalRebates, data.annualEscalator, beforeAfterCosts])
+
+  // Early return after all hooks
+  if (loading || !estimate) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <Loader2 className="animate-spin text-red-500 mb-4" size={48} />
+        <p className="text-lg text-gray-600">Calculating your solar potential...</p>
+        <p className="text-sm text-gray-500 mt-2">Analyzing roof dimensions, weather data, and energy usage</p>
+      </div>
+    )
+  }
+
+  const hasBattery = !!(data.selectedBattery && data.batteryDetails && data.batteryDetails.firstYearAnalysis)
+  const productionChartData = estimate.production.monthlyKwh.map((kwh: number, i: number) => ({
+    month: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][i],
+    production: kwh,
+  }))
+
+  const solarTotalCost = estimate.costs?.totalCost || 0
+  const solarNetCost = estimate.costs?.netCost || 0
+  const solarIncentives = estimate.costs?.incentives || 0
+  const solarMonthlySavings = estimate.savings?.monthlySavings || 0
+
   const batteryPrice = hasBatteryDetails ? (data.batteryDetails?.battery?.price || 0) : (aggregatedBattery?.price || 0)
   const batteryNetCost = hasBatteryDetails
     ? (data.batteryDetails?.multiYearProjection?.netCost || 0)
@@ -297,49 +607,6 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             })()}
           </div>
 
-          {/* Before/After Comparison - Full width section below 2x2 grid */}
-          <BeforeAfterComparison
-            includeBattery={includeBattery}
-            touBeforeAfter={(() => {
-              const touCombined = (data.peakShaving as any)?.tou?.combined ||
-                                 (data.peakShaving as any)?.tou?.allResults?.combined?.combined || 
-                                 (data.peakShaving as any)?.tou?.combined?.combined ||
-                                 (tou as any)?.allResults?.combined?.combined ||
-                                 (tou as any)?.combined?.combined ||
-                                 (tou as any)?.combined
-              if (touCombined) {
-                const before = touCombined.baselineAnnualBill || touCombined.baselineAnnualBillEnergyOnly || 0
-                const after = touCombined.postSolarBatteryAnnualBill || touCombined.postSolarBatteryAnnualBillEnergyOnly || 0
-                // Use combinedAnnualSavings to match the actual savings calculation (baseline - after)
-                const annualSavings = touCombined.combinedAnnualSavings || (before - after)
-                if (before > 0 && after >= 0) {
-                  return { before, after, savings: annualSavings }
-                }
-              }
-              return null
-            })()}
-            uloBeforeAfter={(() => {
-              const uloCombined = (data.peakShaving as any)?.ulo?.combined ||
-                                 (data.peakShaving as any)?.ulo?.allResults?.combined?.combined || 
-                                 (data.peakShaving as any)?.ulo?.combined?.combined ||
-                                 (ulo as any)?.allResults?.combined?.combined ||
-                                 (ulo as any)?.combined?.combined ||
-                                 (ulo as any)?.combined
-              if (uloCombined) {
-                const before = uloCombined.baselineAnnualBill || uloCombined.baselineAnnualBillEnergyOnly || 0
-                const after = uloCombined.postSolarBatteryAnnualBill || uloCombined.postSolarBatteryAnnualBillEnergyOnly || 0
-                // Use combinedAnnualSavings to match the actual savings calculation (baseline - after)
-                const annualSavings = uloCombined.combinedAnnualSavings || (before - after)
-                if (before > 0 && after >= 0) {
-                  return { before, after, savings: annualSavings }
-                }
-              }
-              return null
-            })()}
-            combinedMonthlySavings={combinedMonthlySavings}
-            displayPlan={displayPlan}
-          />
-
           <CostBreakdown
             solarTotalCost={solarTotalCost}
             solarIncentives={solarIncentives}
@@ -352,6 +619,15 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             hasBatteryDetails={hasBatteryDetails}
             combinedNetCost={combinedNetCost}
           />
+
+          {/* Annual Savings Card - showing ULO and TOU results from Step 4 */}
+          {includeBattery && (data.touBeforeAfter || data.uloBeforeAfter) && (
+            <AnnualSavingsCard
+              touBeforeAfter={data.touBeforeAfter}
+              uloBeforeAfter={data.uloBeforeAfter}
+              displayPlan={displayPlan}
+            />
+          )}
 
           {data.selectedBattery && data.batteryDetails && (
             <BatteryDetails
@@ -409,6 +685,8 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                 combinedNetCost={combinedNetCost}
                 isMobile={isMobile}
                 annualEscalator={data.annualEscalator}
+                touBeforeAfter={data.touBeforeAfter}
+                uloBeforeAfter={data.uloBeforeAfter}
               />
             )}
 

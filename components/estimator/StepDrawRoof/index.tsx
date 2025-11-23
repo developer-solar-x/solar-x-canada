@@ -3,7 +3,7 @@
 // Step 2: Draw roof on map with Mapbox integration
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { MapboxDrawing } from '../MapboxDrawing'
+import { MapboxDrawing, type MapboxDrawingRef } from '../MapboxDrawing'
 import { calculateRoofAzimuth, calculateRoofAzimuthWithConfidence, getDirectionLabel, getOrientationEfficiency, ROOF_ORIENTATIONS } from '@/lib/roof-calculations'
 import * as turf from '@turf/turf'
 import { DrawingTips } from './components/DrawingTips'
@@ -18,6 +18,7 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   const [roofArea, setRoofArea] = useState<number | null>(data.roofAreaSqft || null)
   const [roofPolygon, setRoofPolygon] = useState<any>(data.roofPolygon || null)
   const [mapSnapshot, setMapSnapshot] = useState<string | null>(data.mapSnapshot || null)
+  const mapboxDrawingRef = useRef<MapboxDrawingRef>(null)
   const [estimatedPanels, setEstimatedPanels] = useState<number | null>(
     data.roofAreaSqft ? Math.floor(data.roofAreaSqft / PANEL_AREA_SQFT) : null
   )
@@ -169,14 +170,24 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   }
 
   // Continue to next step
-  const handleContinue = (e?: React.MouseEvent) => {
+  const handleContinue = async (e?: React.MouseEvent) => {
     e?.preventDefault()
     e?.stopPropagation()
     if (roofArea && roofPolygon) {
+      // Capture snapshot immediately if not already captured
+      let finalSnapshot = mapSnapshot
+      if (!finalSnapshot && mapboxDrawingRef.current) {
+        try {
+          finalSnapshot = await mapboxDrawingRef.current.captureSnapshot()
+        } catch (error) {
+          console.error('Failed to capture map snapshot:', error)
+        }
+      }
+
       onComplete({
         roofAreaSqft: roofArea,
         roofPolygon: roofPolygon,
-        mapSnapshot: mapSnapshot,
+        mapSnapshot: finalSnapshot || mapSnapshot,
         roofAzimuth: selectedAzimuth, // Overall azimuth (for single section or largest section)
         roofSections: roofSections // Include per-section orientation data
       })
@@ -254,6 +265,7 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
       <div className="bg-white rounded-xl shadow-lg overflow-hidden relative lg:order-2 order-1" style={{ height: 'calc(60vh)', minHeight: '360px' }}>
         {data.coordinates ? (
           <MapboxDrawing
+            ref={mapboxDrawingRef}
             coordinates={data.coordinates}
             address={data.address || 'Your location'}
             onAreaCalculated={handleAreaCalculated}

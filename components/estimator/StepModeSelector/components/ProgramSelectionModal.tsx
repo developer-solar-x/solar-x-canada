@@ -6,13 +6,15 @@ import { useEffect, useState } from 'react'
 
 interface ProgramSelectionModalProps {
   isOpen: boolean
-  onSelect: (programType: 'net_metering' | 'hrs_residential', leadType: 'residential' | 'commercial') => void
+  onSelect: (programType: 'net_metering' | 'hrs_residential' | 'quick', leadType: 'residential' | 'commercial', hasBattery?: boolean) => void
   onClose?: () => void
+  isQuickEstimate?: boolean
 }
 
-export function ProgramSelectionModal({ isOpen, onSelect, onClose }: ProgramSelectionModalProps) {
+export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstimate = false }: ProgramSelectionModalProps) {
   const [mounted, setMounted] = useState(false)
   const [selectedProgram, setSelectedProgram] = useState<'net_metering' | 'hrs_residential' | null>(null)
+  const [hasBattery, setHasBattery] = useState<boolean | null>(null)
   const [showLeadTypeSelection, setShowLeadTypeSelection] = useState(false)
 
   useEffect(() => {
@@ -24,6 +26,7 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose }: ProgramSele
       document.body.style.overflow = 'hidden'
       // Reset state when modal opens
       setSelectedProgram(null)
+      setHasBattery(null)
       setShowLeadTypeSelection(false)
     } else {
       document.body.style.overflow = ''
@@ -33,14 +36,29 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose }: ProgramSele
     }
   }, [isOpen])
 
+  const handleBatterySelect = (wantsBattery: boolean) => {
+    setHasBattery(wantsBattery)
+    setShowLeadTypeSelection(true)
+  }
+
   const handleProgramSelect = (programType: 'net_metering' | 'hrs_residential') => {
     setSelectedProgram(programType)
     setShowLeadTypeSelection(true)
   }
 
   const handleLeadTypeSelect = (leadType: 'residential' | 'commercial') => {
-    if (selectedProgram) {
-      onSelect(selectedProgram, leadType)
+    if (isQuickEstimate) {
+      // For quick estimate: hasBattery determines program type
+      if (hasBattery !== null) {
+        const programType = hasBattery ? 'hrs_residential' : 'quick'
+        onSelect(programType, leadType, hasBattery)
+      }
+    } else {
+      // For detailed mode: selectedProgram determines program type
+      if (selectedProgram) {
+        const hasBatteryValue = selectedProgram === 'hrs_residential'
+        onSelect(selectedProgram, leadType, hasBatteryValue)
+      }
     }
   }
 
@@ -60,12 +78,20 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose }: ProgramSele
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <h3 className="text-2xl font-bold text-navy-500">
-              {showLeadTypeSelection ? 'Select Property Type' : 'Choose Your Solar Program'}
+              {showLeadTypeSelection 
+                ? 'Select Property Type' 
+                : isQuickEstimate 
+                  ? 'Do You Want a Battery?'
+                  : 'Select Program Type'}
             </h3>
             <div className="flex items-center gap-3">
               {showLeadTypeSelection && (
                 <button
-                  onClick={() => setShowLeadTypeSelection(false)}
+                  onClick={() => {
+                    setShowLeadTypeSelection(false)
+                    setHasBattery(null)
+                    setSelectedProgram(null)
+                  }}
                   className="text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   ← Back
@@ -87,54 +113,111 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose }: ProgramSele
           <div className="p-6">
             {!showLeadTypeSelection ? (
               <>
-                <p className="text-gray-700 mb-6 text-center">
-                  Select the solar program that best fits your needs
-                </p>
-                
-                <div className="grid md:grid-cols-2 gap-4">
-                  {/* Net Metering Option - Coming Soon */}
-                  <button
-                    disabled
-                    className="p-6 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 opacity-60 cursor-not-allowed text-left relative"
-                  >
-                    <div className="absolute top-4 right-4">
-                      <span className="px-3 py-1 bg-gray-200 text-gray-600 text-xs font-bold rounded-full">
-                        COMING SOON
-                      </span>
+                {isQuickEstimate ? (
+                  <>
+                    {/* Quick Estimate: Battery Options */}
+                    <p className="text-gray-700 mb-6 text-center">
+                      Would you like to include battery storage with your solar system?
+                    </p>
+                    
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {/* With Battery */}
+                      <button
+                        onClick={() => handleBatterySelect(true)}
+                        className="p-6 rounded-xl border-2 border-gray-300 bg-white hover:border-navy-500 hover:bg-navy-50 transition-all text-left group"
+                      >
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-12 h-12 rounded-lg bg-navy-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <BatteryCharging className="text-white" size={24} />
+                          </div>
+                          <div className="font-semibold text-gray-800 text-lg">With Battery</div>
+                        </div>
+                        <div className="text-sm text-gray-600 space-y-2">
+                          <p>Solar + battery system</p>
+                          <p>• Store energy for peak hours</p>
+                          <p>• Reduce electricity costs</p>
+                          <p>• Up to $10,000 USD rebate</p>
+                        </div>
+                      </button>
+                      
+                      {/* No Battery - Coming Soon */}
+                      <button
+                        disabled
+                        className="p-6 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 opacity-60 cursor-not-allowed text-left relative"
+                      >
+                        <div className="absolute top-4 right-4">
+                          <span className="px-3 py-1 bg-gray-200 text-gray-600 text-xs font-bold rounded-full">
+                            COMING SOON
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-12 h-12 rounded-lg bg-gray-400 flex items-center justify-center">
+                            <Sun className="text-white" size={24} />
+                          </div>
+                          <div className="font-semibold text-gray-500 text-lg">No Battery</div>
+                        </div>
+                        <div className="text-sm text-gray-500 space-y-2">
+                          <p>Solar-only system</p>
+                          <p>• Lower upfront cost</p>
+                          <p>• Simpler installation</p>
+                          <p>• Still eligible for rebates</p>
+                        </div>
+                      </button>
                     </div>
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-12 h-12 rounded-lg bg-gray-400 flex items-center justify-center">
-                        <Sun className="text-white" size={24} />
-                      </div>
-                      <div className="font-semibold text-gray-500 text-lg">Solar Net Metering</div>
+                  </>
+                ) : (
+                  <>
+                    {/* Detailed Analysis: Program Options */}
+                    <p className="text-gray-700 mb-6 text-center">
+                      Select your preferred program type
+                    </p>
+                    
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {/* Solar+Battery HRS Program */}
+                      <button
+                        onClick={() => handleProgramSelect('hrs_residential')}
+                        className="p-6 rounded-xl border-2 border-gray-300 bg-white hover:border-navy-500 hover:bg-navy-50 transition-all text-left group"
+                      >
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-12 h-12 rounded-lg bg-navy-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <BatteryCharging className="text-white" size={24} />
+                          </div>
+                          <div className="font-semibold text-gray-800 text-lg">Solar+Battery HRS Program</div>
+                        </div>
+                        <div className="text-sm text-gray-600 space-y-2">
+                          <p>Solar + battery system</p>
+                          <p>• Store energy for peak hours</p>
+                          <p>• Reduce electricity costs</p>
+                          <p>• Up to $10,000 USD rebate</p>
+                        </div>
+                      </button>
+                      
+                      {/* Net Metering - Coming Soon */}
+                      <button
+                        disabled
+                        className="p-6 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 opacity-60 cursor-not-allowed text-left relative"
+                      >
+                        <div className="absolute top-4 right-4">
+                          <span className="px-3 py-1 bg-gray-200 text-gray-600 text-xs font-bold rounded-full">
+                            COMING SOON
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-12 h-12 rounded-lg bg-gray-400 flex items-center justify-center">
+                            <Sun className="text-white" size={24} />
+                          </div>
+                          <div className="font-semibold text-gray-500 text-lg">Net Metering</div>
+                        </div>
+                        <div className="text-sm text-gray-500 space-y-2">
+                          <p>Solar-only system</p>
+                          <p>• Sell excess energy to grid</p>
+                          <p>• Lower upfront cost</p>
+                          <p>• Simpler installation</p>
+                        </div>
+                      </button>
                     </div>
-                    <div className="text-sm text-gray-500 space-y-2">
-                      <p>Traditional grid-tied solar system</p>
-                      <p>• Export excess energy to the grid</p>
-                      <p>• Receive bill credits for exports</p>
-                      <p>• Simple and reliable</p>
-                    </div>
-                  </button>
-                  
-                  {/* Solar + Battery Option */}
-                  <button
-                    onClick={() => handleProgramSelect('hrs_residential')}
-                    className="p-6 rounded-xl border-2 border-gray-300 bg-white hover:border-navy-500 hover:bg-navy-50 transition-all text-left group"
-                  >
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-12 h-12 rounded-lg bg-navy-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <BatteryCharging className="text-white" size={24} />
-                      </div>
-                      <div className="font-semibold text-gray-800 text-lg">Solar + Battery</div>
-                    </div>
-                    <div className="text-sm text-gray-600 space-y-2">
-                      <p>Solar + battery with peak shaving</p>
-                      <p>• Store energy for peak hours</p>
-                      <p>• Reduce demand charges</p>
-                      <p>• Up to $10,000 USD rebate (residential)</p>
-                    </div>
-                  </button>
-                </div>
+                  </>
+                )}
               </>
             ) : (
               <>

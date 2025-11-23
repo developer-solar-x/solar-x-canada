@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import mapboxgl from 'mapbox-gl'
 import MapboxDraw from '@mapbox/mapbox-gl-draw'
 import * as turf from '@turf/turf'
@@ -31,6 +31,71 @@ export function useMapboxDrawing({
   useEffect(() => {
     onAreaCalculatedRef.current = onAreaCalculated
   }, [onAreaCalculated])
+
+  // Function to capture snapshot immediately
+  const captureSnapshot = useCallback(async (): Promise<string | null> => {
+    if (!map.current || !draw.current) {
+      return Promise.resolve(null)
+    }
+
+    const data = draw.current.getAll()
+    if (!data.features || data.features.length === 0) {
+      return Promise.resolve(null)
+    }
+
+    // Calculate total area
+    let totalAreaSqFt = 0
+    data.features.forEach((feature: any) => {
+      if (feature.geometry.type === 'Polygon') {
+        const areaMeters = turf.area(feature)
+        totalAreaSqFt += Math.round(areaMeters * 10.764)
+      }
+    })
+
+    // Calculate bounding box of all polygons
+    const allCoordinates: number[][] = []
+    data.features.forEach((feature: any) => {
+      if (feature.geometry.type === 'Polygon') {
+        feature.geometry.coordinates[0].forEach((coord: number[]) => {
+          allCoordinates.push(coord)
+        })
+      }
+    })
+
+    if (allCoordinates.length === 0) {
+      return Promise.resolve(null)
+    }
+
+    // Calculate bounds with padding
+    const lngs = allCoordinates.map(coord => coord[0])
+    const lats = allCoordinates.map(coord => coord[1])
+    const bounds = new mapboxgl.LngLatBounds(
+      [Math.min(...lngs), Math.min(...lats)],
+      [Math.max(...lngs), Math.max(...lats)]
+    )
+
+    // Fit map to bounds with padding for better view
+    map.current.fitBounds(bounds, {
+      padding: 80,
+      maxZoom: 20,
+      duration: 0
+    })
+
+    // Wait for map to finish repositioning before capturing
+    return new Promise<string | null>((resolve) => {
+      setTimeout(() => {
+        if (map.current) {
+          const canvas = map.current.getCanvas()
+          const mapSnapshot = canvas.toDataURL('image/png')
+          // Update callback with snapshot
+          onAreaCalculatedRef.current(totalAreaSqFt, data, mapSnapshot)
+          resolve(mapSnapshot)
+        } else {
+          resolve(null)
+        }
+      }, 300)
+    })
+  }, [])
 
   useEffect(() => {
     // Check if Mapbox token is configured
@@ -490,6 +555,7 @@ export function useMapboxDrawing({
 
   return {
     currentArea,
+    captureSnapshot,
   }
 }
 

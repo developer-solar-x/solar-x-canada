@@ -65,25 +65,83 @@ export function PeakShavingTab({
             </div>
             <div className="bg-gray-50 rounded p-3">
               <div className="text-[11px] text-gray-600">Monthly Savings</div>
-              <div className="font-semibold text-navy-600">{getCombinedBlock(peakShaving?.tou)?.monthly ? formatCurrency(getCombinedBlock(peakShaving?.tou)?.monthly) : '—'}</div>
+              <div className="font-semibold text-navy-600">
+                {lead.tou_monthly_savings != null 
+                  ? formatCurrency(lead.tou_monthly_savings)
+                  : (getCombinedBlock(peakShaving?.tou)?.monthly ? formatCurrency(getCombinedBlock(peakShaving?.tou)?.monthly) : '—')}
+              </div>
             </div>
             <div className="bg-gray-50 rounded p-3">
               <div className="text-[11px] text-gray-600">Payback Time</div>
-              <div className="font-semibold text-navy-600">{typeof touPayback === 'number' ? `${touPayback} yrs` : '—'}</div>
+              <div className="font-semibold text-navy-600">{typeof touPayback === 'number' ? `${touPayback.toFixed(1)} yrs` : '—'}</div>
             </div>
             <div className="bg-gray-50 rounded p-3">
               <div className="text-[11px] text-gray-600">25-Year Profit</div>
-              <div className="font-semibold text-green-700">{getCombinedBlock(peakShaving?.tou)?.projection?.netProfit25Year != null ? formatCurrency(getCombinedBlock(peakShaving?.tou)?.projection?.netProfit25Year) : '—'}</div>
+              <div className="font-semibold text-green-700">
+                {lead.tou_profit_25_year != null
+                  ? formatCurrency(lead.tou_profit_25_year)
+                  : (getCombinedBlock(peakShaving?.tou)?.projection?.netProfit25Year != null ? formatCurrency(getCombinedBlock(peakShaving?.tou)?.projection?.netProfit25Year) : '—')}
+              </div>
             </div>
           </div>
+          {/* Bill Savings Percentage */}
+          {lead.tou_total_bill_savings_percent != null && (
+            <div className="mt-3 bg-blue-50 rounded p-3 text-center">
+              <div className="text-[11px] text-gray-600">Total Bill Savings</div>
+              <div className="text-lg font-bold text-blue-700">{lead.tou_total_bill_savings_percent.toFixed(1)}%</div>
+            </div>
+          )}
           {/* Costs */}
           <div className="mt-4 grid grid-cols-1 gap-3 text-sm">
             <div className="bg-white rounded border p-3">
               <div className="text-[11px] text-gray-600">Current Electricity Cost</div>
-              <div className="font-semibold">{peakShaving?.tou?.result?.originalCost?.total != null ? formatCurrency(peakShaving.tou.result.originalCost.total) : '—'}</div>
+              <div className="font-semibold">
+                {lead.tou_before_solar != null 
+                  ? formatCurrency(lead.tou_before_solar)
+                  : (peakShaving?.tou?.result?.originalCost?.total != null ? formatCurrency(peakShaving.tou.result.originalCost.total) : '—')}
+              </div>
               <div className="text-[10px] text-gray-500 mt-1">Without solar</div>
             </div>
+            {lead.tou_after_solar != null && (
+              <div className="bg-green-50 rounded border border-green-200 p-3">
+                <div className="text-[11px] text-gray-600">After Solar + Battery</div>
+                <div className="font-semibold text-green-700">{formatCurrency(lead.tou_after_solar)}</div>
+                <div className="text-[10px] text-gray-500 mt-1">With system</div>
+              </div>
+            )}
           </div>
+          {/* Offset Percentages */}
+          {(lead.tou_solar != null || lead.tou_battery_solar_capture != null || lead.tou_total_offset != null) && (
+            <div className="mt-3 bg-blue-50 rounded p-3 text-xs">
+              <div className="font-semibold text-gray-700 mb-2">Energy Offset Breakdown</div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {lead.tou_solar != null && (
+                  <div>
+                    <div className="text-[10px] text-gray-600">Solar Direct</div>
+                    <div className="font-semibold text-blue-700">{lead.tou_solar.toFixed(1)}%</div>
+                  </div>
+                )}
+                {lead.tou_battery_solar_capture != null && (
+                  <div>
+                    <div className="text-[10px] text-gray-600">Battery Capture</div>
+                    <div className="font-semibold text-blue-700">{lead.tou_battery_solar_capture.toFixed(1)}%</div>
+                  </div>
+                )}
+                {lead.tou_total_offset != null && (
+                  <div>
+                    <div className="text-[10px] text-gray-600">Total Offset</div>
+                    <div className="font-semibold text-blue-700">{lead.tou_total_offset.toFixed(1)}%</div>
+                  </div>
+                )}
+              </div>
+              {lead.tou_buy_from_grid != null && (
+                <div className="mt-2 text-center">
+                  <div className="text-[10px] text-gray-600">Buy from Grid</div>
+                  <div className="font-semibold text-gray-700">{lead.tou_buy_from_grid.toFixed(1)}%</div>
+                </div>
+              )}
+            </div>
+          )}
           {/* Usage + Offsets */}
           <div className="mt-3 grid sm:grid-cols-2 gap-3 text-xs">
             <div className="bg-gray-50 rounded p-3">
@@ -139,25 +197,83 @@ export function PeakShavingTab({
             </div>
             <div className="bg-gray-50 rounded p-3">
               <div className="text-[11px] text-gray-600">Monthly Savings</div>
-              <div className="font-semibold text-navy-600">{getCombinedBlock(peakShaving?.ulo)?.monthly ? formatCurrency(getCombinedBlock(peakShaving?.ulo)?.monthly) : '—'}</div>
+              <div className="font-semibold text-navy-600">
+                {lead.ulo_monthly_savings != null 
+                  ? formatCurrency(lead.ulo_monthly_savings)
+                  : (getCombinedBlock(peakShaving?.ulo)?.monthly ? formatCurrency(getCombinedBlock(peakShaving?.ulo)?.monthly) : '—')}
+              </div>
             </div>
             <div className="bg-gray-50 rounded p-3">
               <div className="text-[11px] text-gray-600">Payback Time</div>
-              <div className="font-semibold text-navy-600">{typeof uloPayback === 'number' ? `${uloPayback} yrs` : '—'}</div>
+              <div className="font-semibold text-navy-600">{typeof uloPayback === 'number' ? `${uloPayback.toFixed(1)} yrs` : '—'}</div>
             </div>
             <div className="bg-gray-50 rounded p-3">
               <div className="text-[11px] text-gray-600">25-Year Profit</div>
-              <div className="font-semibold text-green-700">{getCombinedBlock(peakShaving?.ulo)?.projection?.netProfit25Year != null ? formatCurrency(getCombinedBlock(peakShaving?.ulo)?.projection?.netProfit25Year) : '—'}</div>
+              <div className="font-semibold text-green-700">
+                {lead.ulo_profit_25_year != null
+                  ? formatCurrency(lead.ulo_profit_25_year)
+                  : (getCombinedBlock(peakShaving?.ulo)?.projection?.netProfit25Year != null ? formatCurrency(getCombinedBlock(peakShaving?.ulo)?.projection?.netProfit25Year) : '—')}
+              </div>
             </div>
           </div>
+          {/* Bill Savings Percentage */}
+          {lead.ulo_total_bill_savings_percent != null && (
+            <div className="mt-3 bg-emerald-50 rounded p-3 text-center">
+              <div className="text-[11px] text-gray-600">Total Bill Savings</div>
+              <div className="text-lg font-bold text-emerald-700">{lead.ulo_total_bill_savings_percent.toFixed(1)}%</div>
+            </div>
+          )}
           {/* Costs */}
           <div className="mt-4 grid grid-cols-1 gap-3 text-sm">
             <div className="bg-white rounded border p-3">
               <div className="text-[11px] text-gray-600">Current Electricity Cost</div>
-              <div className="font-semibold">{peakShaving?.ulo?.result?.originalCost?.total != null ? formatCurrency(peakShaving.ulo.result.originalCost.total) : '—'}</div>
+              <div className="font-semibold">
+                {lead.ulo_before_solar != null 
+                  ? formatCurrency(lead.ulo_before_solar)
+                  : (peakShaving?.ulo?.result?.originalCost?.total != null ? formatCurrency(peakShaving.ulo.result.originalCost.total) : '—')}
+              </div>
               <div className="text-[10px] text-gray-500 mt-1">Without solar</div>
             </div>
+            {lead.ulo_after_solar != null && (
+              <div className="bg-green-50 rounded border border-green-200 p-3">
+                <div className="text-[11px] text-gray-600">After Solar + Battery</div>
+                <div className="font-semibold text-green-700">{formatCurrency(lead.ulo_after_solar)}</div>
+                <div className="text-[10px] text-gray-500 mt-1">With system</div>
+              </div>
+            )}
           </div>
+          {/* Offset Percentages */}
+          {(lead.ulo_solar != null || lead.ulo_battery_solar_capture != null || lead.ulo_total_offset != null) && (
+            <div className="mt-3 bg-emerald-50 rounded p-3 text-xs">
+              <div className="font-semibold text-gray-700 mb-2">Energy Offset Breakdown</div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {lead.ulo_solar != null && (
+                  <div>
+                    <div className="text-[10px] text-gray-600">Solar Direct</div>
+                    <div className="font-semibold text-emerald-700">{lead.ulo_solar.toFixed(1)}%</div>
+                  </div>
+                )}
+                {lead.ulo_battery_solar_capture != null && (
+                  <div>
+                    <div className="text-[10px] text-gray-600">Battery Capture</div>
+                    <div className="font-semibold text-emerald-700">{lead.ulo_battery_solar_capture.toFixed(1)}%</div>
+                  </div>
+                )}
+                {lead.ulo_total_offset != null && (
+                  <div>
+                    <div className="text-[10px] text-gray-600">Total Offset</div>
+                    <div className="font-semibold text-emerald-700">{lead.ulo_total_offset.toFixed(1)}%</div>
+                  </div>
+                )}
+              </div>
+              {lead.ulo_buy_from_grid != null && (
+                <div className="mt-2 text-center">
+                  <div className="text-[10px] text-gray-600">Buy from Grid</div>
+                  <div className="font-semibold text-gray-700">{lead.ulo_buy_from_grid.toFixed(1)}%</div>
+                </div>
+              )}
+            </div>
+          )}
           {/* Usage + Offsets */}
           <div className="mt-3 grid sm:grid-cols-2 gap-3 text-xs">
             <div className="bg-gray-50 rounded p-3">

@@ -7,8 +7,9 @@
 import { useState, useEffect, useMemo } from 'react'
 import { 
   Sun, Battery, TrendingUp, ChevronDown, ChevronUp, 
-  Zap, Info, AlertTriangle, BarChart3, DollarSign, Calendar, Award, Clock, X, Moon, ArrowLeft, ArrowRight
+  Zap, Info, AlertTriangle, BarChart3, DollarSign, Calendar, Award, Clock, X, Moon, ArrowLeft, ArrowRight, MessageSquare
 } from 'lucide-react'
+import { FeedbackForm } from '@/components/FeedbackForm'
 import { BATTERY_SPECS, BatterySpec, calculateBatteryRebate, BATTERY_REBATE_PER_KWH, BATTERY_REBATE_MAX } from '@/config/battery-specs'
 import { RATE_PLANS, RatePlan, ULO_RATE_PLAN, TOU_RATE_PLAN } from '@/config/rate-plans'
 import {
@@ -624,6 +625,8 @@ export function PeakShavingSalesCalculatorFRD({
   const [detailedBreakdownExpanded, setDetailedBreakdownExpanded] = useState(true)
   // Client-side mounted state to prevent hydration mismatches
   const [isMounted, setIsMounted] = useState(false)
+  // Feedback modal state
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   // Check if estimate is being loaded (solar system size needed for calculations)
   // In manual mode, don't wait for estimate - allow manual input immediately
   const [estimateLoading, setEstimateLoading] = useState(!manualMode && !data.estimate?.system?.sizeKw)
@@ -2406,6 +2409,17 @@ export function PeakShavingSalesCalculatorFRD({
                 />
               </div>
             )}
+
+            {/* Feedback Button - Emphasized in Hero Section */}
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={() => setShowFeedbackModal(true)}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-forest-500 hover:bg-forest-600 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5"
+              >
+                <MessageSquare size={20} />
+                <span>Share Your Feedback</span>
+              </button>
+            </div>
           </div>
 
           {/* RIGHT COLUMN: All Metrics */}
@@ -3380,11 +3394,159 @@ export function PeakShavingSalesCalculatorFRD({
                     }
                   }
                   
+                  // Calculate beforeAfterCosts for both TOU and ULO to pass to review step
+                  // Use the EXACT same calculation as step 4's heroMetrics and beforeAfterCosts
+                  // This ensures the "after" cost matches exactly what's displayed in step 4
+                  const calculateBeforeAfter = (
+                    combined: any, 
+                    result: FRDPeakShavingResult | null, 
+                    plan: 'TOU' | 'ULO', 
+                    usageKwh: number,
+                    offsetCapInfo: ReturnType<typeof computeSolarBatteryOffsetCap>
+                  ) => {
+                    if (!combined || !combined.baselineAnnualBill) return null
+                    
+                    const baselineCost = combined.baselineAnnualBill
+                    const combinedAnnualSavings = combined.combinedAnnualSavings || 0
+                    
+                    // Calculate totalSavingsPercent using the EXACT same logic as heroMetrics (lines 1248-1364)
+                    let totalSavingsPercent = 0
+                    
+                    if (result && combined.breakdown && baselineCost > 0) {
+                      try {
+                        const ratePlanObj: RatePlan = plan === 'ULO' ? ULO_RATE_PLAN : TOU_RATE_PLAN
+                        const ultraLowRate = ratePlanObj.periods.find(p => p.period === 'ultra-low')?.rate ?? 3.9
+                        const offPeakRate = ratePlanObj.periods.find(p => p.period === 'off-peak')?.rate ?? 9.8
+                        const midPeakRate = ratePlanObj.periods.find(p => p.period === 'mid-peak')?.rate ?? 15.7
+                        const onPeakRate = ratePlanObj.periods.find(p => p.period === 'on-peak')?.rate ?? (plan === 'ULO' ? 39.1 : 20.3)
+                        
+                        const batteryGridChargedKwh = result.battGridCharged || 0
+                        const chargingRate = plan === 'ULO' ? ultraLowRate : offPeakRate
+                        const batteryChargingCost = batteryGridChargedKwh * (chargingRate / 100)
+                        
+                        // Calculate offset cap info (same as heroMetrics)
+                        const uncappedSolarOffset = result.offsetPercentages.solarDirect
+                        const uncappedBatteryOffset = result.offsetPercentages.solarChargedBattery
+                        const uncappedTotalOffset = uncappedSolarOffset + uncappedBatteryOffset
+                        const offsetCapPercent = offsetCapInfo.capFraction * 100
+                        const offsetCapped = uncappedTotalOffset > offsetCapPercent + 0.1
+                        const offsetReduction = offsetCapped ? uncappedTotalOffset - Math.min(uncappedTotalOffset, offsetCapPercent) : 0
+                        const additionalGridKwh = (offsetReduction / 100) * usageKwh
+                        
+                        // Get grid remaining and calculate leftoverKwh
+                        const gridRemainingPercent = result.offsetPercentages.gridRemaining || 0
+                        const originalLeftoverKwh = (gridRemainingPercent * usageKwh) / 100
+                        const adjustedLeftoverKwh = originalLeftoverKwh + (offsetCapped ? additionalGridKwh : 0)
+                        const leftoverKwh = adjustedLeftoverKwh
+                        
+                        // Get gridKWhByBucket and calculate clampedBreakdown (EXACT same as heroMetrics)
+                        const gridKwhByBucket = result.gridKWhByBucket || {}
+                        let clampedBreakdown: LeftoverBreakdown
+                        
+                        if (plan === 'TOU') {
+                          const rawBreakdown = {
+                            ultraLow: 0,
+                            offPeak: gridKwhByBucket.offPeak || 0,
+                            midPeak: gridKwhByBucket.midPeak || 0,
+                            onPeak: gridKwhByBucket.onPeak || 0
+                          }
+                          const rawTotal = rawBreakdown.offPeak + rawBreakdown.midPeak + rawBreakdown.onPeak
+                          
+                          let scaledBreakdown: LeftoverBreakdown
+                          if (rawTotal > 0 && Math.abs(rawTotal - leftoverKwh) > 0.01) {
+                            const scale = leftoverKwh / rawTotal
+                            scaledBreakdown = {
+                              ultraLow: 0,
+                              offPeak: rawBreakdown.offPeak * scale,
+                              midPeak: rawBreakdown.midPeak * scale,
+                              onPeak: rawBreakdown.onPeak * scale
+                            }
+                          } else {
+                            scaledBreakdown = rawBreakdown
+                          }
+                          
+                          const distribution = DEFAULT_TOU_DISTRIBUTION
+                          const originalOffPeakUsage = usageKwh * distribution.offPeakPercent / 100
+                          const postOffPeakUsage = (scaledBreakdown.offPeak || 0) + batteryGridChargedKwh
+                          const offPeakRoomForRemainder = Math.max(0, originalOffPeakUsage - postOffPeakUsage)
+                          const offPeakCap = Math.min(leftoverKwh, offPeakRoomForRemainder + (usageKwh * 0.05))
+                          
+                          clampedBreakdown = clampBreakdown(
+                            scaledBreakdown,
+                            leftoverKwh,
+                            ['offPeak', 'midPeak', 'onPeak'],
+                            { offPeak: offPeakCap }
+                          )
+                        } else {
+                          const leftoverBreakdown = {
+                            ultraLow: Math.max(0, (gridKwhByBucket.ultraLow || 0) - batteryGridChargedKwh),
+                            offPeak: gridKwhByBucket.offPeak || 0,
+                            midPeak: gridKwhByBucket.midPeak || 0,
+                            onPeak: gridKwhByBucket.onPeak || 0
+                          }
+                          
+                          const distribution = DEFAULT_ULO_DISTRIBUTION
+                          const originalUltraLowUsage = usageKwh * (distribution.ultraLowPercent || 0) / 100
+                          const postUltraLowUsage = (leftoverBreakdown.ultraLow || 0) + batteryGridChargedKwh
+                          const ultraLowRoomForRemainder = Math.max(0, originalUltraLowUsage - postUltraLowUsage)
+                          const ultraLowCap = Math.min(leftoverKwh, ultraLowRoomForRemainder + (usageKwh * 0.05))
+                          
+                          clampedBreakdown = clampBreakdown(
+                            leftoverBreakdown,
+                            leftoverKwh,
+                            ['ultraLow', 'offPeak', 'midPeak', 'onPeak'],
+                            { ultraLow: ultraLowCap }
+                          )
+                        }
+                        
+                        // Calculate leftover cost from clamped breakdown
+                        const leftoverCost = 
+                          (clampedBreakdown.ultraLow || 0) * (ultraLowRate / 100) +
+                          (clampedBreakdown.offPeak || 0) * (offPeakRate / 100) +
+                          (clampedBreakdown.midPeak || 0) * (midPeakRate / 100) +
+                          (clampedBreakdown.onPeak || 0) * (onPeakRate / 100)
+                        
+                        const additionalGridCost = offsetCapped ? additionalGridKwh * (chargingRate / 100) : 0
+                        const totalGridCost = batteryChargingCost + leftoverCost + additionalGridCost
+                        const costOfEnergyBoughtFromGrid = (totalGridCost / baselineCost) * 100
+                        totalSavingsPercent = Math.max(0, 100 - costOfEnergyBoughtFromGrid)
+                      } catch (e) {
+                        console.error(`Error calculating totalSavingsPercent for ${plan}:`, e)
+                        // Fallback: use postSolarBatteryAnnualBill
+                        const postSolarBatteryBill = combined.postSolarBatteryAnnualBill || 0
+                        const costOfEnergyBoughtFromGrid = (postSolarBatteryBill / baselineCost) * 100
+                        totalSavingsPercent = Math.max(0, 100 - costOfEnergyBoughtFromGrid)
+                      }
+                    } else if (baselineCost > 0) {
+                      // Fallback: use postSolarBatteryAnnualBill (same as step 4 fallback)
+                      const postSolarBatteryBill = combined.postSolarBatteryAnnualBill || 0
+                      const costOfEnergyBoughtFromGrid = (postSolarBatteryBill / baselineCost) * 100
+                      totalSavingsPercent = Math.max(0, 100 - costOfEnergyBoughtFromGrid)
+                    }
+                    
+                    // Calculate afterCost the same way step 4 does in beforeAfterCosts
+                    const savings = baselineCost * (totalSavingsPercent / 100)
+                    const afterCost = baselineCost - savings
+                    
+                    return {
+                      before: baselineCost,
+                      after: afterCost,
+                      savings: combinedAnnualSavings
+                    }
+                  }
+                  
+                  const usageKwh = annualUsageKwh || data.peakShaving?.annualUsageKwh || data.energyUsage?.annualKwh || 0
+                  const touBeforeAfter = calculateBeforeAfter(touCombined, touFrdResult, 'TOU', usageKwh, offsetCapInfo)
+                  const uloBeforeAfter = calculateBeforeAfter(uloCombined, uloFrdResult, 'ULO', usageKwh, offsetCapInfo)
+                  
                   onComplete({
                     peakShaving: peakShavingObj,
                     selectedBatteryIds,
                     touDistribution,
-                    uloDistribution
+                    uloDistribution,
+                    // Pass pre-calculated before/after costs for both plans
+                    touBeforeAfter,
+                    uloBeforeAfter
                   })
                 }}
                 className="flex items-center gap-2 px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-colors shadow-md hover:shadow-lg flex-1 justify-center"
@@ -3395,6 +3557,17 @@ export function PeakShavingSalesCalculatorFRD({
             )}
           </div>
         </div>
+      )}
+
+      {/* Feedback Modal */}
+      {showFeedbackModal && (
+        <FeedbackForm
+          isModal={true}
+          onClose={() => setShowFeedbackModal(false)}
+          onSuccess={() => {
+            setShowFeedbackModal(false)
+          }}
+        />
       )}
     </div>
   )

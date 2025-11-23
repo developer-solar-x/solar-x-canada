@@ -2,23 +2,33 @@
 
 // Mapbox drawing component with satellite imagery and roof drawing tools
 
-import { useRef } from 'react'
+import { useRef, useImperativeHandle, forwardRef } from 'react'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css'
 import { useMapboxDrawing } from './hooks/useMapboxDrawing'
 import type { MapboxDrawingProps } from './types'
 
-export function MapboxDrawing({ coordinates, address, onAreaCalculated, initialData }: MapboxDrawingProps) {
-  // Map container reference
-  const mapContainer = useRef<HTMLDivElement>(null)
+export interface MapboxDrawingRef {
+  captureSnapshot: () => Promise<string | null>
+}
 
-  useMapboxDrawing({
-    coordinates,
-    address,
-    onAreaCalculated,
-    initialData,
-    mapContainer,
-  })
+export const MapboxDrawing = forwardRef<MapboxDrawingRef, MapboxDrawingProps>(
+  function MapboxDrawing({ coordinates, address, onAreaCalculated, initialData }, ref) {
+    // Map container reference
+    const mapContainer = useRef<HTMLDivElement>(null)
+
+    const { captureSnapshot } = useMapboxDrawing({
+      coordinates,
+      address,
+      onAreaCalculated,
+      initialData,
+      mapContainer,
+    })
+
+    // Expose captureSnapshot method via ref
+    useImperativeHandle(ref, () => ({
+      captureSnapshot: captureSnapshot || (async () => null),
+    }), [captureSnapshot])
 
   return (
     <div className="relative w-full h-full" style={{ minHeight: '600px' }}>
@@ -47,5 +57,6 @@ export function MapboxDrawing({ coordinates, address, onAreaCalculated, initialD
       )}
     </div>
   )
-}
+  }
+)
 

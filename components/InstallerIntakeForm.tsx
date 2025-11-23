@@ -76,7 +76,7 @@ export function InstallerIntakeForm({ onSubmit, onCancel }: InstallerIntakeFormP
     agreeToDoubleWarranty: false,
   })
 
-  const [errors, setErrors] = useState<Partial<Record<keyof InstallerFormData, string>>>({})
+  const [errors, setErrors] = useState<Partial<Record<keyof InstallerFormData | 'submit', string>>>({})
   const [loading, setLoading] = useState(false)
   const [currentSection, setCurrentSection] = useState(1)
 
@@ -277,11 +277,84 @@ export function InstallerIntakeForm({ onSubmit, onCancel }: InstallerIntakeFormP
     }
 
     setLoading(true)
-    // Simulate API call
-    setTimeout(() => {
-      onSubmit(formData)
-      setLoading(false)
-    }, 1000)
+    
+    try {
+      // Create FormData for API submission
+      const submitFormData = new FormData()
+      
+      // Add text fields
+      submitFormData.append('companyName', formData.companyName)
+      submitFormData.append('contactPersonName', formData.contactPersonName)
+      submitFormData.append('contactEmail', formData.contactEmail)
+      submitFormData.append('contactPhone', formData.contactPhone)
+      submitFormData.append('websiteUrl', formData.websiteUrl || '')
+      submitFormData.append('yearsInBusiness', formData.yearsInBusiness || '')
+      submitFormData.append('primaryServiceProvinces', JSON.stringify(formData.primaryServiceProvinces))
+      submitFormData.append('serviceAreaDescription', formData.serviceAreaDescription || '')
+      submitFormData.append('generalLiabilityCoverage', formData.generalLiabilityCoverage || '')
+      submitFormData.append('numberOfInstalls', formData.numberOfInstalls || '')
+      submitFormData.append('typicalSystemSizeRange', formData.typicalSystemSizeRange || '')
+      submitFormData.append('workmanshipWarrantyYears', formData.workmanshipWarrantyYears || '')
+      submitFormData.append('productWarrantySupport', formData.productWarrantySupport || '')
+      submitFormData.append('certificationOtherDescription', formData.certifications.otherDescription || '')
+      submitFormData.append('agreeToVetting', String(formData.agreeToVetting))
+      submitFormData.append('agreeToDoubleWarranty', String(formData.agreeToDoubleWarranty))
+      
+      // Add certification files
+      if (formData.certifications.esa) {
+        submitFormData.append('certificationEsa', formData.certifications.esa)
+      }
+      if (formData.certifications.provincial) {
+        submitFormData.append('certificationProvincial', formData.certifications.provincial)
+      }
+      if (formData.certifications.other) {
+        submitFormData.append('certificationOther', formData.certifications.other)
+      }
+      
+      // Add manufacturer certifications
+      const manufacturerNames = formData.certifications.manufacturer.map(m => m.name)
+      submitFormData.append('manufacturerNames', JSON.stringify(manufacturerNames))
+      formData.certifications.manufacturer.forEach((cert) => {
+        if (cert.file) {
+          submitFormData.append(`manufacturerCert_${cert.name}`, cert.file)
+        }
+      })
+      
+      // Add insurance proof
+      if (formData.insuranceProof) {
+        submitFormData.append('insuranceProof', formData.insuranceProof)
+      }
+      
+      // Add project photos
+      formData.projectPhotos.forEach((photo) => {
+        submitFormData.append('projectPhotos', photo)
+      })
+      
+      // Submit to API
+      const response = await fetch('/api/installers', {
+        method: 'POST',
+        body: submitFormData,
+      })
+      
+      const result = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to submit application')
+      }
+      
+      // Call the onSubmit callback with the API result (including applicationId)
+      // Don't set loading to false here - let the parent handle redirect
+      // The form will be unmounted when the parent redirects
+      onSubmit({
+        ...formData,
+        applicationId: result.applicationId,
+        apiResult: result,
+      })
+    } catch (error: any) {
+      console.error('Error submitting installer application:', error)
+      setErrors({ submit: error.message || 'Failed to submit application. Please try again.' })
+      setLoading(false) // Only reset loading on error
+    }
   }
 
   const sections = [
@@ -991,6 +1064,15 @@ export function InstallerIntakeForm({ onSubmit, onCancel }: InstallerIntakeFormP
             >
               Cancel
             </button>
+          )}
+
+          {errors.submit && (
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="text-red-600" size={20} />
+                <p className="text-sm text-red-600">{errors.submit}</p>
+              </div>
+            </div>
           )}
         </form>
       </div>

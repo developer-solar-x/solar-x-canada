@@ -296,6 +296,9 @@ export async function POST(request: Request) {
       has_battery: body.hasBattery !== undefined ? body.hasBattery : (body.selectedBatteryIds?.length > 0),
       annual_escalator: body.annualEscalator || null,
       
+      // Add-ons selection
+      selected_add_ons: body.selectedAddOns || body.selected_add_ons || [],
+      
       // Step 4: Battery Savings - with fallback to estimate
       selected_battery_ids: body.selectedBatteryIds || [],
       system_size_kw: body.systemSizeKw || 
