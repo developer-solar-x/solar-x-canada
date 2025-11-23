@@ -2,6 +2,7 @@
 
 import { EstimatorData } from '@/app/estimator/page'
 import { clearAllPhotos, getPhotoCount } from './photo-storage'
+import { extractSimplifiedData } from './estimator-data-simplifier'
 
 const STORAGE_KEY = 'solarx_estimator_draft'
 const TIMESTAMP_KEY = 'solarx_estimator_timestamp'
@@ -13,33 +14,40 @@ const PHOTO_IDS_KEY = 'solarx_estimator_photo_ids'
  */
 export function saveEstimatorProgress(data: EstimatorData, currentStep: number): void {
   try {
-    // Create a copy of data without the File objects (photos)
-    // Photo metadata is kept but the actual File objects are in IndexedDB
-    const dataToSave = {
-      ...data,
-      // If photos exist, only save metadata (id, category) not the File objects
-      photos: data.photos?.map(photo => ({
-        id: photo.id,
-        category: photo.category,
-        fileName: photo.file?.name || '',
-        fileType: photo.file?.type || '',
-        fileSize: photo.file?.size || 0,
-      })) || undefined,
-    }
+    // Extract only simplified data (required fields only)
+    const simplifiedData = extractSimplifiedData(data)
     
     // Create save object with metadata
     const saveData = {
-      data: dataToSave,
+      data: simplifiedData,
       currentStep,
       timestamp: new Date().toISOString(),
-      version: '1.0', // For future migrations if data structure changes
+      version: '2.0', // Updated version for simplified data structure
     }
     
     // Save to localStorage
     localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData))
     localStorage.setItem(TIMESTAMP_KEY, new Date().toISOString())
     
-    console.log('✅ Progress saved:', { step: currentStep, timestamp: saveData.timestamp })
+    console.log('✅ Progress saved (simplified):', { step: currentStep, timestamp: saveData.timestamp })
+    
+    // Log final simplified data structure for debugging (only on steps 8+)
+    if (currentStep >= 8) {
+      console.log('📊 Final Simplified Data Structure:')
+      console.log(JSON.stringify(simplifiedData, null, 2))
+      console.log('📏 Data Size:', JSON.stringify(simplifiedData).length, 'bytes')
+      
+      // Log key fields summary
+      console.log('🔑 Key Fields Summary:')
+      console.log('  📍 Location:', simplifiedData.address, simplifiedData.email)
+      console.log('  🔋 Batteries:', simplifiedData.selectedBatteryIds)
+      console.log('  ⚡ System:', simplifiedData.systemSizeKw + 'kW', simplifiedData.numPanels + ' panels')
+      console.log('  💰 TOU Savings:', simplifiedData.tou?.annualSavings)
+      console.log('  💰 ULO Savings:', simplifiedData.ulo?.annualSavings)
+      console.log('  📈 Production:', simplifiedData.production?.annualKwh + ' kWh/year')
+      console.log('  💵 Net Cost:', simplifiedData.costs?.netCost)
+      console.log('  📞 Contact:', simplifiedData.fullName, simplifiedData.phone)
+    }
   } catch (error) {
     console.error('❌ Failed to save progress:', error)
     // Fail silently - don't break the user experience
@@ -70,8 +78,16 @@ export function loadEstimatorProgress(): {
       return null
     }
     
+    // Convert simplified data back to EstimatorData format for compatibility
+    // The simplified data structure is compatible, just with fewer fields
+    const data = parsed.data as EstimatorData
+    
     console.log('✅ Progress loaded:', { step: parsed.currentStep, timestamp: parsed.timestamp })
-    return parsed
+    return {
+      data,
+      currentStep: parsed.currentStep,
+      timestamp: parsed.timestamp,
+    }
   } catch (error) {
     console.error('❌ Failed to load progress:', error)
     clearEstimatorProgress()

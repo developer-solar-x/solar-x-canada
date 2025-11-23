@@ -1,7 +1,7 @@
 'use client'
 
 import { Logo } from '@/components/Logo'
-import { Users, Clock, BarChart3, Calculator, Zap, ArrowRightFromLine, ExternalLink, TrendingUp, Building2 } from 'lucide-react'
+import { Users, Clock, BarChart3, Calculator, Zap, ArrowRightFromLine, ExternalLink, TrendingUp, Building2, MessageSquare } from 'lucide-react'
 
 interface AdminSidebarProps {
   activeSection: string
@@ -12,6 +12,7 @@ interface AdminSidebarProps {
   totalLeads: number
   totalPartialLeads: number
   totalInstallers?: number
+  totalFeedback?: number
 }
 
 export function AdminSidebar({
@@ -23,6 +24,7 @@ export function AdminSidebar({
   totalLeads,
   totalPartialLeads,
   totalInstallers = 0,
+  totalFeedback = 0,
 }: AdminSidebarProps) {
   const handleSectionClick = (section: string) => {
     onSectionChange(section)
@@ -90,6 +92,16 @@ export function AdminSidebar({
             <Building2 size={20} className="flex-shrink-0" />
             <span className="flex-1 text-left">Installers</span>
             <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{totalInstallers}</span>
+          </button>
+          <button 
+            onClick={() => handleSectionClick('feedback')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+              activeSection === 'feedback' ? 'bg-red-500' : 'hover:bg-navy-600'
+            }`}
+          >
+            <MessageSquare size={20} className="flex-shrink-0" />
+            <span className="flex-1 text-left">Feedback</span>
+            <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{totalFeedback}</span>
           </button>
           <button 
             onClick={() => handleSectionClick('sales-kpi')}

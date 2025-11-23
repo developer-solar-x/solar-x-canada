@@ -10,6 +10,7 @@ import { HowItWorks } from '@/components/HowItWorks'
 import { Calculator } from '@/components/Calculator'
 import { Stats } from '@/components/Stats'
 import { FAQ } from '@/components/FAQ'
+import { Testimonials } from '@/components/Testimonials'
 import { FinalCTA } from '@/components/FinalCTA'
 import { Footer } from '@/components/Footer'
 import { ResumeEstimateBanner } from '@/components/ResumeEstimateBanner'
@@ -71,6 +72,9 @@ export default function Home() {
 
       {/* Statistics counters */}
       <Stats />
+
+      {/* Testimonials section */}
+      <Testimonials />
 
       {/* FAQ accordion */}
       <FAQ />

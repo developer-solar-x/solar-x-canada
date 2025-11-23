@@ -46,8 +46,11 @@ export function Testimonials() {
         {/* Title block */}
         <div className="text-center mb-16">
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-4 font-display">
-            Join Thousands of Happy Homeowners
+            What Clients Say
           </h2>
+          <p className="text-white/90 text-lg mt-2">
+            Real feedback from homeowners who've made the switch to solar
+          </p>
         </div>
 
         {/* Testimonial cards grid */}

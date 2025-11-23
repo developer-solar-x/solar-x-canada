@@ -1,7 +1,107 @@
-// Individual lead operations API (PATCH, DELETE)
+// Individual lead operations API (GET, PATCH, DELETE)
 
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
+
+// GET: Fetch a lead by ID
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const supabase = getSupabaseAdmin()
+
+    // First, try to fetch from hrs_residential_leads table
+    const { data: hrsLead, error: hrsError } = await supabase
+      .from('hrs_residential_leads')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    // If table doesn't exist (PGRST205) or lead found, handle accordingly
+    if (hrsError && hrsError.code !== 'PGRST116') {
+      // PGRST116 = not found (which is fine, try other table)
+      // Other errors might mean table doesn't exist, continue to try old table
+      console.warn('HRS leads table error (may not exist yet):', hrsError.code)
+    }
+
+    if (hrsLead && !hrsError) {
+      // Transform HRS residential lead to match expected format
+      return NextResponse.json({
+        success: true,
+        lead: {
+          id: hrsLead.id,
+          full_name: hrsLead.full_name,
+          email: hrsLead.email,
+          phone: hrsLead.phone,
+          address: hrsLead.address,
+          city: hrsLead.city,
+          province: hrsLead.province,
+          coordinates: hrsLead.coordinates,
+          // Map HRS residential fields to expected format
+          system_size_kw: hrsLead.system_size_kw,
+          annual_production_kwh: hrsLead.production_annual_kwh,
+          net_cost_after_incentives: hrsLead.net_cost,
+          annual_savings: hrsLead.tou_annual_savings || hrsLead.ulo_annual_savings || 0,
+          payback_years: hrsLead.tou_payback_period || hrsLead.ulo_payback_period || 0,
+          // Use full_data_json as estimate_data for backward compatibility
+          estimate_data: hrsLead.full_data_json || {
+            system: {
+              sizeKw: hrsLead.system_size_kw,
+              numPanels: hrsLead.num_panels,
+            },
+            production: {
+              annualKwh: hrsLead.production_annual_kwh,
+              monthlyKwh: hrsLead.production_monthly_kwh || [],
+              dailyAverageKwh: hrsLead.production_daily_average_kwh,
+            },
+            costs: {
+              systemCost: hrsLead.system_cost,
+              batteryCost: hrsLead.battery_cost,
+              solarRebate: hrsLead.solar_rebate,
+              batteryRebate: hrsLead.battery_rebate,
+              netCost: hrsLead.net_cost,
+            },
+            environmental: {
+              co2OffsetTonsPerYear: hrsLead.co2_offset_tons_per_year,
+              treesEquivalent: hrsLead.trees_equivalent,
+              carsOffRoadEquivalent: hrsLead.cars_off_road_equivalent,
+            },
+          },
+          // Include HRS-specific data
+          hrs_residential_data: hrsLead,
+        },
+      })
+    }
+
+    // If not found in hrs_residential_leads, try old leads_v3 table
+    const { data: oldLead, error: oldError } = await supabase
+      .from('leads_v3')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (oldError || !oldLead) {
+      return NextResponse.json(
+        { error: 'Lead not found' },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      lead: oldLead,
+    })
+
+  } catch (error) {
+    console.error('Lead fetch error:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch lead', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    )
+  }
+}
 
 // PATCH: Update lead status
 export async function PATCH(

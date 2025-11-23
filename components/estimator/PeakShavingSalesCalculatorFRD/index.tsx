@@ -198,6 +198,9 @@ function EnergyFlowDiagram({
     gridChargedBatteryPercent: number
     boughtFromGridPercent: number
     totalSavings?: number
+    totalEnergyOffset?: number
+    costOfEnergyBoughtFromGrid?: number
+    uncappedTotalOffset?: number
   }
 }) {
   // Calculate percentages from combined result if available, otherwise use FRD result
@@ -528,15 +531,15 @@ function BeforeAfterBars({
     <div className="space-y-4">
       {/* FRD Section 9: Headline 32-40px */}
       <div className="text-center">
-        <h3 className="text-2xl font-bold text-gray-800 mb-2">Before & After Comparison</h3>
-        <p className="text-sm text-gray-600">Annual cost comparison with your solar + battery system</p>
+        <h3 className="text-2xl font-bold text-gray-800 mb-2">Your Annual Savings</h3>
+        <p className="text-sm text-gray-600">See how much you'll save on electricity costs each year</p>
       </div>
       
       <div className="space-y-3">
         {/* Before bar */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-gray-700">Before System</span>
+            <span className="text-sm font-semibold text-gray-700">Your Current Electricity Bill</span>
             <span className="text-base font-bold text-gray-800">${before.toLocaleString()}/yr</span>
           </div>
           <div className="w-full h-12 bg-gray-200 rounded-lg overflow-hidden">
@@ -550,7 +553,7 @@ function BeforeAfterBars({
         {/* After bar */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-gray-700">After Solar + Battery + AI EMC</span>
+            <span className="text-sm font-semibold text-gray-700">With Solar + Battery System</span>
             <span className="text-base font-bold text-green-600">${after.toLocaleString()}/yr</span>
           </div>
           <div className="w-full h-12 bg-gray-200 rounded-lg overflow-hidden">
@@ -564,19 +567,19 @@ function BeforeAfterBars({
         {/* Savings summary */}
         <div className="pt-4 border-t-2 border-gray-200">
           <div className="flex items-center justify-between">
-            <span className="text-base font-bold text-gray-800">Total Savings</span>
+            <span className="text-base font-bold text-gray-800">You Save</span>
             <div className="text-right">
               <div className="text-2xl font-bold text-green-600">
-                ${savings.toLocaleString()}
+                ${savings.toLocaleString()}/yr
               </div>
             </div>
           </div>
           {/* Monthly savings display - FRD requirement */}
           <div className="mt-4 pt-4 border-t border-gray-200">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-gray-700">Monthly Savings</span>
+              <span className="text-sm font-semibold text-gray-700">That's</span>
               <span className="text-lg font-bold text-green-600">
-                ${(savings / 12).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}/mo
+                ${(savings / 12).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}/month
               </span>
             </div>
           </div>
@@ -1354,6 +1357,7 @@ export function PeakShavingSalesCalculatorFRD({
           // Use same calculation as StepBatteryPeakShavingSimple
           costOfEnergyBoughtFromGrid = (totalGridCost / baselineBill) * 100
           // Calculate Total Savings as complement to ensure they add up to 100%
+          // This ensures bill savings is higher than offset because remaining grid energy is bought at cheap rates
           totalSavingsPercent = Math.max(0, 100 - costOfEnergyBoughtFromGrid)
         } else if (baselineBill > 0) {
           // Fallback: use bill ratio if breakdown not available
@@ -1646,8 +1650,11 @@ export function PeakShavingSalesCalculatorFRD({
       costOfEnergyBoughtFromGrid = (postSolarBatteryBill / baselineBill) * 100
     }
 
-    // Calculate Total Savings as complement to ensure they add up to 100%
-    // This ensures "Remaining Grid Cost (Discounted)" + "Total Bill Savings" = 100%
+    // Calculate Total Savings as complement to costOfEnergyBoughtFromGrid
+    // This ensures bill savings is higher than offset because:
+    // - Offset (e.g., 88%) = free energy from solar + battery
+    // - Remaining grid energy (e.g., 12%) is bought at cheap rates, costing less than 12% of original bill
+    // - So total savings = 100% - (cost of grid energy as % of original bill) > offset
     const totalSavingsPercent = Math.max(0, 100 - costOfEnergyBoughtFromGrid)
 
     // Calculate uncapped total offset for cap note display (already calculated above)
@@ -1699,23 +1706,25 @@ export function PeakShavingSalesCalculatorFRD({
     }
   }, [combinedResult, result, annualUsageKwh, solarProductionKwh, selectedBattery, ratePlan, data?.estimate, offsetCapInfo, isMounted, touDistribution, uloDistribution])
 
-  // Calculate before/after costs using combined result for accurate savings
+  // Calculate before/after costs using totalSavingsPercent to match bill savings percentage
+  // This ensures the Before & After Comparison shows costs that match the bill savings %,
+  // which is higher than the offset because remaining grid energy is bought at cheap rates
   const beforeAfterCosts = useMemo(() => {
     if (!combinedResult) {
       return { before: 0, after: 0, savings: 0 }
     }
 
-    // Use combined result which matches the old calculator
-    // Use solar-only bill when no battery is selected
+    // Use baseline cost from combined result
     const baselineCost = combinedResult.baselineAnnualBill
-    const hasBattery = selectedBatteryIds.length > 0
-    const afterCost = hasBattery
-      ? combinedResult.postSolarBatteryAnnualBill
-      : (combinedResult.postSolarAnnualBill || combinedResult.postSolarBatteryAnnualBill)
-    const savings = baselineCost - afterCost
+    
+    // Calculate afterCost based on totalSavingsPercent to match the displayed bill savings percentage
+    // The bill savings % is higher than offset because remaining grid energy is bought at cheap rates
+    const totalSavingsPercent = heroMetrics?.totalSavings ?? 0
+    const savings = baselineCost * (totalSavingsPercent / 100)
+    const afterCost = baselineCost - savings
 
     return { before: baselineCost, after: afterCost, savings }
-  }, [combinedResult, selectedBatteryIds])
+  }, [combinedResult, heroMetrics])
 
   // Calculate 25-year projection (payback period and profit)
   const multiYearProjection = useMemo(() => {
@@ -2907,11 +2916,11 @@ export function PeakShavingSalesCalculatorFRD({
                                 <div className="space-y-2 text-sm text-gray-700">
                                   <div className="flex justify-between py-1">
                                     <span>Solar System Cost:</span>
-                                    <span className="font-semibold text-gray-900">${multiYearProjection.totalSystemCost ? (multiYearProjection.totalSystemCost - selectedBattery.price).toLocaleString() : '0'}</span>
+                                    <span className="font-semibold text-gray-900">${multiYearProjection.totalSystemCost && selectedBattery ? (multiYearProjection.totalSystemCost - selectedBattery.price).toLocaleString() : '0'}</span>
                                   </div>
                                   <div className="flex justify-between py-1">
                                     <span>Battery Cost:</span>
-                                    <span className="font-semibold text-gray-900">${selectedBattery.price.toLocaleString()}</span>
+                                    <span className="font-semibold text-gray-900">${selectedBattery ? selectedBattery.price.toLocaleString() : '0'}</span>
                                   </div>
                                   <div className="flex justify-between border-t border-gray-300 pt-2 mt-2">
                                     <span className="font-semibold text-gray-800">Total System Cost:</span>
@@ -3152,7 +3161,7 @@ export function PeakShavingSalesCalculatorFRD({
       )}
 
       {/* Navigation Buttons - Inside container like Step 3 */}
-      {!manualMode && (onBack || onComplete) && (
+      {!manualMode && (
         <div className={`mt-8 pt-6 border-t border-gray-200 ${manualMode ? 'px-2 md:px-4 lg:px-6' : 'px-2 sm:px-4 md:px-6 lg:px-8 xl:px-10 2xl:px-12'}`}>
           <div className="flex gap-4">
             {onBack && (
@@ -3228,15 +3237,151 @@ export function PeakShavingSalesCalculatorFRD({
                     : null
                   const peakShavingData = storedData ? JSON.parse(storedData) : null
                   
-                  onComplete({
-                    peakShaving: {
+                  // Calculate 25-year projections for TOU and ULO if we have the data
+                  let touProjection = null
+                  let uloProjection = null
+                  
+                  if (touCombined && selectedBattery && selectedBatteryIds.length > 0) {
+                    try {
+                      const annualEscalationRate = (data.annualEscalator ?? 4.5) / 100
+                      const systemSize = effectiveSystemSizeKw || 0
+                      const solarSystemCost = systemSize > 0 ? calculateSystemCost(systemSize) : 0
+                      const batteryCost = selectedBattery.price
+                      const totalSystemCost = solarSystemCost + batteryCost
+                      // Use same rebate calculation as in the component
+                      const solarRebateCalc = Math.min(systemSize * 1000, 5000)
+                      const batteryRebateCalc = selectedBattery ? calculateBatteryRebate(selectedBattery.nominalKwh) : 0
+                      const totalRebatesCalc = solarRebateCalc + batteryRebateCalc
+                      const netCost = totalSystemCost - totalRebatesCalc
+                      const firstYearSavings = touCombined.combinedAnnualSavings || 0
+                      const baselineBill = touCombined.baselineAnnualBill || 0
+                      
+                      touProjection = calculateCombinedMultiYear(
+                        firstYearSavings,
+                        netCost,
+                        annualEscalationRate,
+                        0,
+                        25,
+                        {
+                          baselineAnnualBill: baselineBill,
+                          offsetCapFraction: offsetCapInfo.capFraction
+                        }
+                      )
+                    } catch (e) {
+                      console.error('Error calculating TOU projection:', e)
+                    }
+                  }
+                  
+                  if (uloCombined && selectedBattery && selectedBatteryIds.length > 0) {
+                    try {
+                      const annualEscalationRate = (data.annualEscalator ?? 4.5) / 100
+                      const systemSize = effectiveSystemSizeKw || 0
+                      const solarSystemCost = systemSize > 0 ? calculateSystemCost(systemSize) : 0
+                      const batteryCost = selectedBattery.price
+                      const totalSystemCost = solarSystemCost + batteryCost
+                      // Use same rebate calculation as in the component
+                      const solarRebateCalc = Math.min(systemSize * 1000, 5000)
+                      const batteryRebateCalc = selectedBattery ? calculateBatteryRebate(selectedBattery.nominalKwh) : 0
+                      const totalRebatesCalc = solarRebateCalc + batteryRebateCalc
+                      const netCost = totalSystemCost - totalRebatesCalc
+                      const firstYearSavings = uloCombined.combinedAnnualSavings || 0
+                      const baselineBill = uloCombined.baselineAnnualBill || 0
+                      
+                      uloProjection = calculateCombinedMultiYear(
+                        firstYearSavings,
+                        netCost,
+                        annualEscalationRate,
+                        0,
+                        25,
+                        {
+                          baselineAnnualBill: baselineBill,
+                          offsetCapFraction: offsetCapInfo.capFraction
+                        }
+                      )
+                    } catch (e) {
+                      console.error('Error calculating ULO projection:', e)
+                    }
+                  }
+                  
+                  // Calculate FRD results for TOU and ULO to get offsetPercentages
+                  let touFrdResult: FRDPeakShavingResult | null = null
+                  let uloFrdResult: FRDPeakShavingResult | null = null
+                  
+                  if (annualUsageKwh > 0 && selectedBattery && selectedBatteryIds.length > 0) {
+                    try {
+                      // Calculate TOU FRD result
+                      touFrdResult = calculateFRDPeakShaving(
+                        annualUsageKwh,
+                        solarProductionKwh,
+                        selectedBattery,
+                        TOU_RATE_PLAN,
+                        touDistribution,
+                        aiMode,
+                        { p_day: 0.5, p_night: 0.5 }
+                      )
+                      
+                      // Calculate ULO FRD result
+                      uloFrdResult = calculateFRDPeakShaving(
+                        annualUsageKwh,
+                        solarProductionKwh,
+                        selectedBattery,
+                        ULO_RATE_PLAN,
+                        uloDistribution,
+                        aiMode,
+                        { p_day: 0.5, p_night: 0.5 }
+                      )
+                    } catch (e) {
+                      console.error('Error calculating FRD results:', e)
+                    }
+                  }
+                  
+                  // Build peak shaving object with projections
+                  const peakShavingObj: any = {
                       ratePlan: ratePlan || 'TOU',
                       annualUsageKwh: annualUsageKwh || data.energyUsage?.annualKwh || data.annualUsageKwh || 0,
                       selectedBattery: selectedBatteryIds.join(','),
                       comparisons: peakShavingData?.comparisons || [],
-                      tou: touCombined ? { combined: touCombined } : undefined,
-                      ulo: uloCombined ? { combined: uloCombined } : undefined
-                    },
+                    tou: touCombined ? { 
+                      combined: touCombined,
+                      ...(touProjection && { projection: touProjection }),
+                      ...(touFrdResult && { result: touFrdResult }) // Include FRD result for offsetPercentages
+                    } : undefined,
+                    ulo: uloCombined ? { 
+                      combined: uloCombined,
+                      ...(uloProjection && { projection: uloProjection }),
+                      ...(uloFrdResult && { result: uloFrdResult }) // Include FRD result for offsetPercentages
+                    } : undefined
+                  }
+                  
+                  // Also add allResults structure for backward compatibility
+                  if (touCombined && touProjection) {
+                    peakShavingObj.tou.allResults = {
+                      combined: {
+                        combined: {
+                          annual: touCombined.combinedAnnualSavings,
+                          monthly: touCombined.combinedMonthlySavings,
+                          netCost: 0, // Will be calculated from system costs
+                          projection: touProjection
+                        }
+                      }
+                    }
+                  }
+                  
+                  if (uloCombined && uloProjection) {
+                    peakShavingObj.ulo.allResults = {
+                      combined: {
+                        combined: {
+                          annual: uloCombined.combinedAnnualSavings,
+                          monthly: uloCombined.combinedMonthlySavings,
+                          netCost: 0, // Will be calculated from system costs
+                          projection: uloProjection
+                        }
+                      }
+                    }
+                  }
+                  
+                  onComplete({
+                    peakShaving: peakShavingObj,
                     selectedBatteryIds,
                     touDistribution,
                     uloDistribution

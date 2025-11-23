@@ -20,6 +20,7 @@ import {
   Leaf
 } from 'lucide-react'
 import { formatCurrency, formatKw, formatKwh } from '@/lib/utils'
+import { computeSolarBatteryOffsetCap } from '@/lib/peak-shaving/offset-cap'
 import Link from 'next/link'
 import { MapSnapshot } from '@/components/estimator/StepReview/sections/MapSnapshot'
 import { RoofSummary } from '@/components/estimator/StepReview/sections/RoofSummary'
@@ -32,30 +33,30 @@ import { EnvironmentalTab } from '@/components/estimator/StepReview/tabs/Environ
 import { ImageModal } from '@/components/ui/ImageModal'
 
 interface ResultsPageProps {
-  estimate: {
-    system: {
-      sizeKw: number
-      numPanels: number
+  estimate?: {
+    system?: {
+      sizeKw?: number
+      numPanels?: number
     }
-    production: {
-      annualKwh: number
-      monthlyKwh: number[]
+    production?: {
+      annualKwh?: number
+      monthlyKwh?: number[]
     }
-    costs: {
-      totalCost: number
-      netCost: number
-      incentives: number
+    costs?: {
+      totalCost?: number
+      netCost?: number
+      incentives?: number
     }
-    savings: {
-      annualSavings: number
-      monthlySavings: number
-      paybackYears: number
+    savings?: {
+      annualSavings?: number
+      monthlySavings?: number
+      paybackYears?: number
       lifetimeSavings?: number
     }
     environmental?: {
-      co2OffsetTonsPerYear: number
-      treesEquivalent: number
-      carsOffRoadEquivalent: number
+      co2OffsetTonsPerYear?: number
+      treesEquivalent?: number
+      carsOffRoadEquivalent?: number
     }
   }
   leadData?: {
@@ -161,7 +162,7 @@ export function ResultsPage({
   // If we have exact panel count, calculate system size directly from it (no rounding needed)
   // 14 panels × 500W = 7000W = 7.0 kW exactly
   const panelWattage = 500 // Standard panel wattage
-  const numPanels = solarOverride?.numPanels ?? estimate.system.numPanels
+  const numPanels = solarOverride?.numPanels ?? estimate?.system?.numPanels
   
   // Calculate system size from exact panel count if available (always prefer panel count calculation)
   // This ensures 14 panels = 7.0 kW exactly, not 7.1 kW
@@ -171,7 +172,7 @@ export function ResultsPage({
     systemSizeKw = (numPanels * panelWattage) / 1000
   } else {
     // Fallback: use provided system size and round to nearest 0.5
-    const rawSystemSizeKw = solarOverride?.sizeKw ?? estimate.system.sizeKw
+    const rawSystemSizeKw = solarOverride?.sizeKw ?? estimate?.system?.sizeKw ?? 0
     systemSizeKw = Math.round(rawSystemSizeKw * 2) / 2
   }
   
@@ -181,23 +182,58 @@ export function ResultsPage({
     calculatedFromPanels: solarOverride?.numPanels ? (solarOverride.numPanels * panelWattage) / 1000 : null,
     finalSystemSizeKw: systemSizeKw,
     solarOverrideSizeKw: solarOverride?.sizeKw,
-    estimateSystemSizeKw: estimate.system.sizeKw
+    estimateSystemSizeKw: estimate?.system?.sizeKw
   })
 
   // Calculate percentage offset (production vs actual usage)
   // Use actual annual usage from energyUsage data, or calculate from monthly bill if available
   const actualAnnualUsage = energyUsage?.annualKwh || 
                            (monthlyBill && typeof monthlyBill === 'number' ? (monthlyBill / 0.134) * 12 : null) || // Estimate from monthly bill (avg $0.134/kWh)
-                           (estimate.production.annualKwh / 0.8) // Fallback: assume 80% offset if no usage data
-  const percentageOffset = actualAnnualUsage && actualAnnualUsage > 0
-    ? Math.min(100, Math.round((estimate.production.annualKwh / actualAnnualUsage) * 100))
-    : 80 // Fallback to 80% if we can't calculate
+                           (estimate?.production?.annualKwh ? estimate.production.annualKwh / 0.8 : null) // Fallback: assume 80% offset if no usage data
   
-  // Calculate lifetime savings (25 years)
-  const lifetimeSavings = estimate.savings.lifetimeSavings || (estimate.savings.annualSavings * 25)
-
+  // Determine which rate plan is being used (TOU or ULO) - needed for battery capture
+  const ratePlanForOffset = displayPlan || peakShaving?.ratePlan || 'tou'
+  
+  // Get solar production and battery solar capture
+  const solarProduction = estimate?.production?.annualKwh || 0
+  
+  // Get battery solar capture from the appropriate rate plan
+  // Check direct tou/ulo props first, then peakShaving structure
+  const batterySolarCapture = ratePlanForOffset === 'ulo' 
+    ? (ulo?.batterySolarCapture ?? peakShaving?.ulo?.batterySolarCapture ?? 0)
+    : (tou?.batterySolarCapture ?? peakShaving?.tou?.batterySolarCapture ?? 0)
+  
+  // Calculate energy offset: (solar + battery solar capture) / annual usage * 100
+  const totalEnergyOffset = solarProduction + batterySolarCapture
+  
+  // Calculate offset cap to account for winter limits (same as PeakShavingSalesCalculatorFRD)
+  // Get roof azimuth from estimate or roofData, default to 180 (south-facing)
+  const roofAzimuth = (estimate as any)?.roof?.azimuth ?? 
+                      (roofData as any)?.roofAzimuth ?? 
+                      ((roofData?.roofPolygon?.features?.[0]?.properties as any)?.azimuth) ??
+                      180 // Default to south-facing
+  
+  const offsetCapInfo = computeSolarBatteryOffsetCap({
+    usageKwh: actualAnnualUsage || 0,
+    productionKwh: solarProduction,
+    roofPitch: roofData?.roofPitch,
+    roofAzimuth: roofAzimuth,
+    roofSections: roofData?.roofSections,
+  })
+  
+  // Calculate uncapped percentage
+  const uncappedPercentage = actualAnnualUsage && actualAnnualUsage > 0 && totalEnergyOffset > 0
+    ? (totalEnergyOffset / actualAnnualUsage) * 100
+    : (actualAnnualUsage && actualAnnualUsage > 0 && solarProduction > 0
+      ? (solarProduction / actualAnnualUsage) * 100
+      : 80) // Fallback to 80% if we can't calculate
+  
+  // Apply offset cap (typically 90-93% to reflect winter limits)
+  const cappedPercentage = Math.min(uncappedPercentage, offsetCapInfo.capFraction * 100)
+  const percentageOffset = Math.round(cappedPercentage)
+  
   // Calculate monthly production average
-  const avgMonthlyProduction = estimate.production.annualKwh / 12
+  const avgMonthlyProduction = estimate?.production?.annualKwh ? estimate.production.annualKwh / 12 : 0
 
   // Determine which rate plan is being used (TOU or ULO)
   const ratePlan = displayPlan || peakShaving?.ratePlan || 'tou'
@@ -205,13 +241,13 @@ export function ResultsPage({
   const uloData = peakShaving?.ulo
   
   // Get rebate amounts (use provided values or calculate from estimate)
-  const solarRebateAmount = solarRebate ?? estimate.costs.incentives ?? 0
+  const solarRebateAmount = solarRebate ?? estimate?.costs?.incentives ?? 0
   const batteryRebateAmount = batteryRebate ?? 0
   const totalRebates = solarRebateAmount + batteryRebateAmount
   
   // Get combined costs (if battery is included)
-  const finalTotalCost = combinedTotalCost ?? estimate.costs.totalCost
-  const finalNetCost = combinedNetCost ?? estimate.costs.netCost
+  const finalTotalCost = combinedTotalCost ?? estimate?.costs?.totalCost ?? 0
+  const finalNetCost = combinedNetCost ?? estimate?.costs?.netCost ?? 0
   
   // Get combined savings from TOU/ULO if available, otherwise use estimate savings
   const getCombinedAnnual = (plan: any) =>
@@ -231,23 +267,97 @@ export function ResultsPage({
   const touCombinedMonthly = getCombinedMonthly(touData)
   const uloCombinedMonthly = getCombinedMonthly(uloData)
   
+  // Get total bill savings percentage for both plans
+  const getTotalBillSavingsPercent = (plan: any, directPlan: any) => {
+    // First try to get from direct plan props (simplified data structure)
+    if (directPlan?.totalBillSavingsPercent !== undefined) return directPlan.totalBillSavingsPercent
+    
+    // Then try to get from plan data (nested structure)
+    if (plan?.totalBillSavingsPercent !== undefined) return plan.totalBillSavingsPercent
+    
+    // Calculate from before/after if available
+    const beforeSolar = plan?.combined?.baselineAnnualBill || 
+                       plan?.allResults?.combined?.combined?.baselineAnnualBill ||
+                       directPlan?.beforeSolar
+    const afterSolar = plan?.combined?.postSolarBatteryAnnualBill || 
+                      plan?.combined?.postSolarAnnualBill ||
+                      plan?.allResults?.combined?.combined?.postSolarBatteryAnnualBill ||
+                      directPlan?.afterSolar
+    
+    if (beforeSolar && afterSolar && beforeSolar > 0) {
+      return ((beforeSolar - afterSolar) / beforeSolar) * 100
+    }
+    return null
+  }
+  
+  const touBillSavingsPercent = getTotalBillSavingsPercent(touData, tou)
+  const uloBillSavingsPercent = getTotalBillSavingsPercent(uloData, ulo)
+  
+  // Get 25-year savings/profit for both plans
+  const get25YearSavings = (plan: any, directPlan: any, annualSavings: number | null) => {
+    // First try to get from direct plan props (simplified data structure)
+    if (directPlan?.profit25Year !== undefined && directPlan.profit25Year > 0) return directPlan.profit25Year
+    
+    // Then try to get from plan data (nested structure)
+    if (plan?.combined?.projection?.netProfit25Year !== undefined) return plan.combined.projection.netProfit25Year
+    if (plan?.allResults?.combined?.combined?.projection?.netProfit25Year !== undefined) return plan.allResults.combined.combined.projection.netProfit25Year
+    
+    // Fallback: calculate from annual savings
+    if (annualSavings && annualSavings > 0) {
+      return annualSavings * 25
+    }
+    return null
+  }
+  
+  const tou25YearSavings = get25YearSavings(touData, tou, touCombinedAnnual)
+  const ulo25YearSavings = get25YearSavings(uloData, ulo, uloCombinedAnnual)
+  
+  // Calculate lifetime savings (25 years) - use best plan or fallback
+  const lifetimeSavings = tou25YearSavings !== null && ulo25YearSavings !== null
+    ? Math.max(tou25YearSavings, ulo25YearSavings)
+    : (tou25YearSavings ?? ulo25YearSavings ?? (estimate?.savings?.lifetimeSavings || (estimate?.savings?.annualSavings ? estimate.savings.annualSavings * 25 : 0)))
+  
   // Use combined savings if available, otherwise fall back to estimate savings
   const finalAnnualSavings = ratePlan === 'ulo' && uloCombinedAnnual 
     ? uloCombinedAnnual 
     : ratePlan === 'tou' && touCombinedAnnual 
     ? touCombinedAnnual 
-    : (batteryImpact?.annualSavings ? estimate.savings.annualSavings + batteryImpact.annualSavings : estimate.savings.annualSavings)
+    : (batteryImpact?.annualSavings && estimate?.savings?.annualSavings ? estimate.savings.annualSavings + batteryImpact.annualSavings : (estimate?.savings?.annualSavings ?? 0))
   
   const finalMonthlySavings = ratePlan === 'ulo' && uloCombinedMonthly 
     ? uloCombinedMonthly 
     : ratePlan === 'tou' && touCombinedMonthly 
     ? touCombinedMonthly 
-    : (batteryImpact?.monthlySavings ? estimate.savings.monthlySavings + batteryImpact.monthlySavings : estimate.savings.monthlySavings)
+    : (batteryImpact?.monthlySavings && estimate?.savings?.monthlySavings ? estimate.savings.monthlySavings + batteryImpact.monthlySavings : (estimate?.savings?.monthlySavings ?? 0))
   
-  // Recalculate payback with combined costs and savings
-  const finalPaybackYears = finalNetCost > 0 && finalAnnualSavings > 0 
-    ? finalNetCost / finalAnnualSavings 
-    : estimate.savings.paybackYears
+  // Get payback period from data if available, otherwise calculate
+  const getPaybackYears = (plan: any, directPlan: any, annualSavings: number | null) => {
+    // First try to get from direct plan props (simplified data structure)
+    if (directPlan?.paybackPeriod !== undefined && directPlan.paybackPeriod > 0) return directPlan.paybackPeriod
+    
+    // Then try to get from plan data (nested structure)
+    if (plan?.paybackPeriod !== undefined && plan.paybackPeriod > 0) return plan.paybackPeriod
+    if (plan?.combined?.projection?.paybackYears !== undefined) return plan.combined.projection.paybackYears
+    if (plan?.allResults?.combined?.combined?.projection?.paybackYears !== undefined) return plan.allResults.combined.combined.projection.paybackYears
+    
+    // Fallback: calculate from net cost and annual savings
+    if (finalNetCost > 0 && annualSavings && annualSavings > 0) {
+      return finalNetCost / annualSavings
+    }
+    return null
+  }
+  
+  const touPaybackYears = getPaybackYears(touData, tou, touCombinedAnnual)
+  const uloPaybackYears = getPaybackYears(uloData, ulo, uloCombinedAnnual)
+  
+  // Use the selected plan's payback, or fallback to estimate
+  const finalPaybackYears = ratePlan === 'ulo' && uloPaybackYears !== null
+    ? uloPaybackYears
+    : ratePlan === 'tou' && touPaybackYears !== null
+    ? touPaybackYears
+    : (finalNetCost > 0 && finalAnnualSavings > 0 
+      ? finalNetCost / finalAnnualSavings 
+      : (estimate?.savings?.paybackYears ?? 0))
 
   const handleMatchInstaller = () => {
     setInstallerMatchRequested(true)
@@ -289,7 +399,7 @@ export function ResultsPage({
       {/* Key Metrics Section */}
       <section className="py-12 bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-6">
             {/* System Size */}
             <div className="bg-forest-50 rounded-xl p-6 text-center border border-forest-100">
               <div className="w-12 h-12 bg-forest-500 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -322,40 +432,119 @@ export function ResultsPage({
               </div>
             </div>
 
-            {/* Payback Period */}
+            {/* Total Bill Savings - Show both plans if available */}
+            <div className="bg-purple-50 rounded-xl p-6 text-center border border-purple-100">
+              <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                <DollarSign className="text-white" size={24} />
+              </div>
+              {touBillSavingsPercent !== null && uloBillSavingsPercent !== null ? (
+                <>
+                  <div className="text-3xl font-bold text-purple-600 mb-1">
+                    {Math.max(touBillSavingsPercent, uloBillSavingsPercent).toFixed(1)}%
+                  </div>
+                  <div className="text-sm text-gray-600 font-medium mb-1">
+                    Total Bill Savings
+                  </div>
+                  <div className="text-xs text-gray-500 space-y-0.5">
+                    <div>TOU: {touBillSavingsPercent.toFixed(1)}%</div>
+                    <div>ULO: {uloBillSavingsPercent.toFixed(1)}%</div>
+                  </div>
+                </>
+              ) : touBillSavingsPercent !== null ? (
+                <>
+                  <div className="text-3xl font-bold text-purple-600 mb-1">
+                    {touBillSavingsPercent.toFixed(1)}%
+                  </div>
+                  <div className="text-sm text-gray-600 font-medium">
+                    Total Bill Savings
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    TOU Plan
+                  </div>
+                </>
+              ) : uloBillSavingsPercent !== null ? (
+                <>
+                  <div className="text-3xl font-bold text-purple-600 mb-1">
+                    {uloBillSavingsPercent.toFixed(1)}%
+                  </div>
+                  <div className="text-sm text-gray-600 font-medium">
+                    Total Bill Savings
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    ULO Plan
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            {/* Payback Period - Show both plans if available */}
             <div className="bg-maple-50 rounded-xl p-6 text-center border border-maple-100">
               <div className="w-12 h-12 bg-maple-500 rounded-full flex items-center justify-center mx-auto mb-3">
                 <DollarSign className="text-white" size={24} />
               </div>
-              <div className="text-3xl font-bold text-maple-600 mb-1">
-                {finalPaybackYears.toFixed(1)}
-              </div>
-              <div className="text-sm text-gray-600 font-medium">
-                Payback Period
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                years
-              </div>
+              {touPaybackYears !== null && uloPaybackYears !== null ? (
+                <>
+                  <div className="text-3xl font-bold text-maple-600 mb-1">
+                    {Math.min(touPaybackYears, uloPaybackYears).toFixed(1)}
+                  </div>
+                  <div className="text-sm text-gray-600 font-medium mb-1">
+                    Payback Period
+                  </div>
+                  <div className="text-xs text-gray-500 space-y-0.5">
+                    <div>TOU: {touPaybackYears.toFixed(1)} years</div>
+                    <div>ULO: {uloPaybackYears.toFixed(1)} years</div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-3xl font-bold text-maple-600 mb-1">
+                    {finalPaybackYears.toFixed(1)}
+                  </div>
+                  <div className="text-sm text-gray-600 font-medium">
+                    Payback Period
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    years
+                  </div>
+                </>
+              )}
             </div>
 
-            {/* Annual Savings */}
+            {/* Annual Savings - Show both plans if available */}
             <div className="bg-green-50 rounded-xl p-6 text-center border border-green-100">
               <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-3">
                 <TrendingUp className="text-white" size={24} />
               </div>
-              <div className="text-3xl font-bold text-green-600 mb-1">
-                {formatCurrency(finalAnnualSavings)}
-              </div>
-              <div className="text-sm text-gray-600 font-medium">
-                Annual Savings
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                {formatCurrency(finalMonthlySavings)}/month
-              </div>
-              {ratePlan && (
-                <div className="text-xs text-forest-600 mt-1 font-semibold">
-                  {ratePlan.toUpperCase()} Plan
-                </div>
+              {touCombinedAnnual && uloCombinedAnnual ? (
+                <>
+                  <div className="text-3xl font-bold text-green-600 mb-1">
+                    {formatCurrency(Math.max(touCombinedAnnual, uloCombinedAnnual))}
+                  </div>
+                  <div className="text-sm text-gray-600 font-medium mb-1">
+                    Annual Savings
+                  </div>
+                  <div className="text-xs text-gray-500 space-y-0.5">
+                    <div>TOU: {formatCurrency(touCombinedMonthly)}/month</div>
+                    <div>ULO: {formatCurrency(uloCombinedMonthly)}/month</div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-3xl font-bold text-green-600 mb-1">
+                    {formatCurrency(finalAnnualSavings)}
+                  </div>
+                  <div className="text-sm text-gray-600 font-medium">
+                    Annual Savings
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {formatCurrency(finalMonthlySavings)}/month
+                  </div>
+                  {ratePlan && (
+                    <div className="text-xs text-forest-600 mt-1 font-semibold">
+                      {ratePlan.toUpperCase()} Plan
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -382,8 +571,10 @@ export function ResultsPage({
                     </h3>
                     <p className="text-gray-700 leading-relaxed">
                       Based on your property and energy usage, we recommend a {formatKw(systemSizeKw)} solar system with {numPanels} panels. 
-                      This system will generate approximately {formatKwh(estimate.production.annualKwh)} of electricity per year, 
-                      which should cover about {percentageOffset}% of your energy needs.
+                      {estimate?.production?.annualKwh && (
+                        <> This system will generate approximately {formatKwh(estimate.production.annualKwh)} of electricity per year, 
+                        which should cover about {percentageOffset}% of your energy needs.</>
+                      )}
                     </p>
                   </div>
 
@@ -392,10 +583,23 @@ export function ResultsPage({
                       Your Investment & Savings
                     </h3>
                     <p className="text-gray-700 leading-relaxed">
-                      After rebates, your net investment is {formatCurrency(finalNetCost)}. 
-                      You'll save approximately {formatCurrency(finalAnnualSavings)} per year on electricity bills{ratePlan ? ` with the ${ratePlan.toUpperCase()} rate plan` : ''}, 
-                      which means your system will pay for itself in about {finalPaybackYears.toFixed(1)} years. 
-                      Over the system's 25-year lifespan, you could save over {formatCurrency(finalAnnualSavings * 25)}.
+                      After rebates, your net investment is {formatCurrency(finalNetCost)}.{' '}
+                      {touCombinedAnnual && uloCombinedAnnual ? (
+                        <>
+                          With the <strong>TOU rate plan</strong>, you'll save approximately {formatCurrency(touCombinedAnnual)} per year, 
+                          which means your system will pay for itself in about {touPaybackYears !== null ? touPaybackYears.toFixed(1) : 'N/A'} years.{' '}
+                          {tou25YearSavings !== null && <>Over 25 years, you could save over {formatCurrency(tou25YearSavings)}.</>}
+                          {' '}With the <strong>ULO rate plan</strong>, you'll save approximately {formatCurrency(uloCombinedAnnual)} per year, 
+                          which means your system will pay for itself in about {uloPaybackYears !== null ? uloPaybackYears.toFixed(1) : 'N/A'} years.{' '}
+                          {ulo25YearSavings !== null && <>Over 25 years, you could save over {formatCurrency(ulo25YearSavings)}.</>}
+                        </>
+                      ) : (
+                        <>
+                          You'll save approximately {formatCurrency(finalAnnualSavings)} per year on electricity bills{ratePlan ? ` with the ${ratePlan.toUpperCase()} rate plan` : ''}, 
+                          which means your system will pay for itself in about {finalPaybackYears.toFixed(1)} years. 
+                          Over the system's 25-year lifespan, you could save over {formatCurrency(lifetimeSavings)}.
+                        </>
+                      )}
                     </p>
                   </div>
 
@@ -473,7 +677,9 @@ export function ResultsPage({
                       </div>
                       <p className="text-gray-700 leading-relaxed">
                         With a {batteryImpact.batterySizeKwh}kWh battery system, you can save an additional {formatCurrency(batteryImpact.annualSavings)} per year 
-                        through peak shaving and energy arbitrage. This brings your total annual savings to {formatCurrency(estimate.savings.annualSavings + batteryImpact.annualSavings)}.
+                        through peak shaving and energy arbitrage. {estimate?.savings?.annualSavings && (
+                          <>This brings your total annual savings to {formatCurrency(estimate.savings.annualSavings + batteryImpact.annualSavings)}.</>
+                        )}
                       </p>
                     </div>
                   )}
@@ -486,9 +692,9 @@ export function ResultsPage({
                   Monthly Production Estimate
                 </h2>
                 <div className="space-y-3">
-                  {estimate.production.monthlyKwh.map((kwh, index) => {
+                  {estimate?.production?.monthlyKwh?.map((kwh, index) => {
                     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                    const maxKwh = Math.max(...estimate.production.monthlyKwh)
+                    const maxKwh = estimate.production.monthlyKwh.length > 0 ? Math.max(...estimate.production.monthlyKwh) : 0
                     const percentage = maxKwh > 0 ? (kwh / maxKwh) * 100 : 0
                     
                     return (
@@ -561,46 +767,71 @@ export function ResultsPage({
                   <h2 className="text-2xl font-bold text-forest-500 mb-6">
                     Rate Plan Comparison
                   </h2>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Compare annual savings for each rate plan. Higher savings indicate a better option for your usage pattern.
+                  </p>
                   <div className="space-y-4">
                     {(touData || uloData) && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {touData && (
-                          <div className={`p-4 rounded-lg border-2 ${ratePlan === 'tou' ? 'border-maple-300 bg-maple-50' : 'border-gray-200 bg-gray-50'}`}>
+                          <div className="p-4 rounded-lg border-2 border-gray-200 bg-gray-50">
                             <div className="flex items-center justify-between mb-2">
                               <span className="font-semibold text-gray-900">TOU Plan</span>
-                              {ratePlan === 'tou' && (
-                                <span className="text-xs bg-maple-500 text-white px-2 py-1 rounded">Selected</span>
-                              )}
                             </div>
-                            {touData.allResults?.combined?.combined?.annual && (
-                              <div className="text-2xl font-bold text-forest-600">
-                                {formatCurrency(touData.allResults.combined.combined.annual)}/year
-                              </div>
+                            {touCombinedAnnual && (
+                              <>
+                                <div className="text-xs text-gray-500 mb-1">Annual Savings</div>
+                                <div className="text-2xl font-bold text-forest-600">
+                                  {formatCurrency(touCombinedAnnual)}/year
+                                </div>
+                              </>
                             )}
-                            {touData.allResults?.combined?.combined?.monthly && (
-                              <div className="text-sm text-gray-600">
-                                {formatCurrency(touData.allResults.combined.combined.monthly)}/month
-                              </div>
+                            {touCombinedMonthly && (
+                              <>
+                                <div className="text-xs text-gray-500 mt-2 mb-1">Monthly Savings</div>
+                                <div className="text-sm text-gray-600">
+                                  {formatCurrency(touCombinedMonthly)}/month
+                                </div>
+                              </>
+                            )}
+                            {touBillSavingsPercent !== null && (
+                              <>
+                                <div className="text-xs text-gray-500 mt-2 mb-1">Total Bill Savings</div>
+                                <div className="text-lg font-bold text-forest-600">
+                                  {touBillSavingsPercent.toFixed(1)}%
+                                </div>
+                              </>
                             )}
                           </div>
                         )}
                         {uloData && (
-                          <div className={`p-4 rounded-lg border-2 ${ratePlan === 'ulo' ? 'border-maple-300 bg-maple-50' : 'border-gray-200 bg-gray-50'}`}>
+                          <div className="p-4 rounded-lg border-2 border-gray-200 bg-gray-50">
                             <div className="flex items-center justify-between mb-2">
                               <span className="font-semibold text-gray-900">ULO Plan</span>
-                              {ratePlan === 'ulo' && (
-                                <span className="text-xs bg-maple-500 text-white px-2 py-1 rounded">Selected</span>
-                              )}
                             </div>
-                            {uloData.allResults?.combined?.combined?.annual && (
-                              <div className="text-2xl font-bold text-forest-600">
-                                {formatCurrency(uloData.allResults.combined.combined.annual)}/year
-                              </div>
+                            {uloCombinedAnnual && (
+                              <>
+                                <div className="text-xs text-gray-500 mb-1">Annual Savings</div>
+                                <div className="text-2xl font-bold text-forest-600">
+                                  {formatCurrency(uloCombinedAnnual)}/year
+                                </div>
+                              </>
                             )}
-                            {uloData.allResults?.combined?.combined?.monthly && (
-                              <div className="text-sm text-gray-600">
-                                {formatCurrency(uloData.allResults.combined.combined.monthly)}/month
-                              </div>
+                            {uloCombinedMonthly && (
+                              <>
+                                <div className="text-xs text-gray-500 mt-2 mb-1">Monthly Savings</div>
+                                <div className="text-sm text-gray-600">
+                                  {formatCurrency(uloCombinedMonthly)}/month
+                                </div>
+                              </>
+                            )}
+                            {uloBillSavingsPercent !== null && (
+                              <>
+                                <div className="text-xs text-gray-500 mt-2 mb-1">Total Bill Savings</div>
+                                <div className="text-lg font-bold text-forest-600">
+                                  {uloBillSavingsPercent.toFixed(1)}%
+                                </div>
+                              </>
                             )}
                           </div>
                         )}
@@ -609,108 +840,6 @@ export function ResultsPage({
                   </div>
                 </div>
               )}
-
-              {/* Key Information Summary - Prominent Display */}
-              <div className="bg-white rounded-2xl p-8 shadow-md">
-                <h2 className="text-2xl font-bold text-forest-500 mb-6">
-                  Your System Details
-                </h2>
-                
-                <div className="grid md:grid-cols-2 gap-6 mb-8">
-                  {/* Roof Snapshot */}
-                  {mapSnapshot && (
-                    <div>
-                      <h3 className="font-semibold text-gray-700 mb-3">Roof Snapshot</h3>
-                      <MapSnapshot
-                        mapSnapshot={mapSnapshot}
-                        onImageClick={handleImageClick}
-                      />
-                    </div>
-                  )}
-
-                  {/* Annual Usage */}
-                  {energyUsage && (
-                    <div>
-                      <h3 className="font-semibold text-gray-700 mb-3">Annual Energy Usage</h3>
-                      <div className="bg-sky-50 rounded-lg p-6 border border-sky-200">
-                        <div className="text-4xl font-bold text-sky-600 mb-2">
-                          {formatKwh(energyUsage.annualKwh)}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          per year
-                        </div>
-                        {energyUsage.monthlyKwh && (
-                          <div className="text-sm text-gray-600 mt-2">
-                            {formatKwh(energyUsage.monthlyKwh)} per month
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Selected Battery - Prominent Display */}
-                {batteryDetails && (
-                  <div className="mb-8">
-                    <h3 className="font-semibold text-gray-700 mb-3">Selected Battery</h3>
-                    <BatteryDetails
-                      batteryDetails={batteryDetails}
-                      peakShaving={peakShaving}
-                    />
-                  </div>
-                )}
-
-                {/* Total Bill Savings - Prominent Display */}
-                {(tou || ulo) && (
-                  <div className="mb-8">
-                    <h3 className="font-semibold text-gray-700 mb-4">Total Bill Savings Comparison</h3>
-                    {(() => {
-                      // Extract before/after data for TOU and ULO
-                      let touBeforeAfter = null
-                      let uloBeforeAfter = null
-                      
-                      const touCombined = tou?.allResults?.combined?.combined || 
-                                        tou?.combined?.combined ||
-                                        tou?.combined ||
-                                        (tou ? { baselineAnnualBill: 0, postSolarBatteryAnnualBill: 0, annual: 0 } : null)
-                      const uloCombined = ulo?.allResults?.combined?.combined || 
-                                        ulo?.combined?.combined ||
-                                        ulo?.combined ||
-                                        (ulo ? { baselineAnnualBill: 0, postSolarBatteryAnnualBill: 0, annual: 0 } : null)
-                      
-                      if (touCombined) {
-                        const before = touCombined.baselineAnnualBill || touCombined.baselineAnnualBillEnergyOnly || 0
-                        const after = touCombined.postSolarBatteryAnnualBill || touCombined.postSolarBatteryAnnualBillEnergyOnly || 0
-                        const annualSavings = touCombined.annual || (before - after)
-                        if (before > 0 || after >= 0) {
-                          touBeforeAfter = { before, after, savings: annualSavings }
-                        }
-                      }
-                      
-                      if (uloCombined) {
-                        const before = uloCombined.baselineAnnualBill || uloCombined.baselineAnnualBillEnergyOnly || 0
-                        const after = uloCombined.postSolarBatteryAnnualBill || uloCombined.postSolarBatteryAnnualBillEnergyOnly || 0
-                        const annualSavings = uloCombined.annual || (before - after)
-                        if (before > 0 || after >= 0) {
-                          uloBeforeAfter = { before, after, savings: annualSavings }
-                        }
-                      }
-                      
-                      const combinedMonthlySavings = finalMonthlySavings
-                      
-                      return (touBeforeAfter || uloBeforeAfter) ? (
-                        <BeforeAfterComparison
-                          includeBattery={!!batteryDetails}
-                          touBeforeAfter={touBeforeAfter}
-                          uloBeforeAfter={uloBeforeAfter}
-                          combinedMonthlySavings={combinedMonthlySavings}
-                          displayPlan={displayPlan || 'tou'}
-                        />
-                      ) : null
-                    })()}
-                  </div>
-                )}
-              </div>
 
               {/* Comprehensive Summary Section */}
               <div className="bg-white rounded-2xl p-8 shadow-md">
@@ -868,7 +997,7 @@ export function ResultsPage({
                     tou={tou}
                     ulo={ulo}
                     peakShaving={peakShaving}
-                    combinedNetCost={combinedNetCost || estimate.costs.netCost}
+                    combinedNetCost={combinedNetCost || estimate?.costs?.netCost || 0}
                     isMobile={isMobile}
                   />
                 )}

@@ -11,6 +11,7 @@ import { useAutoSave } from './hooks/useAutoSave'
 import { ContactFormFields } from './components/ContactFormFields'
 import { SuccessView } from './components/SuccessView'
 import { validateContactForm } from './utils/validation'
+import { extractSimplifiedData } from '@/lib/estimator-data-simplifier'
 import type { StepContactProps } from './types'
 
 export function StepContact({ data, onComplete, onBack }: StepContactProps) {
@@ -49,16 +50,95 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
     setSubmitting(true)
 
     try {
-      // TODO: API connection disabled - will be connected later
-      // For now, just simulate success without calling the API
-      console.log('Form submission (API disabled):', {
-        formData,
+              // Extract simplified data structure including contact form data
+              const dataWithContact = {
+                ...data,
+                ...formData, // Include contact form fields (fullName, phone, etc.)
+              }
+              
+              // Debug: Log what data is available before extraction
+              console.log('🔍 Data available for extraction:', {
+                hasPeakShaving: !!data.peakShaving,
+                hasEstimate: !!data.estimate,
+                hasSolarOverride: !!data.solarOverride,
+                hasSelectedBatteryIds: !!(data as any).selectedBatteryIds,
+                peakShavingKeys: data.peakShaving ? Object.keys(data.peakShaving) : [],
+                estimateKeys: data.estimate ? Object.keys(data.estimate) : [],
+              })
+              
+              const simplifiedData = extractSimplifiedData(dataWithContact)
+              
+              // Debug: Log what was extracted
+              console.log('📦 Extracted simplified data:', {
+                hasTou: !!simplifiedData.tou,
+                hasUlo: !!simplifiedData.ulo,
+                hasProduction: !!simplifiedData.production,
+                hasCosts: !!simplifiedData.costs,
+                systemSizeKw: simplifiedData.systemSizeKw,
+                numPanels: simplifiedData.numPanels,
+                annualUsageKwh: simplifiedData.annualUsageKwh,
+              })
+      
+      // Determine which API endpoint to use
+      const isDetailedHrsResidential = 
+        simplifiedData.estimatorMode === 'detailed' &&
+        simplifiedData.programType === 'hrs_residential' &&
+        simplifiedData.leadType === 'residential'
+      
+      const apiEndpoint = isDetailedHrsResidential ? '/api/leads/hrs-residential' : '/api/leads'
+      
+      // For detailed HRS residential, send simplified data with original data for fallback extraction
+      // For other leads, use the existing format
+      const requestBody = isDetailedHrsResidential
+        ? {
+            ...simplifiedData, // Send simplified data structure
+            // Include original data structure for fallback extraction in API
+            _originalData: {
+              peakShaving: data.peakShaving,
+              estimate: data.estimate,
+              solarOverride: data.solarOverride,
+              batteryDetails: data.batteryDetails,
+              energyUsage: data.energyUsage,
+            }
+          }
+        : {
+            ...formData,
+            ...data,
         estimateData: data.estimate,
+            systemSizeKw: data.estimate?.system?.sizeKw,
+            estimatedCost: data.estimate?.costs?.totalCost,
+            netCostAfterIncentives: data.estimate?.costs?.netCost,
+            annualSavings: data.estimate?.savings?.annualSavings,
+            paybackYears: data.estimate?.savings?.paybackYears,
+            annualProductionKwh: data.estimate?.production?.annualKwh,
+          }
+      
+      // Save to database via API
+      const response = await fetch(apiEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
       })
 
-      // Simulate API response
-      const mockLeadId = `mock-${Date.now()}`
-      setLeadId(mockLeadId)
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to submit lead')
+      }
+
+      const result = await response.json()
+      const leadId = result.leadId || result.data?.leadId || `lead-${Date.now()}`
+      setLeadId(leadId)
+      setSubmitted(true)
+      
+      // Save simplified data structure to localStorage for results page (keyed by leadId)
+      // This allows results to persist across browser sessions
+      const resultsKey = `solarx_results_${leadId}`
+      try {
+        localStorage.setItem(resultsKey, JSON.stringify(simplifiedData))
+        console.log('💾 Saved results to localStorage:', resultsKey)
+      } catch (error) {
+        console.error('Failed to save to localStorage:', error)
+      }
       
       // Store estimate data in sessionStorage for results page
       if (data.estimate) {
@@ -115,84 +195,94 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
           finalEstimateSystemSizeKw: finalEstimate?.system?.sizeKw,
         })
         
-        sessionStorage.setItem('calculatorResults', JSON.stringify({
-          estimate: finalEstimate,
-          leadData: {
-            firstName: formData.fullName?.split(' ')[0] || '',
-            lastName: formData.fullName?.split(' ').slice(1).join(' ') || '',
-            email: formData.email,
-            address: data.address,
-            province: data.province || 'ON',
-          },
-          batteryImpact: data.batteryDetails ? {
-            annualSavings: data.batteryDetails?.firstYearAnalysis?.totalSavings || 0,
-            monthlySavings: data.batteryDetails?.firstYearAnalysis?.totalSavings ? Math.round(data.batteryDetails.firstYearAnalysis.totalSavings / 12) : 0,
-            batterySizeKwh: data.batteryDetails?.battery?.nominalKwh || 0,
-          } : undefined,
-          selectedBattery: data.selectedBattery, // Store selected battery info
-          batteryDetails: data.batteryDetails, // Store full battery details
-          peakShaving: data.peakShaving,
-          solarRebate,
-          batteryRebate,
-          combinedTotalCost,
-          combinedNetCost,
-          displayPlan,
-          solarOverride: data.solarOverride, // Include solar override to match StepReview
-          // Additional data for comprehensive results summary
-          mapSnapshot: data.mapSnapshot,
-          roofData: {
-            roofAreaSqft: data.roofAreaSqft,
-            roofType: data.roofType,
-            roofPitch: data.roofPitch,
-            shadingLevel: data.shadingLevel,
-            roofAge: data.roofAge,
-            roofPolygon: data.roofPolygon,
-            roofSections: data.roofSections,
-          },
-          photos: data.photos,
-          photoSummary: data.photoSummary,
-          monthlyBill: data.monthlyBill,
-          energyUsage: data.energyUsage,
-          appliances: data.appliances,
-          addOns: data.addOns,
-          tou: data.peakShaving?.tou,
-          ulo: data.peakShaving?.ulo,
-        }))
+        // Log final results for debugging
+        console.log('🎉 FINAL SUBMISSION - Simplified Data Structure:')
+        console.log(JSON.stringify(simplifiedData, null, 2))
+        console.log('📡 Using API endpoint:', apiEndpoint)
+        console.log('📊 Final Results Summary:')
+        console.log('  📍 Location:', {
+          address: simplifiedData.address,
+          email: simplifiedData.email,
+          coordinates: simplifiedData.coordinates,
+        })
+        console.log('  🏠 Roof:', {
+          areaSqft: simplifiedData.roofAreaSqft,
+          type: simplifiedData.roofType,
+          pitch: simplifiedData.roofPitch,
+          shading: simplifiedData.shadingLevel,
+        })
+        console.log('  ⚡ Energy:', {
+          monthlyBill: simplifiedData.monthlyBill,
+          annualUsageKwh: simplifiedData.annualUsageKwh,
+          annualEscalator: simplifiedData.annualEscalator,
+        })
+        console.log('  🔋 Battery:', {
+          selectedBatteryIds: simplifiedData.selectedBatteryIds,
+          systemSizeKw: simplifiedData.systemSizeKw,
+          numPanels: simplifiedData.numPanels,
+        })
+        console.log('  💰 TOU Plan:', {
+          solar: simplifiedData.tou?.solar,
+          batterySolarCapture: simplifiedData.tou?.batterySolarCapture,
+          totalOffset: simplifiedData.tou?.totalOffset,
+          buyFromGrid: simplifiedData.tou?.buyFromGrid,
+          annualSavings: simplifiedData.tou?.annualSavings,
+          monthlySavings: simplifiedData.tou?.monthlySavings,
+          profit25Year: simplifiedData.tou?.profit25Year,
+          paybackPeriod: simplifiedData.tou?.paybackPeriod,
+        })
+        console.log('  💰 ULO Plan:', {
+          solar: simplifiedData.ulo?.solar,
+          batterySolarCapture: simplifiedData.ulo?.batterySolarCapture,
+          totalOffset: simplifiedData.ulo?.totalOffset,
+          buyFromGrid: simplifiedData.ulo?.buyFromGrid,
+          annualSavings: simplifiedData.ulo?.annualSavings,
+          monthlySavings: simplifiedData.ulo?.monthlySavings,
+          profit25Year: simplifiedData.ulo?.profit25Year,
+          paybackPeriod: simplifiedData.ulo?.paybackPeriod,
+        })
+        console.log('  📈 Production:', {
+          annualKwh: simplifiedData.production?.annualKwh,
+          monthlyKwh: simplifiedData.production?.monthlyKwh?.length || 0,
+          dailyAverageKwh: simplifiedData.production?.dailyAverageKwh,
+        })
+        console.log('  💵 Costs:', {
+          totalCost: simplifiedData.costs?.totalCost,
+          netCost: simplifiedData.costs?.netCost,
+          incentives: simplifiedData.costs?.incentives,
+          totalCostWithoutTax: simplifiedData.costs?.totalCostWithoutTax,
+          totalCostWithoutTaxAndIncentives: simplifiedData.costs?.totalCostWithoutTaxAndIncentives,
+        })
+        console.log('  📞 Contact:', {
+          fullName: simplifiedData.fullName,
+          phone: simplifiedData.phone,
+          email: simplifiedData.email,
+          preferredContactTime: simplifiedData.preferredContactTime,
+          preferredContactMethod: simplifiedData.preferredContactMethod,
+        })
+        console.log('  🌍 Environmental:', simplifiedData.environmental)
+        console.log('📏 Total Data Size:', JSON.stringify(simplifiedData).length, 'bytes')
+        
+        // Save simplified data structure to localStorage for results page (keyed by leadId)
+        // This allows results to persist across browser sessions
+        const resultsKey = `solarx_results_${leadId}`
+        try {
+          localStorage.setItem(resultsKey, JSON.stringify(simplifiedData))
+          console.log('💾 Saved results to localStorage:', resultsKey)
+        } catch (error) {
+          console.error('Failed to save to localStorage:', error)
+        }
+        
+        // Also save to sessionStorage for immediate redirect (backward compatibility)
+        sessionStorage.setItem('calculatorResults', JSON.stringify(simplifiedData))
+        console.log('✅ Final results saved to sessionStorage and localStorage')
       }
       
       // Redirect to results page
-      router.push(`/results?leadId=${mockLeadId}`)
+      router.push(`/results?leadId=${leadId}`)
       
-      // Also call onComplete for backward compatibility
-      onComplete({ ...formData, leadId: mockLeadId })
-
-      // Uncomment below when ready to connect to API:
-      /*
-      const response = await fetch('/api/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          ...data,
-          estimateData: data.estimate,
-          systemSizeKw: data.estimate?.system?.sizeKw,
-          estimatedCost: data.estimate?.costs?.totalCost,
-          netCostAfterIncentives: data.estimate?.costs?.netCost,
-          annualSavings: data.estimate?.savings?.annualSavings,
-          paybackYears: data.estimate?.savings?.paybackYears,
-          annualProductionKwh: data.estimate?.production?.annualKwh,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to submit lead')
-      }
-
-      const result = await response.json()
-      setLeadId(result.data.leadId)
-      setSubmitted(true)
-      onComplete({ ...formData, leadId: result.data.leadId })
-      */
+      // Call onComplete with contact form data
+      onComplete({ ...formData, leadId })
 
     } catch (error) {
       console.error('Submission error:', error)

@@ -20,7 +20,9 @@ import { LeadsSection } from './sections/LeadsSection'
 import { PartialLeadsSection } from './sections/PartialLeadsSection'
 import { UsersSection } from './sections/UsersSection'
 import { InstallersSection } from './sections/InstallersSection'
+import { FeedbackSection } from './sections/FeedbackSection'
 import { InstallerDetailView } from '@/components/admin/InstallerDetailView'
+import { FeedbackDetailView } from '@/components/admin/FeedbackDetailView'
 import { useLeadStats, usePartialLeadStats } from './hooks'
 
 // Lead type matching database schema
@@ -67,6 +69,15 @@ export default function AdminPage() {
   const [installersLoading, setInstallersLoading] = useState(false)
   const [selectedInstaller, setSelectedInstaller] = useState<any>(null)
   const [installerStatusFilter, setInstallerStatusFilter] = useState('all')
+
+  // Feedback state
+  const [feedbackEntries, setFeedbackEntries] = useState<any[]>([])
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
+  const [selectedFeedback, setSelectedFeedback] = useState<any>(null)
+  const [feedbackTypeFilter, setFeedbackTypeFilter] = useState('all')
+  const [feedbackStatusFilter, setFeedbackStatusFilter] = useState('all')
+  const [feedbackProvinceFilter, setFeedbackProvinceFilter] = useState('all')
+  const [feedbackDateRangeFilter, setFeedbackDateRangeFilter] = useState({ start: '', end: '' })
 
   // Load real leads from database
   useEffect(() => {
@@ -211,6 +222,9 @@ export default function AdminPage() {
     }
     if (activeSection === 'installers') {
       fetchInstallerApplications()
+    }
+    if (activeSection === 'feedback') {
+      fetchFeedbackEntries()
     }
   }, [activeSection])
 
@@ -465,6 +479,139 @@ export default function AdminPage() {
     needMoreInfo: installerApplications.filter(app => app.status === 'need_more_info').length,
   }
 
+  // Fetch feedback entries (mock data for now)
+  const fetchFeedbackEntries = async () => {
+    setFeedbackLoading(true)
+    try {
+      // TODO: Replace with actual API call when backend is ready
+      // For now, use mock data
+      const mockFeedback = [
+        {
+          id: 'feedback-1',
+          type: 'product',
+          province: 'ON',
+          email: 'user1@example.com',
+          description: 'It would be great to add support for heat pump calculations. Many homeowners are interested in combining solar with heat pumps for maximum energy efficiency.',
+          status: 'new',
+          reviewed: false,
+          created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        {
+          id: 'feedback-2',
+          type: 'improvement',
+          province: 'ON',
+          email: 'user2@example.com',
+          description: 'The calculator would be more helpful if it showed a comparison between different battery sizes. Currently it only shows one option.',
+          status: 'reviewed',
+          reviewed: true,
+          reviewedBy: 'Admin User',
+          reviewedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+          reviewNotes: 'Good suggestion. Consider adding battery comparison feature.',
+          created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        {
+          id: 'feedback-3',
+          type: 'bug',
+          province: 'AB',
+          email: 'user3@example.com',
+          description: 'When I select Alberta as my province, the calculator still shows Ontario incentives. This seems like a bug since Alberta has different programs.',
+          status: 'in_progress',
+          reviewed: true,
+          reviewedBy: 'Admin User',
+          reviewedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+          reviewNotes: 'Confirmed bug. Alberta calculator logic needs to be implemented.',
+          created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        {
+          id: 'feedback-4',
+          type: 'product',
+          province: 'ON',
+          email: '',
+          description: 'Could you add EV charger integration? Many solar customers also have electric vehicles.',
+          status: 'new',
+          reviewed: false,
+          created_at: new Date(Date.now() - 0.5 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        {
+          id: 'feedback-5',
+          type: 'improvement',
+          province: 'ON',
+          email: 'user5@example.com',
+          description: 'The results page is great but it would be nice to see a breakdown of monthly savings over the first year, not just annual totals.',
+          status: 'resolved',
+          reviewed: true,
+          reviewedBy: 'Admin User',
+          reviewedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+          reviewNotes: 'Feature added in latest update.',
+          created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+      ]
+      
+      setFeedbackEntries(mockFeedback)
+    } catch (error) {
+      console.error('Error fetching feedback entries:', error)
+    } finally {
+      setFeedbackLoading(false)
+    }
+  }
+
+  // Calculate feedback stats
+  const feedbackStats = {
+    total: feedbackEntries.length,
+    new: feedbackEntries.filter(f => f.status === 'new').length,
+    reviewed: feedbackEntries.filter(f => f.status === 'reviewed').length,
+    inProgress: feedbackEntries.filter(f => f.status === 'in_progress').length,
+    resolved: feedbackEntries.filter(f => f.status === 'resolved').length,
+    byType: {
+      product: feedbackEntries.filter(f => f.type === 'product').length,
+      improvement: feedbackEntries.filter(f => f.type === 'improvement').length,
+      bug: feedbackEntries.filter(f => f.type === 'bug').length,
+    },
+  }
+
+  // Handle feedback click
+  const handleFeedbackClick = (feedback: any) => {
+    setSelectedFeedback(feedback)
+  }
+
+  // Handle closing feedback detail view
+  const handleCloseFeedbackView = () => {
+    setSelectedFeedback(null)
+  }
+
+  // Handle feedback status update
+  const handleFeedbackStatusUpdate = async (id: string, status: string, notes?: string) => {
+    // TODO: Replace with actual API call when backend is ready
+    setFeedbackEntries(prevFeedback =>
+      prevFeedback.map(f =>
+        f.id === id
+          ? {
+              ...f,
+              status,
+              reviewNotes: notes || '',
+              reviewed: true,
+              reviewedAt: new Date().toISOString(),
+              reviewedBy: 'Admin User', // TODO: Get from auth context
+            }
+          : f
+      )
+    )
+    
+    if (selectedFeedback && selectedFeedback.id === id) {
+      setSelectedFeedback({
+        ...selectedFeedback,
+        status,
+        reviewNotes: notes || '',
+        reviewed: true,
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: 'Admin User',
+      })
+    }
+    
+    // Refresh the list
+    await fetchFeedbackEntries()
+  }
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -485,6 +632,7 @@ export default function AdminPage() {
         totalLeads={stats.totalLeads}
         totalPartialLeads={partialStats.total}
         totalInstallers={installerStats.total}
+        totalFeedback={feedbackStats.total}
       />
 
       {/* Main content */}
@@ -543,6 +691,25 @@ export default function AdminPage() {
             searchTerm={searchTerm}
             onSearchTermChange={setSearchTerm}
             onApplicationClick={handleInstallerClick}
+          />
+        )}
+
+        {activeSection === 'feedback' && (
+          <FeedbackSection
+            feedback={feedbackEntries}
+            loading={feedbackLoading}
+            stats={feedbackStats}
+            typeFilter={feedbackTypeFilter}
+            onTypeFilterChange={setFeedbackTypeFilter}
+            statusFilter={feedbackStatusFilter}
+            onStatusFilterChange={setFeedbackStatusFilter}
+            provinceFilter={feedbackProvinceFilter}
+            onProvinceFilterChange={setFeedbackProvinceFilter}
+            dateRangeFilter={feedbackDateRangeFilter}
+            onDateRangeFilterChange={setFeedbackDateRangeFilter}
+            searchTerm={searchTerm}
+            onSearchTermChange={setSearchTerm}
+            onFeedbackClick={handleFeedbackClick}
           />
         )}
         {activeSection === 'greenbutton' && (
@@ -615,6 +782,15 @@ export default function AdminPage() {
           application={selectedInstaller}
           onClose={handleCloseInstallerView}
           onStatusUpdate={handleInstallerStatusUpdate}
+        />
+      )}
+
+      {/* Feedback Detail View Modal */}
+      {selectedFeedback && (
+        <FeedbackDetailView
+          feedback={selectedFeedback}
+          onClose={handleCloseFeedbackView}
+          onStatusUpdate={handleFeedbackStatusUpdate}
         />
       )}
     </div>

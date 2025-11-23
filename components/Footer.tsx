@@ -26,6 +26,7 @@ export function Footer() {
     { label: 'FAQ', href: '/#faq' },
     { label: 'Double Warranty', href: '/about#warranty' },
     { label: 'Vetting Process', href: '/about#vetting' },
+    { label: 'Help Improve Calculator', href: '/feedback' },
   ]
 
   return (

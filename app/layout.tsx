@@ -194,7 +194,7 @@ export default function RootLayout({
   })
 
   return (
-    <html lang="en-CA" className="scroll-smooth">
+    <html lang="en-CA" className="scroll-smooth" data-scroll-behavior="smooth">
       <body className="antialiased">
         {/* Preconnect links for performance - added early in body */}
         <PreconnectLinks />
