@@ -2701,7 +2701,7 @@ export function PeakShavingSalesCalculatorFRD({
                           <>
                         <li><strong>Battery (Solar-charged):</strong> Energy from battery charged by solar (free)</li>
                             {batteryGridChargedKwh > 0 && (
-                        <li><strong>Battery Charged at Cheap Rates:</strong> Energy from battery charged from grid at cheap rates via AI EMC</li>
+                        <li><strong>Remaining annual battery capacity charged at off peak via AI EMC:</strong> Energy from battery charged from grid at cheap rates via AI EMC</li>
                             )}
                           </>
                         )}
@@ -2739,7 +2739,7 @@ export function PeakShavingSalesCalculatorFRD({
                         </tr>
                         {batteryGridChargedKwh > 0 && (
                           <tr>
-                            <td className="py-3 px-4 text-gray-700">Battery Charged at Cheap Rates</td>
+                            <td className="py-3 px-4 text-gray-700">Remaining annual battery capacity charged at off peak via AI EMC</td>
                             <td className="py-3 px-4 text-right text-gray-600">
                               {batteryGridChargedKwh.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>

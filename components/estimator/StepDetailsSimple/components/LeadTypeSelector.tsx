@@ -31,7 +31,7 @@ export function LeadTypeSelector({ leadType, onLeadTypeChange }: LeadTypeSelecto
               <div className="font-semibold text-gray-800">Residential</div>
             </div>
             <div className="text-sm text-gray-600">
-              For homes, townhouses, condos, and residential properties
+              For homes, townhouses, and residential properties
             </div>
           </button>
           

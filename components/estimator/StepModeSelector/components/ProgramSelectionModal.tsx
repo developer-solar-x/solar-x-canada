@@ -136,7 +136,7 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                           <p>Solar + battery system</p>
                           <p>• Store energy for peak hours</p>
                           <p>• Reduce electricity costs</p>
-                          <p>• Up to $10,000 USD rebate</p>
+                          <p>• Up to $10,000 CAD rebate</p>
                         </div>
                       </button>
                       
@@ -188,7 +188,7 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                           <p>Solar + battery system</p>
                           <p>• Store energy for peak hours</p>
                           <p>• Reduce electricity costs</p>
-                          <p>• Up to $10,000 USD rebate</p>
+                          <p>• Up to $10,000 CAD rebate</p>
                         </div>
                       </button>
                       
@@ -241,11 +241,11 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                       <div className="font-semibold text-gray-800 text-lg">Residential</div>
                     </div>
                     <div className="text-sm text-gray-600 space-y-2">
-                      <p>For homes, townhouses, condos, and residential properties</p>
+                      <p>For homes, townhouses, and residential properties</p>
                       <p>• Single-family homes</p>
-                      <p>• Townhouses & condos</p>
+                      <p>• Townhouses</p>
                       <p>• Peak shaving benefits</p>
-                      <p>• Up to $10,000 USD HRS rebate</p>
+                      <p>• Up to $10,000 CAD HRS rebate</p>
                     </div>
                   </button>
                   
