@@ -425,7 +425,7 @@ export function ResultsPage({
         if (ulo?.totalBillSavingsPercent !== undefined) return ulo.totalBillSavingsPercent
         return null
       })()
-
+  
   // Get net costs for TOU and ULO (needed for 25-year profit calculation)
   const touCombinedNet = (peakShaving as any)?.tou?.combined?.netCost ?? 
                         (peakShaving as any)?.tou?.allResults?.combined?.combined?.netCost ??
