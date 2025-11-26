@@ -101,7 +101,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   const [touDistribution, setTouDistribution] = useState<UsageDistribution>(DEFAULT_TOU_DISTRIBUTION)
   const [uloDistribution, setUloDistribution] = useState<UsageDistribution>(DEFAULT_ULO_DISTRIBUTION)
   const [overrideEstimateLoading, setOverrideEstimateLoading] = useState(false)
-  const [openModal, setOpenModal] = useState<'payback' | 'profit' | 'credits' | 'coverage' | null>(null)
+  const [openModal, setOpenModal] = useState<'payback' | 'profit' | 'credits' | 'coverage' | 'donut' | null>(null)
   const [showPeriodBreakdown, setShowPeriodBreakdown] = useState(false)
   const [showMonthlyBreakdown, setShowMonthlyBreakdown] = useState(false)
 
@@ -817,12 +817,40 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 This calculation accounts for:
               </p>
               <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 ml-2">
-                <li>Your annual savings from reduced electricity bills</li>
-                <li>The net cost of your solar system (after any incentives)</li>
-                <li>Expected electricity rate increases over time (typically 3% per year)</li>
+                <li>
+                  <span className="font-semibold">Net investment</span> (system cost with no rebates for net metering):{' '}
+                  {formatCurrency(netCost)}
+                </li>
+                {selectedResult && (
+                  <>
+                    <li>
+                      <span className="font-semibold">Annual export credits</span> (Year 1):{' '}
+                      {`$${selectedResult.annual.exportCredits.toFixed(2)}`}
+                    </li>
+                    <li>
+                      <span className="font-semibold">Annual import cost after solar</span> (Year 1):{' '}
+                      {`$${selectedResult.annual.importCost.toFixed(2)}`}
+                    </li>
+                    <li>
+                      <span className="font-semibold">Net annual bill</span> = Import Cost − Export Credits ={' '}
+                      {`$${selectedResult.annual.netAnnualBill.toFixed(2)}`}
+                    </li>
+                  </>
+                )}
+                <li>
+                  We estimate your <span className="font-semibold">first‑year savings</span> from net metering and then
+                  apply an annual escalation to electricity rates (typically {((data.annualEscalator || 4.5)).toFixed(1)}
+                  % per year).
+                </li>
+                <li>
+                  We add those savings year by year until the total equals your net investment. That year (including
+                  fraction) is the <span className="font-semibold">payback period</span>.
+                </li>
               </ul>
               <p className="mt-3 text-sm text-gray-600">
-                A shorter payback period means your investment recovers faster. Most residential solar systems have payback periods between 8-15 years.
+                In this scenario, your payback period is approximately{' '}
+                {paybackYears === Infinity ? 'N/A' : `${paybackYears.toFixed(1)} years`}. A shorter payback period means
+                your investment recovers faster.
               </p>
             </Modal>
 
@@ -838,12 +866,26 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 This calculation includes:
               </p>
               <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 ml-2">
-                <li>All savings from reduced electricity bills over 25 years</li>
-                <li>Projected electricity rate increases (typically 3% per year)</li>
-                <li>Minus your initial net investment cost</li>
+                <li>
+                  <span className="font-semibold">Net investment</span>: {formatCurrency(netCost)}
+                </li>
+                <li>
+                  <span className="font-semibold">Year‑1 savings</span> come from lower import costs plus export
+                  credits under your selected plan.
+                </li>
+                <li>
+                  We project these savings forward for 25 years using an annual escalation of{' '}
+                  {((data.annualEscalator || 4.5)).toFixed(1)}% (higher rates → higher savings).
+                </li>
+                <li>
+                  <span className="font-semibold">25‑Year Profit</span> = (Sum of 25 years of projected savings) − Net
+                  Investment.
+                </li>
               </ul>
               <p className="mt-3 text-sm text-gray-600">
-                This metric shows the long-term value of your solar investment. Even after recovering your initial investment, you'll continue saving money for the remaining years of the system's life.
+                For this scenario, your estimated 25‑year profit is{' '}
+                {profit25 >= 0 ? formatCurrency(Math.round(profit25)) : 'N/A'}. This shows the long‑term value of your
+                solar investment after the system has already paid for itself.
               </p>
             </Modal>
 
@@ -859,10 +901,34 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 How it works:
               </p>
               <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 ml-2">
-                <li>When your solar panels produce more energy than you're using, the excess is exported to the grid</li>
-                <li>You receive credits at the same rate you pay for electricity (net metering)</li>
-                <li>These credits can be used to offset future electricity bills</li>
-                <li>Credits can be carried forward for up to 12 months</li>
+                <li>When your solar panels produce more energy than you're using, the excess is exported to the grid.</li>
+                <li>
+                  For each hour, we calculate{' '}
+                  <span className="font-semibold">Export Credits</span> = Surplus kWh × (Consumption Rate + 2¢) ÷ 100.
+                </li>
+                <li>
+                  We add up all hourly credits over the year to get your{' '}
+                  <span className="font-semibold">Annual Export Credits</span>.
+                </li>
+                {selectedResult && (
+                  <>
+                    <li>
+                      In this scenario, total exported energy is approximately{' '}
+                      {Math.round(selectedResult.annual.totalExported).toLocaleString()} kWh, which generates about{' '}
+                      {`$${selectedResult.annual.exportCredits.toFixed(2)}`} in credits.
+                    </li>
+                    <li>
+                      The average export credit rate is roughly{' '}
+                      {selectedResult.annual.totalExported > 0
+                        ? `${((selectedResult.annual.exportCredits / selectedResult.annual.totalExported) * 100).toFixed(
+                            1,
+                          )}¢/kWh`
+                        : 'N/A'}
+                      .
+                    </li>
+                  </>
+                )}
+                <li>These credits can be used to offset future electricity bills and can roll forward for up to 12 months.</li>
               </ul>
               <p className="mt-3 text-sm text-gray-600">
                 Higher export credits typically occur in summer months when solar production is highest. These credits help offset winter bills when production is lower.
@@ -881,13 +947,68 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 Calculation:
               </p>
               <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 ml-2">
-                <li>Energy Coverage = (Annual Solar Production ÷ Annual Usage) × 100%</li>
-                <li>100% means your solar system produces exactly what you use</li>
-                <li>Over 100% means you're producing more than you use (excess is exported)</li>
-                <li>Under 100% means you still need to purchase some electricity from the grid</li>
+                <li>
+                  <span className="font-semibold">Energy Coverage %</span> = Annual Solar Production ÷ Annual Usage ×
+                  100%.
+                </li>
+                {selectedResult && (
+                  <>
+                    <li>
+                      In this scenario:{' '}
+                      {Math.round(selectedResult.annual.totalSolarProduction).toLocaleString()} kWh produced ÷{' '}
+                      {Math.round(selectedResult.annual.totalLoad).toLocaleString()} kWh used ≈{' '}
+                      {((selectedResult.annual.totalSolarProduction / selectedResult.annual.totalLoad) * 100).toFixed(1)}
+                      %.
+                    </li>
+                  </>
+                )}
+                <li>100% means your solar system produces exactly what you use over a full year.</li>
+                <li>Over 100% means you're producing more than you use (excess is exported as credits).</li>
+                <li>Under 100% means you still need to purchase some electricity from the grid.</li>
               </ul>
               <p className="mt-3 text-sm text-gray-600">
                 Note: This is an annual average. Production varies by season - higher in summer, lower in winter. Net metering allows you to use summer excess to offset winter shortfalls.
+              </p>
+            </Modal>
+
+            <Modal
+              isOpen={openModal === 'donut'}
+              onClose={() => setOpenModal(null)}
+              title="Savings Breakdown Donut"
+              message="This chart shows how much of your original annual electricity bill is offset by solar and net-metering credits."
+              variant="info"
+              cancelText="Close"
+            >
+              <p className="mb-3">
+                Calculation:
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 ml-2">
+                <li>
+                  <span className="font-semibold">Bill Offset %</span> = Annual Export Credits ÷ Annual Import Cost ×
+                  100%.
+                </li>
+                {selectedResult && (
+                  <li>
+                    With your current inputs: Bill Offset ≈{' '}
+                    {`${selectedResult.annual.exportCredits.toFixed(2)} ÷ ${selectedResult.annual.importCost.toFixed(
+                      2,
+                    )} × 100% = ${selectedResult.annual.billOffsetPercent.toFixed(1)}%`}
+                    .
+                  </li>
+                )}
+                <li>
+                  If credits are equal to your annual import cost, the donut shows <span className="font-semibold">100% Bill Fully Offset</span>.
+                </li>
+                <li>
+                  If credits are higher than your remaining bill, the offset is capped at 100% and the extra portion is shown as
+                  <span className="font-semibold"> “+X% Credit”</span> under the donut.
+                </li>
+                <li>
+                  Those extra credits can roll forward for up to 12 months and are reflected in the monthly rollover section below.
+                </li>
+              </ul>
+              <p className="mt-3 text-sm text-gray-600">
+                This helps you quickly see whether solar plus net metering fully eliminates your annual bill or still leaves a portion to pay.
               </p>
             </Modal>
           </div>
@@ -912,7 +1033,25 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             {/* Savings Breakdown with Donut Chart */}
             {!hasErrors && selectedResult && (
               <div className="bg-white rounded-xl shadow-md border-2 border-gray-200 p-6">
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">Savings Breakdown</h2>
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    Savings Breakdown
+                    <button
+                      type="button"
+                      onClick={() => setOpenModal('donut')}
+                      className="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 hover:text-gray-700 hover:border-gray-400 transition-colors w-6 h-6"
+                      aria-label="How is the savings donut calculated?"
+                    >
+                      <Info size={14} />
+                    </button>
+                  </h2>
+                  <InfoTooltip
+                    className="hidden sm:inline-flex"
+                    content={
+                      'The donut shows how much of your original annual electricity bill is wiped out by solar and net-metering credits. Bill offset = Annual Export Credits ÷ Annual Import Cost × 100%. If credits are higher than your remaining bill, the offset is capped at 100% and the extra is shown as “+X% Credit” (credits that can roll forward for up to 12 months).'
+                    }
+                  />
+                </div>
                 
                 <DonutChart
                   touOffset={touResults?.annual.billOffsetPercent || 0}
