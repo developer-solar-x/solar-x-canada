@@ -26,7 +26,7 @@ export function EnergySummary({ energyUsage, appliances, monthlyBill }: EnergySu
       </div>
 
       {/* Annual usage highlight */}
-      {energyUsage && (
+      {energyUsage && energyUsage.annualKwh != null && (
         <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg p-4 mb-3 shadow-md">
           <div className="flex items-center justify-between">
             <div>
@@ -54,7 +54,7 @@ export function EnergySummary({ energyUsage, appliances, monthlyBill }: EnergySu
       )}
 
       {/* Consumption breakdown */}
-      {energyUsage && (
+      {energyUsage && energyUsage.annualKwh && (
         <div className="space-y-2 mb-3">
           <div className="bg-white border border-gray-200 rounded-lg p-3">
             <div className="grid grid-cols-3 gap-3">
@@ -64,7 +64,7 @@ export function EnergySummary({ energyUsage, appliances, monthlyBill }: EnergySu
                   <span className="text-xs text-gray-600 font-medium">Daily</span>
                 </div>
                 <p className="text-base font-bold text-navy-500">
-                  {energyUsage.dailyKwh.toFixed(2)} <span className="text-xs font-normal">kWh</span>
+                  {(energyUsage.dailyKwh ?? (energyUsage.annualKwh / 365)).toFixed(2)} <span className="text-xs font-normal">kWh</span>
                 </p>
               </div>
 
@@ -74,7 +74,7 @@ export function EnergySummary({ energyUsage, appliances, monthlyBill }: EnergySu
                   <span className="text-xs text-gray-600 font-medium">Monthly</span>
                 </div>
                 <p className="text-base font-bold text-navy-500">
-                  {energyUsage.monthlyKwh.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-normal">kWh</span>
+                  {(energyUsage.monthlyKwh ?? (energyUsage.annualKwh / 12)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-normal">kWh</span>
                 </p>
               </div>
 
@@ -84,7 +84,7 @@ export function EnergySummary({ energyUsage, appliances, monthlyBill }: EnergySu
                   <span className="text-xs text-gray-600 font-medium">Annual</span>
                 </div>
                 <p className="text-base font-bold text-navy-500">
-                  {energyUsage.annualKwh.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-normal">kWh</span>
+                  {(energyUsage.annualKwh ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-normal">kWh</span>
                 </p>
               </div>
             </div>

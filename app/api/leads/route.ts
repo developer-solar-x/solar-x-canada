@@ -3,6 +3,129 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 
+// Helper function to round numbers to 2 decimal places
+function roundTo2Decimals(value: number | null | undefined): number {
+  if (value === null || value === undefined || isNaN(value)) return 0
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+// Helper function to round to whole number (for integer columns)
+function roundToInteger(value: number | null | undefined): number {
+  if (value === null || value === undefined || isNaN(value)) return 0
+  return Math.round(value)
+}
+
+// Fields that should be integers (not decimals)
+const INTEGER_FIELDS = new Set([
+  'num_panels',
+  'numPanels',
+  'trees_equivalent',
+  'treesEquivalent',
+  'cars_off_road_equivalent',
+  'carsOffRoadEquivalent',
+  'env_trees_equivalent',
+  'env_cars_off_road',
+  'payback_years',
+  'paybackYears',
+  'payback_period',
+  'paybackPeriod',
+  'tou_payback_years',
+  'ulo_payback_years',
+  'tou_payback_period',
+  'ulo_payback_period',
+  'combined_payback_years',
+  'roi_percent', // ROI is typically shown as integer percentage
+  'tou_total_bill_savings_percent',
+  'ulo_total_bill_savings_percent',
+  'tou_total_offset',
+  'ulo_total_offset',
+  // Percentage fields should be integers
+  'total_bill_savings_percent',
+  'total_offset',
+  'offset',
+  // Production fields that might be integers in some schemas
+  'production_daily_average_kwh',
+  'production_annual_kwh', // If stored as integer
+  'production_monthly_kwh', // Array elements should remain decimals
+  // Count fields
+  'co2_offset_tons_per_year', // Might be integer
+  // Roof area fields (stored as integers in database)
+  'roof_area_sqft',
+  'roof_area_square_feet',
+  'roofAreaSqft',
+  'roofArea.squareFeet',
+  // Any field ending with _percent or Percent
+])
+
+// Check if a field name suggests it should be an integer
+function isIntegerField(key: string): boolean {
+  // Check exact match
+  if (INTEGER_FIELDS.has(key)) return true
+  
+  // Check patterns
+  if (key.endsWith('_percent') || key.endsWith('Percent')) return true
+  if (key.endsWith('_years') || key.endsWith('Years')) return true
+  if (key.endsWith('_period') || key.endsWith('Period')) return true
+  if (key.includes('num_') || key.includes('Num')) return true
+  if (key.includes('count') || key.includes('Count')) return true
+  if (key.includes('trees') || key.includes('Trees')) return true
+  if (key.includes('cars') || key.includes('Cars')) return true
+  
+  // Roof area fields (typically stored as integers)
+  if (key.includes('roof_area') || key.includes('roofArea')) {
+    if (key.includes('sqft') || key.includes('square_feet') || key.includes('squareFeet')) {
+      return true
+    }
+  }
+  
+  // kWh fields that might be stored as integers
+  // Be cautious - only round if very close to integer
+  if (key.includes('kwh') || key.includes('Kwh') || key.includes('KWh')) {
+    // Production fields are often stored as integers in database schemas
+    if (key.includes('production') || key.includes('Production')) {
+      return true
+    }
+    // Daily average might be integer
+    if (key.includes('daily') || key.includes('Daily')) {
+      return true
+    }
+    // Annual totals might be integers
+    if (key.includes('annual') || key.includes('Annual')) {
+      return true
+    }
+  }
+  
+  return false
+}
+
+// Helper function to round all numeric values in an object appropriately
+function roundNumericFields(obj: any, parentKey?: string): any {
+  if (obj === null || obj === undefined) return obj
+  if (typeof obj !== 'object') return obj
+  if (Array.isArray(obj)) {
+    return obj.map(item => roundNumericFields(item, parentKey))
+  }
+  
+  const rounded: any = {}
+  for (const [key, value] of Object.entries(obj)) {
+    const fullKey = parentKey ? `${parentKey}.${key}` : key
+    
+    if (typeof value === 'number') {
+      // Check if this field should be an integer
+      if (isIntegerField(key) || isIntegerField(fullKey)) {
+        rounded[key] = roundToInteger(value)
+      } else {
+        rounded[key] = roundTo2Decimals(value)
+      }
+    } else if (typeof value === 'object' && value !== null) {
+      rounded[key] = roundNumericFields(value, fullKey)
+    } else {
+      rounded[key] = value
+    }
+  }
+  return rounded
+}
+
 // Helper function to upload base64 image to Supabase Storage
 async function uploadBase64ToStorage(
   supabase: ReturnType<typeof getSupabaseAdmin>,
@@ -240,12 +363,14 @@ export async function POST(request: Request) {
     
     // For hrs_residential_leads table, add HRS-specific fields and exclude non-existent columns
     // These fields follow the HRS format from detailed analysis
-    // Quick estimate should also follow HRS format
+    // Quick estimate and net metering should also follow HRS format
     const isHrsResidential = 
       body.programType === 'hrs_residential' || 
       body.program_type === 'hrs_residential' ||
       body.programType === 'quick' ||
-      body.program_type === 'quick'
+      body.program_type === 'quick' ||
+      body.programType === 'net_metering' ||
+      body.program_type === 'net_metering'
     
     // For non-HRS tables, add additional columns that don't exist in hrs_residential_leads
     if (!isHrsResidential) {
@@ -532,13 +657,21 @@ export async function POST(request: Request) {
       insertData.roof_area_square_meters = body.roofArea?.squareMeters || 0
       insertData.roof_area_usable_square_feet = body.roofArea?.usableSquareFeet || 0
       
+      // Net Metering Data (if programType is net_metering)
+      // Net metering data will be stored in full_data_json (no separate columns exist)
+      // The netMetering field is already included in full_data_json construction below
+      
       // Full data JSON (simplified format)
       // For quick estimates, use the full simplifiedData structure if available
       // Otherwise, construct from available fields
       if (body.full_data_json) {
         // If full_data_json is already provided (from StepContact), use it
-        insertData.full_data_json = body.full_data_json
-      } else if (body.tou || body.ulo) {
+        // Ensure net metering data is included if present
+        insertData.full_data_json = {
+          ...body.full_data_json,
+          netMetering: body.netMetering || body.net_metering || body.full_data_json.netMetering || undefined,
+        }
+      } else if (body.tou || body.ulo || body.netMetering || body.net_metering) {
         // Construct from available fields (backward compatibility)
         insertData.full_data_json = {
           tou: body.tou,
@@ -585,10 +718,15 @@ export async function POST(request: Request) {
           shadingLevel: body.shadingLevel,
           photoSummary: body.photoSummary || body.photo_summary || undefined,
           annualEscalator: body.annualEscalator || body.annual_escalator || undefined,
+          netMetering: body.netMetering || body.net_metering || undefined,
         }
       } else {
         // Fallback: use body as-is (for non-HRS leads)
-        insertData.full_data_json = body
+        // Include net metering data if present
+        insertData.full_data_json = {
+          ...body,
+          netMetering: body.netMetering || body.net_metering || undefined,
+        }
       }
     } else {
       // For non-HRS tables (leads_v3, homeowner_leads), include battery fields
@@ -614,6 +752,44 @@ export async function POST(request: Request) {
       insertData.lead_type = leadType
     }
     
+    // Round all numeric fields to 2 decimal places before inserting
+    const roundedInsertData = roundNumericFields(insertData)
+    
+    // Additional safety: Round any values in fields that are likely integer columns
+    // This catches edge cases where decimal values accidentally end up in integer columns
+    function ensureIntegerFields(obj: any, parentKey: string = ''): void {
+      if (obj === null || obj === undefined) return
+      if (typeof obj !== 'object') return
+      
+      for (const [key, value] of Object.entries(obj)) {
+        const fullKey = parentKey ? `${parentKey}.${key}` : key
+        const keyLower = key.toLowerCase()
+        
+        if (typeof value === 'number') {
+          // Always round if field name suggests it's an integer column
+          if (isIntegerField(key) || isIntegerField(fullKey)) {
+            obj[key] = roundToInteger(value)
+          }
+          // Also round production-related kWh fields (often stored as integers)
+          else if ((keyLower.includes('production') && keyLower.includes('kwh')) ||
+                   (keyLower.includes('daily') && keyLower.includes('kwh') && !keyLower.includes('monthly'))) {
+            obj[key] = roundToInteger(value)
+          }
+        } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+          ensureIntegerFields(value, fullKey)
+        } else if (Array.isArray(value)) {
+          // For arrays, check each element recursively
+          value.forEach((item, index) => {
+            if (typeof item === 'object' && item !== null) {
+              ensureIntegerFields(item, `${fullKey}[${index}]`)
+            }
+          })
+        }
+      }
+    }
+    
+    ensureIntegerFields(roundedInsertData)
+    
     // Try different table names in order
     let lead: any = null
     let insertError: any = null
@@ -621,7 +797,7 @@ export async function POST(request: Request) {
     // Try hrs_residential_leads first (current table)
     const { data: hrsLead, error: hrsError } = await supabase
       .from('hrs_residential_leads')
-      .insert(insertData)
+      .insert(roundedInsertData)
       .select()
       .single()
     
@@ -631,7 +807,7 @@ export async function POST(request: Request) {
       // Try leads_v3 (existing schema)
     const { data: oldLead, error: oldError } = await supabase
       .from('leads_v3')
-      .insert(insertData)
+      .insert(roundedInsertData)
       .select()
       .single()
     
@@ -685,9 +861,12 @@ export async function POST(request: Request) {
         source: source || 'calculator',
       }
       
+      // Round numeric fields in newSchemaData before inserting
+      const roundedNewSchemaData = roundNumericFields(newSchemaData)
+      
       const { data: newLead, error: newError } = await supabase
         .from('homeowner_leads')
-        .insert(newSchemaData)
+        .insert(roundedNewSchemaData)
         .select()
         .single()
       
@@ -703,6 +882,39 @@ export async function POST(request: Request) {
 
     if (insertError) {
       console.error('Database insert error:', insertError)
+      
+      // If error is about integer type, log the data to identify the problematic field
+      if (insertError.code === '22P02' && insertError.message?.includes('integer')) {
+        console.error('⚠️ Integer type error detected. Scanning data for problematic values...')
+        function findNonIntegerValues(obj: any, path: string = '', results: Array<{path: string, value: any}> = []): Array<{path: string, value: any}> {
+          if (obj === null || obj === undefined) return results
+          if (typeof obj === 'number') {
+            // If number has decimal part, it might be the issue
+            if (!Number.isInteger(obj) && Math.abs(obj - Math.round(obj)) > 0.0001) {
+              results.push({ path: path || 'root', value: obj })
+            }
+          } else if (typeof obj === 'object') {
+            for (const [key, value] of Object.entries(obj)) {
+              const newPath = path ? `${path}.${key}` : key
+              if (typeof value === 'number' && !Number.isInteger(value)) {
+                results.push({ path: newPath, value })
+              } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                findNonIntegerValues(value, newPath, results)
+              } else if (Array.isArray(value)) {
+                value.forEach((item, index) => {
+                  if (typeof item === 'number' && !Number.isInteger(item)) {
+                    results.push({ path: `${newPath}[${index}]`, value: item })
+                  }
+                })
+              }
+            }
+          }
+          return results
+        }
+        const nonIntegerValues = findNonIntegerValues(roundedInsertData)
+        console.error('📊 Non-integer numeric values found:', nonIntegerValues.slice(0, 20)) // Limit to first 20
+      }
+      
       // If both tables don't exist, return helpful error
       if (insertError.code === 'PGRST205') {
         return NextResponse.json(

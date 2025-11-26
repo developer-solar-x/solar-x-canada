@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { calculateSystemSize, calculateCosts, calculateSavings } from '@/config/provinces'
 import { calculateSolarEstimate } from '@/lib/pvwatts'
 import * as turf from '@turf/turf'
+import { BLENDED_RATE } from '@/components/estimator/StepEnergySimple/constants'
 
 export async function POST(request: Request) {
   try {
@@ -62,10 +63,11 @@ export async function POST(request: Request) {
     
     // Calculate usage-based system size recommendation
     const derivedAnnual = energyUsage?.annualKwh || annualUsageKwh || (monthlyBill ? (monthlyBill / 0.223) * 12 : 9000)
-    // Target production equals ~80% of annual usage (AI mode optimization strategy)
-    // Battery handles remaining 20% via arbitrage (charge at off-peak, discharge at peak)
-    // This optimizes for lower upfront cost while maximizing battery arbitrage benefits
-    const targetAnnualProduction = Math.max(0, derivedAnnual * 0.8)
+    const programType = body.programType || body.program_type
+    // Target production: ~90% for net metering (net metering credits offset costs effectively)
+    // ~80% for battery systems (battery handles remaining 20% via arbitrage)
+    const targetPercentage = programType === 'net_metering' ? 0.9 : 0.8
+    const targetAnnualProduction = Math.max(0, derivedAnnual * targetPercentage)
     const usageBasedSystemSizeKw = Math.round((targetAnnualProduction / 1200) * 10) / 10
     // Maximum system size: Never exceed 100% of usage (hard cap)
     const maxSystemSizeKw = Math.round((derivedAnnual / 1200) * 10) / 10
@@ -81,16 +83,16 @@ export async function POST(request: Request) {
       const cappedRoofBasedSize = Math.min(roofBasedSystemSizeKw, maxSystemSizeKw)
       
       if (cappedRoofBasedSize <= usageBasedSystemSizeKw) {
-        // Roof can fit the recommended size (80% target)
+        // Roof can fit the recommended size
         systemSizeKw = cappedRoofBasedSize
         numPanels = roofBasedNumPanels
       } else {
-        // Roof is larger than needed - use 80% target size
+        // Roof is larger than needed - use usage-based target size
         systemSizeKw = usageBasedSystemSizeKw
         numPanels = Math.round((systemSizeKw * 1000) / 500)
       }
     } else {
-      // Fallback sizing without polygon: size based on 80% target
+      // Fallback sizing without polygon: size based on usage target
       systemSizeKw = usageBasedSystemSizeKw
       numPanels = Math.round((systemSizeKw * 1000) / 500)
     }
@@ -105,6 +107,22 @@ export async function POST(request: Request) {
     if (overrideSystemSizeKw && overrideSystemSizeKw > 0) {
       const roundedOverride = Math.round(overrideSystemSizeKw * 2) / 2
       systemSizeKw = Math.min(roundedOverride, maxSystemSizeKw)
+      numPanels = Math.round((systemSizeKw * 1000) / 500)
+    }
+
+    // For net metering programs, round system size to nearest multiple of 5 kW
+    // All net metering systems should be divisible by 5 (e.g., 5, 10, 15, 20 kW)
+    if (programType === 'net_metering' && systemSizeKw > 0) {
+      // Round maxSystemSizeKw UP to nearest multiple of 5 to allow proper sizing
+      // This ensures we don't artificially cap the system too low
+      const maxSystemSizeKwRounded = Math.ceil(maxSystemSizeKw / 5) * 5
+      // Round system size UP to nearest multiple of 5 kW for net metering
+      // This ensures adequate system size (round up instead of down)
+      // Minimum of 5 kW, but prefer rounding up to ensure good coverage
+      const roundedSystemSizeKw = Math.max(5, Math.ceil(systemSizeKw / 5) * 5)
+      // Use the smaller of rounded size and capped max (which is also divisible by 5)
+      systemSizeKw = Math.min(roundedSystemSizeKw, maxSystemSizeKwRounded)
+      // Recalculate numPanels based on rounded system size
       numPanels = Math.round((systemSizeKw * 1000) / 500)
     }
 
@@ -140,11 +158,12 @@ export async function POST(request: Request) {
       }
     }
 
-    // Calculate costs
-    const costs = calculateCosts(systemSizeKw, province)
+    // Calculate costs - exclude rebates for net metering
+    const costs = calculateCosts(systemSizeKw, province, 0, programType)
 
     // Calculate savings - prioritize calculated energy usage from appliances
-    const actualAnnualUsageKwh = energyUsage?.annualKwh || annualUsageKwh || (monthlyBill ? (monthlyBill / 0.13) * 12 : null)
+    // Use BLENDED_RATE (22.3¢/kWh) which includes energy + delivery + regulatory + HST
+    const actualAnnualUsageKwh = energyUsage?.annualKwh || annualUsageKwh || (monthlyBill ? (monthlyBill / BLENDED_RATE) * 12 : null)
     
     const savings = calculateSavings(
       productionData.annualProductionKwh,

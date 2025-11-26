@@ -382,19 +382,30 @@ export function OverviewTab({
             <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
               <div className="text-xs text-green-600 mb-1">Total Rebates</div>
               <div className="text-3xl font-bold text-green-600">
-                {formatCurrency(combinedTotalIncentives)}
+                {lead.program_type === 'net_metering' ? (
+                  <span className="text-gray-500">$0</span>
+                ) : (
+                  formatCurrency(combinedTotalIncentives)
+                )}
               </div>
               <div className="text-xs text-green-600 mt-1">
-                Solar + Battery rebates
+                {lead.program_type === 'net_metering' ? (
+                  <span className="text-gray-500">No rebates for net metering</span>
+                ) : (
+                  'Solar + Battery rebates'
+                )}
               </div>
             </div>
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
               <div className="text-xs text-blue-600 mb-1">Net After Rebates</div>
               <div className="text-3xl font-bold text-blue-600">
-                {formatCurrency(combinedNetAfterIncentives)}
+                {formatCurrency(lead.program_type === 'net_metering' ? combinedTotalSystemCost : combinedNetAfterIncentives)}
               </div>
               <div className="text-xs text-blue-600 mt-1">
-                Based on saved solar and battery costs
+                {lead.program_type === 'net_metering' 
+                  ? 'Total system cost (no rebates)' 
+                  : 'Based on saved solar and battery costs'
+                }
               </div>
             </div>
           </div>
@@ -410,7 +421,13 @@ export function OverviewTab({
               </div>
               <div>
                 <span className="text-gray-600">Solar Rebate:</span>
-                <span className="ml-2 font-semibold text-green-600">{typeof displayIncentives === 'number' ? formatCurrency(displayIncentives) : 'N/A'}</span>
+                <span className="ml-2 font-semibold text-green-600">
+                  {lead.program_type === 'net_metering' ? (
+                    <span className="text-gray-500">$0</span>
+                  ) : (
+                    typeof displayIncentives === 'number' ? formatCurrency(displayIncentives) : 'N/A'
+                  )}
+                </span>
               </div>
               <div>
                 <span className="text-gray-600">Battery Cost:</span>
@@ -418,7 +435,13 @@ export function OverviewTab({
               </div>
               <div>
                 <span className="text-gray-600">Battery Rebate:</span>
-                <span className="ml-2 font-semibold text-green-600">{typeof batteryRebate === 'number' ? formatCurrency(batteryRebate) : '—'}</span>
+                <span className="ml-2 font-semibold text-green-600">
+                  {lead.program_type === 'net_metering' ? (
+                    <span className="text-gray-500">$0</span>
+                  ) : (
+                    typeof batteryRebate === 'number' ? formatCurrency(batteryRebate) : '—'
+                  )}
+                </span>
               </div>
               <div>
                 <span className="text-gray-600">Total System Cost:</span>
@@ -426,11 +449,23 @@ export function OverviewTab({
               </div>
               <div>
                 <span className="text-gray-600">Total Rebates:</span>
-                <span className="ml-2 font-semibold text-green-700">{formatCurrency(combinedTotalIncentives)}</span>
+                <span className="ml-2 font-semibold text-green-700">
+                  {lead.program_type === 'net_metering' ? (
+                    <span className="text-gray-500">No rebates for net metering</span>
+                  ) : (
+                    formatCurrency(combinedTotalIncentives)
+                  )}
+                </span>
               </div>
               <div className="col-span-2">
                 <span className="text-gray-600">Net After Rebates:</span>
-                <span className="ml-2 font-semibold text-green-700">{formatCurrency(combinedNetAfterIncentives)}</span>
+                <span className="ml-2 font-semibold text-green-700">
+                  {lead.program_type === 'net_metering' ? (
+                    formatCurrency(combinedTotalSystemCost)
+                  ) : (
+                    formatCurrency(combinedNetAfterIncentives)
+                  )}
+                </span>
               </div>
             </div>
           </div>
@@ -613,7 +648,7 @@ export function OverviewTab({
         )}
 
         {/* Add-ons */}
-        {lead.selected_add_ons && lead.selected_add_ons.length > 0 && (
+        {Array.isArray(lead.selected_add_ons) && lead.selected_add_ons.length > 0 ? (
           <div className="card p-6">
             <h3 className="text-lg font-bold text-navy-500 mb-4 flex items-center gap-2">
               <Tag size={20} />
@@ -631,7 +666,7 @@ export function OverviewTab({
               ))}
             </div>
           </div>
-        )}
+        ) : null}
 
         {/* HubSpot Integration Status */}
         <div className="card p-6">

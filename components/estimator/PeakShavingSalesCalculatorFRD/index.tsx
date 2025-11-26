@@ -664,7 +664,8 @@ export function PeakShavingSalesCalculatorFRD({
       }
       return [data.selectedBattery]
     }
-    return ['renon-16']
+    // No default battery - user must select one
+    return []
   }
   
   // Helper function to combine multiple batteries into a single virtual battery

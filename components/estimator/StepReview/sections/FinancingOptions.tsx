@@ -59,7 +59,8 @@ export function FinancingOptions({
                   <div className="text-2xl font-bold text-red-500 mb-1">
                     ${financing.monthlyPayment}/mo
                   </div>
-                  <div className="text-xs text-gray-600">Estimated monthly payment</div>
+                  <div className="text-xs text-gray-600 mb-1">Estimated monthly payment</div>
+                  <div className="text-xs text-gray-500">{option.interestRate}% interest • {option.termYears} year term</div>
                 </>
               ) : (
                 <>

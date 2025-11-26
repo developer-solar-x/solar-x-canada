@@ -96,6 +96,7 @@ interface SystemSummaryCardsProps {
   solarMonthlySavings: number
   batteryMonthlySavings: number
   batteryAnnualSavings: number
+  programType?: 'hrs_residential' | 'net_metering' | 'quick'
 }
 
 export function SystemSummaryCards({
@@ -119,6 +120,7 @@ export function SystemSummaryCards({
   solarMonthlySavings,
   batteryMonthlySavings,
   batteryAnnualSavings,
+  programType,
 }: SystemSummaryCardsProps) {
   // Extract before/after comparison data for TOU and ULO plans
   // Use the same extraction logic as PlanComparison component in StepReview/index.tsx
@@ -206,6 +208,10 @@ export function SystemSummaryCards({
           {formatCurrency(combinedNetCost)}
         </div>
         <div className="text-xs text-gray-600 mt-1">
+          {programType === 'net_metering' ? (
+            'No rebates for net metering'
+          ) : (
+            <>
           After {formatCurrency(solarIncentives + (includeBattery ? batteryProgramRebate : 0))} in rebates
           {includeBattery && (
             <>
@@ -213,6 +219,8 @@ export function SystemSummaryCards({
                 Solar rebate: {formatCurrency(solarIncentives)} • Battery rebate: {formatCurrency(batteryProgramRebate)}
               </div>
               <div className="text-[11px] text-gray-500">Battery: {batteryDetails?.battery?.brand ? `${batteryDetails?.battery?.brand} ${batteryDetails?.battery?.model}` : aggregatedBattery?.labels?.join(' + ')}</div>
+                </>
+              )}
             </>
           )}
         </div>

@@ -32,6 +32,7 @@ import { BeforeAfterComparison } from '@/components/estimator/StepReview/section
 import { SavingsTab } from '@/components/estimator/StepReview/tabs/SavingsTab'
 import { EnvironmentalTab } from '@/components/estimator/StepReview/tabs/EnvironmentalTab'
 import { ImageModal } from '@/components/ui/ImageModal'
+import { NetMeteringResults } from '@/components/ResultsPage/sections/NetMeteringResults'
 
 interface ResultsPageProps {
   estimate?: {
@@ -106,6 +107,11 @@ interface ResultsPageProps {
   addOns?: any[]
   tou?: any
   ulo?: any
+  programType?: 'quick' | 'hrs_residential' | 'net_metering'
+  netMetering?: {
+    tou?: any
+    ulo?: any
+  }
   onMatchInstaller?: () => void
   onExportPDF?: () => void
 }
@@ -133,6 +139,8 @@ export function ResultsPage({
   addOns,
   tou,
   ulo,
+  programType,
+  netMetering,
   onMatchInstaller,
   onExportPDF,
   ...data // Accept additional data props (including touBeforeAfter, uloBeforeAfter, annualEscalator)
@@ -270,9 +278,15 @@ export function ResultsPage({
   const touData = tou || peakShaving?.tou
   const uloData = ulo || peakShaving?.ulo
   
+  // Get programType from props or data spread (net metering doesn't have rebates)
+  // programType may be in the props or in the data spread
+  const currentProgramType = (programType || (data as any)?.programType) as 'quick' | 'hrs_residential' | 'net_metering' | undefined
+  
   // Get rebate amounts (use provided values or calculate from estimate)
-  const solarRebateAmount = solarRebate ?? estimate?.costs?.incentives ?? 0
-  const batteryRebateAmount = batteryRebate ?? 0
+  // Net metering systems do NOT qualify for rebates
+  const isNetMetering = currentProgramType === 'net_metering'
+  const solarRebateAmount = isNetMetering ? 0 : (solarRebate ?? estimate?.costs?.incentives ?? 0)
+  const batteryRebateAmount = isNetMetering ? 0 : (batteryRebate ?? 0)
   const totalRebates = solarRebateAmount + batteryRebateAmount
   
   // Get combined costs (if battery is included)
@@ -1176,10 +1190,19 @@ export function ResultsPage({
                     )}
 
                     {/* Battery Details */}
-                    {batteryDetails && (
+                    {batteryDetails && programType !== 'net_metering' && (
                       <BatteryDetails
                         batteryDetails={batteryDetails}
                         peakShaving={peakShaving}
+                      />
+                    )}
+
+                    {/* Net Metering Results */}
+                    {programType === 'net_metering' && netMetering && (
+                      <NetMeteringResults
+                        netMeteringData={netMetering}
+                        systemSizeKw={estimate?.system?.sizeKw || solarOverride?.sizeKw}
+                        numPanels={estimate?.system?.numPanels || solarOverride?.numPanels}
                       />
                     )}
 
@@ -1202,8 +1225,8 @@ export function ResultsPage({
                       </div>
                     )}
 
-                    {/* TOU/ULO Comparison */}
-                    {(() => {
+                    {/* TOU/ULO Comparison - Only show for battery/peak shaving programs */}
+                    {programType !== 'net_metering' && (() => {
                       // Extract before/after data for TOU and ULO
                       let touBeforeAfter = null
                       let uloBeforeAfter = null

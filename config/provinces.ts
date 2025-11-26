@@ -113,7 +113,14 @@ export const PROVINCE_CONFIG: Record<string, ProvinceConfig> = {
 };
 
 // Calculate total system cost with taxes and zero-export incentives
-export function calculateCosts(systemSizeKw: number, province: string = 'ON', batteryKwh: number = 0) {
+// programType: 'hrs_residential' | 'net_metering' | 'quick' | undefined
+// Net metering systems do NOT qualify for rebates
+export function calculateCosts(
+  systemSizeKw: number, 
+  province: string = 'ON', 
+  batteryKwh: number = 0,
+  programType?: 'hrs_residential' | 'net_metering' | 'quick'
+) {
   // Fallback to Ontario config if province not found (for international demo)
   const config = PROVINCE_CONFIG[province] || PROVINCE_CONFIG['ON'];
   
@@ -130,26 +137,31 @@ export function calculateCosts(systemSizeKw: number, province: string = 'ON', ba
   const totalCost = subtotal; // Total without tax
   
   // Calculate Solar System Incentives
-  // Solar rebate applies to all systems
+  // Solar rebate applies only to HRS and quick estimates, NOT net metering
   let incentivesApplied = 0;
   
-  // Solar incentive: $1,000 per kW, max $5,000 - applies to all systems
+  // Net metering systems do NOT qualify for rebates
+  const isNetMetering = programType === 'net_metering'
+  
+  if (!isNetMetering) {
+    // Solar incentive: $1,000 per kW, max $5,000 - applies to HRS and quick estimates only
   const solarIncentivePerKw = 1000;
   const solarMaxIncentive = 5000;
   const solarIncentiveCalculated = systemSizeKw * solarIncentivePerKw;
   const solarIncentive = Math.min(solarIncentiveCalculated, solarMaxIncentive);
   incentivesApplied += solarIncentive;
   
-  // Battery incentive: $300 per kWh, max $5,000 - only applies if battery is included
+    // Battery incentive: $300 per kWh, max $5,000 - only applies if battery is included (HRS only)
   if (batteryKwh > 0) {
     const batteryIncentivePerKwh = 300;
     const batteryMaxIncentive = 5000;
     const batteryIncentiveCalculated = batteryKwh * batteryIncentivePerKwh;
     const batteryIncentive = Math.min(batteryIncentiveCalculated, batteryMaxIncentive);
     incentivesApplied += batteryIncentive;
+    }
   }
   
-  // Calculate net cost after incentives
+  // Calculate net cost after incentives (for net metering, netCost = totalCost since no rebates)
   const netCost = totalCost - incentivesApplied;
   
   return {
@@ -294,9 +306,9 @@ export const FINANCING_OPTIONS: FinancingOption[] = [
   {
     id: 'loan_25',
     name: '25-Year Loan',
-    interestRate: 5.5,
+    interestRate: 4.5,
     termYears: 25,
-    description: 'Extended term with competitive rate'
+    description: 'Extended term with 4.5% interest rate'
   }
 ]
 

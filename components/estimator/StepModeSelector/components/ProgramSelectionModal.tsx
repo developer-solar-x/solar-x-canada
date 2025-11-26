@@ -192,27 +192,22 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                         </div>
                       </button>
                       
-                      {/* Net Metering - Coming Soon */}
+                      {/* Net Metering */}
                       <button
-                        disabled
-                        className="p-6 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 opacity-60 cursor-not-allowed text-left relative"
+                        onClick={() => handleProgramSelect('net_metering')}
+                        className="p-6 rounded-xl border-2 border-gray-300 bg-white hover:border-blue-500 hover:bg-blue-50 transition-all text-left group"
                       >
-                        <div className="absolute top-4 right-4">
-                          <span className="px-3 py-1 bg-gray-200 text-gray-600 text-xs font-bold rounded-full">
-                            COMING SOON
-                          </span>
-                        </div>
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="w-12 h-12 rounded-lg bg-gray-400 flex items-center justify-center">
+                          <div className="w-12 h-12 rounded-lg bg-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform">
                             <Sun className="text-white" size={24} />
                           </div>
-                          <div className="font-semibold text-gray-500 text-lg">Net Metering</div>
+                          <div className="font-semibold text-gray-800 text-lg">Net Metering</div>
                         </div>
-                        <div className="text-sm text-gray-500 space-y-2">
+                        <div className="text-sm text-gray-600 space-y-2">
                           <p>Solar-only system</p>
                           <p>• Sell excess energy to grid</p>
                           <p>• Lower upfront cost</p>
-                          <p>• Simpler installation</p>
+                          <p>• Earn export credits</p>
                         </div>
                       </button>
                     </div>

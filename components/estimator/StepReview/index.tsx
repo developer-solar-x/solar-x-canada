@@ -602,11 +602,14 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                   solarMonthlySavings={solarMonthlySavings}
                   batteryMonthlySavings={batteryMonthlySavings}
                   batteryAnnualSavings={batteryAnnualSavings}
+                  programType={data.programType}
                 />
               )
             })()}
           </div>
 
+          {/* Hide cost breakdown for net metering */}
+          {data.programType !== 'net_metering' && (
           <CostBreakdown
             solarTotalCost={solarTotalCost}
             solarIncentives={solarIncentives}
@@ -619,6 +622,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             hasBatteryDetails={hasBatteryDetails}
             combinedNetCost={combinedNetCost}
           />
+          )}
 
           {/* Annual Savings Card - showing ULO and TOU results from Step 4 */}
           {includeBattery && (data.touBeforeAfter || data.uloBeforeAfter) && (

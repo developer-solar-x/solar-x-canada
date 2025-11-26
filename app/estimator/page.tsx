@@ -20,6 +20,7 @@ import { StepPhotosSimple } from '@/components/estimator/StepPhotosSimple'
 import { StepEnergySimple } from '@/components/estimator/StepEnergySimple'
 import { StepAddOns } from '@/components/estimator/StepAddOns'
 import { StepBatteryPeakShavingFRD as StepBatteryPeakShaving } from '@/components/estimator/StepBatteryPeakShavingFRD'
+import { StepNetMetering } from '@/components/estimator/StepNetMetering'
 import { StepDetails } from '@/components/estimator/StepDetails'
 import { StepDetailsSimple } from '@/components/estimator/StepDetailsSimple'
 import { StepReview } from '@/components/estimator/StepReview'
@@ -126,6 +127,7 @@ const easySteps = [
   { id: 2, name: 'Roof Size', component: StepRoofSimple },
   { id: 3, name: 'Energy', component: StepEnergySimple }, // Moved up - capture consumption early
   { id: 4, name: 'Battery Savings', component: StepBatteryPeakShaving, optional: true },
+  { id: 4, name: 'Net Metering Savings', component: StepNetMetering, optional: true }, // Same ID, filtered by programType
   { id: 5, name: 'Add-ons', component: StepAddOns },
   { id: 6, name: 'Photos', component: StepPhotosSimple },
   { id: 7, name: 'Details', component: StepDetailsSimple },
@@ -140,6 +142,7 @@ const detailedSteps = [
   { id: 2, name: 'Draw Roof', component: StepDrawRoof },
   { id: 3, name: 'Details', component: StepDetails }, // Moved up - capture consumption early
   { id: 4, name: 'Battery Savings', component: StepBatteryPeakShaving, optional: true },
+  { id: 4, name: 'Net Metering Savings', component: StepNetMetering, optional: true }, // Same ID, filtered by programType
   { id: 5, name: 'Add-ons', component: StepAddOns },
   { id: 6, name: 'Photos', component: StepPhotos },
   { id: 7, name: 'Review', component: StepReview },
@@ -165,6 +168,7 @@ export default function EstimatorPage() {
   const [emailCaptured, setEmailCaptured] = useState(false)
   // Loading indicator when moving from Step 3 -> Step 4 (estimate prefetch)
   const [isLoadingNextStep, setIsLoadingNextStep] = useState(false)
+  const [loadingMessage, setLoadingMessage] = useState('Preparing...')
 
   // Get active step array based on mode
   const steps = data.estimatorMode === 'easy' 
@@ -179,11 +183,18 @@ export default function EstimatorPage() {
     if (step.name === 'Battery Savings') {
       return data.programType === 'hrs_residential' || data.systemType === 'battery_system'
     }
+    // Show Net Metering Savings step only for net_metering program
+    if (step.name === 'Net Metering Savings') {
+      return data.programType === 'net_metering'
+    }
     // Skip program step since it's now in Details
     if (step.name === 'Program') {
       return false
     }
     return true
+  }).map((step, index) => {
+    // Reassign IDs sequentially after filtering
+    return { ...step, id: index }
   })
 
   // Load saved progress on mount
@@ -214,6 +225,19 @@ export default function EstimatorPage() {
     setShowResumeModal(false)
     setSavedProgressData(null)
   }
+
+  // Handle navigation to Location step after mode selection
+  useEffect(() => {
+    // If we're on step 0 (Program) and mode is set, go to Location (step 0 after filtering)
+    if (currentStep === 0 && data.estimatorMode && displaySteps.length > 0) {
+      // Find Location step in displaySteps (should be at index 0 after filtering)
+      const locationStepIndex = displaySteps.findIndex(step => step.name === 'Location')
+      if (locationStepIndex >= 0 && locationStepIndex !== currentStep) {
+        setCurrentStep(locationStepIndex)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.estimatorMode])
 
   // Auto-save progress after each data update
   useEffect(() => {
@@ -327,7 +351,10 @@ export default function EstimatorPage() {
     
     // Special handling for mode selection (step 0)
     if (currentStep === 0 && stepData.estimatorMode) {
-      setCurrentStep(1) // Always go to step 1 after mode selection
+      // After mode selection, data will update and displaySteps will recalculate
+      // Location becomes step 0 after filtering out Program
+      // We'll handle the step navigation in a useEffect that watches for mode changes
+      return // Exit early, don't continue with normal navigation
     } else {
       // Get the correct steps array after data update
       const newMode = stepData.estimatorMode || data.estimatorMode
@@ -358,6 +385,15 @@ export default function EstimatorPage() {
           nextStep += 1
         }
         
+        // Skip Net Metering Savings step when not in net_metering program
+        while (
+          nextStep < nextSteps.length &&
+          nextSteps[nextStep]?.name === 'Net Metering Savings' &&
+          updatedData.programType !== 'net_metering'
+        ) {
+          nextStep += 1
+        }
+        
         // Prepare data before Battery Savings (step 4) when program is HRS Residential
         const willEnterBatterySavings =
           currentStep === 3 &&
@@ -368,6 +404,7 @@ export default function EstimatorPage() {
           
           try {
             // Show loading overlay while preparing the Battery Savings step
+            setLoadingMessage('Preparing battery savings…')
             setIsLoadingNextStep(true)
             const response = await fetch('/api/estimate', {
               method: 'POST',
@@ -393,6 +430,38 @@ export default function EstimatorPage() {
             setIsLoadingNextStep(false)
           }
           // Early return because we advanced step inside finally
+          return
+        }
+        
+        // Prepare data before Net Metering Savings (step 4) when program is net_metering
+        const willEnterNetMetering =
+          currentStep === 3 &&
+          updatedData.programType === 'net_metering'
+        if (willEnterNetMetering && updatedData.coordinates && (updatedData.roofPolygon || updatedData.roofAreaSqft)) {
+          const dataWithAnnualEscalator = updatedData
+          
+          try {
+            setLoadingMessage('Preparing net metering savings…')
+            setIsLoadingNextStep(true)
+            const response = await fetch('/api/estimate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(dataWithAnnualEscalator),
+            })
+            
+            if (response.ok) {
+              const result = await response.json()
+              const finalData = { ...dataWithAnnualEscalator, estimate: result.data }
+              setData(finalData)
+            } else {
+              console.warn('Failed to generate estimate, will retry in Review step')
+            }
+          } catch (error) {
+            console.error('Error generating estimate:', error)
+          } finally {
+            setCurrentStep(nextStep)
+            setIsLoadingNextStep(false)
+          }
           return
         }
         
@@ -431,6 +500,14 @@ export default function EstimatorPage() {
         stepsForMode[prevStep]?.name === 'Battery Savings' &&
         data.programType !== 'hrs_residential' &&
         data.systemType !== 'battery_system'
+      ) {
+        prevStep -= 1
+      }
+      
+      while (
+        prevStep > 0 &&
+        stepsForMode[prevStep]?.name === 'Net Metering Savings' &&
+        data.programType !== 'net_metering'
       ) {
         prevStep -= 1
       }
@@ -486,8 +563,24 @@ export default function EstimatorPage() {
     setShowClearModal(false)
   }
 
-  // Get current step component
-  const CurrentStepComponent = steps[currentStep]?.component || StepModeSelector as any
+  // Get current step component - handle Battery Savings vs Net Metering Savings
+  const getCurrentStepComponent = () => {
+    const step = displaySteps.find((s, idx) => idx === currentStep)
+    if (!step) return StepModeSelector as any
+    
+    // If it's the savings step (step 4), choose component based on programType
+    if (step.name === 'Battery Savings' || step.name === 'Net Metering Savings') {
+      if (data.programType === 'net_metering') {
+        return StepNetMetering
+      } else {
+        return StepBatteryPeakShaving
+      }
+    }
+    
+    return step.component || StepModeSelector as any
+  }
+  
+  const CurrentStepComponent = getCurrentStepComponent()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -639,8 +732,8 @@ export default function EstimatorPage() {
       )}
 
       {/* Main content */}
-      {/* Check if current step is Battery Savings - use full width without container */}
-      {displaySteps[currentStep]?.name === 'Battery Savings' ? (
+      {/* Check if current step is Battery Savings or Net Metering Savings - use full width without container */}
+      {displaySteps[currentStep]?.name === 'Battery Savings' || displaySteps[currentStep]?.name === 'Net Metering Savings' ? (
         <main className="w-full px-0 py-0">
           <CurrentStepComponent
             data={data}
@@ -714,7 +807,7 @@ export default function EstimatorPage() {
         <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center">
           <div className="bg-white rounded-xl shadow-lg p-6 flex items-center gap-4">
             <div className="h-6 w-6 rounded-full border-2 border-navy-500 border-t-transparent animate-spin" />
-            <div className="text-sm text-navy-600 font-medium">Preparing battery savings…</div>
+            <div className="text-sm text-navy-600 font-medium">{loadingMessage}</div>
           </div>
         </div>
       )}

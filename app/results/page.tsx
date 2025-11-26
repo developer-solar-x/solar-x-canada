@@ -31,6 +31,8 @@ function ResultsPageContent() {
   const [addOns, setAddOns] = useState<any[]>([])
   const [tou, setTou] = useState<any>(undefined)
   const [ulo, setUlo] = useState<any>(undefined)
+  const [programType, setProgramType] = useState<'quick' | 'hrs_residential' | 'net_metering' | undefined>(undefined)
+  const [netMetering, setNetMetering] = useState<{ tou?: any; ulo?: any } | undefined>(undefined)
   const [loading, setLoading] = useState(true)
 
   // Helper function to transform simplified data structure to ResultsPage format
@@ -479,6 +481,8 @@ function ResultsPageContent() {
               }
             : null,
         },
+        // Extract net metering data
+        netMetering: simplifiedData.netMetering || undefined,
       }
       
       console.log('✅ Transformed data:', {
@@ -615,6 +619,9 @@ function ResultsPageContent() {
               setAddOns(transformedData.addOns || [])
               setTou(transformedData.tou)
               setUlo(transformedData.ulo)
+              setProgramType(simplifiedData.programType || lead.program_type || undefined)
+              // Extract net metering data if present
+              setNetMetering(transformedData.netMetering || simplifiedData.netMetering || undefined)
               setLoading(false)
               // Clear sessionStorage after reading
               sessionStorage.removeItem('calculatorResults')
@@ -713,6 +720,8 @@ function ResultsPageContent() {
           setAddOns(transformedData.addOns || [])
           setTou(transformedData.tou)
           setUlo(transformedData.ulo)
+          setProgramType(results.programType || undefined)
+          setNetMetering(transformedData.netMetering || results.netMetering || undefined)
         } else if (results?.estimate) {
           // Use original structure
           console.log('✅ Using original structure')
@@ -936,6 +945,8 @@ function ResultsPageContent() {
       addOns={addOns}
       tou={tou}
       ulo={ulo}
+      programType={programType}
+      netMetering={netMetering}
       onMatchInstaller={handleMatchInstaller}
       onExportPDF={handleExportPDF}
     />

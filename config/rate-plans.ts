@@ -376,3 +376,75 @@ export function getMostExpensiveDischargeHours(
   return hourlyRates.slice(0, hoursNeeded)
 }
 
+// Net Metering Export Credit Rates
+// According to Ontario net metering rules, export credits include:
+// - Electricity supply rate
+// - Delivery charges
+// - Regulatory charges
+// For simplification, export credit = rate + 2¢/kWh
+
+export const NET_METERING_EXPORT_CREDIT_BONUS = 2.0 // cents per kWh
+
+/**
+ * Calculate export credit rate for net metering
+ * Export credit = consumption rate + 2¢/kWh
+ */
+export function getExportCreditRate(
+  ratePlan: RatePlan,
+  date: Date,
+  hour: number
+): {
+  rate: number // Export credit rate in cents per kWh
+  period: RatePeriod
+  consumptionRate: number // Original consumption rate
+} {
+  const { rate: consumptionRate, period } = getRateForDateTime(ratePlan, date, hour)
+  const exportCreditRate = consumptionRate + NET_METERING_EXPORT_CREDIT_BONUS
+  
+  return {
+    rate: exportCreditRate,
+    period,
+    consumptionRate
+  }
+}
+
+/**
+ * Get export credit rates for all periods in a rate plan
+ * Useful for displaying export credit rates by period type
+ */
+export function getExportCreditRatesByPeriod(ratePlan: RatePlan): Record<RatePeriod, number> {
+  // Create a test date (weekday)
+  const testDate = new Date('2025-11-04') // A Monday
+  
+  const ratesByPeriod: Record<RatePeriod, number> = {
+    'ultra-low': 0,
+    'off-peak': 0,
+    'mid-peak': 0,
+    'on-peak': 0
+  }
+  
+  // Track which periods we've seen to avoid duplicates
+  const seenPeriods = new Set<RatePeriod>()
+  
+  // Check all 24 hours to find all period types
+  for (let hour = 0; hour < 24; hour++) {
+    const { rate, period } = getRateForDateTime(ratePlan, testDate, hour)
+    if (!seenPeriods.has(period)) {
+      ratesByPeriod[period] = rate + NET_METERING_EXPORT_CREDIT_BONUS
+      seenPeriods.add(period)
+    }
+  }
+  
+  // Also check weekend periods if they differ
+  const weekendDate = new Date('2025-11-08') // A Saturday
+  for (let hour = 0; hour < 24; hour++) {
+    const { rate, period } = getRateForDateTime(ratePlan, weekendDate, hour)
+    if (!seenPeriods.has(period)) {
+      ratesByPeriod[period] = rate + NET_METERING_EXPORT_CREDIT_BONUS
+      seenPeriods.add(period)
+    }
+  }
+  
+  return ratesByPeriod
+}
+
