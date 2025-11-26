@@ -9,8 +9,10 @@ import type { NetMeteringResult } from '@/lib/net-metering'
 
 interface NetMeteringResultsProps {
   netMeteringData: {
-    tou?: NetMeteringResult
-    ulo?: NetMeteringResult
+    tou?: NetMeteringResult & { projection?: any }
+    ulo?: NetMeteringResult & { projection?: any }
+    tiered?: NetMeteringResult & { projection?: any }
+    selectedRatePlan?: string
   }
   systemSizeKw?: number
   numPanels?: number
@@ -19,7 +21,7 @@ interface NetMeteringResultsProps {
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels }: NetMeteringResultsProps) {
-  const { tou, ulo } = netMeteringData
+  const { tou, ulo, tiered } = netMeteringData
 
   // Use billOffsetPercent from the result if available, otherwise calculate it
   const touBillOffset = tou?.annual.billOffsetPercent ?? (tou?.annual.importCost > 0 
@@ -44,8 +46,79 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels }:
   const uloBeforeBill = ulo?.annual.importCost ?? 0
   const uloAfterBill = ulo?.annual.netAnnualBill ?? 0
 
+  // Plan metrics for TOU / ULO / Tiered (year-1 savings, payback, 25-year profit)
+  const planConfigs = [
+    { id: 'tou', label: 'TOU', plan: tou as any },
+    { id: 'ulo', label: 'ULO', plan: ulo as any },
+    { id: 'tiered', label: 'Tiered', plan: tiered as any },
+  ] as const
+
+  const planMetrics = planConfigs
+    .filter(cfg => cfg.plan)
+    .map(cfg => {
+      const projection = cfg.plan.projection || {}
+      const annualSavings =
+        projection.annualSavings ??
+        (cfg.plan.annual ? cfg.plan.annual.importCost - cfg.plan.annual.netAnnualBill : 0)
+
+      return {
+        id: cfg.id,
+        label: cfg.label,
+        annualSavings,
+        paybackYears:
+          typeof projection.paybackYears === 'number' ? (projection.paybackYears as number) : null,
+        profit25: projection.netProfit25Year ?? 0,
+      }
+    })
+
   return (
     <div className="space-y-6">
+      {/* Net Metering Plan Comparison (Annual Savings, Payback, 25-Year Profit) */}
+      {planMetrics.length > 0 && (
+        <div className="grid sm:grid-cols-3 gap-4">
+          {/* Annual Savings */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <div className="text-xs text-gray-600 mb-2">Annual Savings (Year 1)</div>
+            {planMetrics.map(plan => (
+              <div key={plan.id} className="mt-1">
+                <div className="text-[13px] text-gray-600">{plan.label}</div>
+                <div className="text-base sm:text-xl font-bold text-navy-600">
+                  {formatCurrency(Math.round(plan.annualSavings || 0))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Payback */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <div className="text-xs text-gray-600 mb-2">Payback</div>
+            {planMetrics.map(plan => (
+              <div key={plan.id} className="mt-1">
+                <div className="text-[13px] text-gray-600">{plan.label}</div>
+                <div className="text-base sm:text-xl font-bold text-navy-600">
+                  {plan.paybackYears == null || plan.paybackYears === Infinity
+                    ? 'N/A'
+                    : `${plan.paybackYears.toFixed(1)} yrs`}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 25-Year Profit */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <div className="text-xs text-gray-600 mb-2">25-Year Profit</div>
+            {planMetrics.map(plan => (
+              <div key={plan.id} className="mt-1">
+                <div className="text-[13px] text-gray-600">{plan.label}</div>
+                <div className="text-base sm:text-xl font-bold text-navy-600">
+                  {formatCurrency(Math.round(plan.profit25 || 0))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Offset Summary - Prominent Display */}
       {(tou || ulo) && (
         <div className="bg-gradient-to-br from-emerald-50 via-green-50 to-emerald-100 rounded-xl p-6 border-2 border-emerald-200 shadow-lg">

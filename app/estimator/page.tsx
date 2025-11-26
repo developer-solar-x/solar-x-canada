@@ -678,17 +678,17 @@ export default function EstimatorPage() {
                   {/* Step circle */}
                   <div
                     className={`flex items-center justify-center w-10 h-10 rounded-full font-semibold text-sm transition-colors ${
-                      currentStep > step.id
+                      currentStep > index
                         ? 'bg-navy-500 text-white'
-                        : currentStep === step.id
+                        : currentStep === index
                         ? 'bg-red-500 text-white'
                         : 'bg-gray-200 text-gray-500'
                     }`}
                   >
-                    {currentStep > step.id ? (
+                    {currentStep > index ? (
                       <Check size={20} />
                     ) : (
-                      step.id
+                      index + 1
                     )}
                   </div>
                   
@@ -702,7 +702,7 @@ export default function EstimatorPage() {
                   {/* Connecting line */}
                   {index < displaySteps.length - 1 && (
                     <div className={`w-8 h-0.5 mx-3 ${
-                      currentStep > step.id ? 'bg-navy-500' : 'bg-gray-200'
+                      currentStep > index ? 'bg-navy-500' : 'bg-gray-200'
                     }`} />
                   )}
                 </div>

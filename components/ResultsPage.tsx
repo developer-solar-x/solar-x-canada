@@ -280,7 +280,11 @@ export function ResultsPage({
   
   // Get programType from props or data spread (net metering doesn't have rebates)
   // programType may be in the props or in the data spread
-  const currentProgramType = (programType || (data as any)?.programType) as 'quick' | 'hrs_residential' | 'net_metering' | undefined
+  const currentProgramType = (programType || (data as any)?.programType) as
+    | 'quick'
+    | 'hrs_residential'
+    | 'net_metering'
+    | undefined
   
   // Get rebate amounts (use provided values or calculate from estimate)
   // Net metering systems do NOT qualify for rebates
@@ -498,17 +502,99 @@ export function ResultsPage({
     : (tou25YearSavings ?? ulo25YearSavings ?? (estimate?.savings?.lifetimeSavings || (estimate?.savings?.annualSavings ? estimate.savings.annualSavings * 25 : 0)))
   
   // Use combined savings if available, otherwise fall back to estimate savings
-  const finalAnnualSavings = ratePlan === 'ulo' && uloCombinedAnnual 
-    ? uloCombinedAnnual 
-    : ratePlan === 'tou' && touCombinedAnnual 
-    ? touCombinedAnnual 
-    : (batteryImpact?.annualSavings && estimate?.savings?.annualSavings ? estimate.savings.annualSavings + batteryImpact.annualSavings : (estimate?.savings?.annualSavings ?? 0))
-  
-  const finalMonthlySavings = ratePlan === 'ulo' && uloCombinedMonthly 
-    ? uloCombinedMonthly 
-    : ratePlan === 'tou' && touCombinedMonthly 
-    ? touCombinedMonthly 
-    : (batteryImpact?.monthlySavings && estimate?.savings?.monthlySavings ? estimate.savings.monthlySavings + batteryImpact.monthlySavings : (estimate?.savings?.monthlySavings ?? 0))
+  const finalAnnualSavings =
+    ratePlan === 'ulo' && uloCombinedAnnual
+      ? uloCombinedAnnual
+      : ratePlan === 'tou' && touCombinedAnnual
+      ? touCombinedAnnual
+      : batteryImpact?.annualSavings && estimate?.savings?.annualSavings
+      ? estimate.savings.annualSavings + batteryImpact.annualSavings
+      : estimate?.savings?.annualSavings ?? 0
+
+  const finalMonthlySavings =
+    ratePlan === 'ulo' && uloCombinedMonthly
+      ? uloCombinedMonthly
+      : ratePlan === 'tou' && touCombinedMonthly
+      ? touCombinedMonthly
+      : batteryImpact?.monthlySavings && estimate?.savings?.monthlySavings
+      ? estimate.savings.monthlySavings + batteryImpact.monthlySavings
+      : estimate?.savings?.monthlySavings ?? 0
+
+  // Net metering narrative metrics for "What These Results Mean"
+  let netMeteringNarrative:
+    | {
+        planLabel: string
+        annualSavings: number | null
+        paybackYears: number | null
+        profit25: number | null
+      }
+    | null = null
+
+  if (isNetMetering && netMetering) {
+    const nm: any = netMetering
+    const plans = [
+      { key: 'tou', label: 'TOU', plan: nm.tou },
+      { key: 'ulo', label: 'ULO', plan: nm.ulo },
+      { key: 'tiered', label: 'Tiered', plan: nm.tiered },
+    ].filter(p => p.plan)
+
+    if (plans.length) {
+      const selectedKey: 'tou' | 'ulo' | 'tiered' | undefined = nm.selectedRatePlan
+      let chosen = (selectedKey && plans.find(p => p.key === selectedKey)) || plans[0]
+
+      // If no selected plan, prefer the one with highest 25-year profit if available
+      if (!selectedKey && plans.length > 1) {
+        chosen = plans.reduce((best, current) => {
+          const bestProfit = best.plan?.projection?.netProfit25Year ?? 0
+          const currProfit = current.plan?.projection?.netProfit25Year ?? 0
+          return currProfit > bestProfit ? current : best
+        }, chosen)
+      }
+
+      const projection = chosen.plan.projection || {}
+      const annualSavings: number | null =
+        typeof projection.annualSavings === 'number'
+          ? projection.annualSavings
+          : chosen.plan.annual
+          ? (chosen.plan.annual.importCost || 0) -
+            (chosen.plan.annual.netAnnualBill || 0)
+          : null
+
+      let profit25: number | null =
+        typeof projection.netProfit25Year === 'number'
+          ? projection.netProfit25Year
+          : null
+
+      // If profit not provided, derive it from annualSavings and net cost
+      if (
+        (profit25 === null || profit25 === 0) &&
+        annualSavings &&
+        annualSavings > 0 &&
+        finalNetCost > 0
+      ) {
+        let cumulativeSavings = 0
+        for (let year = 1; year <= 25; year++) {
+          const yearSavings = annualSavings * Math.pow(1 + escalation, year - 1)
+          cumulativeSavings += yearSavings
+        }
+        profit25 = cumulativeSavings - finalNetCost
+      }
+
+      const paybackYears: number | null =
+        typeof projection.paybackYears === 'number' && projection.paybackYears > 0
+          ? projection.paybackYears
+          : annualSavings && annualSavings > 0 && finalNetCost > 0
+          ? finalNetCost / annualSavings
+          : null
+
+      netMeteringNarrative = {
+        planLabel: chosen.label,
+        annualSavings,
+        paybackYears,
+        profit25,
+      }
+    }
+  }
   
   // Calculate payback period using same logic as StepReview
   // StepReview uses calculatePayback which accumulates savings year by year with escalation
@@ -686,7 +772,53 @@ export function ResultsPage({
               <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <DollarSign className="text-white" size={26} />
               </div>
-              {touBillSavingsPercent !== null && uloBillSavingsPercent !== null ? (
+              {isNetMetering && netMetering ? (
+                (() => {
+                  const plans = [
+                    { id: 'TOU', data: (netMetering as any).tou },
+                    { id: 'ULO', data: (netMetering as any).ulo },
+                    { id: 'Tiered', data: (netMetering as any).tiered },
+                  ].filter(p => p.data?.annual)
+
+                  const getPercent = (plan: any) => {
+                    const proj = plan.projection || {}
+                    const annualSavings =
+                      proj.annualSavings ??
+                      (plan.annual
+                        ? plan.annual.importCost - plan.annual.netAnnualBill
+                        : 0)
+                    const importCost = plan.annual?.importCost || 0
+                    if (annualSavings > 0 && importCost > 0) {
+                      return (annualSavings / importCost) * 100
+                    }
+                    return null
+                  }
+
+                  return plans.length ? (
+                    <>
+                      <div className="text-sm text-gray-700 font-semibold mb-3">
+                        Total Bill Savings (Net Metering)
+                      </div>
+                      <div className="text-xs text-gray-600 space-y-2">
+                        {plans.map(plan => {
+                          const pct = getPercent(plan.data)
+                          return (
+                            <div
+                              key={plan.id}
+                              className="flex items-center justify-between bg-white/60 rounded-lg px-3 py-2"
+                            >
+                              <span className="font-medium">{plan.id}:</span>
+                              <span className="text-xl font-bold text-purple-700">
+                                {pct == null ? 'N/A' : `${pct.toFixed(1)}%`}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </>
+                  ) : null
+                })()
+              ) : touBillSavingsPercent !== null && uloBillSavingsPercent !== null ? (
                 <>
                   <div className="text-sm text-gray-700 font-semibold mb-3">
                     Total Bill Savings
@@ -694,11 +826,15 @@ export function ResultsPage({
                   <div className="text-xs text-gray-600 space-y-2">
                     <div className="flex items-center justify-between bg-white/60 rounded-lg px-3 py-2">
                       <span className="font-medium">TOU:</span>
-                      <span className="text-xl font-bold text-purple-700">{touBillSavingsPercent.toFixed(1)}%</span>
+                      <span className="text-xl font-bold text-purple-700">
+                        {touBillSavingsPercent.toFixed(1)}%
+                      </span>
                     </div>
                     <div className="flex items-center justify-between bg-white/60 rounded-lg px-3 py-2">
                       <span className="font-medium">ULO:</span>
-                      <span className="text-xl font-bold text-purple-700">{uloBillSavingsPercent.toFixed(1)}%</span>
+                      <span className="text-xl font-bold text-purple-700">
+                        {uloBillSavingsPercent.toFixed(1)}%
+                      </span>
                     </div>
                   </div>
                 </>
@@ -729,12 +865,50 @@ export function ResultsPage({
               ) : null}
             </div>
 
-            {/* Payback Period - Show both plans if available */}
+            {/* Payback Period - Show both plans if available (or all 3 net metering plans) */}
             <div className="bg-gradient-to-br from-maple-50 to-maple-100 rounded-2xl p-6 text-center border-2 border-maple-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <div className="w-14 h-14 bg-gradient-to-br from-maple-500 to-maple-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <Clock className="text-white" size={26} />
               </div>
-              {touPaybackYears !== null && uloPaybackYears !== null ? (
+              {isNetMetering && netMetering ? (
+                (() => {
+                  const plans = [
+                    { id: 'TOU', data: (netMetering as any).tou },
+                    { id: 'ULO', data: (netMetering as any).ulo },
+                    { id: 'Tiered', data: (netMetering as any).tiered },
+                  ].filter(p => p.data)
+
+                  const getPayback = (plan: any) => {
+                    const proj = plan.projection || {}
+                    const years = proj.paybackYears
+                    return typeof years === 'number' && years > 0 ? years : null
+                  }
+
+                  return plans.length ? (
+                    <>
+                      <div className="text-sm text-gray-700 font-semibold mb-3">
+                        Payback Period (Net Metering)
+                      </div>
+                      <div className="text-xs text-gray-600 space-y-2">
+                        {plans.map(plan => {
+                          const years = getPayback(plan.data)
+                          return (
+                            <div
+                              key={plan.id}
+                              className="flex items-center justify-between bg-white/60 rounded-lg px-3 py-2"
+                            >
+                              <span className="font-medium">{plan.id}:</span>
+                              <span className="text-xl font-bold text-maple-700">
+                                {years == null ? 'N/A' : `${years.toFixed(1)} yrs`}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </>
+                  ) : null
+                })()
+              ) : touPaybackYears !== null && uloPaybackYears !== null ? (
                 <>
                   <div className="text-sm text-gray-700 font-semibold mb-3">
                     Payback Period
@@ -765,12 +939,48 @@ export function ResultsPage({
               )}
             </div>
 
-            {/* 25-Year Lifetime Savings/Profit - Show both plans if available */}
+            {/* 25-Year Lifetime Savings/Profit - Show both plans if available (or all 3 net metering plans) */}
             <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl p-6 text-center border-2 border-emerald-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <TrendingUp className="text-white" size={26} />
               </div>
-              {tou25YearSavings !== null && ulo25YearSavings !== null ? (
+              {isNetMetering && netMetering ? (
+                (() => {
+                  const plans = [
+                    { id: 'TOU', data: (netMetering as any).tou },
+                    { id: 'ULO', data: (netMetering as any).ulo },
+                    { id: 'Tiered', data: (netMetering as any).tiered },
+                  ].filter(p => p.data)
+
+                  return plans.length ? (
+                    <>
+                      <div className="text-sm text-gray-700 font-semibold mb-3">
+                        25-Year Profit (Net Metering)
+                      </div>
+                      <div className="text-xs text-gray-600 space-y-2">
+                        {plans.map(plan => {
+                          const proj = plan.data.projection || {}
+                          const profit = proj.netProfit25Year ?? 0
+                          return (
+                            <div
+                              key={plan.id}
+                              className="flex items-center justify-between bg-white/60 rounded-lg px-3 py-2"
+                            >
+                              <span className="font-medium">{plan.id}:</span>
+                              <span className="text-lg font-bold text-emerald-700">
+                                {formatCurrency(Math.round(profit || 0))}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-3 pt-3 border-t border-emerald-200">
+                        After payback period
+                      </div>
+                    </>
+                  ) : null
+                })()
+              ) : tou25YearSavings !== null && ulo25YearSavings !== null ? (
                 <>
                   <div className="text-sm text-gray-700 font-semibold mb-3">
                     25-Year Lifetime Savings
@@ -857,7 +1067,26 @@ export function ResultsPage({
                     </h3>
                     <p className="text-gray-700 leading-relaxed">
                       After rebates, your net investment is {formatCurrency(finalNetCost)}.{' '}
-                      {touCombinedAnnual && uloCombinedAnnual ? (
+                      {isNetMetering && netMeteringNarrative ? (
+                        <>
+                          For net metering with the{' '}
+                          <strong>{netMeteringNarrative.planLabel} rate plan</strong>, you'll save
+                          approximately{' '}
+                          {formatCurrency(Math.round(netMeteringNarrative.annualSavings || 0))} per
+                          year on electricity bills, which means your system will pay for itself in
+                          about{' '}
+                          {netMeteringNarrative.paybackYears !== null
+                            ? netMeteringNarrative.paybackYears.toFixed(1)
+                            : 'N/A'}{' '}
+                          years.{' '}
+                          {netMeteringNarrative.profit25 !== null && (
+                            <>
+                              Over the system's 25-year lifespan, you could save over{' '}
+                              {formatCurrency(Math.round(netMeteringNarrative.profit25))}.
+                            </>
+                          )}
+                        </>
+                      ) : touCombinedAnnual && uloCombinedAnnual ? (
                         <>
                           With the <strong>TOU rate plan</strong>, you'll save approximately {formatCurrency(touCombinedAnnual)} per year, 
                           which means your system will pay for itself in about {touPaybackYears !== null ? touPaybackYears.toFixed(1) : 'N/A'} years.{' '}
@@ -1035,8 +1264,8 @@ export function ResultsPage({
                 </div>
               </div>
 
-              {/* Rate Plan Information (TOU/ULO) */}
-              {(touData || uloData) && (
+              {/* Rate Plan Information (TOU/ULO) - hide for net metering since we show dedicated cards above */}
+              {!isNetMetering && (touData || uloData) && (
                 <div className="bg-white rounded-2xl p-8 shadow-md">
                   <h2 className="text-2xl font-bold text-forest-500 mb-6">
                     Rate Plan Comparison

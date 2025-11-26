@@ -192,9 +192,9 @@ export function SystemSummaryCards({
         </div>
         <div className="text-sm text-gray-600">Total System Cost</div>
         <div className="text-xs text-gray-500 mt-1">
-          {includeBattery
-            ? <>Solar {formatCurrency(solarTotalCost)} + Battery {formatCurrency(batteryPrice)}</>
-            : 'Before incentives'}
+          {includeBattery && (
+            <>Solar {formatCurrency(solarTotalCost)} + Battery {formatCurrency(batteryPrice)}</>
+          )}
         </div>
       </div>
 

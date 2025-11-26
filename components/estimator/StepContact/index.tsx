@@ -30,6 +30,7 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
   const [leadId, setLeadId] = useState('')
   const [saving, setSaving] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [showDebugNetMetering, setShowDebugNetMetering] = useState(false)
 
   // Use custom hooks
   useContactFormData({ data, formData, setFormData })
@@ -142,7 +143,8 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
       // Store estimate data in sessionStorage for results page
       if (data.estimate) {
         // Calculate rebates from estimate data
-        const solarRebate = data.estimate.costs?.incentives || 0
+        const isNetMetering = data.programType === 'net_metering'
+        const solarRebate = isNetMetering ? 0 : (data.estimate.costs?.incentives || 0)
         const batteryPrice = data.batteryDetails?.battery?.price || 0
         const batteryNetCost = data.batteryDetails?.multiYearProjection?.netCost || 0
         const batteryRebate = batteryPrice > 0 ? Math.max(0, batteryPrice - batteryNetCost) : 0
@@ -240,6 +242,7 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
           profit25Year: simplifiedData.ulo?.profit25Year,
           paybackPeriod: simplifiedData.ulo?.paybackPeriod,
         })
+        console.log('  🔁 Net Metering (raw):', data.netMetering || null)
         console.log('  📈 Production:', {
           annualKwh: simplifiedData.production?.annualKwh,
           monthlyKwh: simplifiedData.production?.monthlyKwh?.length || 0,
@@ -373,6 +376,27 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
           </div>
         </form>
       </div>
+
+      {/* Debug: show full net metering JSON for net_metering program */}
+      {data.programType === 'net_metering' && data.netMetering && (
+        <div className="mt-6 card p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-gray-700">Net Metering Debug JSON</h3>
+            <button
+              type="button"
+              onClick={() => setShowDebugNetMetering(!showDebugNetMetering)}
+              className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+            >
+              {showDebugNetMetering ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          {showDebugNetMetering && (
+            <pre className="mt-2 max-h-64 overflow-auto text-[11px] leading-snug bg-gray-50 border border-gray-200 rounded p-3 text-gray-800">
+{JSON.stringify(data.netMetering, null, 2)}
+            </pre>
+          )}
+        </div>
+      )}
     </div>
     </>
   )

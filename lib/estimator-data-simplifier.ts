@@ -472,9 +472,11 @@ export function extractSimplifiedData(data: EstimatorData): SimplifiedEstimatorD
   
   // Calculate solar rebate
   const systemSizeKw = simplified.systemSizeKw || 0
-  const solarRebate = Math.min(systemSizeKw * 1000, 5000) // $1,000 per kW, max $5,000
+  const programType = (data as any).programType as 'quick' | 'hrs_residential' | 'net_metering' | undefined
+  const isNetMetering = programType === 'net_metering'
+  const solarRebate = isNetMetering ? 0 : Math.min(systemSizeKw * 1000, 5000) // $1,000 per kW, max $5,000
   
-  // Calculate net cost after rebates
+  // Calculate net cost after rebates (for net metering, net cost is full system + battery since rebates are zero)
   const netCost = systemCost + batteryCost - solarRebate - batteryRebate
   
   simplified.costs = {

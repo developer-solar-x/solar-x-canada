@@ -7,6 +7,12 @@ import { SavingsTooltip } from '../SavingsTooltip'
 
 interface SavingsTabProps {
   estimate: any
+  programType?: string
+  netMetering?: {
+    tou?: any
+    ulo?: any
+    tiered?: any
+  }
   includeBattery: boolean
   tou?: any
   ulo?: any
@@ -20,6 +26,8 @@ interface SavingsTabProps {
 
 export function SavingsTab({
   estimate,
+  programType,
+  netMetering,
   includeBattery,
   tou,
   ulo,
@@ -30,6 +38,204 @@ export function SavingsTab({
   touBeforeAfter,
   uloBeforeAfter,
 }: SavingsTabProps) {
+  // Net Metering-only savings view (TOU, ULO, Tiered)
+  if (programType === 'net_metering' && netMetering) {
+    const escalation = (annualEscalator ?? 4.5) / 100
+    const years = 25
+    const netCost = combinedNetCost || 0
+
+    const plans = [
+      { id: 'tou', label: 'TOU' },
+      { id: 'ulo', label: 'ULO' },
+      { id: 'tiered', label: 'Tiered' },
+    ] as const
+
+    const planMetrics = plans.map(plan => {
+      const planData = (netMetering as any)[plan.id]
+      const projection = planData?.projection
+      const annualSavings =
+        projection?.annualSavings ??
+        (planData?.annual
+          ? planData.annual.importCost - planData.annual.netAnnualBill
+          : 0)
+
+      return {
+        id: plan.id,
+        label: plan.label,
+        annualSavings,
+        paybackYears: projection?.paybackYears as number | null | undefined,
+        profit25: projection?.netProfit25Year ?? 0,
+      }
+    })
+
+    // Build multi-year profit series for the chart
+    const savingsSeries = Array.from({ length: years }, (_, idx) => {
+      const year = idx + 1
+
+      const accumulate = (annual: number | undefined | null) => {
+        if (!annual || annual <= 0) return { profit: 0 }
+        let cumulative = 0
+        for (let y = 1; y <= year; y++) {
+          const yearSavings = annual * Math.pow(1 + escalation, y - 1)
+          cumulative += yearSavings
+        }
+        return { profit: cumulative - netCost }
+      }
+
+      const tou = accumulate(planMetrics.find(p => p.id === 'tou')?.annualSavings)
+      const ulo = accumulate(planMetrics.find(p => p.id === 'ulo')?.annualSavings)
+      const tiered = accumulate(planMetrics.find(p => p.id === 'tiered')?.annualSavings)
+
+      return {
+        year,
+        touProfit: tou.profit,
+        uloProfit: ulo.profit,
+        tieredProfit: tiered.profit,
+      }
+    })
+
+    const allValues = savingsSeries.flatMap(d => [d.touProfit, d.uloProfit, d.tieredProfit])
+    const maxValue = Math.max(...allValues, netCost)
+    const minValue = Math.min(...allValues, -netCost)
+    const padding = Math.max(Math.abs(maxValue), Math.abs(minValue)) * 0.15
+    const yDomain = [
+      Math.floor((minValue - padding) / 10000) * 10000,
+      Math.ceil((maxValue + padding) / 10000) * 10000,
+    ]
+
+    return (
+      <div className="space-y-6">
+        <div className="grid sm:grid-cols-3 gap-4">
+          {/* Annual Savings */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <div className="text-xs text-gray-600 mb-2">Annual Savings (Year 1)</div>
+            {planMetrics.map(plan => (
+              <div key={plan.id} className="mt-1">
+                <div className="text-[13px] text-gray-600">{plan.label}</div>
+                <div className="text-base sm:text-xl font-bold text-navy-600">
+                  {formatCurrency(Math.round(plan.annualSavings || 0))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Payback Period */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <div className="text-xs text-gray-600 mb-2">Payback</div>
+            {planMetrics.map(plan => (
+              <div key={plan.id} className="mt-1">
+                <div className="text-[13px] text-gray-600">{plan.label}</div>
+                <div className="text-base sm:text-xl font-bold text-navy-600">
+                  {plan.paybackYears == null || plan.paybackYears === Infinity
+                    ? 'N/A'
+                    : `${plan.paybackYears.toFixed(1)} yrs`}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 25-Year Profit */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <div className="text-xs text-gray-600 mb-2">25-Year Profit</div>
+            {planMetrics.map(plan => (
+              <div key={plan.id} className="mt-1">
+                <div className="text-[13px] text-gray-600">{plan.label}</div>
+                <div className="text-base sm:text-xl font-bold text-navy-600">
+                  {formatCurrency(Math.round(plan.profit25 || 0))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="chart-scroll-container h-[22rem] sm:h-96 md:h-[28rem] w-full overflow-x-visible overflow-y-visible relative z-10 flex items-center justify-center">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={savingsSeries}
+                margin={
+                  isMobile
+                    ? { top: 20, right: 30, left: 40, bottom: 40 }
+                    : { top: 20, right: 80, left: 60, bottom: 60 }
+                }
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="year"
+                  tick={{ fontSize: isMobile ? 10 : 11 }}
+                  label={{
+                    value: 'Year',
+                    position: 'insideBottom',
+                    offset: -5,
+                    style: { fontSize: 12 },
+                  }}
+                />
+                <YAxis
+                  domain={yDomain}
+                  tick={{ fontSize: isMobile ? 10 : 11 }}
+                  tickFormatter={(v: number) => `$${Math.round(v / 1000)}k`}
+                  label={{ value: 'Amount', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }}
+                  width={isMobile ? 45 : 60}
+                />
+                <Tooltip
+                  content={<SavingsTooltip />}
+                  allowEscapeViewBox={{ x: true, y: true }}
+                  cursor={{ stroke: '#1B4E7C', strokeWidth: 2, strokeDasharray: '4 4' }}
+                  wrapperStyle={{ transform: 'none', left: 0, top: 0, zIndex: 9999, pointerEvents: 'none' }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="touProfit"
+                  stroke="#1B4E7C"
+                  strokeWidth={isMobile ? 3 : 3.5}
+                  dot={{ r: isMobile ? 4 : 5, fill: '#1B4E7C', strokeWidth: 2, stroke: 'white' }}
+                  activeDot={{ r: isMobile ? 7 : 8, fill: '#1B4E7C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
+                  name="25-Year Profit (TOU)"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="uloProfit"
+                  stroke="#DC143C"
+                  strokeWidth={isMobile ? 3 : 3.5}
+                  dot={{ r: isMobile ? 4 : 5, fill: '#DC143C', strokeWidth: 2, stroke: 'white' }}
+                  activeDot={{ r: isMobile ? 7 : 8, fill: '#DC143C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
+                  name="25-Year Profit (ULO)"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="tieredProfit"
+                  stroke="#f59e0b"
+                  strokeWidth={isMobile ? 3 : 3.5}
+                  dot={{ r: isMobile ? 4 : 5, fill: '#f59e0b', strokeWidth: 2, stroke: 'white' }}
+                  activeDot={{ r: isMobile ? 7 : 8, fill: '#f59e0b', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
+                  name="25-Year Profit (Tiered)"
+                />
+                <ReferenceLine y={0} stroke="#666" strokeDasharray="2 2" />
+                <ReferenceLine
+                  y={netCost}
+                  stroke="#16a34a"
+                  strokeDasharray="4 4"
+                  label={{
+                    value: `Net Investment ${formatCurrency(netCost)}`,
+                    position: 'left',
+                    fill: '#166534',
+                    fontSize: 11,
+                  }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <p className="text-xs text-gray-600">
+          Net metering projections are based on your system cost, first-year net metering savings for each
+          rate plan, and the electricity rate escalation over 25 years. Tiered reflects a flat-rate
+          net metering option where available.
+        </p>
+      </div>
+    )
+  }
+
   const solarAnnual = estimate.savings?.annualSavings || 0
   const escalation = (annualEscalator ?? 4.5) / 100 // Convert percentage to decimal
   const years = 25

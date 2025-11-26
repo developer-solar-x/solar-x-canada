@@ -682,6 +682,8 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             {activeTab === 'savings' && (
               <SavingsTab
                 estimate={estimate}
+                programType={data.programType}
+                netMetering={data.netMetering}
                 includeBattery={includeBattery}
                 tou={tou}
                 ulo={ulo}
