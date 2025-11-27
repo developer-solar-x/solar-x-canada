@@ -2,6 +2,7 @@
 
 import { Zap } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
 interface BatteryDetailsProps {
   batteryDetails: {
@@ -117,6 +118,14 @@ export function BatteryDetails({ batteryDetails, peakShaving }: BatteryDetailsPr
           Shifts {Math.round(batteryDetails.firstYearAnalysis.totalKwhShifted).toLocaleString()} kWh annually 
           with {batteryDetails.firstYearAnalysis.cyclesPerYear} cycles/year.
         </p>
+      </div>
+
+      {/* Battery performance & optimization disclaimer */}
+      <div className="mt-4 flex items-start gap-2 text-xs text-gray-700">
+        <InfoTooltip
+          content="Battery performance, backup duration, and savings vary based on selected loads, weather conditions, solar production, consumption patterns, and equipment model. Optimization algorithms or AI-based controls may improve performance but cannot be guaranteed."
+        />
+        <span>Battery backup and savings are approximate and depend on usage, weather, and equipment.</span>
       </div>
     </div>
   )

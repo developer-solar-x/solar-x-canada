@@ -2,7 +2,8 @@
 // Implements Ontario net metering credit calculations with hourly resolution
 
 import { RatePlan, getRateForDateTime, getExportCreditRate, TOU_RATE_PLAN } from '@/config/rate-plans'
-import { UsageDataPoint, generateAnnualUsagePattern } from './usage-parser'
+import { generateAnnualUsagePattern } from './usage-parser'
+import type { UsageDataPoint } from './usage-parser'
 
 // Monthly derate factors for Ontario solar production (from FRD)
 // Jan: 35%, Feb: 50%, Mar: 70%, Apr-Aug: 100%, Sept: 80%, Oct: 60%, Nov: 45%, Dec: 25%
@@ -207,14 +208,12 @@ export function calculateNetMetering(
   // Calculate annual totals
   const totalExportCredits = Object.values(periodSummaries).reduce((sum, p) => sum + p.exportCredits, 0)
   const totalImportCost = Object.values(periodSummaries).reduce((sum, p) => sum + p.importCost, 0)
-  const netAnnualBill = totalImportCost - totalExportCredits
   
-  // Calculate bill offset percentage
+  // Calculate bill offset percentage (based on gross credits vs gross import cost)
   // If net bill is negative (credit), offset is > 100%
   const billOffsetPercent = totalImportCost > 0 
     ? (totalExportCredits / totalImportCost) * 100 
     : 100
-  
   
   // Check for under-producing system
   if (totalSolarProduction < totalLoad * 0.6) {
@@ -223,6 +222,24 @@ export function calculateNetMetering(
   
   // Calculate monthly breakdown with rollover
   const monthlyResults = calculateMonthlyRollover(hourlyData, ratePlan, year, warnings)
+  
+  // Calculate realistic net annual bill from monthly results after rollovers
+  // This accounts for credit expiration and monthly rollover application
+  // The monthly netBill is the amount owed each month AFTER applying rollover credits
+  // Sum all monthly net bills to get total amount actually owed over the year
+  const totalNetBillFromMonthly = monthlyResults.reduce((sum, month) => sum + month.netBill, 0)
+  
+  // Calculate remaining credits at year-end (if any)
+  // These are credits that haven't been used and are still available
+  const yearEndCredits = monthlyResults.length > 0 
+    ? monthlyResults[monthlyResults.length - 1].creditRollover 
+    : 0
+  
+  // Net annual bill: 
+  // - Positive = total amount owed after all rollovers applied
+  // - Negative = credit balance remaining (export credits exceeded all bills)
+  // If we have year-end credits, subtract them from what we owe
+  const netAnnualBill = totalNetBillFromMonthly - yearEndCredits
   
   return {
     annual: {
@@ -387,21 +404,24 @@ function calculateMonthlyRollover(
 export function calculateNetMeteringTiered(
   monthlySolarProduction: number[],
   annualUsageKwh: number,
-  tier1Rate: number = 12.0, // cents per kWh
-  tier2Rate: number = 14.2, // cents per kWh
-  tier1Threshold: number = 1000, // kWh per month
+  tier1Rate: number = 10.3, // cents per kWh (OEB Tier 1)
+  tier2Rate: number = 12.5, // cents per kWh (OEB Tier 2)
+  tier1Threshold: number = 600, // kWh per month (OEB Tier 1 threshold)
   year: number = new Date().getFullYear()
 ): NetMeteringResult {
   // Calculate blended annual rate
-  // Tier 1: first 1,000 kWh/month * 12 = 12,000 kWh/year
-  const tier1AnnualKwh = Math.min(annualUsageKwh, 12000)
-  const tier2AnnualKwh = Math.max(0, annualUsageKwh - 12000)
+  // Tier 1: first 600 kWh/month * 12 = 7,200 kWh/year
+  const tier1AnnualLimit = tier1Threshold * 12
+  const tier1AnnualKwh = Math.min(annualUsageKwh, tier1AnnualLimit)
+  const tier2AnnualKwh = Math.max(0, annualUsageKwh - tier1AnnualLimit)
   const blendedRate = annualUsageKwh > 0
     ? ((tier1AnnualKwh * tier1Rate) + (tier2AnnualKwh * tier2Rate)) / annualUsageKwh
     : tier1Rate
   
-  // Export credit rate = blended rate + 2¢
-  const exportCreditRate = blendedRate + 2.0
+  // Export credit rate for Tiered:
+  // To reflect that Tiered does not benefit from time-of-day arbitrage the way TOU/ULO do,
+  // we value exports at approximately the blended consumption rate (no extra bonus).
+  const exportCreditRate = blendedRate
   
   // Generate hourly patterns
   const hourlySolarProduction = generateHourlyProductionPattern(monthlySolarProduction, year)
@@ -412,6 +432,7 @@ export function calculateNetMeteringTiered(
   let totalLoad = 0
   let totalExported = 0
   let totalImported = 0
+  let totalImportCost = 0
   
   // Calculate net metering with tiered rates
   const maxLength = Math.max(hourlySolarProduction.length, hourlyUsage.length)
@@ -448,6 +469,7 @@ export function calculateNetMeteringTiered(
     totalLoad += loadKwh
     totalExported += surplusKwh
     totalImported += gridDrawKwh
+    totalImportCost += importCost
     
     hourlyData.push({
       timestamp,
@@ -462,14 +484,21 @@ export function calculateNetMeteringTiered(
   }
   
   const totalExportCredits = (totalExported * exportCreditRate) / 100
-  const totalImportCost = (totalImported * blendedRate) / 100 // Approximate
-  const netAnnualBill = totalImportCost - totalExportCredits
   const billOffsetPercent = totalImportCost > 0 ? (totalExportCredits / totalImportCost) * 100 : 100
   
   const warnings: string[] = []
   
   // Monthly breakdown (simplified for tiered)
   const monthlyResults = calculateMonthlyRollover(hourlyData, TOU_RATE_PLAN, year, warnings)
+  
+  // Calculate realistic net annual bill from monthly results after rollovers
+  const totalNetBillFromMonthly = monthlyResults.reduce((sum, month) => sum + month.netBill, 0)
+  const yearEndCredits = monthlyResults.length > 0 
+    ? monthlyResults[monthlyResults.length - 1].creditRollover 
+    : 0
+  
+  // Net annual bill: positive = amount owed, negative = credit balance
+  const netAnnualBill = totalNetBillFromMonthly - yearEndCredits
   
   return {
     annual: {

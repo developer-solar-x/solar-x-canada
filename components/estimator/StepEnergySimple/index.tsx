@@ -12,6 +12,7 @@ import { UpgradePrompt } from './components/UpgradePrompt'
 import { BLENDED_RATE } from './constants'
 import { useEnergyCalculation } from './hooks/useEnergyCalculation'
 import type { StepEnergySimpleProps } from './types'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
 export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: StepEnergySimpleProps) {
   const [annualUsageInput, setAnnualUsageInput] = useState<string>(
@@ -188,6 +189,14 @@ export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: St
             max="20"
             step="0.1"
           />
+        </div>
+
+        {/* User data accuracy disclaimer */}
+        <div className="mb-6 flex items-start gap-2 text-xs text-gray-600">
+          <InfoTooltip
+            content="Results rely on the information entered by the user. Incorrect or incomplete details—such as power usage, monthly bill amounts, or rate assumptions—will impact the accuracy of the estimates."
+          />
+          <span>Estimates depend on your usage, bill amounts, and rate assumptions being accurate.</span>
         </div>
 
         {/* Upgrade to Detailed */}

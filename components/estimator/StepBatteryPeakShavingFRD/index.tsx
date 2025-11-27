@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from 'react'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 import { PeakShavingSalesCalculatorFRD } from '../PeakShavingSalesCalculatorFRD'
 import type { StepBatteryPeakShavingSimpleProps } from '../StepBatteryPeakShavingSimple/types'
 
@@ -185,6 +186,16 @@ export function StepBatteryPeakShavingFRD({ data, onComplete, onBack, manualMode
         effectiveSystemSizeKw={effectiveSystemSizeKw}
         panelWattage={panelWattage}
       />
+      </div>
+
+      {/* Battery performance & optimization disclaimer */}
+      <div className="max-w-5xl mx-auto px-4 pb-8">
+        <div className="mt-4 flex items-start gap-2 text-xs text-gray-700">
+          <InfoTooltip
+            content="Battery performance, backup duration, and savings vary based on selected loads, weather conditions, solar production, consumption patterns, and equipment model. Optimization algorithms or AI-based controls may improve performance but cannot be guaranteed."
+          />
+          <span>Battery backup time and savings depend on your usage, weather, and chosen equipment.</span>
+        </div>
       </div>
     </div>
   )

@@ -5,6 +5,7 @@
 
 import { DollarSign, TrendingUp, AlertTriangle, Zap, Calendar, BarChart3 } from 'lucide-react'
 import { formatCurrency, formatKwh, formatNumber } from '@/lib/utils'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 import type { NetMeteringResult } from '@/lib/net-metering'
 
 interface NetMeteringResultsProps {
@@ -118,6 +119,14 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels }:
           </div>
         </div>
       )}
+
+      {/* Net metering rules disclaimer */}
+      <div className="flex items-start gap-2 text-xs text-gray-700">
+        <InfoTooltip
+          content="Credit values and export calculations are based on general net metering rules. Actual crediting depends on your utility provider, metering configuration, export limits, and the most recent program rules. Approval is required from the utility before any system can operate under net metering."
+        />
+        <span>Net metering credits and eligibility depend on your utility’s specific rules and approvals.</span>
+      </div>
 
       {/* Offset Summary - Prominent Display */}
       {(tou || ulo) && (

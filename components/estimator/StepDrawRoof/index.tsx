@@ -11,6 +11,7 @@ import { RoofAreaDisplay } from './components/RoofAreaDisplay'
 import { SectionBreakdown } from './sections/SectionBreakdown'
 import { useRoofAreaCalculation } from './hooks/useRoofAreaCalculation'
 import type { StepDrawRoofProps } from './types'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
 const PANEL_AREA_SQFT = 23.9 // TS-BGT54(500)-G11: 1961 x 1134 mm
 
@@ -237,6 +238,14 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
                 <span className="font-semibold">Great!</span> Your roof is perfectly sized for solar
               </div>
             )}
+
+            {/* Irradiance & production variability disclaimer */}
+            <div className="mt-2 flex items-start gap-2 text-xs text-gray-700">
+              <InfoTooltip
+                content="Production values are calculated using typical weather patterns and industry-standard modelling tools for your location. Real-world sunlight levels, seasonal variations, and shading conditions may increase or decrease actual production."
+              />
+              <span>Solar production is based on typical weather and shading – real output may be higher or lower.</span>
+            </div>
           </div>
         )}
 

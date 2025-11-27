@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { ArrowRight, Play, CheckCircle, Star, Shield, Award } from 'lucide-react'
 import { useState } from 'react'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
 export function Hero() {
   // State for video modal
@@ -66,14 +67,24 @@ export function Hero() {
               </p>
             </div>
 
+            {/* General accuracy & estimate disclaimer (compact tooltip) */}
+            <div className="mt-4 flex items-center gap-2 text-xs text-white/80 max-w-xl">
+              <InfoTooltip
+                className="bg-white/5 rounded-full"
+                content="All calculations provided on this website are estimates only. Actual system performance, pricing, incentives, and savings may differ based on utility rates, site conditions, equipment selection, installation details, and final engineering review."
+              />
+              <span>Estimates only – actual performance and savings may differ.</span>
+            </div>
+
             {/* Main headline */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight font-display text-white drop-shadow-lg">
-              Canada's Independent Solar Savings Calculator & Installer Match
+              Check Your Solar Savings in Minutes
             </h1>
 
             {/* Subheadline */}
             <p className="text-lg sm:text-xl text-white/90 max-w-xl leading-relaxed">
-              Get an unbiased solar estimate and connect with vetted installers. Free, no-obligation calculator with transparent data and double warranty protection.
+              Free Canadian solar calculator with vetted installers, unbiased estimates, and double warranty
+              protection.
             </p>
 
             {/* CTA buttons */}
@@ -97,7 +108,7 @@ export function Hero() {
                 </Link>
               </div>
 
-              {/* Installer CTA */}
+              {/* Installer CTA (kept but compact) */}
               <div className="flex items-center gap-3 pt-2">
                 <div className="flex-1 h-px bg-white/20"></div>
                 <p className="text-sm text-white/80">Are you an installer?</p>
@@ -113,7 +124,7 @@ export function Hero() {
             </div>
 
             {/* Trust badges with professional styling */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-8">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-6">
               {trustBadges.map((badge, index) => (
                 <div
                   key={index}

@@ -2,6 +2,7 @@
 
 import { formatCurrency } from '@/lib/utils'
 import { Sun, Battery, Minus, Plus } from 'lucide-react'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
 interface CostBreakdownProps {
   solarTotalCost: number
@@ -112,6 +113,14 @@ export function CostBreakdown({
           </div>
         </div>
       )}
+
+      {/* Pricing, rebates & incentives disclaimer */}
+      <div className="mt-4 flex items-start gap-2 text-xs text-gray-700">
+        <InfoTooltip
+          content="Estimated pricing, incentives, and rebates are based on current publicly available program information. Programs may change, close, or require specific eligibility criteria. Final pricing and incentives are confirmed only through a formal proposal from a qualified installer."
+        />
+        <span>Pricing and rebates are estimates only – final amounts come from your installer proposal.</span>
+      </div>
     </div>
   )
 }

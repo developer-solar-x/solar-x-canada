@@ -2,7 +2,10 @@
 // Supports Green Button CSV, manual entry, and fallback patterns
 
 import { RatePlan, getRateForDateTime, RatePeriod } from '../config/rate-plans'
-import { UsageDataPoint } from './battery-dispatch'
+import type { UsageDataPoint } from './battery-dispatch'
+
+// Re-export for consumers that only need the shape, not the implementation details
+export type { UsageDataPoint } from './battery-dispatch'
 
 // Green Button data format
 export interface GreenButtonEntry {

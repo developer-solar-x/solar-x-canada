@@ -7,6 +7,7 @@ import { RoofSummary } from './sections/RoofSummary'
 import { RoofDetailsForm } from './components/RoofDetailsForm'
 import { EnergyUsageVerification } from './components/EnergyUsageVerification'
 import type { StepDetailsProps } from './types'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
 export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
   // Program type and lead type are already selected in the initial modal
@@ -60,6 +61,14 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
             setFormData={setFormData}
             data={data}
           />
+
+          {/* User data accuracy disclaimer */}
+          <div className="mt-2 flex items-start gap-2 text-xs text-gray-600">
+            <InfoTooltip
+              content="Results rely on the information entered by the user. Incorrect or incomplete details—such as roof age, shading, azimuth, or usage verification—will impact the accuracy of the system design and savings estimates."
+            />
+            <span>Roof details and usage assumptions you enter directly affect design and savings estimates.</span>
+          </div>
 
           {/* Navigation buttons */}
           <div className="flex gap-4 pt-4">

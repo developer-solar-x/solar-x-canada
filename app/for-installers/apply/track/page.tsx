@@ -162,7 +162,7 @@ function InstallerApplicationTrackContent() {
                 </ul>
                 <div className="mt-4">
                   <Link
-                    href="/contact"
+                    // href="/contact"
                     className="text-forest-600 hover:text-forest-700 font-semibold text-sm inline-flex items-center gap-1"
                   >
                     Contact Support

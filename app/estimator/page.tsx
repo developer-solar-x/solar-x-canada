@@ -356,117 +356,33 @@ export default function EstimatorPage() {
       // We'll handle the step navigation in a useEffect that watches for mode changes
       return // Exit early, don't continue with normal navigation
     } else {
-      // Get the correct steps array after data update
-      const newMode = stepData.estimatorMode || data.estimatorMode
-      const nextSteps = newMode === 'easy' 
-        ? easySteps 
-        : newMode === 'detailed' 
-        ? detailedSteps 
-        : [easySteps[0]]
-      
-      if (currentStep < nextSteps.length - 1) {
-        let nextStep = currentStep + 1
+      // Recompute the visible step sequence using the UPDATED data
+      const baseSteps =
+        updatedData.estimatorMode === 'easy'
+          ? easySteps
+          : updatedData.estimatorMode === 'detailed'
+          ? detailedSteps
+          : [easySteps[0]]
 
-        // Skip Program step (now in Details)
-        while (
-          nextStep < nextSteps.length &&
-          nextSteps[nextStep]?.name === 'Program'
-        ) {
-          nextStep += 1
-        }
-        
-        // Skip Battery Savings step entirely when not in HRS program
-        while (
-          nextStep < nextSteps.length &&
-          nextSteps[nextStep]?.name === 'Battery Savings' &&
-          updatedData.programType !== 'hrs_residential' &&
-          updatedData.systemType !== 'battery_system'
-        ) {
-          nextStep += 1
-        }
-        
-        // Skip Net Metering Savings step when not in net_metering program
-        while (
-          nextStep < nextSteps.length &&
-          nextSteps[nextStep]?.name === 'Net Metering Savings' &&
-          updatedData.programType !== 'net_metering'
-        ) {
-          nextStep += 1
-        }
-        
-        // Prepare data before Battery Savings (step 4) when program is HRS Residential
-        const willEnterBatterySavings =
-          currentStep === 3 &&
-          (updatedData.programType === 'hrs_residential' || updatedData.systemType === 'battery_system')
-        if (willEnterBatterySavings && updatedData.coordinates && (updatedData.roofPolygon || updatedData.roofAreaSqft)) {
-          // IMPORTANT: Store updatedData in a variable that will be captured in the async callback
-          const dataWithAnnualEscalator = updatedData
-          
-          try {
-            // Show loading overlay while preparing the Battery Savings step
-            setLoadingMessage('Preparing battery savings…')
-            setIsLoadingNextStep(true)
-            const response = await fetch('/api/estimate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(dataWithAnnualEscalator),
-            })
-            
-            if (response.ok) {
-              const result = await response.json()
-              // Store the estimate in data for use in Battery Savings step
-              // IMPORTANT: Use dataWithAnnualEscalator (captured from closure) to preserve annualEscalator
-              const finalData = { ...dataWithAnnualEscalator, estimate: result.data }
-              setData(finalData)
-            } else {
-              console.warn('Failed to generate estimate, will retry in Review step')
-            }
-          } catch (error) {
-            console.error('Error generating estimate:', error)
-            // Continue anyway - estimate will be generated in Review step as fallback
-          } finally {
-            // Proceed to next step and hide loading overlay
-            setCurrentStep(nextStep)
-            setIsLoadingNextStep(false)
+      const updatedDisplaySteps = baseSteps
+        .filter(step => {
+          if (step.name === 'Battery Savings') {
+            return updatedData.programType === 'hrs_residential' || updatedData.systemType === 'battery_system'
           }
-          // Early return because we advanced step inside finally
-          return
-        }
-        
-        // Prepare data before Net Metering Savings (step 4) when program is net_metering
-        const willEnterNetMetering =
-          currentStep === 3 &&
-          updatedData.programType === 'net_metering'
-        if (willEnterNetMetering && updatedData.coordinates && (updatedData.roofPolygon || updatedData.roofAreaSqft)) {
-          const dataWithAnnualEscalator = updatedData
-          
-          try {
-            setLoadingMessage('Preparing net metering savings…')
-            setIsLoadingNextStep(true)
-            const response = await fetch('/api/estimate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(dataWithAnnualEscalator),
-            })
-            
-            if (response.ok) {
-              const result = await response.json()
-              const finalData = { ...dataWithAnnualEscalator, estimate: result.data }
-              setData(finalData)
-            } else {
-              console.warn('Failed to generate estimate, will retry in Review step')
-            }
-          } catch (error) {
-            console.error('Error generating estimate:', error)
-          } finally {
-            setCurrentStep(nextStep)
-            setIsLoadingNextStep(false)
+          if (step.name === 'Net Metering Savings') {
+            return updatedData.programType === 'net_metering'
           }
-          return
-        }
-        
-        setCurrentStep(Math.min(nextStep, nextSteps.length - 1))
-        
+          if (step.name === 'Program') {
+            return false
+          }
+          return true
+        })
+        .map((step, index) => ({ ...step, id: index }))
+
+      if (currentStep < updatedDisplaySteps.length - 1) {
+        const nextIndex = currentStep + 1
+        setCurrentStep(nextIndex)
+
         // Email is now required on Location step, so no need for save modal
         // Update emailCaptured state if email was provided in location step
         if (updatedData.email && isValidEmail(updatedData.email)) {
@@ -480,39 +396,10 @@ export default function EstimatorPage() {
   // Go back to previous step
   const handleBack = () => {
     if (currentStep > 0) {
-      const stepsForMode = data.estimatorMode === 'easy' 
-        ? easySteps 
-        : data.estimatorMode === 'detailed' 
-        ? detailedSteps 
-        : easySteps
-      let prevStep = currentStep - 1
-
-      // Skip Program step (now in Details)
-      while (
-        prevStep > 0 &&
-        stepsForMode[prevStep]?.name === 'Program'
-      ) {
-        prevStep -= 1
-      }
-      
-      while (
-        prevStep > 0 &&
-        stepsForMode[prevStep]?.name === 'Battery Savings' &&
-        data.programType !== 'hrs_residential' &&
-        data.systemType !== 'battery_system'
-      ) {
-        prevStep -= 1
-      }
-      
-      while (
-        prevStep > 0 &&
-        stepsForMode[prevStep]?.name === 'Net Metering Savings' &&
-        data.programType !== 'net_metering'
-      ) {
-        prevStep -= 1
-      }
-
-      setCurrentStep(Math.max(prevStep, 0))
+      // Back navigation should follow the same filtered step list that the
+      // user sees in the progress bar. Since `displaySteps` is already
+      // derived from `data`, we just move to the previous index.
+      setCurrentStep(currentStep - 1)
     }
   }
 

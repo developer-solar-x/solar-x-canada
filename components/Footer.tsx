@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { Logo } from './Logo'
-import { Facebook, Linkedin, Instagram, Mail, Phone, MapPin } from 'lucide-react'
+import { Facebook, Linkedin, Instagram } from 'lucide-react'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
 export function Footer() {
   // Social media links - removed Solar X specific links, using generic placeholders
@@ -17,7 +18,7 @@ export function Footer() {
     { label: 'Home', href: '/' },
     { label: 'About', href: '/about' },
     { label: 'For Installers', href: '/for-installers' },
-    { label: 'Contact', href: '/contact' },
+    // { label: 'Contact', href: '/contact' }, // preserved but not currently shown
     { label: 'Calculator', href: '/estimator' },
   ]
 
@@ -33,7 +34,7 @@ export function Footer() {
     <footer id="contact" className="bg-forest-500 text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* Main footer content */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-12 mb-12">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
           {/* Column 1: Brand */}
           <div className="lg:col-span-2">
             <Logo variant="white" size="lg" />
@@ -90,7 +91,9 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Column 4: Contact */}
+          {/*
+          // PRESERVED (not rendered): Original Contact column
+          // Uncomment and restore icons/imports if you want to show Contact in the footer again.
           <div>
             <h3 className="text-lg font-bold mb-4">Contact</h3>
             <ul className="space-y-4">
@@ -116,6 +119,22 @@ export function Footer() {
             </ul>
             <p className="text-gray-200 text-sm mt-4">
               Mon-Fri: 8am-6pm EST
+            </p>
+          </div>
+          */}
+        </div>
+
+        {/* Global disclaimer */}
+        <div className="pt-8 border-t border-white/10 mb-8">
+          <div className="flex items-start gap-2 text-xs text-gray-200 max-w-4xl">
+            <InfoTooltip
+              className="mt-0.5"
+              iconSize={18}
+              content="All calculations provided on this website are estimates. Actual pricing, production, incentives, fees, and savings may vary. This tool does not guarantee approval for any utility program or government incentive, nor does it eliminate delivery charges or utility service fees. Users should verify all details with a licensed solar professional and their local utility provider."
+            />
+            <p className="leading-relaxed">
+              Estimates only – actual pricing, production, incentives, and savings may differ. See tooltip for
+              full details.
             </p>
           </div>
         </div>

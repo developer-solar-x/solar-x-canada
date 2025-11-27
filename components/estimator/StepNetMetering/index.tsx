@@ -801,6 +801,15 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                     <div className="text-xs text-gray-600 mt-1">Of your usage from solar</div>
                   </div>
                 </div>
+
+                {/* Electricity rate & savings disclaimer */}
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-xs text-gray-700">
+                    Savings projections assume current publicly available electricity rates, including time-of-use
+                    (TOU), ultra-low overnight (ULO), tiered, or other utility structures. Utilities may change their
+                    rates, fees, or billing rules at any time, which may affect future savings.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -1077,6 +1086,14 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                     <span>Remaining Bill</span>
                   </div>
                 </div>
+
+                {/* Delivery fees & additional charges disclaimer */}
+                <div className="mt-4 flex items-start gap-2 text-xs text-gray-700">
+                  <InfoTooltip
+                    content="Delivery fees, regulatory charges, and utility service fees remain the responsibility of the utility provider and are not eliminated by solar. These charges may be reduced through lower consumption but cannot be fully removed. Actual fee reductions depend on the utility's billing structure and regulations."
+                  />
+                  <span>Solar does not remove delivery, regulatory, or utility service fees – only reduces them.</span>
+                </div>
               </div>
             )}
 
@@ -1146,6 +1163,14 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                         </div>
                       </div>
                     )}
+
+                    {/* Net metering rules disclaimer */}
+                    <div className="mt-4 flex items-start gap-2 text-xs text-gray-700">
+                      <InfoTooltip
+                        content="Credit values and export calculations are based on general net metering rules. Actual crediting depends on your utility provider, metering configuration, export limits, and the most recent program rules. Utility approval is required before any system can operate under net metering."
+                      />
+                      <span>Net metering credits and rules are utility-specific and require formal approval.</span>
+                    </div>
                     
                   {/* Detailed Distribution */}
                     {selectedResult.byPeriod && selectedResult.byPeriod.length > 0 && (

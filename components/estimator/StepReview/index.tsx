@@ -539,7 +539,45 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
 
           {/* 2x2 Grid Layout for Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Top Left: Interested Add-ons */}
+            {/* Top Left: Recommended System (with costs and net investment) */}
+            {/* Calculate system size from panel count if available (exact calculation) */}
+            {(() => {
+              const panelWattage = 500 // Standard panel wattage
+              const numPanels = data.solarOverride?.numPanels ?? estimate.system.numPanels
+              // Always calculate from panel count if available (ensures 14 panels = 7.0 kW exactly)
+              const systemSizeKw =
+                numPanels && numPanels > 0
+                  ? (numPanels * panelWattage) / 1000 // Exact calculation from panel count
+                  : data.solarOverride?.sizeKw ?? estimate.system.sizeKw // Fallback to provided value
+
+              return (
+                <SystemSummaryCards
+                  systemSizeKw={systemSizeKw}
+                  numPanels={numPanels}
+                  selectedBattery={data.selectedBattery}
+                  batteryDetails={data.batteryDetails}
+                  combinedTotalCost={combinedTotalCost}
+                  solarTotalCost={solarTotalCost}
+                  batteryPrice={batteryPrice}
+                  includeBattery={includeBattery}
+                  combinedNetCost={combinedNetCost}
+                  solarIncentives={solarIncentives}
+                  batteryProgramRebate={batteryProgramRebate}
+                  aggregatedBattery={aggregatedBattery}
+                  combinedMonthlySavings={combinedMonthlySavings}
+                  tou={tou}
+                  ulo={ulo}
+                  peakShaving={data.peakShaving}
+                  displayPlan={displayPlan}
+                  solarMonthlySavings={solarMonthlySavings}
+                  batteryMonthlySavings={batteryMonthlySavings}
+                  batteryAnnualSavings={batteryAnnualSavings}
+                  programType={data.programType}
+                />
+              )
+            })()}
+
+            {/* Top Right: Interested Add-ons */}
             <div className="card bg-blue-50 border border-blue-200 p-4">
               <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
                 <span>Interested Add-ons</span>
@@ -567,45 +605,6 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                 <p className="text-sm text-blue-700 italic">No add-ons selected</p>
               )}
             </div>
-
-            {/* Top Right: Recommended System */}
-            {/* Bottom Left: Total System Cost */}
-            {/* Bottom Right: Your Net Investment */}
-            {/* Calculate system size from panel count if available (exact calculation) */}
-            {(() => {
-              const panelWattage = 500 // Standard panel wattage
-              const numPanels = data.solarOverride?.numPanels ?? estimate.system.numPanels
-              // Always calculate from panel count if available (ensures 14 panels = 7.0 kW exactly)
-              const systemSizeKw = numPanels && numPanels > 0
-                ? (numPanels * panelWattage) / 1000 // Exact calculation from panel count
-                : (data.solarOverride?.sizeKw ?? estimate.system.sizeKw) // Fallback to provided value
-              
-              return (
-                <SystemSummaryCards
-                  systemSizeKw={systemSizeKw}
-                  numPanels={numPanels}
-                  selectedBattery={data.selectedBattery}
-                  batteryDetails={data.batteryDetails}
-                  combinedTotalCost={combinedTotalCost}
-                  solarTotalCost={solarTotalCost}
-                  batteryPrice={batteryPrice}
-                  includeBattery={includeBattery}
-                  combinedNetCost={combinedNetCost}
-                  solarIncentives={solarIncentives}
-                  batteryProgramRebate={batteryProgramRebate}
-                  aggregatedBattery={aggregatedBattery}
-                  combinedMonthlySavings={combinedMonthlySavings}
-                  tou={tou}
-                  ulo={ulo}
-                  peakShaving={data.peakShaving}
-                  displayPlan={displayPlan}
-                  solarMonthlySavings={solarMonthlySavings}
-                  batteryMonthlySavings={batteryMonthlySavings}
-                  batteryAnnualSavings={batteryAnnualSavings}
-                  programType={data.programType}
-                />
-              )
-            })()}
           </div>
 
           {/* Hide cost breakdown for net metering */}

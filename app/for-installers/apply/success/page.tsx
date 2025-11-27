@@ -156,7 +156,7 @@ function InstallerApplicationSuccessContent() {
                 Have questions about your application?
               </p>
               <Link
-                href="/contact"
+                // href="/contact"
                 className="text-forest-600 hover:text-forest-700 font-semibold inline-flex items-center gap-2"
               >
                 <Mail size={18} />

@@ -12,6 +12,7 @@ import { ContactFormFields } from './components/ContactFormFields'
 import { validateContactForm } from './utils/validation'
 import { extractSimplifiedData } from '@/lib/estimator-data-simplifier'
 import type { StepContactProps } from './types'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
 export function StepContact({ data, onComplete, onBack }: StepContactProps) {
   const router = useRouter()
@@ -316,6 +317,14 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
           </p>
         </div>
 
+        {/* Not a contract or quote disclaimer */}
+        <div className="mb-6 flex items-start gap-2 text-xs text-gray-700">
+          <InfoTooltip
+            content="This calculator is for educational and informational purposes only. It does not constitute a quote, contract, guarantee of performance, or confirmation of eligibility for any program or incentive. A qualified installer must provide a formal proposal and conduct a site assessment before any system is approved or installed."
+          />
+          <span>These results are not a contract or quote – a qualified installer must provide a formal proposal.</span>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-6">
           <ContactFormFields
             formData={formData}
@@ -376,27 +385,6 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
           </div>
         </form>
       </div>
-
-      {/* Debug: show full net metering JSON for net_metering program */}
-      {data.programType === 'net_metering' && data.netMetering && (
-        <div className="mt-6 card p-4">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-gray-700">Net Metering Debug JSON</h3>
-            <button
-              type="button"
-              onClick={() => setShowDebugNetMetering(!showDebugNetMetering)}
-              className="text-xs font-semibold text-blue-600 hover:text-blue-800"
-            >
-              {showDebugNetMetering ? 'Hide' : 'Show'}
-            </button>
-          </div>
-          {showDebugNetMetering && (
-            <pre className="mt-2 max-h-64 overflow-auto text-[11px] leading-snug bg-gray-50 border border-gray-200 rounded p-3 text-gray-800">
-{JSON.stringify(data.netMetering, null, 2)}
-            </pre>
-          )}
-        </div>
-      )}
     </div>
     </>
   )

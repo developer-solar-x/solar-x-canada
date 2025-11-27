@@ -2,6 +2,7 @@
 
 import { Zap, DollarSign, TrendingDown, TrendingUp, Sun, Moon } from 'lucide-react'
 import { formatCurrency, formatKw } from '@/lib/utils'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
 // Before/After Savings Bars Component (from PeakShavingSalesCalculatorFRD)
 function BeforeAfterBars({ 
@@ -182,6 +183,12 @@ export function SystemSummaryCards({
             + {batteryDetails.battery.brand} {batteryDetails.battery.model}
           </div>
         )}
+        <div className="mt-3 flex items-center gap-2 text-[11px] text-gray-500">
+          <InfoTooltip
+            content="System size, layout, equipment model, and projected output shown by the calculator are preliminary estimates. Final system design can only be confirmed after a full site assessment, roof analysis, and engineering review."
+          />
+          <span>Preliminary estimate – see details in full disclaimer.</span>
+        </div>
       </div>
 
       {/* Total Cost Card - will be placed in grid */}

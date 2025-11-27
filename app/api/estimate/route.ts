@@ -97,22 +97,24 @@ export async function POST(request: Request) {
       numPanels = Math.round((systemSizeKw * 1000) / 500)
     }
     
-    // Final cap: Never exceed 100% of usage
+    // Final cap: Never exceed 100% of usage for the auto-sized recommendation
     systemSizeKw = Math.min(systemSizeKw, maxSystemSizeKw)
     numPanels = Math.round((systemSizeKw * 1000) / 500)
 
-    // Apply explicit override from client when provided (e.g., user adjusted panels)
-    // Still cap at 100% of usage to prevent oversizing
-    // Round to nearest 0.5 (divisible by 0.5) to match StepReview display
+    // Apply explicit override from client when provided (e.g., user adjusted panels).
+    // When the user overrides, we allow oversizing beyond maxSystemSizeKw and trust their input,
+    // only rounding to the nearest 0.5 kW for display consistency.
     if (overrideSystemSizeKw && overrideSystemSizeKw > 0) {
       const roundedOverride = Math.round(overrideSystemSizeKw * 2) / 2
-      systemSizeKw = Math.min(roundedOverride, maxSystemSizeKw)
+      systemSizeKw = roundedOverride
       numPanels = Math.round((systemSizeKw * 1000) / 500)
     }
 
     // For net metering programs, round system size to nearest multiple of 5 kW
     // All net metering systems should be divisible by 5 (e.g., 5, 10, 15, 20 kW)
-    if (programType === 'net_metering' && systemSizeKw > 0) {
+    // IMPORTANT: do not re-round when the client has explicitly overridden the system size,
+    // otherwise changing panel count in StepNetMetering will not change production.
+    if (programType === 'net_metering' && systemSizeKw > 0 && !overrideSystemSizeKw) {
       // Round maxSystemSizeKw UP to nearest multiple of 5 to allow proper sizing
       // This ensures we don't artificially cap the system too low
       const maxSystemSizeKwRounded = Math.ceil(maxSystemSizeKw / 5) * 5

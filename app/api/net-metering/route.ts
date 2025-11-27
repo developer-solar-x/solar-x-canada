@@ -72,13 +72,13 @@ export async function POST(request: Request) {
       // Use provided rate plan object
       selectedRatePlan = ratePlan as RatePlan
     } else if (ratePlanId === 'tiered' || ratePlanId === 'tiered_rate') {
-      // Tiered rate plan - handled separately
+      // Tiered rate plan - handled separately using OEB residential tiered rates
       const result = calculateNetMeteringTiered(
         monthlyProduction,
         annualUsageKwh,
-        12.0, // Tier 1 rate (cents/kWh)
-        14.2, // Tier 2 rate (cents/kWh)
-        1000, // Tier 1 threshold (kWh/month)
+        10.3, // Tier 1 rate (cents/kWh)
+        12.5, // Tier 2 rate (cents/kWh)
+        600, // Tier 1 threshold (kWh/month)
         year
       )
       

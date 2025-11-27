@@ -49,8 +49,10 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
   const handleLeadTypeSelect = (leadType: 'residential' | 'commercial') => {
     if (isQuickEstimate) {
       // For quick estimate: hasBattery determines program type
+      // - true  -> Solar + Battery (HRS Program)
+      // - false -> Solar Only (Net Metering)
       if (hasBattery !== null) {
-        const programType = hasBattery ? 'hrs_residential' : 'quick'
+        const programType = hasBattery ? 'hrs_residential' : 'net_metering'
         onSelect(programType, leadType, hasBattery)
       }
     } else {
@@ -140,27 +142,22 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                         </div>
                       </button>
                       
-                      {/* No Battery - Coming Soon */}
+                      {/* No Battery - Net Metering (Solar Only) */}
                       <button
-                        disabled
-                        className="p-6 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 opacity-60 cursor-not-allowed text-left relative"
+                        onClick={() => handleBatterySelect(false)}
+                        className="p-6 rounded-xl border-2 border-gray-300 bg-white hover:border-blue-500 hover:bg-blue-50 transition-all text-left group"
                       >
-                        <div className="absolute top-4 right-4">
-                          <span className="px-3 py-1 bg-gray-200 text-gray-600 text-xs font-bold rounded-full">
-                            COMING SOON
-                          </span>
-                        </div>
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="w-12 h-12 rounded-lg bg-gray-400 flex items-center justify-center">
+                          <div className="w-12 h-12 rounded-lg bg-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform">
                             <Sun className="text-white" size={24} />
                           </div>
-                          <div className="font-semibold text-gray-500 text-lg">No Battery</div>
+                          <div className="font-semibold text-gray-800 text-lg">No Battery (Net Metering)</div>
                         </div>
-                        <div className="text-sm text-gray-500 space-y-2">
+                        <div className="text-sm text-gray-600 space-y-2">
                           <p>Solar-only system</p>
                           <p>• Lower upfront cost</p>
-                          <p>• Simpler installation</p>
-                          <p>• Still eligible for rebates</p>
+                          <p>• Earn credits for excess energy</p>
+                          <p>• Ideal for quick savings estimate</p>
                         </div>
                       </button>
                     </div>

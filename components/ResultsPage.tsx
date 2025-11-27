@@ -33,6 +33,7 @@ import { SavingsTab } from '@/components/estimator/StepReview/tabs/SavingsTab'
 import { EnvironmentalTab } from '@/components/estimator/StepReview/tabs/EnvironmentalTab'
 import { ImageModal } from '@/components/ui/ImageModal'
 import { NetMeteringResults } from '@/components/ResultsPage/sections/NetMeteringResults'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
 interface ResultsPageProps {
   estimate?: {
@@ -196,77 +197,132 @@ export function ResultsPage({
     estimateSystemSizeKw: estimate?.system?.sizeKw
   })
 
-  // Calculate percentage offset (production vs actual usage)
-  // Use actual annual usage from energyUsage data, or calculate from monthly bill if available
-  const actualAnnualUsage = energyUsage?.annualKwh || 
-                           (monthlyBill && typeof monthlyBill === 'number' ? (monthlyBill / 0.134) * 12 : null) || // Estimate from monthly bill (avg $0.134/kWh)
-                           (estimate?.production?.annualKwh ? estimate.production.annualKwh / 0.8 : null) // Fallback: assume 80% offset if no usage data
-  
-  // Determine which rate plan is being used (TOU or ULO) - needed for battery capture
+  // Calculate percentage offset shown in the "Energy Offset" card
+  // For net metering, align this with the net metering energy coverage metric (same as NetMeteringResults).
+  // For non-net-metering programs, keep the original capped offset model based on production vs usage.
+  // Use actual annual usage from energyUsage data, or calculate from monthly bill if available.
+  const actualAnnualUsage =
+    energyUsage?.annualKwh ||
+    (monthlyBill && typeof monthlyBill === 'number' ? (monthlyBill / 0.134) * 12 : null) || // Estimate from monthly bill (avg $0.134/kWh)
+    (estimate?.production?.annualKwh ? estimate.production.annualKwh / 0.8 : null) // Fallback: assume 80% offset if no usage data
+
+  // Determine which rate plan is being used (TOU or ULO) - needed for battery capture (non-net-metering)
   const ratePlanForOffset = displayPlan || peakShaving?.ratePlan || 'tou'
-  
-  // Get total offset percentage from saved data (matches Step 4 display)
-  // This is the capped percentage calculated in Step 4 (e.g., 85.64%)
-  // Check direct tou/ulo props first, then peakShaving structure
+
   let percentageOffset = 0
-  
-  if (ratePlanForOffset === 'ulo') {
-    // Get from ULO plan
-    if (ulo?.totalOffset !== undefined && typeof ulo.totalOffset === 'number') {
-      // totalOffset is already a percentage from Step 4
-      percentageOffset = Math.round(ulo.totalOffset)
-    } else if (peakShaving?.ulo?.result?.offsetPercentages) {
-      // Calculate from offsetPercentages if available
-      const solarDirect = peakShaving.ulo.result.offsetPercentages.solarDirect || 0
-      const solarChargedBattery = peakShaving.ulo.result.offsetPercentages.solarChargedBattery || 0
-      percentageOffset = Math.round(solarDirect + solarChargedBattery)
+
+  if (isNetMetering && netMetering) {
+    // Use the same energy coverage metric as NetMeteringResults: totalSolarProduction / totalLoad
+    const nm: any = netMetering
+    const plans = [
+      { key: 'tou', plan: nm.tou },
+      { key: 'ulo', plan: nm.ulo },
+      { key: 'tiered', plan: nm.tiered },
+    ].filter(p => p.plan && p.plan.annual)
+
+    if (plans.length) {
+      const selectedKey: 'tou' | 'ulo' | 'tiered' | undefined = nm.selectedRatePlan
+      // Prefer selectedRatePlan; otherwise pick plan with highest energy coverage
+      let chosen =
+        (selectedKey && plans.find(p => p.key === selectedKey)) || plans[0]
+
+      if (!selectedKey && plans.length > 1) {
+        chosen = plans.reduce((best, current) => {
+          const bestAnnual = best.plan.annual
+          const currAnnual = current.plan.annual
+          const bestCoverage =
+            bestAnnual && bestAnnual.totalLoad > 0
+              ? (bestAnnual.totalSolarProduction / bestAnnual.totalLoad) * 100
+              : 0
+          const currCoverage =
+            currAnnual && currAnnual.totalLoad > 0
+              ? (currAnnual.totalSolarProduction / currAnnual.totalLoad) * 100
+              : 0
+          return currCoverage > bestCoverage ? current : best
+        }, chosen)
+      }
+
+      const annual = chosen.plan.annual
+      if (annual && annual.totalLoad > 0) {
+        const coverage = (annual.totalSolarProduction / annual.totalLoad) * 100
+        percentageOffset = Math.round(Math.min(100, coverage))
+      }
     }
   } else {
-    // Get from TOU plan
-    if (tou?.totalOffset !== undefined && typeof tou.totalOffset === 'number') {
-      // totalOffset is already a percentage from Step 4
-      percentageOffset = Math.round(tou.totalOffset)
-    } else if (peakShaving?.tou?.result?.offsetPercentages) {
-      // Calculate from offsetPercentages if available
-      const solarDirect = peakShaving.tou.result.offsetPercentages.solarDirect || 0
-      const solarChargedBattery = peakShaving.tou.result.offsetPercentages.solarChargedBattery || 0
-      percentageOffset = Math.round(solarDirect + solarChargedBattery)
+    // Original capped offset model for non-net-metering programs
+    // Get total offset percentage from saved data (matches Step 4 display)
+    // This is the capped percentage calculated in Step 4 (e.g., 85.64%)
+    // Check direct tou/ulo props first, then peakShaving structure
+    if (ratePlanForOffset === 'ulo') {
+      // Get from ULO plan
+      if (ulo?.totalOffset !== undefined && typeof ulo.totalOffset === 'number') {
+        // totalOffset is already a percentage from Step 4
+        percentageOffset = Math.round(ulo.totalOffset)
+      } else if (peakShaving?.ulo?.result?.offsetPercentages) {
+        // Calculate from offsetPercentages if available
+        const solarDirect = peakShaving.ulo.result.offsetPercentages.solarDirect || 0
+        const solarChargedBattery =
+          peakShaving.ulo.result.offsetPercentages.solarChargedBattery || 0
+        percentageOffset = Math.round(solarDirect + solarChargedBattery)
+      }
+    } else {
+      // Get from TOU plan
+      if (tou?.totalOffset !== undefined && typeof tou.totalOffset === 'number') {
+        // totalOffset is already a percentage from Step 4
+        percentageOffset = Math.round(tou.totalOffset)
+      } else if (peakShaving?.tou?.result?.offsetPercentages) {
+        // Calculate from offsetPercentages if available
+        const solarDirect = peakShaving.tou.result.offsetPercentages.solarDirect || 0
+        const solarChargedBattery =
+          peakShaving.tou.result.offsetPercentages.solarChargedBattery || 0
+        percentageOffset = Math.round(solarDirect + solarChargedBattery)
+      }
     }
-  }
-  
-  // Fallback: calculate from solar production and battery capture if percentage not available
-  if (percentageOffset === 0) {
-    const solarProduction = estimate?.production?.annualKwh || 0
-  const batterySolarCapture = ratePlanForOffset === 'ulo' 
-    ? (ulo?.batterySolarCapture ?? peakShaving?.ulo?.batterySolarCapture ?? 0)
-    : (tou?.batterySolarCapture ?? peakShaving?.tou?.batterySolarCapture ?? 0)
-  
-  const totalEnergyOffset = solarProduction + batterySolarCapture
-  
-  // Calculate offset cap to account for winter limits (same as PeakShavingSalesCalculatorFRD)
-  const roofAzimuth = (estimate as any)?.roof?.azimuth ?? 
-                      (roofData as any)?.roofAzimuth ?? 
-                      ((roofData?.roofPolygon?.features?.[0]?.properties as any)?.azimuth) ??
-                      180 // Default to south-facing
-  
-  const offsetCapInfo = computeSolarBatteryOffsetCap({
-    usageKwh: actualAnnualUsage || 0,
-    productionKwh: solarProduction,
-    roofPitch: roofData?.roofPitch,
-    roofAzimuth: roofAzimuth,
-    roofSections: roofData?.roofSections,
-  })
-  
-  // Calculate uncapped percentage
-  const uncappedPercentage = actualAnnualUsage && actualAnnualUsage > 0 && totalEnergyOffset > 0
-    ? (totalEnergyOffset / actualAnnualUsage) * 100
-    : (actualAnnualUsage && actualAnnualUsage > 0 && solarProduction > 0
-      ? (solarProduction / actualAnnualUsage) * 100
-      : 80) // Fallback to 80% if we can't calculate
-  
-  // Apply offset cap (typically 90-93% to reflect winter limits)
-  const cappedPercentage = Math.min(uncappedPercentage, offsetCapInfo.capFraction * 100)
-    percentageOffset = Math.round(cappedPercentage)
+
+    // Fallback: calculate from solar production and battery capture if percentage not available
+    if (percentageOffset === 0) {
+      const solarProduction = estimate?.production?.annualKwh || 0
+      const batterySolarCapture =
+        ratePlanForOffset === 'ulo'
+          ? ulo?.batterySolarCapture ??
+            peakShaving?.ulo?.batterySolarCapture ??
+            0
+          : tou?.batterySolarCapture ??
+            peakShaving?.tou?.batterySolarCapture ??
+            0
+
+      const totalEnergyOffset = solarProduction + batterySolarCapture
+
+      // Calculate offset cap to account for winter limits (same as PeakShavingSalesCalculatorFRD)
+      const roofAzimuth =
+        (estimate as any)?.roof?.azimuth ??
+        (roofData as any)?.roofAzimuth ??
+        ((roofData?.roofPolygon?.features?.[0]?.properties as any)?.azimuth) ??
+        180 // Default to south-facing
+
+      const offsetCapInfo = computeSolarBatteryOffsetCap({
+        usageKwh: actualAnnualUsage || 0,
+        productionKwh: solarProduction,
+        roofPitch: roofData?.roofPitch,
+        roofAzimuth: roofAzimuth,
+        roofSections: roofData?.roofSections,
+      })
+
+      // Calculate uncapped percentage
+      const uncappedPercentage =
+        actualAnnualUsage && actualAnnualUsage > 0 && totalEnergyOffset > 0
+          ? (totalEnergyOffset / actualAnnualUsage) * 100
+          : actualAnnualUsage && actualAnnualUsage > 0 && solarProduction > 0
+          ? (solarProduction / actualAnnualUsage) * 100
+          : 80 // Fallback to 80% if we can't calculate
+
+      // Apply offset cap (typically 90-93% to reflect winter limits)
+      const cappedPercentage = Math.min(
+        uncappedPercentage,
+        offsetCapInfo.capFraction * 100
+      )
+      percentageOffset = Math.round(cappedPercentage)
+    }
   }
   
   // Calculate monthly production average
@@ -1186,6 +1242,14 @@ export function ResultsPage({
                     </div>
                   )}
                 </div>
+
+              {/* Engineering & final design disclaimer */}
+              <div className="mt-6 flex items-start gap-2 text-xs text-gray-700">
+                <InfoTooltip
+                  content="System size, layout, equipment model, and projected output shown by this calculator are preliminary estimates only. Final design, pricing, and performance can only be confirmed after a full site assessment, roof analysis, and engineering review by a qualified installer."
+                />
+                <span>System design and performance are preliminary and must be confirmed by an installer.</span>
+              </div>
               </div>
 
               {/* Monthly Production Chart */}
@@ -1261,6 +1325,14 @@ export function ResultsPage({
                     <span className="font-bold text-gray-900">Your Net Investment</span>
                     <span className="font-bold text-2xl text-forest-600">{formatCurrency(finalNetCost)}</span>
                   </div>
+                </div>
+
+                {/* Pricing, rebates & incentives disclaimer */}
+                <div className="mt-4 flex items-start gap-2 text-xs text-gray-700">
+                  <InfoTooltip
+                    content="Estimated pricing, incentives, and rebates are based on current publicly available program information. Programs may change, close, or require specific eligibility criteria. Final pricing and incentives are confirmed only through a formal proposal from a qualified installer."
+                  />
+                  <span>Pricing and rebates are estimates only – final amounts come from your installer.</span>
                 </div>
               </div>
 
@@ -1565,6 +1637,14 @@ export function ResultsPage({
                     Connect with vetted local installers to get detailed quotes
                   </p>
                 </div>
+
+              {/* Not a contract or quote disclaimer */}
+              <div className="mb-4 flex items-start gap-2 text-xs text-gray-700">
+                <InfoTooltip
+                  content="These results are estimates for educational and informational purposes only. They do not constitute a quote, contract, guarantee of performance, or confirmation of eligibility for any program or incentive. A qualified installer must provide a formal proposal and conduct a site assessment before any system is approved or installed."
+                />
+                <span>Results are informational only – not a formal quote or contract.</span>
+              </div>
 
                   <button
                   disabled

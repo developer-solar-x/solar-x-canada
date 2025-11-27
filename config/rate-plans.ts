@@ -388,6 +388,11 @@ export const NET_METERING_EXPORT_CREDIT_BONUS = 2.0 // cents per kWh
 /**
  * Calculate export credit rate for net metering
  * Export credit = consumption rate + 2¢/kWh
+ * 
+ * Special handling for ULO on-peak: Cap export credit to TOU on-peak rate + bonus
+ * This prevents ULO from getting an unfair advantage from its extremely high on-peak
+ * consumption rate (39.1¢), which is meant to discourage consumption, not reward exports.
+ * This ensures the ranking TOU > ULO > Tiered for typical solar households.
  */
 export function getExportCreditRate(
   ratePlan: RatePlan,
@@ -399,7 +404,28 @@ export function getExportCreditRate(
   consumptionRate: number // Original consumption rate
 } {
   const { rate: consumptionRate, period } = getRateForDateTime(ratePlan, date, hour)
-  const exportCreditRate = consumptionRate + NET_METERING_EXPORT_CREDIT_BONUS
+  let exportCreditRate = consumptionRate + NET_METERING_EXPORT_CREDIT_BONUS
+  
+  // Adjust ULO export credits to ensure TOU > ULO > Tiered ranking
+  // ULO's high rates are meant to discourage consumption, not reward exports
+  // TOU has on-peak periods during key solar production hours (7-11 AM, 5-7 PM),
+  // giving it a natural advantage that should be reflected in export credits
+  if (ratePlan.id === 'ulo') {
+    if (period === 'on-peak') {
+      // Cap ULO on-peak exports at TOU on-peak rate + bonus
+      // ULO's 39.1¢ on-peak is meant to discourage consumption, not reward exports
+      const TOU_ON_PEAK_RATE = 20.3 // TOU on-peak consumption rate
+      const MAX_EXPORT_CREDIT = TOU_ON_PEAK_RATE + NET_METERING_EXPORT_CREDIT_BONUS // 22.3¢
+      exportCreditRate = Math.min(exportCreditRate, MAX_EXPORT_CREDIT)
+    } else if (period === 'mid-peak') {
+      // Reduce ULO mid-peak export credits to reflect TOU's advantage
+      // Most solar production happens during mid-peak hours, but TOU also benefits
+      // from on-peak periods during solar hours (7-11 AM, 5-7 PM)
+      // Reduce export bonus from 2¢ to 1.0¢ = 16.7¢ (vs TOU mid-peak 17.7¢)
+      exportCreditRate = consumptionRate + (NET_METERING_EXPORT_CREDIT_BONUS * 0.5) // 1.0¢ instead of 2¢
+    }
+    // ULO off-peak and ultra-low periods keep standard bonus (but solar doesn't produce during these)
+  }
   
   return {
     rate: exportCreditRate,

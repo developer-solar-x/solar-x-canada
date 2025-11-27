@@ -10,6 +10,7 @@ import { HelpCard } from './components/HelpCard'
 import { UpgradePrompt } from './components/UpgradePrompt'
 import { ROOF_SIZE_PRESETS } from './constants'
 import type { StepRoofSimpleProps } from './types'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
 export function StepRoofSimple({ data, onComplete, onBack, onUpgradeMode }: StepRoofSimpleProps) {
   const [selectedSize, setSelectedSize] = useState<string>(data.roofSizePreset || '')
@@ -83,6 +84,14 @@ export function StepRoofSimple({ data, onComplete, onBack, onUpgradeMode }: Step
 
         {/* Help Card */}
         <HelpCard />
+
+        {/* User data accuracy disclaimer */}
+        <div className="mt-4 flex items-start gap-2 text-xs text-gray-600">
+          <InfoTooltip
+            content="Roof size and layout are estimated values only. Incorrect or approximate measurements—such as roof area, usable sections, or obstructions—will affect system sizing and the accuracy of the estimates."
+          />
+          <span>Approximate roof size and layout will influence system sizing and estimate accuracy.</span>
+        </div>
 
         {/* Upgrade to Detailed */}
         {onUpgradeMode && (

@@ -59,7 +59,7 @@ export function Header() {
     { href: '/for-installers', label: 'For Installers' },
     { href: '/#how-it-works', label: 'How It Works' },
     { href: '/#faq', label: 'FAQ' },
-    { href: '/contact', label: 'Contact' },
+    // { href: '/contact', label: 'Contact' }, // preserved but not currently shown
   ]
 
   return (

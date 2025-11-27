@@ -14,6 +14,7 @@ import { UseLocationButton } from './components/UseLocationButton'
 import { useAddressAutocomplete } from './hooks/useAddressAutocomplete'
 import { usePartialLeadSave } from './hooks/usePartialLeadSave'
 import type { StepLocationProps, LocationData } from './types'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
 export function StepLocation({ data, onComplete }: StepLocationProps) {
   const [address, setAddress] = useState(data.address || '')
@@ -565,6 +566,14 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
               )}
             </button>
           )}
+
+          {/* User data accuracy disclaimer */}
+          <div className="mt-4 flex items-start gap-2 text-xs text-gray-600">
+            <InfoTooltip
+              content="Results rely on the information entered by the user. Incorrect or incomplete details—such as address, email, or service area—will impact the accuracy of the estimates and installer matching."
+            />
+            <span>User-entered address and email affect estimate accuracy and installer matching.</span>
+          </div>
 
           {/* Privacy note */}
           <p className="text-xs text-gray-500 text-center border-t border-gray-200 pt-4 mt-4">
