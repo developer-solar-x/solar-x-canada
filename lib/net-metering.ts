@@ -404,9 +404,9 @@ function calculateMonthlyRollover(
 export function calculateNetMeteringTiered(
   monthlySolarProduction: number[],
   annualUsageKwh: number,
-  tier1Rate: number = 10.3, // cents per kWh (OEB Tier 1)
-  tier2Rate: number = 12.5, // cents per kWh (OEB Tier 2)
-  tier1Threshold: number = 600, // kWh per month (OEB Tier 1 threshold)
+  tier1Rate: number = 12.0, // cents per kWh (OEB Tier 1 - up to 1,000 kWh/month, effective Nov 1, 2025)
+  tier2Rate: number = 14.2, // cents per kWh (OEB Tier 2 - above 1,000 kWh/month, effective Nov 1, 2025)
+  tier1Threshold: number = 1000, // kWh per month (OEB Tier 1 residential threshold)
   year: number = new Date().getFullYear()
 ): NetMeteringResult {
   // Calculate blended annual rate
