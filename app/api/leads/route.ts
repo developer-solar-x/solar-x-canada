@@ -1014,11 +1014,11 @@ export async function GET(request: Request) {
     // If it doesn't exist, we return a clear error instead of probing legacy tables.
     const tableName = 'hrs_residential_leads'
 
-    const { error: checkError } = await supabase
+      const { error: checkError } = await supabase
       .from(tableName)
       .select('id', { head: true, count: 'exact' })
-      .limit(1)
-
+        .limit(1)
+      
     if (checkError) {
       // Check if error message contains HTML (Cloudflare error page)
       const errorMessage = checkError.message || ''
@@ -1042,15 +1042,15 @@ export async function GET(request: Request) {
       }
       
       if (checkError.code === 'PGRST205') {
-        return NextResponse.json(
-          { 
-            error: 'No leads table found', 
+      return NextResponse.json(
+        { 
+          error: 'No leads table found', 
             details: `Table "${tableName}" does not exist in your database.`,
             hint: 'Create the "hrs_residential_leads" table or point the API to your actual leads table.'
-          },
-          { status: 500 }
-        )
-      }
+        },
+        { status: 500 }
+      )
+    }
     }
 
     // Base query against hrs_residential_leads
@@ -1222,7 +1222,7 @@ export async function GET(request: Request) {
     )
     
     if (isCloudflareError) {
-      return NextResponse.json(
+    return NextResponse.json(
         { 
           error: 'Database connection error', 
           details: 'The database server is temporarily unavailable (Cloudflare 521 error).',

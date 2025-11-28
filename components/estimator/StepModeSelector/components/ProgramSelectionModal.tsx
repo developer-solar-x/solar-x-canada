@@ -138,7 +138,6 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                           <p>Solar + battery system</p>
                           <p>• Store energy for peak hours</p>
                           <p>• Reduce electricity costs</p>
-                          <p>• Up to $10,000 CAD rebate</p>
                         </div>
                       </button>
                       
@@ -185,7 +184,6 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                           <p>Solar + battery system</p>
                           <p>• Store energy for peak hours</p>
                           <p>• Reduce electricity costs</p>
-                          <p>• Up to $10,000 CAD rebate</p>
                         </div>
                       </button>
                       
@@ -237,7 +235,6 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                       <p>• Single-family homes</p>
                       <p>• Townhouses</p>
                       <p>• Peak shaving benefits</p>
-                      <p>• Up to $10,000 CAD HRS rebate</p>
                     </div>
                   </button>
                   
@@ -265,7 +262,6 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                       <p>For businesses and commercial properties</p>
                       <p>• Demand charge optimization</p>
                       <p>• Peak shaving benefits</p>
-                      <p>• Program rebate: $860/kW (capped at $860,000)</p>
                     </div>
                   </button>
                 </div>

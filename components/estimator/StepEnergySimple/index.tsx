@@ -119,7 +119,7 @@ export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: St
         console.error('Failed to save Energy Simple progress (partial lead):', error)
       })
     }
-
+    
     onComplete(stepData)
   }
 

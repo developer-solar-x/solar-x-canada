@@ -52,6 +52,16 @@ export function SavingsTab({
 
     const planMetrics = plans.map(plan => {
       const planData = (netMetering as any)[plan.id]
+      if (!planData) {
+        console.warn(`[SavingsTab] Missing plan data for ${plan.id}:`, netMetering)
+        return {
+          id: plan.id,
+          label: plan.label,
+          annualSavings: 0,
+          paybackYears: null,
+          profit25: 0,
+        }
+      }
       const projection = planData?.projection
       const annualSavings =
         projection?.annualSavings ??

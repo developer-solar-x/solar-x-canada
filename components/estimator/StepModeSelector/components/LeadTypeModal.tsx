@@ -43,7 +43,6 @@ export function LeadTypeModal({ isOpen, onClose, onSelect }: LeadTypeModalProps)
               'Single-family homes',
               'Townhouses',
               'Peak shaving benefits',
-              'Up to $10,000 HRS rebate',
             ]}
             buttonText="Select Residential"
             onClick={() => onSelect('residential')}

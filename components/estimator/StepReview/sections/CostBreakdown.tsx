@@ -15,6 +15,7 @@ interface CostBreakdownProps {
   aggregatedBattery?: any
   hasBatteryDetails: boolean
   combinedNetCost: number
+  programType?: string
 }
 
 export function CostBreakdown({
@@ -28,7 +29,9 @@ export function CostBreakdown({
   aggregatedBattery,
   hasBatteryDetails,
   combinedNetCost,
+  programType,
 }: CostBreakdownProps) {
+  const isNetMetering = programType === 'net_metering'
   return (
     <div className="card p-6 bg-blue-50 border-2 border-blue-100 shadow-lg">
       <div className="flex items-center gap-2 mb-4">
@@ -45,23 +48,33 @@ export function CostBreakdown({
             <Sun className="text-blue-500" size={18} />
             <div className="font-bold text-gray-800 text-base">Solar</div>
           </div>
-          <div className="space-y-2.5">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Total (before rebates)</span>
-              <span className="font-bold text-gray-800 text-base">{formatCurrency(solarTotalCost)}</span>
+            <div className="space-y-2.5">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Total (before rebates)</span>
+                <span className="font-bold text-gray-800 text-base">{formatCurrency(solarTotalCost)}</span>
+              </div>
+              {isNetMetering ? (
+                <div className="flex justify-between items-center bg-gray-50 rounded-md px-2 py-1.5">
+                  <span className="text-sm text-gray-500 flex items-center gap-1">
+                    <Minus size={14} className="text-gray-400" />
+                    Solar rebate
+                  </span>
+                  <span className="font-bold text-gray-500 text-base">$0 (no rebates for net metering)</span>
+                </div>
+              ) : (
+                <div className="flex justify-between items-center bg-green-50 rounded-md px-2 py-1.5">
+                  <span className="text-sm text-gray-600 flex items-center gap-1">
+                    <Minus size={14} className="text-green-600" />
+                    Solar rebate
+                  </span>
+                  <span className="font-bold text-green-600 text-base">-{formatCurrency(solarIncentives)}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center border-t-2 border-blue-200 pt-2.5 mt-2.5">
+                <span className="font-semibold text-gray-700">Solar net</span>
+                <span className="font-bold text-navy-600 text-lg">{formatCurrency(solarNetCost)}</span>
+              </div>
             </div>
-            <div className="flex justify-between items-center bg-green-50 rounded-md px-2 py-1.5">
-              <span className="text-sm text-gray-600 flex items-center gap-1">
-                <Minus size={14} className="text-green-600" />
-                Solar rebate
-              </span>
-              <span className="font-bold text-green-600 text-base">-{formatCurrency(solarIncentives)}</span>
-            </div>
-            <div className="flex justify-between items-center border-t-2 border-blue-200 pt-2.5 mt-2.5">
-              <span className="font-semibold text-gray-700">Solar net</span>
-              <span className="font-bold text-navy-600 text-lg">{formatCurrency(solarNetCost)}</span>
-            </div>
-          </div>
         </div>
 
         {/* Battery Card */}
@@ -78,13 +91,23 @@ export function CostBreakdown({
                 <span className="text-sm text-gray-600">Battery price</span>
                 <span className="font-bold text-gray-800 text-base">{formatCurrency(batteryPrice)}</span>
               </div>
-              <div className="flex justify-between items-center bg-green-50 rounded-md px-2 py-1.5">
-                <span className="text-sm text-gray-600 flex items-center gap-1">
-                  <Minus size={14} className="text-green-600" />
-                  Battery rebate
-                </span>
-                <span className="font-bold text-green-600 text-base">-{formatCurrency(batteryProgramRebate)}</span>
-              </div>
+              {isNetMetering ? (
+                <div className="flex justify-between items-center bg-gray-50 rounded-md px-2 py-1.5">
+                  <span className="text-sm text-gray-500 flex items-center gap-1">
+                    <Minus size={14} className="text-gray-400" />
+                    Battery rebate
+                  </span>
+                  <span className="font-bold text-gray-500 text-base">$0 (no rebates for net metering)</span>
+                </div>
+              ) : (
+                <div className="flex justify-between items-center bg-green-50 rounded-md px-2 py-1.5">
+                  <span className="text-sm text-gray-600 flex items-center gap-1">
+                    <Minus size={14} className="text-green-600" />
+                    Battery rebate
+                  </span>
+                  <span className="font-bold text-green-600 text-base">-{formatCurrency(batteryProgramRebate)}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center border-t-2 border-purple-200 pt-2.5 mt-2.5">
                 <span className="font-semibold text-gray-700">Battery net</span>
                 <span className="font-bold text-navy-600 text-lg">{formatCurrency(batteryProgramNet)}</span>

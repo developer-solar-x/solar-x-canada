@@ -6,7 +6,7 @@
 // Right: Results with donut chart
 
 import { useState, useEffect } from 'react'
-import { ArrowLeft, ArrowRight, Loader2, Zap, AlertTriangle, Info, Sun, Moon, BarChart3, DollarSign, TrendingUp, Clock } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Loader2, Zap, AlertTriangle, Info, Sun, Moon, BarChart3, DollarSign, TrendingUp, Clock, Battery, Plus, X, ChevronDown } from 'lucide-react'
 import type { NetMeteringResult } from '@/lib/net-metering'
 import type { EstimatorData } from '@/app/estimator/page'
 import { DEFAULT_TOU_DISTRIBUTION, DEFAULT_ULO_DISTRIBUTION, type UsageDistribution, calculateSimpleMultiYear } from '@/lib/simple-peak-shaving'
@@ -14,6 +14,7 @@ import { BLENDED_RATE } from '../StepEnergySimple/constants'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
 import { Modal } from '@/components/ui/Modal'
 import { formatCurrency, isValidEmail } from '@/lib/utils'
+import { BATTERY_SPECS, type BatterySpec } from '@/config/battery-specs'
 
 interface StepNetMeteringProps {
   data: EstimatorData
@@ -104,6 +105,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   const [openModal, setOpenModal] = useState<'payback' | 'profit' | 'credits' | 'coverage' | 'donut' | null>(null)
   const [showPeriodBreakdown, setShowPeriodBreakdown] = useState(false)
   const [showMonthlyBreakdown, setShowMonthlyBreakdown] = useState(false)
+  const [selectedBatteries, setSelectedBatteries] = useState<string[]>([])
 
   // Get production and usage data - use local estimate if available
   const estimate = localEstimate || data.estimate
@@ -219,10 +221,17 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   }
 
   // Get net cost and escalation rate
-  // For net metering, use ONLY solar costs (no battery) - net metering is solar-only
+  // For net metering, include battery cost but NO rebates (net metering doesn't qualify for rebates)
   const solarSystemCost = estimate?.costs?.systemCost || estimate?.costs?.totalCost || 0
-  const solarRebate = estimate?.costs?.solarRebate || estimate?.costs?.incentives || 0
-  const netCost = solarSystemCost - solarRebate // Solar-only net cost (no battery)
+  const solarRebate = 0 // Net metering doesn't qualify for rebates
+  const batteryCost = selectedBatteries.length > 0
+    ? selectedBatteries
+        .map(id => BATTERY_SPECS.find(b => b.id === id))
+        .filter(Boolean)
+        .reduce((sum, battery) => sum + (battery?.price || 0), 0)
+    : 0
+  const batteryRebate = 0 // No rebates for net metering
+  const netCost = solarSystemCost + batteryCost - solarRebate - batteryRebate // Total system cost (solar + battery, no rebates)
   // annualEscalator is stored as a percentage (e.g. 4.5 for 4.5%), but the payback
   // + multi‑year projection functions expect a decimal (0.045). Normalise here.
   const escalatorPercent = typeof data.annualEscalator === 'number' ? data.annualEscalator : 4.5
@@ -358,11 +367,18 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
       : (touResults.annual.exportCredits > tieredResults.annual.exportCredits ? 'tou' : 'tiered')
 
     // Calculate projections for all plans
-    // For net metering, use ONLY solar costs (no battery) - net metering is solar-only
+    // For net metering, include battery cost but NO rebates
     const currentEstimate = localEstimate || data.estimate
     const currentSolarSystemCost = currentEstimate?.costs?.systemCost || currentEstimate?.costs?.totalCost || 0
-    const currentSolarRebate = currentEstimate?.costs?.solarRebate || currentEstimate?.costs?.incentives || 0
-    const currentNetCost = currentSolarSystemCost - currentSolarRebate // Solar-only net cost (no battery)
+    const currentSolarRebate = 0 // Net metering doesn't qualify for rebates
+    const currentBatteryCost = selectedBatteries.length > 0
+      ? selectedBatteries
+          .map(id => BATTERY_SPECS.find(b => b.id === id))
+          .filter(Boolean)
+          .reduce((sum, battery) => sum + (battery?.price || 0), 0)
+      : 0
+    const currentBatteryRebate = 0 // No rebates for net metering
+    const currentNetCost = currentSolarSystemCost + currentBatteryCost - currentSolarRebate - currentBatteryRebate
     const currentEscalation = escalatorPercent > 1 ? escalatorPercent / 100 : (escalation || 0.03)
     
     const touAnnualSavings = touResults.annual.importCost - touResults.annual.netAnnualBill
@@ -418,9 +434,11 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
       peakShaving: {
         ratePlan: bestPlan,
         annualUsageKwh: annualUsageKwh,
-        selectedBattery: 'none',
+        selectedBattery: selectedBatteries.length > 0 ? selectedBatteries[0] : 'none',
+        selectedBatteries: selectedBatteries,
         comparisons: [],
-      }
+      },
+      selectedBatteries: selectedBatteries
     } as any
 
     // Save partial lead for both detailed and quick/easy net metering residential flows
@@ -440,6 +458,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             ...data,
             ...stepData,
             email,
+            selectedBatteries, // Include battery selection
           },
           currentStep: 4, // Net Metering Savings step (mirrors Battery step index)
         }),
@@ -612,6 +631,92 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                         </button>
                                 </div>
                                 </div>
+
+                    {/* Battery Selection (Optional - No Rebates) */}
+                    <div className="pt-4 border-t border-gray-200">
+                      <h3 className="text-base font-bold text-gray-800 mb-3 flex items-center gap-2">
+                        <Battery className="text-emerald-600" size={18} />
+                        Battery Storage (Optional)
+                      </h3>
+                      <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <Info className="text-amber-600 flex-shrink-0 mt-0.5" size={14} />
+                          <p className="text-xs text-amber-700">
+                            <strong>Note:</strong> Net metering systems do not qualify for rebates. Battery cost will be included in your total investment but will not receive any rebates.
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        {selectedBatteries.map((batteryId, index) => {
+                          const battery = BATTERY_SPECS.find(b => b.id === batteryId)
+                          if (!battery) return null
+                          
+                          return (
+                            <div key={`${batteryId}-${index}`} className="p-3 bg-gray-50 border-2 border-gray-300 rounded-lg">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3 flex-1">
+                                  <Battery className="text-emerald-600" size={20} />
+                                  <div className="flex-1">
+                                    <div className="text-xs text-gray-500 mb-1">Battery {index + 1}</div>
+                                    <select
+                                      value={batteryId}
+                                      onChange={(e) => {
+                                        const newBatteries = [...selectedBatteries]
+                                        newBatteries[index] = e.target.value
+                                        setSelectedBatteries(newBatteries)
+                                      }}
+                                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm font-semibold text-gray-700 bg-white"
+                                    >
+                                      {BATTERY_SPECS.map(b => (
+                                        <option key={b.id} value={b.id}>
+                                          {b.brand} {b.model} - ${b.price.toLocaleString()}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => setSelectedBatteries(selectedBatteries.filter((_, i) => i !== index))}
+                                  className="p-2 hover:bg-red-100 rounded-lg transition-colors flex-shrink-0"
+                                  title="Remove battery"
+                                >
+                                  <X className="text-red-500" size={18} />
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                        
+                        {selectedBatteries.length < 3 && (
+                          <button
+                            onClick={() => setSelectedBatteries([...selectedBatteries, BATTERY_SPECS[0].id])}
+                            className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 transition-all flex items-center justify-center gap-2 text-sm font-semibold"
+                          >
+                            <Plus className="text-emerald-500" size={18} />
+                            Add Battery
+                          </button>
+                        )}
+                        
+                        {selectedBatteries.length > 0 && (
+                          <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-semibold text-gray-700">Total Battery Cost:</span>
+                              <span className="text-lg font-bold text-emerald-700">
+                                ${selectedBatteries
+                                  .map(id => BATTERY_SPECS.find(b => b.id === id))
+                                  .filter(Boolean)
+                                  .reduce((sum, battery) => sum + (battery?.price || 0), 0)
+                                  .toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-600">
+                              No rebates apply to net metering systems
+                            </div>
+                          </div>
+                        )}
+                                </div>
+                                </div>
               </>
             )}
 
@@ -626,6 +731,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                   </div>
                 </div>
 
+                <div className="grid md:grid-cols-2 gap-4">
                   {/* TOU Distribution */}
                     <div className="bg-white rounded-lg border-2 border-gray-300 p-4">
                       <h3 className="font-bold text-blue-600 text-lg mb-3">Time-of-Use (TOU)</h3>
@@ -673,6 +779,23 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                             step="0.1"
                           />
                           <span className="text-sm text-gray-600">%</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="pt-3 border-t border-gray-300 mt-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-gray-700">
+                          Total: {(
+                            touDistribution.offPeakPercent +
+                            touDistribution.midPeakPercent +
+                            touDistribution.onPeakPercent
+                          ).toFixed(1)}%
+                        </span>
+                        {Math.abs(touDistribution.offPeakPercent + touDistribution.midPeakPercent + touDistribution.onPeakPercent - 100) > 0.1 ? (
+                          <span className="text-red-600 text-xs font-semibold">(must = 100%)</span>
+                        ) : (
+                          <span className="text-green-600 text-xs font-semibold">✓ Valid</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -742,6 +865,23 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                         </div>
                         </div>
                       </div>
+                    <div className="pt-3 border-t border-gray-300 mt-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-gray-700">
+                          Total: {(
+                            (uloDistribution.ultraLowPercent || 0) +
+                            uloDistribution.offPeakPercent +
+                            uloDistribution.midPeakPercent +
+                            uloDistribution.onPeakPercent
+                          ).toFixed(1)}%
+                        </span>
+                        {Math.abs((uloDistribution.ultraLowPercent || 0) + uloDistribution.offPeakPercent + uloDistribution.midPeakPercent + uloDistribution.onPeakPercent - 100) > 0.1 ? (
+                          <span className="text-red-600 text-xs font-semibold">(must = 100%)</span>
+                        ) : (
+                          <span className="text-green-600 text-xs font-semibold">✓ Valid</span>
+                        )}
+                      </div>
+                    </div>
                         </div>
                       </div>
                     </div>

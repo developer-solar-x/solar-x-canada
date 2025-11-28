@@ -455,19 +455,28 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
   }))
 
   const solarTotalCost = estimate.costs?.totalCost || 0
-  const solarNetCost = estimate.costs?.netCost || 0
-  const solarIncentives = estimate.costs?.incentives || 0
+  // For net metering, no rebates apply - net cost equals total cost
+  const isNetMetering = data.programType === 'net_metering'
+  const solarNetCost = isNetMetering 
+    ? solarTotalCost // No rebates for net metering
+    : (estimate.costs?.netCost || 0)
+  const solarIncentives = isNetMetering 
+    ? 0 // No rebates for net metering
+    : (estimate.costs?.incentives || 0)
   const solarMonthlySavings = estimate.savings?.monthlySavings || 0
 
   const batteryPrice = hasBatteryDetails ? (data.batteryDetails?.battery?.price || 0) : (aggregatedBattery?.price || 0)
   const batteryNetCost = hasBatteryDetails
     ? (data.batteryDetails?.multiYearProjection?.netCost || 0)
+    : isNetMetering
+    ? batteryPrice // No rebates for net metering
     : Math.max(0, batteryPrice - Math.min((aggregatedBattery?.nominalKwh || 0) * 300, 5000))
   const batteryRebate = batteryPrice > 0 ? Math.max(0, batteryPrice - batteryNetCost) : 0
   const batteryAnnualSavings = planData?.result?.annualSavings || 0
   const batteryMonthlySavings = batteryAnnualSavings > 0 ? Math.round(batteryAnnualSavings / 12) : 0
 
-  const batteryProgramRebate = aggregatedBattery ? Math.min((aggregatedBattery.nominalKwh || 0) * 300, 5000) : 0
+  // For net metering, battery rebate is always $0
+  const batteryProgramRebate = isNetMetering ? 0 : (aggregatedBattery ? Math.min((aggregatedBattery.nominalKwh || 0) * 300, 5000) : 0)
   const batteryProgramNet = includeBattery ? Math.max(0, batteryPrice - batteryProgramRebate) : 0
 
   const combinedTotalCost = solarTotalCost + (includeBattery ? batteryPrice : 0)
@@ -650,12 +659,11 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             </div>
           </div>
 
-          {/* Hide cost breakdown for net metering */}
-          {data.programType !== 'net_metering' && (
+          {/* Cost breakdown - show for all program types, but rebates will be $0 for net metering */}
           <CostBreakdown
             solarTotalCost={solarTotalCost}
-            solarIncentives={solarIncentives}
-            solarNetCost={solarNetCost}
+            solarIncentives={isNetMetering ? 0 : solarIncentives}
+            solarNetCost={isNetMetering ? solarTotalCost : solarNetCost}
             includeBattery={includeBattery}
             batteryPrice={batteryPrice}
             batteryProgramRebate={batteryProgramRebate}
@@ -663,8 +671,8 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             aggregatedBattery={aggregatedBattery}
             hasBatteryDetails={hasBatteryDetails}
             combinedNetCost={combinedNetCost}
+            programType={data.programType}
           />
-          )}
 
           {/* Annual Savings Card - showing ULO and TOU results from Step 4 */}
           {includeBattery && (data.touBeforeAfter || data.uloBeforeAfter) && (
@@ -675,12 +683,60 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             />
           )}
 
-          {data.selectedBattery && data.batteryDetails && (
-            <BatteryDetails
-              batteryDetails={data.batteryDetails}
-              peakShaving={data.peakShaving}
-            />
-          )}
+          {/* Show battery details for HRS (with batteryDetails) or net metering (with selectedBatteries) */}
+          {(data.selectedBattery && data.batteryDetails) || (isNetMetering && includeBattery && aggregatedBattery) ? (
+            data.batteryDetails ? (
+              <BatteryDetails
+                batteryDetails={data.batteryDetails}
+                peakShaving={data.peakShaving}
+              />
+            ) : isNetMetering && aggregatedBattery ? (
+              <div className="card p-6 bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 bg-emerald-500 rounded-lg">
+                      <Battery className="text-white" size={22} />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-navy-500 mb-0.5 flex items-center gap-2">
+                        Battery Energy Storage
+                      </h3>
+                      <p className="text-xs text-gray-600">
+                        {aggregatedBattery.labels?.join(' + ') || 'Selected Battery'} • {aggregatedBattery.nominalKwh?.toFixed(1) || 0} kWh
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="bg-white border border-gray-200 rounded-lg p-3">
+                    <div className="text-xs text-gray-600 mb-1">Battery Cost</div>
+                    <div className="text-lg font-bold text-navy-500">
+                      {formatCurrency(batteryPrice)}
+                    </div>
+                  </div>
+                  <div className="bg-white border border-gray-200 rounded-lg p-3">
+                    <div className="text-xs text-gray-600 mb-1">Rebate</div>
+                    <div className="text-lg font-bold text-gray-500">
+                      $0
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">No rebates for net metering</div>
+                  </div>
+                  <div className="bg-white border border-gray-200 rounded-lg p-3">
+                    <div className="text-xs text-gray-600 mb-1">Net Cost</div>
+                    <div className="text-lg font-bold text-navy-500">
+                      {formatCurrency(batteryPrice)}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <p className="text-sm text-gray-700">
+                    <span className="font-semibold text-navy-500">Note:</span> Net metering systems do not qualify for rebates. 
+                    Battery cost is included in your total investment.
+                  </p>
+                </div>
+              </div>
+            ) : null
+          ) : null}
 
 
 

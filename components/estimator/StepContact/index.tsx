@@ -50,35 +50,35 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
     setSubmitting(true)
 
     try {
-      // Extract simplified data structure including contact form data
-      const dataWithContact = {
-        ...data,
-        ...formData, // Include contact form fields (fullName, phone, etc.)
-      }
+              // Extract simplified data structure including contact form data
+              const dataWithContact = {
+                ...data,
+                ...formData, // Include contact form fields (fullName, phone, etc.)
+              }
+              
+              // Debug: Log what data is available before extraction
+              console.log('🔍 Data available for extraction:', {
+                hasPeakShaving: !!data.peakShaving,
+                hasEstimate: !!data.estimate,
+                hasSolarOverride: !!data.solarOverride,
+                hasSelectedBatteryIds: !!(data as any).selectedBatteryIds,
+                peakShavingKeys: data.peakShaving ? Object.keys(data.peakShaving) : [],
+                estimateKeys: data.estimate ? Object.keys(data.estimate) : [],
+              })
+              
+              const simplifiedData = extractSimplifiedData(dataWithContact)
+              
+              // Debug: Log what was extracted
+              console.log('📦 Extracted simplified data:', {
+                hasTou: !!simplifiedData.tou,
+                hasUlo: !!simplifiedData.ulo,
+                hasProduction: !!simplifiedData.production,
+                hasCosts: !!simplifiedData.costs,
+                systemSizeKw: simplifiedData.systemSizeKw,
+                numPanels: simplifiedData.numPanels,
+                annualUsageKwh: simplifiedData.annualUsageKwh,
+              })
       
-      // Debug: Log what data is available before extraction
-      console.log('🔍 Data available for extraction:', {
-        hasPeakShaving: !!data.peakShaving,
-        hasEstimate: !!data.estimate,
-        hasSolarOverride: !!data.solarOverride,
-        hasSelectedBatteryIds: !!(data as any).selectedBatteryIds,
-        peakShavingKeys: data.peakShaving ? Object.keys(data.peakShaving) : [],
-        estimateKeys: data.estimate ? Object.keys(data.estimate) : [],
-      })
-      
-      const simplifiedData = extractSimplifiedData(dataWithContact)
-      
-      // Debug: Log what was extracted
-      console.log('📦 Extracted simplified data:', {
-        hasTou: !!simplifiedData.tou,
-        hasUlo: !!simplifiedData.ulo,
-        hasProduction: !!simplifiedData.production,
-        hasCosts: !!simplifiedData.costs,
-        systemSizeKw: simplifiedData.systemSizeKw,
-        numPanels: simplifiedData.numPanels,
-        annualUsageKwh: simplifiedData.annualUsageKwh,
-      })
-
       // Save final HRS residential state into partial leads before creating full lead
       const partialLeadEmail = simplifiedData.email || formData.email || data.email
       const isDetailedHrsResidentialPartial =
