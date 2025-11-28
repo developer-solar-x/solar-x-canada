@@ -8,6 +8,7 @@ import { RoofDetailsForm } from './components/RoofDetailsForm'
 import { EnergyUsageVerification } from './components/EnergyUsageVerification'
 import type { StepDetailsProps } from './types'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
+import { isValidEmail } from '@/lib/utils'
 
 export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
   // Program type and lead type are already selected in the initial modal
@@ -26,7 +27,7 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onComplete({
+    const stepData = {
       ...formData,
       programType,
       leadType,
@@ -34,7 +35,34 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
       energyUsage: data.energyUsage,
       annualUsageKwh: data.energyUsage?.annualKwh || data.annualUsageKwh,
       // annualEscalator is already in formData, so it will be included automatically
-    })
+    }
+
+    // Save partial lead for detailed residential flows (both HRS and net metering)
+    const email = data.email
+    if (
+      email &&
+      isValidEmail(email) &&
+      data.estimatorMode === 'detailed' &&
+      leadType === 'residential'
+    ) {
+      void fetch('/api/partial-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          estimatorData: {
+            ...data,
+            ...stepData,
+            email,
+          },
+          currentStep: 3, // Details step
+        }),
+      }).catch((error) => {
+        console.error('Failed to save Details progress (partial lead):', error)
+      })
+    }
+
+    onComplete(stepData)
   }
 
   return (

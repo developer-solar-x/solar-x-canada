@@ -126,7 +126,10 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
   const displayedMonthlyBill = data.monthlyBill && data.monthlyBill > 0
     ? Number(data.monthlyBill)
     : (annualUsageKwh * assumedAverageRate) / 12
-  const [selectedBatteries, setSelectedBatteries] = useState<string[]>([data.selectedBattery || 'renon-16'])
+  // Do not auto-select a battery; only prefill if a specific battery was already chosen
+  const [selectedBatteries, setSelectedBatteries] = useState<string[]>(
+    data.selectedBattery ? [data.selectedBattery] : []
+  )
   const [touDistribution, setTouDistribution] = useState<UsageDistribution>(DEFAULT_TOU_DISTRIBUTION)
   const [uloDistribution, setUloDistribution] = useState<UsageDistribution>(DEFAULT_ULO_DISTRIBUTION)
   // This state holds the TOU simulations including the combo view so values stay in sync across the screen

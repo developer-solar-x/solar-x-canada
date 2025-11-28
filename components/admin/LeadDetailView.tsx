@@ -399,8 +399,10 @@ export function LeadDetailView({ lead, onClose, onStatusChange }: LeadDetailView
     displayMonthlyProduction,
     batteryPrice,
     batteryRebate,
+    selectedBatteries,
+    selectedBatteryFromPeak,
+    netMetering,
   } = leadData
-
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
@@ -505,11 +507,14 @@ export function LeadDetailView({ lead, onClose, onStatusChange }: LeadDetailView
                 combinedNetAfterIncentives={combinedNetAfterIncentives}
                 batteryPrice={batteryPrice}
                 batteryRebate={batteryRebate}
+                selectedBatteries={selectedBatteries}
+                selectedBatteryFromPeak={selectedBatteryFromPeak}
                 peakShaving={peakShaving}
                 touAnnual={touAnnual}
                 uloAnnual={uloAnnual}
                 touPayback={touPayback}
                 uloPayback={uloPayback}
+                  netMetering={netMetering}
                 onImageClick={(image) => {
                   setSelectedImage(image)
                   setImageModalOpen(true)

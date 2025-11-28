@@ -13,6 +13,7 @@ import { BLENDED_RATE } from './constants'
 import { useEnergyCalculation } from './hooks/useEnergyCalculation'
 import type { StepEnergySimpleProps } from './types'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
+import { isValidEmail } from '@/lib/utils'
 
 export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: StepEnergySimpleProps) {
   const [annualUsageInput, setAnnualUsageInput] = useState<string>(
@@ -86,7 +87,35 @@ export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: St
       energyEntryMethod: 'simple',
       ...(finalAnnualEscalator !== undefined && { annualEscalator: finalAnnualEscalator }),
     }
-    
+
+    // Save partial lead for quick/easy Solar + Battery residential (admin quick estimate flow)
+    const email = data.email
+    if (
+      email &&
+      isValidEmail(email) &&
+      data.estimatorMode === 'easy' &&
+      (data.programType === 'hrs_residential' || data.programType === 'quick') &&
+      data.leadType === 'residential' &&
+      hasBattery
+    ) {
+      void fetch('/api/partial-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          estimatorData: {
+            ...data,
+            ...stepData,
+            email,
+          },
+          // Easy mode energy step – same logical position as detailed energy/details
+          currentStep: 3,
+        }),
+      }).catch((error) => {
+        console.error('Failed to save Energy Simple progress (partial lead):', error)
+      })
+    }
+
     onComplete(stepData)
   }
 

@@ -966,30 +966,18 @@ export async function POST(request: Request) {
       }).catch(err => console.error('HubSpot sync queue error:', err))
     }
 
-    // Send estimate email to customer (async, don't wait for response)
-    // Skip email for quick estimates (programType === 'quick' or estimatorMode === 'easy')
-    const isQuickEstimate = body.programType === 'quick' || 
+    // Email sending temporarily disabled:
+    // Previously, we queued an async request to /api/leads/send-email here for non-quick estimates.
+    // This has been intentionally turned off so that submitting the contact form no longer sends any emails.
+    console.log('📧 Email send skipped: outbound estimate emails are currently disabled.', {
+      leadId: lead.id,
+      hasEstimateData: !!estimateData,
+      isQuickEstimate:
+        body.programType === 'quick' ||
                            body.program_type === 'quick' ||
                            body.estimatorMode === 'easy' ||
-                           body.estimator_mode === 'easy'
-    
-    if (email && estimateData && !isQuickEstimate) {
-      fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/leads/send-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName,
-          email,
-          address,
-          estimate: estimateData,
-          peakShaving: body.peakShaving || null,
-          batteryDetails: body.batteryDetails || null,
-          leadId: lead.id,
-        }),
-      }).catch(err => console.error('Email send error:', err))
-    } else if (isQuickEstimate) {
-      console.log('📧 Skipping email send for quick estimate')
-    }
+        body.estimator_mode === 'easy',
+    })
 
     // Return success with lead ID
     return NextResponse.json({
@@ -1022,41 +1010,33 @@ export async function GET(request: Request) {
     // Get Supabase admin client
     const supabase = getSupabaseAdmin()
 
-    // Try different table names in order of likelihood
-    // Based on data structure, hrs_residential_leads is the current table
-    const tableNames = ['hrs_residential_leads', 'leads_v3', 'homeowner_leads', 'leads']
-    let tableName: string | null = null
-    let query: any = null
-    
-    // Find which table exists
-    for (const name of tableNames) {
-      const { error: checkError } = await supabase
-        .from(name)
-        .select('id')
-        .limit(1)
-      
-      if (!checkError || checkError.code !== 'PGRST205') {
-        tableName = name
-      query = supabase
-          .from(name)
-        .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1)
-        break
-      }
-    }
-    
-    // If no table found, return error
-    if (!tableName || !query) {
+    // For this project we only use the HRS residential leads table.
+    // If it doesn't exist, we return a clear error instead of probing legacy tables.
+    const tableName = 'hrs_residential_leads'
+
+    const { error: checkError } = await supabase
+      .from(tableName)
+      .select('id', { head: true, count: 'exact' })
+      .limit(1)
+
+    if (checkError && checkError.code === 'PGRST205') {
       return NextResponse.json(
         { 
           error: 'No leads table found', 
-          details: `Tried tables: ${tableNames.join(', ')}. Please ensure one of these tables exists in your database.`,
-          hint: 'Check your Supabase database schema'
+          details: `Table "${tableName}" does not exist in your database.`,
+          hint: 'Create the "hrs_residential_leads" table or point the API to your actual leads table.'
         },
         { status: 500 }
       )
     }
+
+    // Base query against hrs_residential_leads
+    let query: any = supabase
+      .from(tableName)
+      // Use estimated count to avoid heavy exact counts
+      .select('*', { count: 'estimated' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
 
     // Apply status filter if provided
     if (status && status !== 'all') {
@@ -1064,18 +1044,11 @@ export async function GET(request: Request) {
     }
 
     // Apply search filter if provided (search in name, email, or address)
-    // Handle different table schemas
+    // For this project we only support hrs_residential_leads schema
     if (search) {
-      if (tableName === 'homeowner_leads') {
-        // homeowner_leads uses first_name and last_name
-        query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%,street_address.ilike.%${search}%`)
-      } else if (tableName === 'hrs_residential_leads') {
-        // hrs_residential_leads uses full_name and address
-        query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%,address.ilike.%${search}%`)
-      } else {
-        // leads_v3 uses full_name and address
-      query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%,address.ilike.%${search}%`)
-      }
+      query = query.or(
+        `full_name.ilike.%${search}%,email.ilike.%${search}%,address.ilike.%${search}%`
+      )
     }
 
     // Execute query

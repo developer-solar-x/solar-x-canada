@@ -87,6 +87,7 @@ export default function AdminPage() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [partialLeads, setPartialLeads] = useState<MockPartialLead[]>([])
   const [loading, setLoading] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [partialLeadsLoading, setPartialLeadsLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
@@ -230,6 +231,7 @@ export default function AdminPage() {
         setLeads([])
       } finally {
         setLoading(false)
+        setInitialLoading(false)
       }
     }
     
@@ -327,6 +329,15 @@ export default function AdminPage() {
       fetchFeedbackEntries()
     }
   }, [activeSection, installerStatusFilter, searchTerm, feedbackStatusFilter, feedbackTypeFilter, feedbackProvinceFilter, feedbackDateRangeFilter])
+
+  // Ensure sidebar counters (installers, feedback) are populated on initial load,
+  // not only after visiting their respective sections.
+  useEffect(() => {
+    // Initial prefetch with default filters for sidebar badges
+    fetchInstallerApplications()
+    fetchFeedbackEntries()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Fetch installer applications
   const fetchInstallerApplications = async () => {
@@ -667,6 +678,27 @@ export default function AdminPage() {
     }
   }
 
+
+  if (initialLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-navy-900 via-navy-800 to-red-700 flex items-center justify-center text-white">
+        <div className="flex flex-col items-center gap-6">
+          <div className="relative">
+            <div className="h-16 w-16 rounded-full border-4 border-red-400 border-t-transparent animate-spin" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-xl font-bold">SC</span>
+            </div>
+          </div>
+          <div className="text-center space-y-1">
+            <p className="text-2xl font-semibold tracking-wide">Loading Admin Insights…</p>
+            <p className="text-sm text-red-100">
+              Crunching leads, savings, and solar stats so everything&apos;s ready when you land.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

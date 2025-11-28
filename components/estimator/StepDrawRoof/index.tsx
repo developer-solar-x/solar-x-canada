@@ -12,6 +12,7 @@ import { SectionBreakdown } from './sections/SectionBreakdown'
 import { useRoofAreaCalculation } from './hooks/useRoofAreaCalculation'
 import type { StepDrawRoofProps } from './types'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
+import { isValidEmail } from '@/lib/utils'
 
 const PANEL_AREA_SQFT = 23.9 // TS-BGT54(500)-G11: 1961 x 1134 mm
 
@@ -185,13 +186,47 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
         }
       }
 
-      onComplete({
+      const stepData = {
         roofAreaSqft: roofArea,
         roofPolygon: roofPolygon,
         mapSnapshot: finalSnapshot || mapSnapshot,
         roofAzimuth: selectedAzimuth, // Overall azimuth (for single section or largest section)
         roofSections: roofSections // Include per-section orientation data
-      })
+      }
+
+      // Save partial lead snapshot for detailed residential flows (both HRS and net metering)
+      const email = data.email
+      if (
+        email &&
+        isValidEmail(email) &&
+        data.estimatorMode === 'detailed' &&
+        data.leadType === 'residential'
+      ) {
+        try {
+          const response = await fetch('/api/partial-lead', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email,
+              estimatorData: {
+                ...data,
+                ...stepData,
+                email,
+              },
+              currentStep: 2, // Draw Roof step
+            }),
+          })
+
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({}))
+            console.error('Failed to save partial lead (Draw Roof):', response.status, err)
+          }
+        } catch (error) {
+          console.error('Failed to save Draw Roof progress (partial lead):', error)
+        }
+      }
+
+      onComplete(stepData)
     }
   }
 

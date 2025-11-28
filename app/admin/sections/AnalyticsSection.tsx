@@ -11,11 +11,26 @@ interface Lead {
   status: string
   province?: string
   program_type?: string
+  // Cost fields across schemas
   combined_total_cost?: number
   solar_total_cost?: number
   solar_incentives?: number
   combined_net_cost?: number
   solar_net_cost?: number
+  // HRS / residential specific cost fields
+  system_cost?: number
+  battery_cost?: number
+  total_cost?: number
+  net_cost?: number
+  combined_totals?: {
+    total_cost?: number
+    net_cost?: number
+    annual_savings?: number
+    monthly_savings?: number
+  } | null
+  // TOU / ULO annual savings fields
+  tou_annual_savings?: number
+  ulo_annual_savings?: number
   created_at: string
   [key: string]: any
 }
@@ -37,7 +52,132 @@ interface AnalyticsSectionProps {
   loading?: boolean
 }
 
+// Aggregate a "useful" commercial metric: total net investment across all leads
+// This uses the best-available NET cost from any schema (combined_net_cost, net_cost, etc.)
+function getTotalNetInvestment(leads: Lead[]): number {
+  return leads.reduce((sum, lead) => {
+    // Prefer explicit combined_net_cost if present
+    const fromCombinedNet = lead.combined_net_cost
+    // Fallback to combined_totals JSONB
+    const fromCombinedTotalsJson = lead.combined_totals?.net_cost
+    // Fallbacks for HRS tables that use net_cost / solar_net_cost
+    const fromNet =
+      lead.net_cost ??
+      lead.solar_net_cost
+
+    // Fallback from full_data_json / estimator_data (simplified estimator data)
+    const full: any =
+      (lead as any).full_data_json ||
+      (lead as any).fullDataJson ||
+      (lead as any).estimator_data ||
+      (lead as any).estimatorData ||
+      null
+    const fromFullCosts = full?.costs?.netCost
+
+    const value =
+      fromCombinedNet ??
+      fromCombinedTotalsJson ??
+      fromNet ??
+      fromFullCosts ??
+      0
+
+    return sum + (typeof value === 'number' && !Number.isNaN(value) ? value : 0)
+  }, 0)
+}
+
+function getTouUloAnnualSavings(leads: Lead[]): { touTotal: number; uloTotal: number } {
+  return leads.reduce(
+    (acc, lead) => {
+      const full: any =
+        (lead as any).full_data_json ||
+        (lead as any).fullDataJson ||
+        (lead as any).estimator_data ||
+        (lead as any).estimatorData ||
+        null
+
+      const tou =
+        typeof lead.tou_annual_savings === 'number' && lead.tou_annual_savings > 0
+          ? lead.tou_annual_savings
+          : typeof full?.tou?.annualSavings === 'number'
+          ? full.tou.annualSavings
+          : typeof full?.tou?.annual_savings === 'number'
+          ? full.tou.annual_savings
+          : 0
+
+      const ulo =
+        typeof lead.ulo_annual_savings === 'number' && lead.ulo_annual_savings > 0
+          ? lead.ulo_annual_savings
+          : typeof full?.ulo?.annualSavings === 'number'
+          ? full.ulo.annualSavings
+          : typeof full?.ulo?.annual_savings === 'number'
+          ? full.ulo.annual_savings
+          : 0
+      return {
+        touTotal: acc.touTotal + tou,
+        uloTotal: acc.uloTotal + ulo,
+      }
+    },
+    { touTotal: 0, uloTotal: 0 }
+  )
+}
+
 export function AnalyticsSection({ leads, stats, partialStats, loading = false }: AnalyticsSectionProps) {
+  const totalNetInvestment = getTotalNetInvestment(leads)
+  const { touTotal, uloTotal } = getTouUloAnnualSavings(leads)
+  const hasTouOrUloSavings = touTotal > 0 || uloTotal > 0
+  const leadsWithBattery = leads.filter(
+    (lead) => (lead as any).has_battery || (Array.isArray((lead as any).selected_battery_ids) && (lead as any).selected_battery_ids.length > 0)
+  ).length
+  const solarOnlyLeads = Math.max(0, stats.totalLeads - leadsWithBattery)
+
+  // Helper to get a single lead's net cost after rebates (matches "Net after incentives" in lead modal)
+  const getLeadNetCost = (lead: Lead): number => {
+    const fromCombinedNet = lead.combined_net_cost
+    const fromCombinedTotalsJson = lead.combined_totals?.net_cost
+    const fromNet =
+      lead.net_cost ??
+      lead.solar_net_cost
+
+    const full: any =
+      (lead as any).full_data_json ||
+      (lead as any).fullDataJson ||
+      (lead as any).estimator_data ||
+      (lead as any).estimatorData ||
+      null
+    const fromFullCosts = full?.costs?.netCost
+
+    const value =
+      fromCombinedNet ??
+      fromCombinedTotalsJson ??
+      fromNet ??
+      fromFullCosts ??
+      0
+
+    return typeof value === 'number' && !Number.isNaN(value) ? value : 0
+  }
+
+  const getLeadPaybackYears = (lead: Lead): number => {
+    const combined = (lead as any).combined_payback_years
+    const tou = (lead as any).tou_payback_period
+    const ulo = (lead as any).ulo_payback_period
+
+    const full: any =
+      (lead as any).full_data_json ||
+      (lead as any).fullDataJson ||
+      (lead as any).estimator_data ||
+      (lead as any).estimatorData ||
+      null
+
+    const fromFull =
+      full?.tou?.paybackPeriod ??
+      full?.ulo?.paybackPeriod ??
+      full?.costs?.paybackYears ??
+      null
+
+    const value = combined ?? tou ?? ulo ?? fromFull ?? 0
+    return typeof value === 'number' && value > 0 && !Number.isNaN(value) ? value : 0
+  }
+
   if (loading) {
     return (
       <div>
@@ -73,11 +213,13 @@ export function AnalyticsSection({ leads, stats, partialStats, loading = false }
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-navy-500 mb-2">Analytics Dashboard</h1>
-        <p className="text-gray-600">Comprehensive insights into your solar leads and business metrics</p>
+        <p className="text-gray-600">
+          High-level overview of HRS residential and net metering performance across all leads
+        </p>
       </div>
 
       {/* Key Metrics Overview */}
-      <div className="grid md:grid-cols-4 gap-6 mb-8">
+      <div className="grid gap-6 mb-8 md:grid-cols-2 xl:grid-cols-4">
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
             <Users className="text-blue-500" size={32} />
@@ -89,13 +231,12 @@ export function AnalyticsSection({ leads, stats, partialStats, loading = false }
 
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
-            <DollarSign className="text-green-500" size={32} />
+            <Zap className="text-green-500" size={32} />
             <span className="text-3xl font-bold text-navy-500">
-              {formatCurrency(leads.reduce((sum, l) => sum + (l.combined_total_cost || l.solar_total_cost || 0), 0))}
+              {leadsWithBattery}
             </span>
           </div>
-          <div className="text-sm text-gray-600">Total Pipeline Value</div>
-          <div className="text-xs text-gray-500 mt-1">Estimated project value</div>
+          <div className="text-sm text-gray-600">Battery System Leads</div>
         </div>
 
         <div className="card p-6">
@@ -110,14 +251,16 @@ export function AnalyticsSection({ leads, stats, partialStats, loading = false }
         </div>
 
         <div className="card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <TrendingUp className="text-purple-500" size={32} />
+          <div className="flex items-center justify-between mb-2">
+            <Home className="text-purple-500" size={32} />
             <span className="text-3xl font-bold text-navy-500">
-              {formatCurrency(stats.totalSavings)}
+              {solarOnlyLeads}
             </span>
           </div>
-          <div className="text-sm text-gray-600">Total Annual Savings</div>
-          <div className="text-xs text-gray-500 mt-1">Potential customer savings</div>
+          <div className="text-sm text-gray-600">Solar‑Only / Net Metering Leads</div>
+          <div className="mt-1 text-xs text-gray-500">
+            Leads without a battery system (solar‑only or net metering programs)
+          </div>
         </div>
       </div>
 
@@ -263,18 +406,18 @@ export function AnalyticsSection({ leads, stats, partialStats, loading = false }
 
         <div className="card p-6">
           <h2 className="text-lg font-bold text-navy-500 mb-4 flex items-center gap-2">
-            <Home size={20} />
-            Avg System Cost
+            <Clock size={20} />
+            Avg Payback Period
           </h2>
           <div className="text-3xl font-bold text-navy-500 mb-2">
             {(() => {
-              const costs = leads.map(l => l.combined_total_cost || l.solar_total_cost || 0).filter(c => c > 0)
-              return costs.length > 0 
-                ? formatCurrency(costs.reduce((sum, c) => sum + c, 0) / costs.length)
-                : formatCurrency(0)
+              const paybacks = leads.map(getLeadPaybackYears).filter(v => v > 0)
+              if (paybacks.length === 0) return '—'
+              const avg = paybacks.reduce((sum, v) => sum + v, 0) / paybacks.length
+              return `${avg.toFixed(1)} yrs`
             })()}
           </div>
-          <div className="text-sm text-gray-600">Average project cost</div>
+          <div className="text-sm text-gray-600">Average payback period where payback data is available</div>
         </div>
       </div>
 
@@ -354,45 +497,6 @@ export function AnalyticsSection({ leads, stats, partialStats, loading = false }
                   style={{ width: `${partialStats.avgCompletion}%` }}
                 />
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Financial Breakdown */}
-      <div className="card p-6 mb-8">
-        <h2 className="text-xl font-bold text-navy-500 mb-4 flex items-center gap-2">
-          <DollarSign size={24} />
-          Financial Overview
-        </h2>
-        <div className="grid md:grid-cols-4 gap-6">
-          <div>
-            <div className="text-sm text-gray-600 mb-1">Total Pipeline Value</div>
-            <div className="text-2xl font-bold text-navy-500">
-              {formatCurrency(leads.reduce((sum, l) => sum + (l.combined_total_cost || l.solar_total_cost || 0), 0))}
-            </div>
-          </div>
-          <div>
-            <div className="text-sm text-gray-600 mb-1">Total Incentives</div>
-            <div className="text-2xl font-bold text-green-600">
-              {formatCurrency(leads.reduce((sum, l) => sum + (l.solar_incentives || 0), 0))}
-            </div>
-          </div>
-          <div>
-            <div className="text-sm text-gray-600 mb-1">Avg Net Cost</div>
-            <div className="text-2xl font-bold text-navy-500">
-              {(() => {
-                const netCosts = leads.map(l => l.combined_net_cost || l.solar_net_cost || 0).filter(c => c > 0)
-                return netCosts.length > 0 
-                  ? formatCurrency(netCosts.reduce((sum, c) => sum + c, 0) / netCosts.length)
-                  : formatCurrency(0)
-              })()}
-            </div>
-          </div>
-          <div>
-            <div className="text-sm text-gray-600 mb-1">Total Annual Savings</div>
-            <div className="text-2xl font-bold text-green-600">
-              {formatCurrency(stats.totalSavings)}
             </div>
           </div>
         </div>

@@ -8,10 +8,49 @@ import { ADD_ONS } from './constants'
 import { AddOnCard } from './components/AddOnCard'
 import { SelectedSummary } from './components/SelectedSummary'
 import type { StepAddOnsProps } from './types'
+import { isValidEmail } from '@/lib/utils'
 
 export function StepAddOns({ data, onComplete, onBack }: StepAddOnsProps) {
   // Add-ons only
   const [selectedAddOns, setSelectedAddOns] = useState<string[]>(data.selectedAddOns || [])
+
+  const saveProgressToPartialLead = async (nextSelectedAddOns: string[]) => {
+    const email = data.email
+
+    // Save partial leads for HRS residential residential leads in both detailed and quick/easy flows
+    if (
+      !email ||
+      !isValidEmail(email) ||
+      data.programType !== 'hrs_residential' ||
+      data.leadType !== 'residential'
+    ) {
+      return
+    }
+
+    try {
+      const response = await fetch('/api/partial-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          estimatorData: {
+            ...data,
+            selectedAddOns: nextSelectedAddOns,
+            email,
+          },
+          // Logical step index for Add-ons in both easy and detailed flows
+          currentStep: 5,
+        }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        console.error('Failed to save partial lead (Add-ons):', response.status, err)
+      }
+    } catch (error) {
+      console.error('Failed to save Add-ons progress (partial lead):', error)
+    }
+  }
 
   // Toggle add-on selection
   const toggleAddOn = (addOnId: string) => {
@@ -26,11 +65,13 @@ export function StepAddOns({ data, onComplete, onBack }: StepAddOnsProps) {
 
   // Handle continue
   const handleContinue = () => {
+    void saveProgressToPartialLead(selectedAddOns)
     onComplete({ selectedAddOns })
   }
 
   // Handle skip (no add-ons selected but system type is required)
   const handleSkip = () => {
+    void saveProgressToPartialLead([])
     onComplete({ selectedAddOns: [] })
   }
 

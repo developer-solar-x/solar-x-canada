@@ -1,8 +1,10 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { Clock, AlertCircle, TrendingUp, Zap, Search, Mail } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
 import type { MockPartialLead } from '@/lib/mock-partial-leads'
+import { getPartialLeadTotalSteps } from '../partial-lead-steps'
 import { SkeletonStatsGrid, SkeletonTableRow } from '@/components/admin/SkeletonLoader'
 
 interface PartialLeadsSectionProps {
@@ -27,6 +29,18 @@ export function PartialLeadsSection({
   onSearchTermChange,
   onPartialLeadClick,
 }: PartialLeadsSectionProps) {
+  const ITEMS_PER_PAGE = 10
+  const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm])
+
+  const totalPartialLeads = partialLeads.length
+  const totalPages = Math.max(1, Math.ceil(totalPartialLeads / ITEMS_PER_PAGE))
+  const startIndex = (page - 1) * ITEMS_PER_PAGE
+  const currentPartialLeads = partialLeads.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+
   return (
     <>
       {/* Partial Leads Section */}
@@ -118,7 +132,7 @@ export function PartialLeadsSection({
               </table>
             </div>
           </>
-        ) : partialLeads.length === 0 ? (
+        ) : totalPartialLeads === 0 ? (
           <div className="p-8 text-center text-gray-500">No partial leads found</div>
         ) : (
           <>
@@ -142,10 +156,14 @@ export function PartialLeadsSection({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {partialLeads.map((partialLead) => {
-                    // If current_step is 8, totalSteps must be at least 8
-                    const totalSteps = partialLead.current_step >= 8 ? 8 : (partialLead.estimator_data?.estimatorMode === 'easy' ? 8 : 7)
-                    const completion = Math.round((partialLead.current_step / totalSteps) * 100)
+                  {currentPartialLeads.map((partialLead) => {
+                    const totalSteps = getPartialLeadTotalSteps({
+                      estimatorMode: partialLead.estimator_data?.estimatorMode,
+                      programType: (partialLead as any).program_type ?? (partialLead as any).estimator_data?.programType ?? null,
+                      systemType: (partialLead as any).estimator_data?.systemType,
+                    })
+                    const clampedIndex = Math.max(0, Math.min(partialLead.current_step, totalSteps - 1))
+                    const completion = Math.round(((clampedIndex + 1) / totalSteps) * 100)
                     const isRecent = (Date.now() - new Date(partialLead.created_at).getTime()) / (1000 * 60 * 60) <= 24
                     const isHot = completion >= 70
                     
@@ -188,7 +206,7 @@ export function PartialLeadsSection({
                             <span className="text-xs font-semibold text-gray-600">{completion}%</span>
                           </div>
                           <div className="text-xs text-gray-500 mt-1">
-                            Step {partialLead.current_step} of {totalSteps}
+                            Step {clampedIndex + 1} of {totalSteps}
                           </div>
                         </td>
                         <td className="px-4 py-3">
@@ -241,30 +259,37 @@ export function PartialLeadsSection({
           </>
         )}
       </div>
-
-      {/* Info Box */}
-      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h3 className="font-bold text-navy-500 mb-3">What are Partial Leads?</h3>
-        <div className="text-sm text-gray-700 space-y-2">
-          <p>
-            <strong>Partial leads are users who started the solar estimator but didn't complete the submission.</strong> 
-            They saved their progress by entering their email during the estimate process.
+      {/* Pagination */}
+      {totalPartialLeads > 0 && (
+        <div className="mt-6 flex items-center justify-between bg-white border-2 border-gray-100 rounded-xl p-4 shadow-sm">
+          <p className="text-sm font-medium text-gray-700">
+            Showing{' '}
+            <span className="font-bold text-navy-600">
+              {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, totalPartialLeads)}
+            </span>{' '}
+            of <span className="font-bold text-navy-600">{totalPartialLeads}</span> partial leads
           </p>
-          <p className="mt-3">
-            <strong>How to identify them:</strong>
-          </p>
-          <ul className="list-disc list-inside space-y-1 ml-2">
-            <li><strong className="text-red-600">HOT leads:</strong> Recent (last 24h) + High completion (70%+) - Highest conversion potential</li>
-            <li><strong className="text-green-600">High Priority:</strong> 70%+ complete - Very close to finishing</li>
-            <li><strong className="text-yellow-600">Recent:</strong> Last 24 hours - Good engagement timing</li>
-            <li><strong className="text-gray-600">Cold:</strong> Older leads with lower completion</li>
-          </ul>
-          <p className="mt-3">
-            <strong>Follow-up strategy:</strong> Focus on HOT and High Priority leads first. 
-            They have invested significant time and are most likely to convert with a gentle nudge.
-          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-4 py-2 border-2 border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <span className="px-4 py-2 text-sm font-semibold text-navy-600">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="px-4 py-2 border-2 border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </>
   )
 }

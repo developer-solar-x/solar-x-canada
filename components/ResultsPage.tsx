@@ -209,6 +209,21 @@ export function ResultsPage({
   // Determine which rate plan is being used (TOU or ULO) - needed for battery capture (non-net-metering)
   const ratePlanForOffset = displayPlan || peakShaving?.ratePlan || 'tou'
 
+  // Get programType from props or data spread (net metering doesn't have rebates)
+  // programType may be in the props or in the data spread
+  const currentProgramType = (programType || (data as any)?.programType) as
+    | 'quick'
+    | 'hrs_residential'
+    | 'net_metering'
+    | undefined
+
+  // Get rebate amounts (use provided values or calculate from estimate)
+  // Net metering systems do NOT qualify for rebates
+  const isNetMetering = currentProgramType === 'net_metering'
+  const solarRebateAmount = isNetMetering ? 0 : (solarRebate ?? estimate?.costs?.incentives ?? 0)
+  const batteryRebateAmount = isNetMetering ? 0 : (batteryRebate ?? 0)
+  const totalRebates = solarRebateAmount + batteryRebateAmount
+
   let percentageOffset = 0
 
   if (isNetMetering && netMetering) {
@@ -333,21 +348,6 @@ export function ResultsPage({
   // For easy mode, tou/ulo props have the data directly; for detailed mode, it's in peakShaving
   const touData = tou || peakShaving?.tou
   const uloData = ulo || peakShaving?.ulo
-  
-  // Get programType from props or data spread (net metering doesn't have rebates)
-  // programType may be in the props or in the data spread
-  const currentProgramType = (programType || (data as any)?.programType) as
-    | 'quick'
-    | 'hrs_residential'
-    | 'net_metering'
-    | undefined
-  
-  // Get rebate amounts (use provided values or calculate from estimate)
-  // Net metering systems do NOT qualify for rebates
-  const isNetMetering = currentProgramType === 'net_metering'
-  const solarRebateAmount = isNetMetering ? 0 : (solarRebate ?? estimate?.costs?.incentives ?? 0)
-  const batteryRebateAmount = isNetMetering ? 0 : (batteryRebate ?? 0)
-  const totalRebates = solarRebateAmount + batteryRebateAmount
   
   // Get combined costs (if battery is included)
   const finalTotalCost = combinedTotalCost ?? estimate?.costs?.totalCost ?? 0
@@ -551,32 +551,9 @@ export function ResultsPage({
     touProfit25Year: tou?.profit25Year,
     uloProfit25Year: ulo?.profit25Year,
   })
-  
-  // Calculate lifetime savings (25 years) - use best plan or fallback
-  const lifetimeSavings = tou25YearSavings !== null && ulo25YearSavings !== null
-    ? Math.max(tou25YearSavings, ulo25YearSavings)
-    : (tou25YearSavings ?? ulo25YearSavings ?? (estimate?.savings?.lifetimeSavings || (estimate?.savings?.annualSavings ? estimate.savings.annualSavings * 25 : 0)))
-  
-  // Use combined savings if available, otherwise fall back to estimate savings
-  const finalAnnualSavings =
-    ratePlan === 'ulo' && uloCombinedAnnual
-      ? uloCombinedAnnual
-      : ratePlan === 'tou' && touCombinedAnnual
-      ? touCombinedAnnual
-      : batteryImpact?.annualSavings && estimate?.savings?.annualSavings
-      ? estimate.savings.annualSavings + batteryImpact.annualSavings
-      : estimate?.savings?.annualSavings ?? 0
-
-  const finalMonthlySavings =
-    ratePlan === 'ulo' && uloCombinedMonthly
-      ? uloCombinedMonthly
-      : ratePlan === 'tou' && touCombinedMonthly
-      ? touCombinedMonthly
-      : batteryImpact?.monthlySavings && estimate?.savings?.monthlySavings
-      ? estimate.savings.monthlySavings + batteryImpact.monthlySavings
-      : estimate?.savings?.monthlySavings ?? 0
 
   // Net metering narrative metrics for "What These Results Mean"
+  // Calculate this BEFORE using it in finalAnnualSavings/finalPaybackYears/lifetimeSavings
   let netMeteringNarrative:
     | {
         planLabel: string
@@ -652,6 +629,36 @@ export function ResultsPage({
     }
   }
   
+  // Calculate lifetime savings (25 years) - use best plan or fallback
+  // For net metering, prioritize net metering narrative data
+  const lifetimeSavings = isNetMetering && netMeteringNarrative?.profit25
+    ? netMeteringNarrative.profit25
+    : tou25YearSavings !== null && ulo25YearSavings !== null
+    ? Math.max(tou25YearSavings, ulo25YearSavings)
+    : (tou25YearSavings ?? ulo25YearSavings ?? (estimate?.savings?.lifetimeSavings || (estimate?.savings?.annualSavings ? estimate.savings.annualSavings * 25 : 0)))
+  
+  // Use combined savings if available, otherwise fall back to estimate savings
+  // For net metering, prioritize net metering narrative data
+  const finalAnnualSavings = isNetMetering && netMeteringNarrative?.annualSavings
+    ? netMeteringNarrative.annualSavings
+    : ratePlan === 'ulo' && uloCombinedAnnual
+      ? uloCombinedAnnual
+      : ratePlan === 'tou' && touCombinedAnnual
+      ? touCombinedAnnual
+      : batteryImpact?.annualSavings && estimate?.savings?.annualSavings
+      ? estimate.savings.annualSavings + batteryImpact.annualSavings
+      : estimate?.savings?.annualSavings ?? 0
+
+  const finalMonthlySavings = isNetMetering && netMeteringNarrative?.annualSavings
+    ? netMeteringNarrative.annualSavings / 12
+    : ratePlan === 'ulo' && uloCombinedMonthly
+      ? uloCombinedMonthly
+      : ratePlan === 'tou' && touCombinedMonthly
+      ? touCombinedMonthly
+      : batteryImpact?.monthlySavings && estimate?.savings?.monthlySavings
+      ? estimate.savings.monthlySavings + batteryImpact.monthlySavings
+      : estimate?.savings?.monthlySavings ?? 0
+  
   // Calculate payback period using same logic as StepReview
   // StepReview uses calculatePayback which accumulates savings year by year with escalation
   
@@ -696,7 +703,10 @@ export function ResultsPage({
       })()
   
   // Use the selected plan's payback, or fallback to estimate
-  const finalPaybackYears = ratePlan === 'ulo' && uloPaybackYears !== null
+  // For net metering, prioritize net metering narrative data
+  const finalPaybackYears = isNetMetering && netMeteringNarrative?.paybackYears
+    ? netMeteringNarrative.paybackYears
+    : ratePlan === 'ulo' && uloPaybackYears !== null
     ? uloPaybackYears
     : ratePlan === 'tou' && touPaybackYears !== null
     ? touPaybackYears
@@ -792,7 +802,7 @@ export function ResultsPage({
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-6">
             {/* System Size */}
-            <div className="bg-gradient-to-br from-forest-50 to-forest-100 rounded-2xl p-6 text-center border-2 border-forest-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <div className="bg-gradient-to-br from-forest-50 to-forest-100 rounded-2xl p-6 text-center border-2 border-forest-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col items-center justify-center h-full">
               <div className="w-14 h-14 bg-gradient-to-br from-forest-500 to-forest-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <Zap className="text-white" size={26} />
               </div>
@@ -808,7 +818,7 @@ export function ResultsPage({
             </div>
 
             {/* Percentage Offset */}
-            <div className="bg-gradient-to-br from-sky-50 to-sky-100 rounded-2xl p-6 text-center border-2 border-sky-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <div className="bg-gradient-to-br from-sky-50 to-sky-100 rounded-2xl p-6 text-center border-2 border-sky-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col items-center justify-center h-full">
               <div className="w-14 h-14 bg-gradient-to-br from-sky-500 to-sky-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <TrendingUp className="text-white" size={26} />
               </div>
@@ -824,7 +834,7 @@ export function ResultsPage({
             </div>
 
             {/* Total Bill Savings - Show both plans if available */}
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-6 text-center border-2 border-purple-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-6 text-center border-2 border-purple-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col items-center justify-center h-full">
               <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <DollarSign className="text-white" size={26} />
               </div>
@@ -922,7 +932,7 @@ export function ResultsPage({
             </div>
 
             {/* Payback Period - Show both plans if available (or all 3 net metering plans) */}
-            <div className="bg-gradient-to-br from-maple-50 to-maple-100 rounded-2xl p-6 text-center border-2 border-maple-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <div className="bg-gradient-to-br from-maple-50 to-maple-100 rounded-2xl p-6 text-center border-2 border-maple-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col items-center justify-center h-full">
               <div className="w-14 h-14 bg-gradient-to-br from-maple-500 to-maple-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <Clock className="text-white" size={26} />
               </div>
@@ -1577,12 +1587,15 @@ export function ResultsPage({
                 {activeSummaryTab === 'savings' && (
                   <SavingsTab
                     estimate={estimate}
+                    programType={currentProgramType}
+                    netMetering={netMetering as any}
                     includeBattery={!!batteryDetails}
                     tou={tou}
                     ulo={ulo}
                     peakShaving={peakShaving}
                     combinedNetCost={combinedNetCost || estimate?.costs?.netCost || 0}
                     isMobile={isMobile}
+                    annualEscalator={annualEscalator}
                     touBeforeAfter={(() => {
                       const touCombined = tou?.allResults?.combined?.combined || 
                                         tou?.combined?.combined ||
@@ -1699,14 +1712,15 @@ export function ResultsPage({
                   </button>
                   {leadData?.email && (
                     <button
-                      onClick={() => {
-                        // In real implementation, this would email the PDF
-                        alert('PDF will be emailed to ' + leadData.email)
-                      }}
-                      className="w-full btn-outline border-sky-500 text-sky-500 hover:bg-sky-50 inline-flex items-center justify-center"
+                      type="button"
+                      disabled
+                      className="w-full h-11 text-sm inline-flex items-center justify-center bg-gray-100 text-gray-400 cursor-not-allowed rounded-lg font-semibold relative"
                     >
-                      <Mail className="mr-2" size={18} />
-                      Email PDF to Me
+                      <Mail className="mr-2" size={16} />
+                      <span>Email PDF to Me</span>
+                      <span className="ml-2 px-2 py-0.5 bg-gray-200 text-gray-500 text-[10px] font-bold rounded-full uppercase tracking-wide">
+                        Coming Soon
+                      </span>
                     </button>
                   )}
                 </div>

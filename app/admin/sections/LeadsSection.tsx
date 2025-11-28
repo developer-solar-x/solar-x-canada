@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { Users, DollarSign, Zap, TrendingUp, Search, Download, Mail, MapPin, Battery, Calendar, CheckCircle, Eye } from 'lucide-react'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils'
 import { getStatusColor, getProgramBadgeColor, formatProgramType } from '../utils'
@@ -52,6 +53,19 @@ export function LeadsSection({
   onSearchTermChange,
   onLeadClick,
 }: LeadsSectionProps) {
+  const ITEMS_PER_PAGE = 10
+  const [page, setPage] = useState(1)
+
+  // Reset to first page when filters/search change
+  useEffect(() => {
+    setPage(1)
+  }, [statusFilter, searchTerm])
+
+  const totalLeads = leads.length
+  const totalPages = Math.max(1, Math.ceil(totalLeads / ITEMS_PER_PAGE))
+  const startIndex = (page - 1) * ITEMS_PER_PAGE
+  const currentLeads = leads.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+
   return (
     <>
       {/* Header */}
@@ -165,7 +179,6 @@ export function LeadsSection({
                   <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Program</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Location</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">System</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Bill Savings %</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Created</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">HubSpot</th>
                   </tr>
@@ -177,7 +190,7 @@ export function LeadsSection({
                 </tbody>
               </table>
             </div>
-        ) : leads.length === 0 ? (
+        ) : totalLeads === 0 ? (
           <div className="p-16 text-center">
             <div className="inline-flex items-center justify-center w-20 h-20 bg-gray-100 rounded-full mb-4">
               <Users className="text-gray-400" size={40} />
@@ -202,13 +215,12 @@ export function LeadsSection({
                     <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Program</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Location</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">System</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Bill Savings %</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Created</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">HubSpot</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
-                  {leads.map((lead) => (
+                  {currentLeads.map((lead) => (
                     <tr 
                       key={lead.id} 
                       onClick={() => onLeadClick(lead)}
@@ -267,24 +279,6 @@ export function LeadsSection({
                         </div>
                       </td>
                       <td className="px-6 py-5">
-                        {lead.tou_total_bill_savings_percent != null ? (
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                              <span className="text-sm font-bold text-blue-600">TOU: {lead.tou_total_bill_savings_percent.toFixed(1)}%</span>
-                            </div>
-                            {lead.ulo_total_bill_savings_percent != null && (
-                              <div className="flex items-center gap-1.5">
-                                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                                <span className="text-sm font-bold text-purple-600">ULO: {lead.ulo_total_bill_savings_percent.toFixed(1)}%</span>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-400">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-5">
                         <div className="flex items-center gap-2">
                           <Calendar size={14} className="text-gray-400" />
                           <span className="text-sm text-gray-600 font-medium">{formatRelativeTime(new Date(lead.created_at))}</span>
@@ -309,20 +303,32 @@ export function LeadsSection({
         )}
       </div>
 
-      {/* Pagination placeholder */}
-      {leads.length > 0 && (
+      {/* Pagination */}
+      {totalLeads > 0 && (
         <div className="mt-6 flex items-center justify-between bg-white border-2 border-gray-100 rounded-xl p-4 shadow-sm">
           <p className="text-sm font-medium text-gray-700">
-            Showing <span className="font-bold text-navy-600">{leads.length}</span> of <span className="font-bold text-navy-600">{leads.length}</span> leads
+            Showing{' '}
+            <span className="font-bold text-navy-600">
+              {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, totalLeads)}
+            </span>{' '}
+            of <span className="font-bold text-navy-600">{totalLeads}</span> leads
           </p>
           <div className="flex gap-2">
-            <button className="px-4 py-2 border-2 border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 text-sm font-medium transition-all">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-4 py-2 border-2 border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
               Previous
             </button>
-            <button className="px-4 py-2 bg-navy-600 text-white rounded-lg hover:bg-navy-700 text-sm font-semibold shadow-sm hover:shadow-md transition-all">
-              1
-            </button>
-            <button className="px-4 py-2 border-2 border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 text-sm font-medium transition-all">
+            <span className="px-4 py-2 text-sm font-semibold text-navy-600">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="px-4 py-2 border-2 border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
               Next
             </button>
           </div>

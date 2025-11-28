@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { MessageSquare, Package, Lightbulb, Bug, Search, Calendar, CheckCircle, Clock, AlertCircle, XCircle, Mail, MapPin, Eye, X } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
 import { SkeletonStatsGrid, SkeletonFeedbackTableRow } from '@/components/admin/SkeletonLoader'
@@ -121,6 +122,18 @@ export function FeedbackSection({
   })
 
   const provinces = ['ON', 'AB', 'BC', 'MB', 'NB', 'NL', 'NS', 'NT', 'NU', 'PE', 'QC', 'SK', 'YT']
+
+  const ITEMS_PER_PAGE = 10
+  const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    setPage(1)
+  }, [typeFilter, statusFilter, provinceFilter, dateRangeFilter, searchTerm])
+
+  const totalFiltered = filteredFeedback.length
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / ITEMS_PER_PAGE))
+  const startIndex = (page - 1) * ITEMS_PER_PAGE
+  const currentFeedback = filteredFeedback.slice(startIndex, startIndex + ITEMS_PER_PAGE)
 
   return (
     <>
@@ -280,7 +293,11 @@ export function FeedbackSection({
         <div className="mt-4 pt-4 border-t border-gray-200">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-700">
-              Showing <span className="font-bold text-navy-600">{filteredFeedback.length}</span> of <span className="font-bold text-navy-600">{feedback.length}</span> feedback entries
+              Showing{' '}
+              <span className="font-bold text-navy-600">
+                {totalFiltered === 0 ? 0 : startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, totalFiltered)}
+              </span>{' '}
+              of <span className="font-bold text-navy-600">{feedback.length}</span> feedback entries
             </p>
           </div>
         </div>
@@ -309,7 +326,7 @@ export function FeedbackSection({
               </tbody>
             </table>
           </div>
-        ) : filteredFeedback.length === 0 ? (
+        ) : totalFiltered === 0 ? (
           <div className="p-16 text-center">
             <div className="inline-flex items-center justify-center w-20 h-20 bg-gray-100 rounded-full mb-4">
               <MessageSquare className="text-gray-400" size={40} />
@@ -332,7 +349,7 @@ export function FeedbackSection({
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
-                {filteredFeedback.map((entry) => {
+                {currentFeedback.map((entry) => {
                   const typeConfig = getTypeConfig(entry.type)
                   const statusConfig = getStatusConfig(entry.status)
                   const TypeIcon = typeConfig.icon
@@ -418,6 +435,38 @@ export function FeedbackSection({
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalFiltered > 0 && (
+        <div className="mt-6 flex items-center justify-between bg-white border-2 border-gray-100 rounded-xl p-4 shadow-sm">
+          <p className="text-sm font-medium text-gray-700">
+            Showing{' '}
+            <span className="font-bold text-navy-600">
+              {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, totalFiltered)}
+            </span>{' '}
+            of <span className="font-bold text-navy-600">{totalFiltered}</span> feedback entries
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-4 py-2 border-2 border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <span className="px-4 py-2 text-sm font-semibold text-navy-600">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="px-4 py-2 border-2 border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </>
   )
 }

@@ -50,40 +50,78 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
     setSubmitting(true)
 
     try {
-              // Extract simplified data structure including contact form data
-              const dataWithContact = {
-                ...data,
-                ...formData, // Include contact form fields (fullName, phone, etc.)
-              }
-              
-              // Debug: Log what data is available before extraction
-              console.log('🔍 Data available for extraction:', {
-                hasPeakShaving: !!data.peakShaving,
-                hasEstimate: !!data.estimate,
-                hasSolarOverride: !!data.solarOverride,
-                hasSelectedBatteryIds: !!(data as any).selectedBatteryIds,
-                peakShavingKeys: data.peakShaving ? Object.keys(data.peakShaving) : [],
-                estimateKeys: data.estimate ? Object.keys(data.estimate) : [],
-              })
-              
-              const simplifiedData = extractSimplifiedData(dataWithContact)
-              
-              // Debug: Log what was extracted
-              console.log('📦 Extracted simplified data:', {
-                hasTou: !!simplifiedData.tou,
-                hasUlo: !!simplifiedData.ulo,
-                hasProduction: !!simplifiedData.production,
-                hasCosts: !!simplifiedData.costs,
-                systemSizeKw: simplifiedData.systemSizeKw,
-                numPanels: simplifiedData.numPanels,
-                annualUsageKwh: simplifiedData.annualUsageKwh,
-              })
+      // Extract simplified data structure including contact form data
+      const dataWithContact = {
+        ...data,
+        ...formData, // Include contact form fields (fullName, phone, etc.)
+      }
       
-      // Determine which API endpoint to use
-      const isDetailedHrsResidential = 
+      // Debug: Log what data is available before extraction
+      console.log('🔍 Data available for extraction:', {
+        hasPeakShaving: !!data.peakShaving,
+        hasEstimate: !!data.estimate,
+        hasSolarOverride: !!data.solarOverride,
+        hasSelectedBatteryIds: !!(data as any).selectedBatteryIds,
+        peakShavingKeys: data.peakShaving ? Object.keys(data.peakShaving) : [],
+        estimateKeys: data.estimate ? Object.keys(data.estimate) : [],
+      })
+      
+      const simplifiedData = extractSimplifiedData(dataWithContact)
+      
+      // Debug: Log what was extracted
+      console.log('📦 Extracted simplified data:', {
+        hasTou: !!simplifiedData.tou,
+        hasUlo: !!simplifiedData.ulo,
+        hasProduction: !!simplifiedData.production,
+        hasCosts: !!simplifiedData.costs,
+        systemSizeKw: simplifiedData.systemSizeKw,
+        numPanels: simplifiedData.numPanels,
+        annualUsageKwh: simplifiedData.annualUsageKwh,
+      })
+
+      // Save final HRS residential state into partial leads before creating full lead
+      const partialLeadEmail = simplifiedData.email || formData.email || data.email
+      const isDetailedHrsResidentialPartial =
         simplifiedData.estimatorMode === 'detailed' &&
         simplifiedData.programType === 'hrs_residential' &&
         simplifiedData.leadType === 'residential'
+      const isQuickBatteryResidentialPartial =
+        simplifiedData.estimatorMode === 'easy' &&
+        simplifiedData.programType === 'hrs_residential' &&
+        simplifiedData.leadType === 'residential' &&
+        simplifiedData.hasBattery !== false
+
+      const shouldSavePartialLead =
+        partialLeadEmail &&
+        isValidEmail(partialLeadEmail) &&
+        (isDetailedHrsResidentialPartial || isQuickBatteryResidentialPartial)
+
+      if (shouldSavePartialLead) {
+        try {
+          const response = await fetch('/api/partial-lead', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: partialLeadEmail,
+              estimatorData: {
+                ...dataWithContact,
+                email: partialLeadEmail,
+              },
+              currentStep: 8, // Contact / Submit step
+            }),
+          })
+
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({}))
+            console.error('Failed to save partial lead (Contact):', response.status, err)
+          }
+        } catch (error) {
+          console.error('Failed to save Contact progress (partial lead):', error)
+        }
+      }
+
+      // Determine which API endpoint to use
+      const isDetailedHrsResidential = isDetailedHrsResidentialPartial
       
       const apiEndpoint = isDetailedHrsResidential ? '/api/leads/hrs-residential' : '/api/leads'
       

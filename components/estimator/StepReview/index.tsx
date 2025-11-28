@@ -21,6 +21,7 @@ import { ProductionTab } from './tabs/ProductionTab'
 import { EnvironmentalTab } from './tabs/EnvironmentalTab'
 import { calculateCombinedMultiYear } from '@/lib/simple-peak-shaving'
 import { calculateSystemCost } from '@/config/pricing'
+import { isValidEmail } from '@/lib/utils'
 
 interface StepReviewProps {
   data: any
@@ -473,6 +474,48 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
   const combinedNetCost = solarNetCost + (includeBattery ? batteryProgramNet : 0)
   const combinedMonthlySavings = solarMonthlySavings + (includeBattery ? batteryMonthlySavings : 0)
 
+  const handleContinue = async () => {
+    const email = data.email
+
+    const isHrsResidential =
+      data.programType === 'hrs_residential' &&
+      data.leadType === 'residential' &&
+      (data.estimatorMode === 'detailed' || data.estimatorMode === 'easy')
+
+    // Save partial leads for both detailed and quick/easy HRS residential flows
+    if (email && isValidEmail(email) && isHrsResidential) {
+      try {
+        const response = await fetch('/api/partial-lead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            estimatorData: {
+              ...data,
+              estimate,
+              financingOption: selectedFinancing,
+              email,
+            },
+            // Logical step index for Review in both easy and detailed flows
+            currentStep: 7,
+          }),
+        })
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}))
+          console.error('Failed to save partial lead (Review):', response.status, err)
+        }
+      } catch (error) {
+        console.error('Failed to save Review progress (partial lead):', error)
+      }
+    }
+
+    onComplete({
+      estimate,
+      financingOption: selectedFinancing,
+    })
+  }
+
   return (
     <div className="max-w-full overflow-x-hidden">
       <div className="grid lg:grid-cols-[400px_1fr] gap-6">
@@ -723,10 +766,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
               </button>
             )}
             <button
-              onClick={() => onComplete({
-                estimate,
-                financingOption: selectedFinancing
-              })}
+              onClick={handleContinue}
               className="btn-primary flex-1"
             >
               Continue to Contact Form

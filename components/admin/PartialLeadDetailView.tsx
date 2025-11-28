@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
 import type { MockPartialLead } from '@/lib/mock-partial-leads'
+import { getPartialLeadDisplaySteps, getPartialLeadTotalSteps } from '@/app/admin/partial-lead-steps'
 
 interface PartialLeadDetailViewProps {
   partialLead: MockPartialLead
@@ -24,41 +25,25 @@ export function PartialLeadDetailView({
   onDelete,
   onSendReminder 
 }: PartialLeadDetailViewProps) {
-  // Calculate progress metrics
-  const totalSteps = partialLead.estimator_data.estimatorMode === 'easy' ? 8 : 7
-  const completion = Math.round((partialLead.current_step / totalSteps) * 100)
+  // Calculate progress metrics using the same logic as the estimator flows
+  const totalSteps = getPartialLeadTotalSteps({
+    estimatorMode: partialLead.estimator_data.estimatorMode,
+    programType: (partialLead as any).program_type ?? (partialLead as any).estimator_data?.programType ?? null,
+    systemType: (partialLead as any).estimator_data?.systemType,
+  })
+  const clampedStepIndex = Math.max(0, Math.min(partialLead.current_step, totalSteps - 1))
+  const completion = Math.round(((clampedStepIndex + 1) / totalSteps) * 100)
   const isRecent = (Date.now() - new Date(partialLead.created_at).getTime()) / (1000 * 60 * 60) <= 24
   const isHot = completion >= 70 && isRecent
   const isHighPriority = completion >= 70
   
-  // Get step names for easy and detailed modes
-  const easyStepNames = [
-    'Program Selection',
-    'Location',
-    'Roof Size',
-    'Energy Usage',
-    'Battery Savings',
-    'Add-ons',
-    'Photos',
-    'Details',
-    'Review',
-    'Contact Form'
-  ]
-  
-  const detailedStepNames = [
-    'Program Selection',
-    'Location',
-    'Draw Roof',
-    'Property Details',
-    'Battery Savings',
-    'Add-ons',
-    'Photos',
-    'Review',
-    'Contact Form'
-  ]
-  
-  const stepNames = partialLead.estimator_data.estimatorMode === 'easy' ? easyStepNames : detailedStepNames
-  const currentStepName = stepNames[partialLead.current_step] || 'Unknown'
+  // Build dynamic step names that match the new quick estimate / solar + battery / net metering flows
+  const stepNames = getPartialLeadDisplaySteps({
+    estimatorMode: partialLead.estimator_data.estimatorMode,
+    programType: (partialLead as any).program_type ?? (partialLead as any).estimator_data?.programType ?? null,
+    systemType: (partialLead as any).estimator_data?.systemType,
+  })
+  const currentStepName = stepNames[clampedStepIndex] || 'Unknown'
   
   // Get add-on display names
   const getAddOnName = (addOnId: string) => {
@@ -176,14 +161,14 @@ export function PartialLeadDetailView({
                       </div>
                     </div>
                     <div className="mt-4 text-center">
-                      <div className="text-sm font-semibold text-gray-700">Step {partialLead.current_step} of {totalSteps}</div>
+                      <div className="text-sm font-semibold text-gray-700">Step {clampedStepIndex + 1} of {totalSteps}</div>
                       <div className="text-xs text-gray-500 mt-1">{currentStepName}</div>
                     </div>
                   </div>
 
                   {/* Step checklist */}
                   <div className="space-y-2">
-                    {stepNames.slice(0, totalSteps).map((stepName, index) => (
+                  {stepNames.map((stepName, index) => (
                       <div 
                         key={index}
                         className={`flex items-center gap-3 p-2 rounded-lg ${

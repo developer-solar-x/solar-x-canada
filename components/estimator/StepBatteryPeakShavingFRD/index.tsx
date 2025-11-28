@@ -1,40 +1,67 @@
 'use client'
 
-// Step Component Wrapper for PeakShavingSalesCalculatorFRD
-// This adds navigation buttons (Back/Continue) and system size customization
-// The FRD calculator remains standalone and manages its own state
-
-import { useState, useEffect } from 'react'
-import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
 import { PeakShavingSalesCalculatorFRD } from '../PeakShavingSalesCalculatorFRD'
 import type { StepBatteryPeakShavingSimpleProps } from '../StepBatteryPeakShavingSimple/types'
+import { isValidEmail } from '@/lib/utils'
 
 export function StepBatteryPeakShavingFRD({ data, onComplete, onBack, manualMode = false }: StepBatteryPeakShavingSimpleProps) {
-  // System size customization state
+  // System size customization state (mirrors simple battery step)
   const panelWattage = data.estimate?.system?.panelWattage || 500
   const initialPanels = data.solarOverride?.numPanels ?? data.estimate?.system?.numPanels ?? 0
   const [solarPanels, setSolarPanels] = useState<number>(initialPanels)
   const [overrideEstimate, setOverrideEstimate] = useState<any>(null)
   const [overrideEstimateLoading, setOverrideEstimateLoading] = useState(false)
   const [initialEstimate, setInitialEstimate] = useState<any>(data.estimate)
-  
-  // Round to nearest 0.5 (divisible by 0.5) to match StepReview display
-  // e.g., 7.2 -> 7.0, 7.3 -> 7.5, 7.7 -> 7.5, 7.8 -> 8.0
-  const systemSizeKwOverride = solarPanels > 0 ? Math.round(((solarPanels * panelWattage) / 1000) * 2) / 2 : 0
+
+  // Round to nearest 0.5 kW to match StepReview display
+  const systemSizeKwOverride = solarPanels > 0
+    ? Math.round(((solarPanels * panelWattage) / 1000) * 2) / 2
+    : 0
   const effectiveSystemSizeKw = systemSizeKwOverride || initialEstimate?.system?.sizeKw || 0
 
-  // Generate initial estimate if missing or when monthlyBill/usage changes from Step 3
-  useEffect(() => {
-    if (!data?.coordinates) {
-      return
+  // Save progress to partial leads when the user continues
+  const saveProgressToPartialLead = useCallback(async (stepData: any) => {
+    const email = data.email
+    if (!email || !isValidEmail(email)) return
+
+    try {
+      const response = await fetch('/api/partial-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          estimatorData: {
+            ...data,
+            ...stepData,
+            email,
+          },
+          currentStep: 4, // Battery Savings (FRD) step
+        }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        console.error('Failed to save partial lead (FRD step 4):', response.status, err)
+        return
+      }
+
+      const result = await response.json().catch(() => null)
+      console.log('Partial lead saved/updated from FRD step 4:', result?.id || '(no id returned)')
+    } catch (error) {
+      console.error('Failed to save progress (FRD step 4):', error)
     }
-    
-    // Don't generate if we're missing critical data
+  }, [data])
+
+  // Generate initial estimate if missing or when bill/usage changes from Step 3
+  useEffect(() => {
+    if (!data?.coordinates) return
+
     if (!data.roofAreaSqft && !data.monthlyBill && !data.energyUsage?.annualKwh) {
       return
     }
-    
+
     const generateInitialEstimate = async () => {
       try {
         setOverrideEstimateLoading(true)
@@ -59,49 +86,46 @@ export function StepBatteryPeakShavingFRD({ data, onComplete, onBack, manualMode
         if (resp.ok) {
           const json = await resp.json()
           setInitialEstimate(json.data)
-          // If no panel override, also update solar panels to match estimate
           if (!solarPanels || solarPanels === 0) {
             setSolarPanels(json.data?.system?.numPanels || 0)
           }
         }
       } catch (e) {
-        console.warn('Initial estimate generation failed', e)
+        console.warn('Initial estimate generation failed (FRD)', e)
       } finally {
         setOverrideEstimateLoading(false)
       }
     }
-    
-    // Debounce to avoid too many API calls
+
     const timeoutId = setTimeout(generateInitialEstimate, 500)
     return () => clearTimeout(timeoutId)
   }, [
-    data.coordinates, 
-    data.roofPolygon, 
-    data.roofType, 
-    data.roofAge, 
-    data.roofPitch, 
-    data.shadingLevel, 
-    data.monthlyBill, 
-    data.energyUsage?.annualKwh, 
-    data.annualUsageKwh, 
-    data.roofAzimuth, 
-    data.roofAreaSqft
+    data.coordinates,
+    data.roofPolygon,
+    data.roofType,
+    data.roofAge,
+    data.roofPitch,
+    data.shadingLevel,
+    data.monthlyBill,
+    data.energyUsage?.annualKwh,
+    data.annualUsageKwh,
+    data.roofAzimuth,
+    data.roofAreaSqft,
+    solarPanels,
   ])
 
   // When panel count changes, re-run estimate with override size to refresh annual kWh
   useEffect(() => {
-    // Only run if we have coordinates and panels are set
     if (!data?.coordinates) {
       setOverrideEstimate(null)
       return
     }
-    
-    // If panels are 0 or not set, use original estimate
+
     if (!solarPanels || solarPanels <= 0) {
       setOverrideEstimate(null)
       return
     }
-    
+
     const run = async () => {
       try {
         setOverrideEstimateLoading(true)
@@ -129,16 +153,29 @@ export function StepBatteryPeakShavingFRD({ data, onComplete, onBack, manualMode
           setOverrideEstimate(json.data)
         }
       } catch (e) {
-        console.warn('Override estimate failed', e)
+        console.warn('Override estimate failed (FRD)', e)
       } finally {
         setOverrideEstimateLoading(false)
       }
     }
-    
-    // Debounce the API call slightly to avoid too many requests
+
     const timeoutId = setTimeout(run, 500)
     return () => clearTimeout(timeoutId)
-  }, [solarPanels, systemSizeKwOverride, data.coordinates, data.roofPolygon, data.roofType, data.roofAge, data.roofPitch, data.shadingLevel, data.monthlyBill, data.energyUsage, data.annualUsageKwh, data.roofAzimuth, data.roofAreaSqft])
+  }, [
+    solarPanels,
+    systemSizeKwOverride,
+    data.coordinates,
+    data.roofPolygon,
+    data.roofType,
+    data.roofAge,
+    data.roofPitch,
+    data.shadingLevel,
+    data.monthlyBill,
+    data.energyUsage,
+    data.annualUsageKwh,
+    data.roofAzimuth,
+    data.roofAreaSqft,
+  ])
 
   // Merge override estimate with data for FRD calculator
   const enhancedData = {
@@ -147,27 +184,47 @@ export function StepBatteryPeakShavingFRD({ data, onComplete, onBack, manualMode
     solarOverride: { numPanels: solarPanels, sizeKw: systemSizeKwOverride },
   }
 
-  const handleContinue = () => {
-    // Extract data from localStorage (where FRD calculator stores its state)
-    // or use props data as fallback
-    const annualUsageKwh = data.peakShaving?.annualUsageKwh || 
-                           data.energyUsage?.annualKwh || 
-                           data.annualUsageKwh || 
-                           14000
-    
-    const selectedBattery = data.selectedBattery || 'renon-16'
-    
-    // Pass through the data including solar override
-    onComplete({
-      ...data,
+  /**
+   * Handle completion from the FRD calculator UI.
+   * The calculator already prepares a rich `peakShaving` payload (including TOU/ULO).
+   * Here we:
+   * - ensure annualUsageKwh and selectedBattery are set
+   * - persist to partial leads (step 4)
+   * - bubble the merged data up to the main estimator flow
+   */
+  const handleCalculatorComplete = (calculatorData: any) => {
+    const annualUsageKwh =
+      calculatorData?.peakShaving?.annualUsageKwh ||
+      data.peakShaving?.annualUsageKwh ||
+      data.energyUsage?.annualKwh ||
+      data.annualUsageKwh ||
+      14000
+
+    const selectedBattery =
+      calculatorData?.peakShaving?.selectedBattery ||
+      calculatorData?.selectedBattery ||
+      data.selectedBattery ||
+      undefined
+
+    const stepData = {
+      // Preserve everything coming from the calculator (peakShaving, selectedBatteryIds, TOU/ULO, etc.)
+      ...calculatorData,
+      // Keep solar override in sync with current panel slider
       solarOverride: { numPanels: solarPanels, sizeKw: systemSizeKwOverride },
       peakShaving: {
+        ...(calculatorData?.peakShaving || {}),
         annualUsageKwh,
         selectedBattery,
-        ratePlan: 'ULO', // Default
-        comparisons: [],
       },
       selectedBattery,
+    }
+
+    // Save partial lead for step 4 (Battery Savings)
+    void saveProgressToPartialLead(stepData)
+
+    onComplete({
+      ...data,
+      ...stepData,
     })
   }
 
@@ -175,17 +232,17 @@ export function StepBatteryPeakShavingFRD({ data, onComplete, onBack, manualMode
     <div className="w-full min-h-screen">
       {/* FRD Calculator - Standalone */}
       <div className="pt-2">
-      <PeakShavingSalesCalculatorFRD 
-        data={enhancedData} 
-        onComplete={onComplete} 
-        onBack={onBack} 
-        manualMode={manualMode}
-        solarPanels={solarPanels}
-        onSolarPanelsChange={setSolarPanels}
-        overrideEstimateLoading={overrideEstimateLoading}
-        effectiveSystemSizeKw={effectiveSystemSizeKw}
-        panelWattage={panelWattage}
-      />
+        <PeakShavingSalesCalculatorFRD
+          data={enhancedData}
+          onComplete={handleCalculatorComplete}
+          onBack={onBack}
+          manualMode={manualMode}
+          solarPanels={solarPanels}
+          onSolarPanelsChange={setSolarPanels}
+          overrideEstimateLoading={overrideEstimateLoading}
+          effectiveSystemSizeKw={effectiveSystemSizeKw}
+          panelWattage={panelWattage}
+        />
       </div>
 
       {/* Battery performance & optimization disclaimer */}
@@ -194,10 +251,11 @@ export function StepBatteryPeakShavingFRD({ data, onComplete, onBack, manualMode
           <InfoTooltip
             content="Battery performance, backup duration, and savings vary based on selected loads, weather conditions, solar production, consumption patterns, and equipment model. Optimization algorithms or AI-based controls may improve performance but cannot be guaranteed."
           />
-          <span>Battery backup time and savings depend on your usage, weather, and chosen equipment.</span>
+          <span>
+            Battery backup time and savings depend on your usage, weather, and chosen equipment.
+          </span>
         </div>
       </div>
     </div>
   )
 }
-

@@ -13,7 +13,7 @@ import { DEFAULT_TOU_DISTRIBUTION, DEFAULT_ULO_DISTRIBUTION, type UsageDistribut
 import { BLENDED_RATE } from '../StepEnergySimple/constants'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
 import { Modal } from '@/components/ui/Modal'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, isValidEmail } from '@/lib/utils'
 
 interface StepNetMeteringProps {
   data: EstimatorData
@@ -374,7 +374,9 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
       ? calculateSimpleMultiYear({ annualSavings: tieredAnnualSavings } as any, currentNetCost, currentEscalation, 25).netProfit25Year
       : 0
 
-    onComplete({
+    const email = data.email
+
+    const stepData = {
       ...(localEstimate && !data.estimate ? { estimate: localEstimate } : {}),
       solarOverride: { numPanels: solarPanels, sizeKw: systemSizeKwOverride },
       netMetering: {
@@ -410,7 +412,34 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
         selectedBattery: 'none',
         comparisons: [],
       }
-    } as any)
+    } as any
+
+    // Save partial lead for detailed net-metering residential flow
+    if (
+      email &&
+      isValidEmail(email) &&
+      data.estimatorMode === 'detailed' &&
+      data.programType === 'net_metering' &&
+      data.leadType === 'residential'
+    ) {
+      void fetch('/api/partial-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          estimatorData: {
+            ...data,
+            ...stepData,
+            email,
+          },
+          currentStep: 4, // Net Metering Savings step (mirrors Battery step index)
+        }),
+      }).catch((error) => {
+        console.error('Failed to save Net Metering progress (partial lead):', error)
+      })
+    }
+
+    onComplete(stepData)
   }
 
   const hasErrors = annualUsageKwh <= 0

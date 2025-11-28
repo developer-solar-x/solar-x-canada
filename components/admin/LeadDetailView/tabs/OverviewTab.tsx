@@ -2,10 +2,11 @@
 
 import { 
   User, Mail, Phone, MessageSquare, Clock, CreditCard, Zap, Tag,
-  MapPin, Calendar, Home, Image as ImageIcon, ExternalLink, Check
+  MapPin, Calendar, Home, Image as ImageIcon, ExternalLink, Check, TrendingUp
 } from 'lucide-react'
 import { formatRelativeTime, formatCurrency } from '@/lib/utils'
 import { asNumber, getAddOnName, getCombinedBlock } from '../utils'
+import { getBatteryById } from '@/config/battery-specs'
 
 interface OverviewTabProps {
   lead: any
@@ -24,11 +25,14 @@ interface OverviewTabProps {
   combinedNetAfterIncentives: number
   batteryPrice: number | null
   batteryRebate: number | null
+  selectedBatteries: string[]
+  selectedBatteryFromPeak: string | null
   peakShaving: any
   touAnnual: number | null
   uloAnnual: number | null
   touPayback: number | null
   uloPayback: number | null
+  netMetering?: any | null
   onImageClick: (image: { src: string; alt: string; title: string }) => void
 }
 
@@ -49,13 +53,18 @@ export function OverviewTab({
   combinedNetAfterIncentives,
   batteryPrice,
   batteryRebate,
+  selectedBatteries,
+  selectedBatteryFromPeak,
   peakShaving,
   touAnnual,
   uloAnnual,
   touPayback,
   uloPayback,
+  netMetering,
   onImageClick,
 }: OverviewTabProps) {
+  const netMeteringData = lead.program_type === 'net_metering' ? netMetering : null
+
   return (
     <div className="grid lg:grid-cols-3 gap-6">
       {/* Left Column - Contact & Property Info */}
@@ -189,7 +198,8 @@ export function OverviewTab({
         </div>
 
         {/* Timeline */}
-        <div className="card p-6">
+        <div className="card p-6 space-y-4">
+          <div>
           <h3 className="text-lg font-bold text-navy-500 mb-4 flex items-center gap-2">
             <Calendar size={20} />
             Timeline
@@ -207,6 +217,76 @@ export function OverviewTab({
               </div>
             )}
           </div>
+          </div>
+
+          {/* Net Metering Offset Summary (when applicable) */}
+          {netMeteringData && (netMeteringData.tou || netMeteringData.ulo || netMeteringData.tiered) && (
+            <div className="mt-4 bg-gradient-to-br from-emerald-50 via-green-50 to-emerald-100 rounded-lg p-4 border border-emerald-200">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-2 bg-emerald-500 rounded-md">
+                  <TrendingUp className="text-white" size={18} />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-emerald-800 uppercase tracking-wide">
+                    Net Metering Offset
+                  </div>
+                  <div className="text-[11px] text-emerald-700">
+                    Bill reduction with solar credits (selected plan)
+                  </div>
+                </div>
+              </div>
+              {(() => {
+                const nm: any = netMeteringData
+                const plans = [
+                  { key: 'tou', label: 'TOU', plan: nm.tou },
+                  { key: 'ulo', label: 'ULO', plan: nm.ulo },
+                  { key: 'tiered', label: 'Tiered', plan: nm.tiered },
+                ].filter(p => p.plan && p.plan.annual)
+
+                if (!plans.length) return null
+                
+                return (
+                  <div className="space-y-3">
+                    {plans.map((p) => {
+                      const annual = p.plan.annual
+                      const importCost = annual?.importCost || 0
+                      const exportCredits = annual?.exportCredits || 0
+                      const netBill = annual?.netAnnualBill || 0
+                      const billOffset =
+                        annual?.billOffsetPercent ??
+                        (importCost > 0 ? Math.min(100, (exportCredits / importCost) * 100) : 100)
+
+                      return (
+                        <div key={p.key} className="space-y-1">
+                          <div className="flex items-baseline justify-between">
+                            <div className="text-xs font-semibold text-emerald-800">
+                              {p.label} Plan Offset
+                            </div>
+                            <div className="text-2xl font-bold text-emerald-700">
+                              {billOffset.toFixed(1)}%
+                            </div>
+                          </div>
+                          <div className="text-[11px] text-gray-600">
+                            {formatCurrency(importCost)} →{' '}
+                            <span className={netBill < 0 ? 'text-green-700 font-semibold' : ''}>
+                              {formatCurrency(Math.abs(netBill))}
+                              {netBill < 0 && ' (credit balance)'}
+                            </span>
+                          </div>
+                          <div className="mt-2 w-full bg-emerald-100 rounded-full h-1.5">
+                            <div
+                              className="h-1.5 rounded-full bg-emerald-500 transition-all"
+                              style={{ width: `${Math.min(100, billOffset)}%` }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+          )}
         </div>
       </div>
 
@@ -444,6 +524,30 @@ export function OverviewTab({
                 </span>
               </div>
               <div>
+                <span className="text-gray-600">Selected Battery:</span>
+                <span className="ml-2 font-semibold text-navy-500">
+                  {(() => {
+                    // Try to get battery name from peakShaving first
+                    if (selectedBatteryFromPeak) {
+                      const battery = getBatteryById(selectedBatteryFromPeak)
+                      if (battery) {
+                        return `${battery.brand} ${battery.model}`
+                      }
+                      return selectedBatteryFromPeak
+                    }
+                    // Otherwise, try to get from selectedBatteries array
+                    if (selectedBatteries && selectedBatteries.length > 0) {
+                      const batteryNames = selectedBatteries.map(id => {
+                        const battery = getBatteryById(id)
+                        return battery ? `${battery.brand} ${battery.model}` : id
+                      })
+                      return batteryNames.join(', ')
+                    }
+                    return 'N/A'
+                  })()}
+                </span>
+              </div>
+              <div>
                 <span className="text-gray-600">Total System Cost:</span>
                 <span className="ml-2 font-semibold text-navy-700">{formatCurrency(combinedTotalSystemCost)}</span>
               </div>
@@ -492,6 +596,33 @@ export function OverviewTab({
                 <span className="font-semibold">Home Size:</span> {lead.home_size} sq ft
               </div>
             )}
+          </div>
+
+          {/* Program Snapshot */}
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <h4 className="text-sm font-bold text-navy-500 mb-3">Program Snapshot</h4>
+            <div className="flex flex-wrap gap-2 text-xs">
+              {lead.program_type && (
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-navy-50 text-navy-700 font-semibold">
+                  Program:&nbsp;{lead.program_type.replace(/_/g, ' ')}
+                </span>
+              )}
+              {lead.rate_plan && (
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-700 font-semibold">
+                  Rate Plan:&nbsp;{lead.rate_plan.toUpperCase()}
+                </span>
+              )}
+              {lead.lead_type && (
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold">
+                  Lead Type:&nbsp;{lead.lead_type.charAt(0).toUpperCase() + lead.lead_type.slice(1)}
+                </span>
+              )}
+              {lead.estimator_mode && (
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-50 text-gray-700 font-semibold">
+                  Mode:&nbsp;{lead.estimator_mode}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

@@ -12,6 +12,7 @@ import { usePhotoStorage } from './hooks/usePhotoStorage'
 import { usePhotoUpload } from './hooks/usePhotoUpload'
 import { PHOTO_CATEGORIES } from './constants'
 import type { StepPhotosProps, UploadedPhoto } from './types'
+import { isValidEmail } from '@/lib/utils'
 
 export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
   const [activeCategory, setActiveCategory] = useState<string>('roof')
@@ -76,6 +77,45 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
     setImageModalOpen(true)
   }
 
+  const saveProgressToPartialLead = async (stepData: { photos: any[]; photoSummary: any }) => {
+    const email = data.email
+
+    // Only save partial leads for detailed HRS residential residential leads
+    if (
+      !email ||
+      !isValidEmail(email) ||
+      data.estimatorMode !== 'detailed' ||
+      data.programType !== 'hrs_residential' ||
+      data.leadType !== 'residential'
+    ) {
+      return
+    }
+
+    try {
+      const response = await fetch('/api/partial-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          estimatorData: {
+            ...data,
+            ...stepData,
+            email,
+          },
+          // Logical step index for Photos in detailed flow
+          currentStep: 6,
+        }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        console.error('Failed to save partial lead (Photos):', response.status, err)
+      }
+    } catch (error) {
+      console.error('Failed to save Photos progress (partial lead):', error)
+    }
+  }
+
   // Handle continue
   const handleContinue = () => {
     // Filter photos that have been successfully uploaded
@@ -87,7 +127,7 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
       console.warn(`${failedPhotos.length} photo(s) failed to upload, but continuing anyway`)
     }
     
-    onComplete({
+    const stepData = {
       photos: photos.map(p => ({
         id: p.id,
         category: p.category,
@@ -101,8 +141,12 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
           category: cat.id,
           count: getPhotosForCategory(cat.id).length,
         })),
-      }
-    })
+      },
+    }
+
+    void saveProgressToPartialLead(stepData)
+
+    onComplete(stepData)
   }
 
   // Skip photos (allow but warn)
@@ -112,7 +156,9 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
 
   // Confirm skip
   const confirmSkip = () => {
-    onComplete({ photos: [], photoSummary: { total: 0, byCategory: [] } })
+    const stepData = { photos: [], photoSummary: { total: 0, byCategory: [] } }
+    void saveProgressToPartialLead(stepData)
+    onComplete(stepData)
   }
 
   // Show loading state while loading photos from IndexedDB

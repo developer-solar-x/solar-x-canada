@@ -29,6 +29,9 @@ export function useLeadData(lead: Lead) {
     : lead.full_data_json
   
   const estimateData = estimateDataRaw || fullDataJson || null
+
+  // Net metering results (if present) - same shape as ResultsPage
+  const netMetering = fullDataJson?.netMetering || estimateDataRaw?.netMetering || null
   
   // Parse additional JSONB/string fields
   const peakShaving = parseJson(lead.peak_shaving) || lead.peak_shaving || null
@@ -188,6 +191,7 @@ export function useLeadData(lead: Lead) {
     roofSectionsParsed,
     numPanels,
     productionChartData,
+    netMetering,
   }
 }
 

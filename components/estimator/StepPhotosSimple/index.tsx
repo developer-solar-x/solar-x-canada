@@ -14,6 +14,7 @@ import { usePhotoStorage } from './hooks/usePhotoStorage'
 import { usePhotoUpload } from './hooks/usePhotoUpload'
 import { MAX_PHOTOS } from './constants'
 import type { StepPhotosSimpleProps, Photo } from './types'
+import { isValidEmail } from '@/lib/utils'
 
 export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: StepPhotosSimpleProps) {
   const [showSkipModal, setShowSkipModal] = useState(false)
@@ -53,6 +54,45 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
     setImageModalOpen(true)
   }
 
+  const saveProgressToPartialLead = async (stepData: { photos: any[]; photoSummary: any }) => {
+    const email = data.email
+
+    // Save partial leads for quick/easy Solar + Battery residential flow
+    if (
+      !email ||
+      !isValidEmail(email) ||
+      data.estimatorMode !== 'easy' ||
+      (data.programType !== 'hrs_residential' && data.programType !== 'quick') ||
+      data.leadType !== 'residential'
+    ) {
+      return
+    }
+
+    try {
+      const response = await fetch('/api/partial-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          estimatorData: {
+            ...data,
+            ...stepData,
+            email,
+          },
+          // Easy Photos step
+          currentStep: 6,
+        }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        console.error('Failed to save partial lead (Photos Simple):', response.status, err)
+      }
+    } catch (error) {
+      console.error('Failed to save Photos Simple progress (partial lead):', error)
+    }
+  }
+
   const handleContinue = () => {
     // Filter photos that have been successfully uploaded
     const uploadedPhotos = photos.filter(p => p.uploadedUrl)
@@ -62,8 +102,8 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
     if (failedPhotos.length > 0) {
       console.warn(`${failedPhotos.length} photo(s) failed to upload, but continuing anyway`)
     }
-    
-    onComplete({
+
+    const stepData = {
       photos: photos.map(p => ({
         id: p.id,
         category: p.category,
@@ -75,7 +115,11 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
         total: photos.length,
         byCategory: [{ category: 'general', count: photos.length }],
       }
-    })
+    }
+
+    void saveProgressToPartialLead(stepData)
+
+    onComplete(stepData)
   }
 
   const handleSkip = () => {
@@ -83,7 +127,9 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
   }
 
   const confirmSkip = () => {
-    onComplete({ photos: [], photoSummary: { total: 0, byCategory: [] } })
+    const stepData = { photos: [], photoSummary: { total: 0, byCategory: [] } }
+    void saveProgressToPartialLead(stepData)
+    onComplete(stepData)
   }
 
   // Show loading state while loading photos from IndexedDB

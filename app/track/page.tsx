@@ -152,12 +152,9 @@ function EstimateTrackContent() {
                   <li>• Contact our support team for assistance</li>
                 </ul>
                 <div className="mt-4">
-                  <Link
-                    // href="/contact"
-                    className="text-forest-600 hover:text-forest-700 font-semibold text-sm inline-flex items-center gap-1"
-                  >
+                  <span className="text-forest-600 hover:text-forest-700 font-semibold text-sm inline-flex items-center gap-1 cursor-default">
                     Contact Support
-                  </Link>
+                  </span>
                 </div>
               </div>
             </div>
