@@ -88,15 +88,19 @@ export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: St
       ...(finalAnnualEscalator !== undefined && { annualEscalator: finalAnnualEscalator }),
     }
 
-    // Save partial lead for quick/easy Solar + Battery residential (admin quick estimate flow)
+    // Save partial lead for quick/easy residential flows
     const email = data.email
+    const isEasy = data.estimatorMode === 'easy'
+    const isResidential = data.leadType === 'residential'
+    const isQuickOrHrs = data.programType === 'hrs_residential' || data.programType === 'quick'
+    const isNetMetering = data.programType === 'net_metering'
+    const isQuickBatteryFlow = isEasy && isResidential && isQuickOrHrs && hasBattery
+    const isQuickNetMeteringFlow = isEasy && isResidential && isNetMetering
+
     if (
       email &&
       isValidEmail(email) &&
-      data.estimatorMode === 'easy' &&
-      (data.programType === 'hrs_residential' || data.programType === 'quick') &&
-      data.leadType === 'residential' &&
-      hasBattery
+      (isQuickBatteryFlow || isQuickNetMeteringFlow)
     ) {
       void fetch('/api/partial-lead', {
         method: 'POST',

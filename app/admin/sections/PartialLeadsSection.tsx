@@ -117,6 +117,7 @@ export function PartialLeadsSection({
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-semibold">Email</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold">Address</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Estimator Type</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold">Best Plan</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold">Progress</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold">Data Captured</th>
@@ -148,6 +149,7 @@ export function PartialLeadsSection({
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-semibold">Email</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold">Address</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Estimator Type</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold">Best Plan</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold">Progress</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold">Data Captured</th>
@@ -167,6 +169,21 @@ export function PartialLeadsSection({
                     const isRecent = (Date.now() - new Date(partialLead.created_at).getTime()) / (1000 * 60 * 60) <= 24
                     const isHot = completion >= 70
                     
+                    // Get program type and estimator mode
+                    const programType = (partialLead as any).program_type ?? partialLead.estimator_data?.programType ?? null
+                    const isNetMetering = programType === 'net_metering'
+                    const isHRS = programType === 'hrs_residential'
+                    const estimatorMode = partialLead.estimator_data?.estimatorMode
+                    const isQuick = estimatorMode === 'quick' || estimatorMode === 'easy'
+                    const isDetailed = estimatorMode === 'detailed'
+                    
+                    const flowType = isQuick ? 'Quick' : isDetailed ? 'Detailed' : estimatorMode || 'Unknown'
+                    const programLabel = isNetMetering 
+                      ? 'Net Metering' 
+                      : isHRS
+                      ? 'Solar HRS'
+                      : programType?.replace(/_/g, ' ') || 'Unknown'
+                    
                     return (
                       <tr 
                         key={partialLead.id} 
@@ -183,10 +200,28 @@ export function PartialLeadsSection({
                           {partialLead.estimator_data?.address || '-'}
                         </td>
                         <td className="px-4 py-3">
-                          {partialLead.estimator_data?.peakShaving?.ratePlan ? (
+                          <div className="flex flex-col gap-1">
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
+                              isQuick 
+                                ? 'bg-yellow-100 text-yellow-800' 
+                                : isDetailed
+                                ? 'bg-purple-100 text-purple-800'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}>
+                              {flowType}
+                            </span>
+                            <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">
+                              {programLabel}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {!isNetMetering && partialLead.estimator_data?.peakShaving?.ratePlan ? (
                             <span className="inline-block px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-700">
                               {partialLead.estimator_data.peakShaving.ratePlan.toUpperCase()}
                             </span>
+                          ) : isNetMetering ? (
+                            <span className="text-xs text-gray-500">N/A</span>
                           ) : (
                             <span className="text-xs text-gray-500">—</span>
                           )}

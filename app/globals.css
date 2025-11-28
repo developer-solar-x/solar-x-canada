@@ -264,6 +264,19 @@
   font-family: var(--font-display);
 }
 
+/* Admin loading bar animation */
+@keyframes loading-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(-10%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 @media (min-width: 768px) {
   .heading-md {
     font-size: 1.875rem;

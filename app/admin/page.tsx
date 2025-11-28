@@ -682,18 +682,47 @@ export default function AdminPage() {
   if (initialLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-navy-900 via-navy-800 to-red-700 flex items-center justify-center text-white">
-        <div className="flex flex-col items-center gap-6">
+        <div className="flex flex-col items-center gap-8">
+          {/* Animated solar icon */}
           <div className="relative">
-            <div className="h-16 w-16 rounded-full border-4 border-red-400 border-t-transparent animate-spin" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-xl font-bold">SC</span>
+            <div className="h-20 w-20 rounded-full bg-gradient-to-br from-yellow-300 via-amber-300 to-orange-400 shadow-xl flex items-center justify-center animate-pulse">
+              <span className="text-2xl font-extrabold text-navy-900">SC</span>
             </div>
+            <div className="absolute inset-0 animate-ping rounded-full border border-yellow-300/40" />
           </div>
-          <div className="text-center space-y-1">
-            <p className="text-2xl font-semibold tracking-wide">Loading Admin Insights…</p>
+
+          {/* Text + fun loading messages */}
+          <div className="text-center space-y-2 max-w-md">
+            <p className="text-2xl font-semibold tracking-wide">Warming up your admin dashboard…</p>
             <p className="text-sm text-red-100">
-              Crunching leads, savings, and solar stats so everything&apos;s ready when you land.
+              Connecting to Supabase, syncing fresh leads, and charging up solar savings analytics.
             </p>
+          </div>
+
+          {/* Fake progress bar */}
+          <div className="w-64">
+            <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+              <div className="h-full w-1/3 bg-gradient-to-r from-yellow-300 via-emerald-300 to-sky-400 rounded-full animate-[loading-bar_1.6s_ease-in-out_infinite]" />
+            </div>
+            <p className="mt-2 text-[11px] uppercase tracking-[0.2em] text-red-100/80">
+              Preparing dashboards &amp; tables
+            </p>
+          </div>
+
+          {/* Little checklist vibes */}
+          <div className="grid grid-cols-3 gap-4 text-xs text-red-100/90">
+            <div className="flex flex-col items-center gap-1">
+              <span className="h-1.5 w-6 rounded-full bg-emerald-300 animate-pulse" />
+              <span>Leads</span>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <span className="h-1.5 w-6 rounded-full bg-sky-300 animate-pulse delay-100" />
+              <span>Partial Saves</span>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <span className="h-1.5 w-6 rounded-full bg-amber-300 animate-pulse delay-200" />
+              <span>Installers &amp; Feedback</span>
+            </div>
           </div>
         </div>
       </div>

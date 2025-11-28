@@ -57,6 +57,14 @@ export function PartialLeadDetailView({
     return names[addOnId] || addOnId
   }
   
+  // Get program type
+  const programType = (partialLead as any).program_type ?? partialLead.estimator_data?.programType ?? null
+  const isNetMetering = programType === 'net_metering'
+  const isHRS = programType === 'hrs_residential'
+  const estimatorMode = partialLead.estimator_data?.estimatorMode
+  const isQuick = estimatorMode === 'quick' || estimatorMode === 'easy'
+  const isDetailed = estimatorMode === 'detailed'
+
   // Priority badge
   const getPriorityBadge = () => {
     if (isHot) {
@@ -89,6 +97,17 @@ export function PartialLeadDetailView({
     }
   }
 
+  // Get estimator type label
+  const getEstimatorTypeLabel = () => {
+    const flowType = isQuick ? 'Quick Estimate' : isDetailed ? 'Detailed' : estimatorMode || 'Unknown'
+    const programLabel = isNetMetering 
+      ? 'Net Metering' 
+      : isHRS
+      ? 'Solar HRS'
+      : programType?.replace(/_/g, ' ') || 'Unknown'
+    return { flowType, programLabel }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
       <div className="min-h-screen p-4 flex items-start justify-center">
@@ -105,7 +124,26 @@ export function PartialLeadDetailView({
                   </div>
                 </div>
                 {getPriorityBadge()}
-                {partialLead.estimator_data.peakShaving?.ratePlan && (
+                {(() => {
+                  const { flowType, programLabel } = getEstimatorTypeLabel()
+                  return (
+                    <div className="flex items-center gap-2">
+                      <span className={`px-3 py-1 rounded-lg text-xs font-bold ${
+                        isQuick 
+                          ? 'bg-yellow-100 text-yellow-800 border-2 border-yellow-300' 
+                          : isDetailed
+                          ? 'bg-purple-100 text-purple-800 border-2 border-purple-300'
+                          : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {flowType}
+                      </span>
+                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                        {programLabel}
+                      </span>
+                    </div>
+                  )
+                })()}
+                {!isNetMetering && partialLead.estimator_data.peakShaving?.ratePlan && (
                   <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
                     Best Plan: {partialLead.estimator_data.peakShaving.ratePlan.toUpperCase()}
                   </span>
@@ -477,8 +515,8 @@ export function PartialLeadDetailView({
                   </div>
                 )}
 
-                {/* Peak Shaving inputs preview */}
-                {(partialLead.estimator_data.peakShaving) && (
+                {/* Peak Shaving inputs preview - Only show for HRS, not Net Metering */}
+                {!isNetMetering && (partialLead.estimator_data.peakShaving) && (
                   <div className="card p-6">
                     <h3 className="text-lg font-bold text-navy-500 mb-4">Battery Savings (Draft)</h3>
                     <div className="grid md:grid-cols-3 gap-3 text-sm">

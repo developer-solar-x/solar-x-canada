@@ -292,6 +292,44 @@ export function OverviewTab({
 
       {/* Right Column - System Details */}
       <div className="lg:col-span-2 space-y-6">
+        {/* Estimator Flow Type Badge */}
+        {(() => {
+          const isQuick = lead.estimator_mode === 'quick' || lead.estimator_mode === 'easy'
+          const isDetailed = lead.estimator_mode === 'detailed'
+          const programType = lead.program_type
+          
+          if (!isQuick && !isDetailed) return null
+          
+          const flowType = isQuick ? 'Quick Estimate' : 'Detailed'
+          const programLabel = programType === 'hrs_residential' 
+            ? 'Solar HRS' 
+            : programType === 'net_metering'
+            ? 'Net Metering'
+            : programType?.replace(/_/g, ' ') || ''
+          
+          return (
+            <div className="card p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`px-4 py-2 rounded-lg font-bold text-sm ${
+                    isQuick 
+                      ? 'bg-yellow-100 text-yellow-800 border-2 border-yellow-300' 
+                      : 'bg-purple-100 text-purple-800 border-2 border-purple-300'
+                  }`}>
+                    {flowType}
+                  </div>
+                  <div className="text-sm font-semibold text-gray-700">
+                    {programLabel}
+                  </div>
+                </div>
+                <div className="text-xs text-gray-600">
+                  {isQuick ? 'Fast-track estimate' : 'Comprehensive analysis'}
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+
         {/* Roof Visualization */}
         <div className="card p-6">
           <h3 className="text-lg font-bold text-navy-500 mb-4 flex items-center gap-2">
@@ -618,8 +656,18 @@ export function OverviewTab({
                 </span>
               )}
               {lead.estimator_mode && (
-                <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-50 text-gray-700 font-semibold">
-                  Mode:&nbsp;{lead.estimator_mode}
+                <span className={`inline-flex items-center px-3 py-1 rounded-full font-semibold ${
+                  lead.estimator_mode === 'quick' || lead.estimator_mode === 'easy'
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : lead.estimator_mode === 'detailed'
+                    ? 'bg-purple-100 text-purple-800'
+                    : 'bg-gray-50 text-gray-700'
+                }`}>
+                  {lead.estimator_mode === 'quick' || lead.estimator_mode === 'easy' 
+                    ? 'Quick Estimate' 
+                    : lead.estimator_mode === 'detailed'
+                    ? 'Detailed'
+                    : lead.estimator_mode}
                 </span>
               )}
             </div>

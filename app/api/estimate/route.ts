@@ -128,9 +128,11 @@ export async function POST(request: Request) {
       numPanels = Math.round((systemSizeKw * 1000) / 500)
     }
 
-    // Get solar production data. Use PVWatts only when polygon exists; otherwise use seasonal estimate.
+    // Get solar production data.
+    // Prefer PVWatts whenever we have coordinates (lat/lng), even if the user did not draw a roof polygon.
+    // The polygon is used for sizing (area), but PVWatts only needs location + system size.
     let productionData
-    if (roofPolygon) {
+    if (coordinates && typeof coordinates.lat === 'number' && typeof coordinates.lng === 'number') {
       try {
         productionData = await calculateSolarEstimate(
           coordinates.lat,

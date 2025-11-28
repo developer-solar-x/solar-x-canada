@@ -1019,15 +1019,38 @@ export async function GET(request: Request) {
       .select('id', { head: true, count: 'exact' })
       .limit(1)
 
-    if (checkError && checkError.code === 'PGRST205') {
-      return NextResponse.json(
-        { 
-          error: 'No leads table found', 
-          details: `Table "${tableName}" does not exist in your database.`,
-          hint: 'Create the "hrs_residential_leads" table or point the API to your actual leads table.'
-        },
-        { status: 500 }
+    if (checkError) {
+      // Check if error message contains HTML (Cloudflare error page)
+      const errorMessage = checkError.message || ''
+      const isCloudflareError = typeof errorMessage === 'string' && (
+        errorMessage.includes('<!DOCTYPE html>') ||
+        errorMessage.includes('Web server is down') ||
+        errorMessage.includes('Error code 521') ||
+        errorMessage.includes('cloudflare.com')
       )
+      
+      if (isCloudflareError) {
+        return NextResponse.json(
+          { 
+            error: 'Database connection error', 
+            details: 'The database server is temporarily unavailable (Cloudflare 521 error).',
+            hint: 'This is usually a temporary infrastructure issue. Please try again in a few moments.',
+            retryable: true
+          },
+          { status: 503 } // Service Unavailable
+        )
+      }
+      
+      if (checkError.code === 'PGRST205') {
+        return NextResponse.json(
+          { 
+            error: 'No leads table found', 
+            details: `Table "${tableName}" does not exist in your database.`,
+            hint: 'Create the "hrs_residential_leads" table or point the API to your actual leads table.'
+          },
+          { status: 500 }
+        )
+      }
     }
 
     // Base query against hrs_residential_leads
@@ -1056,6 +1079,28 @@ export async function GET(request: Request) {
 
     if (error) {
       console.error('Database query error:', error)
+      
+      // Check if error message contains HTML (Cloudflare error page)
+      const errorMessage = error.message || ''
+      const isCloudflareError = typeof errorMessage === 'string' && (
+        errorMessage.includes('<!DOCTYPE html>') ||
+        errorMessage.includes('Web server is down') ||
+        errorMessage.includes('Error code 521') ||
+        errorMessage.includes('cloudflare.com')
+      )
+      
+      if (isCloudflareError) {
+        return NextResponse.json(
+          { 
+            error: 'Database connection error', 
+            details: 'The database server is temporarily unavailable (Cloudflare 521 error).',
+            hint: 'This is usually a temporary infrastructure issue. Please try again in a few moments.',
+            retryable: true
+          },
+          { status: 503 } // Service Unavailable
+        )
+      }
+      
       // Return more helpful error message
       if (error.code === 'PGRST205') {
         return NextResponse.json(
@@ -1067,6 +1112,20 @@ export async function GET(request: Request) {
           { status: 500 }
         )
       }
+      
+      // Check for connection timeout or network errors
+      if (error.code === '57014' || errorMessage.includes('timeout') || errorMessage.includes('ECONNREFUSED')) {
+        return NextResponse.json(
+          { 
+            error: 'Database connection timeout', 
+            details: 'The database query took too long or the connection was refused.',
+            hint: 'This may be a temporary issue. Please try again.',
+            retryable: true
+          },
+          { status: 503 }
+        )
+      }
+      
       throw error
     }
     
@@ -1152,8 +1211,34 @@ export async function GET(request: Request) {
 
   } catch (error) {
     console.error('Leads fetch error:', error)
+    
+    // Check if error message contains HTML (Cloudflare error page)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const isCloudflareError = typeof errorMessage === 'string' && (
+      errorMessage.includes('<!DOCTYPE html>') ||
+      errorMessage.includes('Web server is down') ||
+      errorMessage.includes('Error code 521') ||
+      errorMessage.includes('cloudflare.com')
+    )
+    
+    if (isCloudflareError) {
+      return NextResponse.json(
+        { 
+          error: 'Database connection error', 
+          details: 'The database server is temporarily unavailable (Cloudflare 521 error).',
+          hint: 'This is usually a temporary infrastructure issue. Please try again in a few moments.',
+          retryable: true
+        },
+        { status: 503 } // Service Unavailable
+      )
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to fetch leads', details: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        error: 'Failed to fetch leads', 
+        details: error instanceof Error ? error.message : 'Unknown error',
+        retryable: false
+      },
       { status: 500 }
     )
   }

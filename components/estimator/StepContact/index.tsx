@@ -90,11 +90,15 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
         simplifiedData.programType === 'hrs_residential' &&
         simplifiedData.leadType === 'residential' &&
         simplifiedData.hasBattery !== false
+      const isQuickNetMeteringPartial =
+        simplifiedData.estimatorMode === 'easy' &&
+        simplifiedData.programType === 'net_metering' &&
+        simplifiedData.leadType === 'residential'
 
       const shouldSavePartialLead =
         partialLeadEmail &&
         isValidEmail(partialLeadEmail) &&
-        (isDetailedHrsResidentialPartial || isQuickBatteryResidentialPartial)
+        (isDetailedHrsResidentialPartial || isQuickBatteryResidentialPartial || isQuickNetMeteringPartial)
 
       if (shouldSavePartialLead) {
         try {

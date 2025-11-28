@@ -477,13 +477,13 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
   const handleContinue = async () => {
     const email = data.email
 
-    const isHrsResidential =
-      data.programType === 'hrs_residential' &&
+    const isResidentialReviewPartial =
       data.leadType === 'residential' &&
-      (data.estimatorMode === 'detailed' || data.estimatorMode === 'easy')
+      (data.estimatorMode === 'detailed' || data.estimatorMode === 'easy') &&
+      (data.programType === 'hrs_residential' || data.programType === 'net_metering')
 
-    // Save partial leads for both detailed and quick/easy HRS residential flows
-    if (email && isValidEmail(email) && isHrsResidential) {
+    // Save partial leads for both detailed and quick/easy residential flows (HRS + Net Metering)
+    if (email && isValidEmail(email) && isResidentialReviewPartial) {
       try {
         const response = await fetch('/api/partial-lead', {
           method: 'POST',

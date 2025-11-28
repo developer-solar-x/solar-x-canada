@@ -57,12 +57,12 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
   const saveProgressToPartialLead = async (stepData: { photos: any[]; photoSummary: any }) => {
     const email = data.email
 
-    // Save partial leads for quick/easy Solar + Battery residential flow
+    // Save partial leads for quick/easy residential flows (HRS + Net Metering)
     if (
       !email ||
       !isValidEmail(email) ||
       data.estimatorMode !== 'easy' ||
-      (data.programType !== 'hrs_residential' && data.programType !== 'quick') ||
+      (data.programType !== 'hrs_residential' && data.programType !== 'quick' && data.programType !== 'net_metering') ||
       data.leadType !== 'residential'
     ) {
       return

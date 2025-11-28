@@ -22,20 +22,48 @@ export async function POST(request: Request) {
     // Initialize Supabase client
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // Check if this email already has a saved draft (v2)
-    const { data: existing, error: checkError } = await supabase
+    // Check if this email already has saved drafts.
+    // We allow MULTIPLE partial leads per email (e.g. HRS + Net Metering),
+    // so we look for an existing draft that matches the same flow
+    // (estimatorMode + programType + leadType). If none match, we create a new row.
+    const { data: existingDrafts, error: checkError } = await supabase
       .from('partial_leads_v3')
-      .select('id')
+      .select('id, estimator_data')
       .eq('email', email)
-      .single()
 
-    if (checkError && checkError.code !== 'PGRST116') {
-      // PGRST116 = not found, which is fine
-      console.error('Error checking for existing draft:', checkError)
+    if (checkError) {
+      console.error('Error checking for existing drafts:', checkError)
     }
 
-    if (existing) {
-      // Update existing draft
+    const flowKey = [
+      estimatorData?.estimatorMode || '',
+      estimatorData?.programType || '',
+      estimatorData?.leadType || '',
+    ].join('|')
+
+    let existingForFlow: { id: string } | null = null
+
+    if (Array.isArray(existingDrafts) && existingDrafts.length > 0) {
+      // Try to find a draft for the same flow signature
+      existingForFlow =
+        existingDrafts.find((row: any) => {
+          const ed = row.estimator_data || {}
+          const rowKey = [
+            ed.estimatorMode || '',
+            ed.programType || '',
+            ed.leadType || '',
+          ].join('|')
+          return rowKey === flowKey
+        }) || null
+
+      // Backwards compatibility: if no flow metadata, fall back to first record
+      if (!existingForFlow && !estimatorData?.programType && !estimatorData?.estimatorMode && !estimatorData?.leadType) {
+        existingForFlow = existingDrafts[0] as any
+      }
+    }
+
+    if (existingForFlow) {
+      // Update existing draft for this specific flow
       // Extract photo URLs (if estimatorData contains photos array with url fields)
       const photoUrls = Array.isArray(estimatorData?.photos)
         ? estimatorData.photos.map((p: any) => p.url || p.uploadedUrl || p.preview).filter(Boolean)
@@ -59,7 +87,7 @@ export async function POST(request: Request) {
           map_snapshot_url: estimatorData?.mapSnapshot || '',
           updated_at: new Date().toISOString(),
         })
-        .eq('id', existing.id)
+        .eq('id', existingForFlow.id)
 
       if (updateError) {
         console.error('Error updating partial lead:', updateError)
@@ -72,7 +100,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         message: 'Progress updated',
-        id: existing.id,
+        id: existingForFlow.id,
       })
     } else {
       // Create new draft

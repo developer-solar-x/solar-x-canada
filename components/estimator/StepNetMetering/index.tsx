@@ -219,8 +219,14 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   }
 
   // Get net cost and escalation rate
-  const netCost = estimate?.costs?.netCost || 0
-  const escalation = data.annualEscalator || 0.03
+  // For net metering, use ONLY solar costs (no battery) - net metering is solar-only
+  const solarSystemCost = estimate?.costs?.systemCost || estimate?.costs?.totalCost || 0
+  const solarRebate = estimate?.costs?.solarRebate || estimate?.costs?.incentives || 0
+  const netCost = solarSystemCost - solarRebate // Solar-only net cost (no battery)
+  // annualEscalator is stored as a percentage (e.g. 4.5 for 4.5%), but the payback
+  // + multi‑year projection functions expect a decimal (0.045). Normalise here.
+  const escalatorPercent = typeof data.annualEscalator === 'number' ? data.annualEscalator : 4.5
+  const escalation = escalatorPercent > 1 ? escalatorPercent / 100 : escalatorPercent
 
   // Calculate metrics for selected plan
   const selectedResult = selectedPlan === 'ulo' ? uloResults : selectedPlan === 'tiered' ? tieredResults : touResults
@@ -352,9 +358,12 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
       : (touResults.annual.exportCredits > tieredResults.annual.exportCredits ? 'tou' : 'tiered')
 
     // Calculate projections for all plans
+    // For net metering, use ONLY solar costs (no battery) - net metering is solar-only
     const currentEstimate = localEstimate || data.estimate
-    const currentNetCost = currentEstimate?.costs?.netCost || 0
-    const currentEscalation = data.annualEscalator || 0.03
+    const currentSolarSystemCost = currentEstimate?.costs?.systemCost || currentEstimate?.costs?.totalCost || 0
+    const currentSolarRebate = currentEstimate?.costs?.solarRebate || currentEstimate?.costs?.incentives || 0
+    const currentNetCost = currentSolarSystemCost - currentSolarRebate // Solar-only net cost (no battery)
+    const currentEscalation = escalatorPercent > 1 ? escalatorPercent / 100 : (escalation || 0.03)
     
     const touAnnualSavings = touResults.annual.importCost - touResults.annual.netAnnualBill
     const uloAnnualSavings = uloResults.annual.importCost - uloResults.annual.netAnnualBill
@@ -414,11 +423,11 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
       }
     } as any
 
-    // Save partial lead for detailed net-metering residential flow
+    // Save partial lead for both detailed and quick/easy net metering residential flows
     if (
       email &&
       isValidEmail(email) &&
-      data.estimatorMode === 'detailed' &&
+      (data.estimatorMode === 'detailed' || data.estimatorMode === 'easy') &&
       data.programType === 'net_metering' &&
       data.leadType === 'residential'
     ) {
@@ -877,8 +886,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 )}
                 <li>
                   We estimate your <span className="font-semibold">first‑year savings</span> from net metering and then
-                  apply an annual escalation to electricity rates (typically {((data.annualEscalator || 4.5)).toFixed(1)}
-                  % per year).
+                  apply an annual escalation to electricity rates (typically {escalatorPercent.toFixed(1)}% per year).
                 </li>
                 <li>
                   We add those savings year by year until the total equals your net investment. That year (including
@@ -913,7 +921,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 </li>
                 <li>
                   We project these savings forward for 25 years using an annual escalation of{' '}
-                  {((data.annualEscalator || 4.5)).toFixed(1)}% (higher rates → higher savings).
+                  {escalatorPercent.toFixed(1)}% (higher rates → higher savings).
                 </li>
                 <li>
                   <span className="font-semibold">25‑Year Profit</span> = (Sum of 25 years of projected savings) − Net

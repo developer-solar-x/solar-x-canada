@@ -17,11 +17,11 @@ export function StepAddOns({ data, onComplete, onBack }: StepAddOnsProps) {
   const saveProgressToPartialLead = async (nextSelectedAddOns: string[]) => {
     const email = data.email
 
-    // Save partial leads for HRS residential residential leads in both detailed and quick/easy flows
+    // Save partial leads for residential HRS + Net Metering in both detailed and quick/easy flows
     if (
       !email ||
       !isValidEmail(email) ||
-      data.programType !== 'hrs_residential' ||
+      (data.programType !== 'hrs_residential' && data.programType !== 'net_metering') ||
       data.leadType !== 'residential'
     ) {
       return
