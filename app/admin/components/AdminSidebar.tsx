@@ -192,19 +192,16 @@ export function AdminSidebar({
 
           <button 
             onClick={() => handleSectionClick('sales-kpi')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all relative group ${
-              activeSection === 'sales-kpi' 
-                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/30' 
-                : 'hover:bg-white/10 text-white/90 hover:text-white'
-            }`}
+            disabled
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all opacity-60 cursor-not-allowed relative group"
           >
-            <div className={`p-1.5 rounded-lg ${activeSection === 'sales-kpi' ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'}`}>
+            <div className="p-1.5 rounded-lg bg-white/5">
               <BarChart3 size={18} className="flex-shrink-0" />
             </div>
-            <span>Sales KPI</span>
-            {activeSection === 'sales-kpi' && (
-              <div className="absolute right-2 w-1.5 h-1.5 bg-white rounded-full"></div>
-            )}
+            <span className="flex-1 text-left">Sales KPI</span>
+            <span className="px-2.5 py-1 bg-yellow-400 text-navy-700 rounded-full text-xs font-bold shadow-sm">
+              Coming Soon
+            </span>
           </button>
 
           <button 

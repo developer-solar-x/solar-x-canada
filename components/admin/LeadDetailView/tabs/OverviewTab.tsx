@@ -481,8 +481,15 @@ export function OverviewTab({
           <div className="mb-4 flex items-center justify-between gap-2">
             <h3 className="text-lg font-bold text-navy-500 flex items-center gap-2">
               <Zap size={20} />
-              Solar System Estimate
+              {lead.program_type === 'net_metering'
+                ? 'Net Metering Solar Estimate'
+                : 'Solar System Estimate'}
             </h3>
+            {lead.program_type === 'net_metering' && (
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
+                Net metering program
+              </span>
+            )}
           </div>
           <div className="grid md:grid-cols-3 gap-4">
             <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-lg p-4">
@@ -498,7 +505,9 @@ export function OverviewTab({
               </div>
             </div>
             <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
-              <div className="text-xs text-green-600 mb-1">Total Rebates</div>
+              <div className="text-xs text-green-600 mb-1">
+                {lead.program_type === 'net_metering' ? 'Rebates' : 'Total Rebates'}
+              </div>
               <div className="text-3xl font-bold text-green-600">
                 {lead.program_type === 'net_metering' ? (
                   <span className="text-gray-500">$0</span>
@@ -508,14 +517,20 @@ export function OverviewTab({
               </div>
               <div className="text-xs text-green-600 mt-1">
                 {lead.program_type === 'net_metering' ? (
-                  <span className="text-gray-500">No rebates for net metering</span>
+                  <span className="text-gray-500">
+                    Net metering programs currently do not offer upfront rebates.
+                  </span>
                 ) : (
                   'Solar + Battery rebates'
                 )}
               </div>
             </div>
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
-              <div className="text-xs text-blue-600 mb-1">Net After Rebates</div>
+              <div className="text-xs text-blue-600 mb-1">
+                {lead.program_type === 'net_metering'
+                  ? 'Total System Cost (Net Metering)'
+                  : 'Net After Rebates'}
+              </div>
               <div className="text-3xl font-bold text-blue-600">
                 {formatCurrency(lead.program_type === 'net_metering' ? combinedTotalSystemCost : combinedNetAfterIncentives)}
               </div>

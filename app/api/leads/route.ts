@@ -235,6 +235,7 @@ export async function POST(request: Request) {
     const supabase = getSupabaseAdmin()
 
     // Upload map snapshot to Supabase Storage if provided
+    // and ensure we don't persist large base64 blobs in JSON columns
     let mapSnapshotUrl: string | null = null
     if (body.mapSnapshot || body.mapSnapshotUrl) {
       const mapSnapshot = body.mapSnapshot || body.mapSnapshotUrl
@@ -253,6 +254,18 @@ export async function POST(request: Request) {
         // Fallback: use as-is (might be a path or other format)
         mapSnapshotUrl = mapSnapshot
       }
+    }
+
+    // Create a sanitized copy of the request body that never stores base64 snapshots
+    // in the database JSON (estimator_data / full_data_json).
+    const sanitizedBody: any = { ...body }
+    if (mapSnapshotUrl) {
+      // Prefer storing the public URL instead of the original snapshot payload
+      sanitizedBody.mapSnapshot = mapSnapshotUrl
+      sanitizedBody.mapSnapshotUrl = mapSnapshotUrl
+    } else if (typeof sanitizedBody.mapSnapshot === 'string' && sanitizedBody.mapSnapshot.startsWith('data:image/')) {
+      // If for some reason upload failed, avoid persisting the huge base64 string
+      delete sanitizedBody.mapSnapshot
     }
 
     // Calculate peak shaving data before insert
@@ -433,7 +446,9 @@ export async function POST(request: Request) {
       insertData.roof_sections = body.roofSections || []
       insertData.map_snapshot_url = mapSnapshotUrl || body.mapSnapshot || body.mapSnapshotUrl || ''
       insertData.selected_batteries = body.selectedBatteries || (body.selectedBattery ? [body.selectedBattery] : [])
-      insertData.estimator_data = body
+      // Store the sanitized estimator payload so large base64 map snapshots
+      // are not duplicated inside JSONB
+      insertData.estimator_data = sanitizedBody
     }
     
     if (isHrsResidential) {

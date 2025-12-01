@@ -138,6 +138,14 @@ export async function POST(request: Request) {
       ? (batteryDetails?.multiYearProjection?.netCost || 0)
       : Math.max(0, batteryPrice - Math.min(batteryNominalKwh * 300, 5000))
     const batteryRebate = batteryPrice > 0 ? Math.max(0, batteryPrice - batteryNetCost) : 0
+
+    // Human-readable battery label for PDF (brand + model or aggregated labels)
+    const batteryLabel =
+      aggregatedBattery?.labels?.length
+        ? aggregatedBattery.labels.join(' + ')
+        : batteryDetails?.battery
+        ? [batteryDetails.battery.brand, batteryDetails.battery.model].filter(Boolean).join(' ')
+        : ''
     
     // Peak shaving / rate plan data
     const peakShaving = data.peakShaving || {}
@@ -576,7 +584,12 @@ export async function POST(request: Request) {
             </div>
             ${includeBattery ? `
             <div style="border: 1px solid #e5e7eb; border-radius: 4px; padding: 12px;">
-              <div style="font-weight: 600; color: #1f2937; margin-bottom: 10px; font-size: 14px;">Battery</div>
+              <div style="font-weight: 600; color: #1f2937; margin-bottom: 4px; font-size: 14px;">Battery</div>
+              ${batteryLabel ? `
+              <div style="font-size: 12px; color: #4b5563; margin-bottom: 8px;">
+                ${batteryLabel}
+              </div>
+              ` : ''}
               <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px;">
                 <span>Battery price</span>
                 <span style="font-weight: 500;">${formatCurrency(batteryPrice)}</span>

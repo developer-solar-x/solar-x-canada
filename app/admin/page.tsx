@@ -3,7 +3,7 @@
 // Admin dashboard - leads table and analytics
 
 import { useState, useEffect } from 'react'
-import { Menu, X } from 'lucide-react'
+import { Menu, X, BarChart3 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import type { MockPartialLead } from '@/lib/mock-partial-leads'
 import { LeadDetailView } from '@/components/admin/LeadDetailView'
@@ -11,8 +11,6 @@ import { PartialLeadDetailView } from '@/components/admin/PartialLeadDetailView'
 import { UserModal, UserFormData } from '@/components/admin/UserModal'
 import { DeleteUserModal } from '@/components/admin/DeleteUserModal'
 import { GreenButtonParserSection } from '@/components/admin/GreenButtonParser'
-import FileUpload from '@/components/sales-kpi/FileUpload'
-import KPIDashboard from '@/components/sales-kpi/KPIDashboard'
 import { CommercialCalculator } from '@/components/admin/CommercialCalculator'
 import { AdminSidebar } from './components/AdminSidebar'
 import { AnalyticsSection } from './sections/AnalyticsSection'
@@ -835,20 +833,22 @@ export default function AdminPage() {
           <GreenButtonParserSection />
         )}
         {activeSection === 'sales-kpi' && (
-          <div>
-            {/* Header */}
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-navy-500 mb-2">Weekly Sales KPI Dashboard</h1>
-              <p className="text-gray-600">Track performance metrics across your sales team</p>
+          <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+            <div className="bg-white rounded-2xl shadow-xl p-12 max-w-md">
+              <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <BarChart3 className="text-white" size={40} />
+              </div>
+              <h1 className="text-3xl font-bold text-navy-500 mb-4">Sales KPI Dashboard</h1>
+              <p className="text-gray-600 mb-6">
+                Track performance metrics across your sales team
+              </p>
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-50 border-2 border-yellow-400 rounded-lg">
+                <span className="text-yellow-700 font-semibold">Coming Soon</span>
+              </div>
+              <p className="text-sm text-gray-500 mt-6">
+                This feature is currently under development and will be available soon.
+              </p>
             </div>
-
-            {/* File upload section */}
-            <div className="mb-8">
-              <FileUpload />
-            </div>
-
-            {/* Dashboard section */}
-            <KPIDashboard />
           </div>
         )}
 
