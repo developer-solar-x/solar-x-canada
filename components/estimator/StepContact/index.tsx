@@ -14,7 +14,7 @@ import { extractSimplifiedData } from '@/lib/estimator-data-simplifier'
 import type { StepContactProps } from './types'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
-// Helper to strip heavy monthly data from net metering results before sending to APIs
+// Helper to strip heavy net metering data (monthly, hourly, etc.) before sending to APIs
 function stripNetMeteringMonthly(data: any): any {
   if (!data || typeof data !== 'object') return data
 
@@ -23,8 +23,18 @@ function stripNetMeteringMonthly(data: any): any {
 
   const stripPlan = (plan: any) => {
     if (!plan || typeof plan !== 'object') return plan
-    const { monthly, ...rest } = plan
-    return rest
+    const {
+      monthly,
+      hourly,
+      byPeriod,
+      // keep annual + projection + any top-level summary fields
+      ...rest
+    } = plan as any
+    return {
+      ...rest,
+      annual: (plan as any).annual,
+      projection: (plan as any).projection,
+    }
   }
 
   return {
