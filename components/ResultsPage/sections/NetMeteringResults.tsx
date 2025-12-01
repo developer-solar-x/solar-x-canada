@@ -181,9 +181,6 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels }:
         <span>Net metering credits and eligibility depend on your utility’s specific rules and approvals.</span>
       </div>
 
-      {/* Offset Summary + System Specs in a 2x1 layout */}
-      {(tou || ulo || tiered || systemSizeKw || numPanels) && (
-        <div className="grid gap-6 lg:grid-cols-2">
           {/* Offset Summary - Prominent Display (selected plan only) */}
           {(tou || ulo || tiered) && (
         <div className="bg-gradient-to-br from-emerald-50 via-green-50 to-emerald-100 rounded-xl p-6 border-2 border-emerald-200 shadow-lg">
@@ -246,32 +243,6 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels }:
                   </div>
                 )}
           </div>
-        </div>
-      )}
-
-      {/* System Specifications */}
-      {(systemSizeKw || numPanels) && (
-        <div className="bg-gradient-to-br from-navy-50 to-slate-50 rounded-lg p-5 border-2 border-navy-200">
-          <h3 className="font-bold text-navy-900 mb-4 flex items-center gap-2">
-            <Zap className="text-navy-500" size={18} />
-            System Specifications
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {systemSizeKw && (
-              <div>
-                <span className="text-xs text-gray-600">System Size</span>
-                <p className="text-2xl font-bold text-navy-900">{formatNumber(systemSizeKw)} kW</p>
-              </div>
-            )}
-            {numPanels && (
-              <div>
-                <span className="text-xs text-gray-600">Number of Panels</span>
-                <p className="text-2xl font-bold text-navy-900">{numPanels} panels</p>
-              </div>
-            )}
-          </div>
-            </div>
-          )}
         </div>
       )}
 

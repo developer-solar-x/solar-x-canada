@@ -254,11 +254,22 @@ export function LeadDetailView({ lead, onClose, onStatusChange }: LeadDetailView
   // Handle export PDF
   const handleExportPDF = async () => {
     try {
-      // Open PDF in new window (will be converted to PDF by browser print dialog)
-      const pdfUrl = `/api/leads/${lead.id}/export-pdf`
-      window.open(pdfUrl, '_blank')
+      // Fetch PDF and trigger download
+      const response = await fetch(`/api/leads/${lead.id}/export-pdf`)
+      if (!response.ok) {
+        throw new Error('Failed to generate PDF')
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `solar-estimate-${lead.id}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
     } catch (error) {
-      console.error('Error exporting PDF:', error)
+      console.error('Error downloading PDF:', error)
       alert('Failed to export PDF. Please try again.')
     }
   }

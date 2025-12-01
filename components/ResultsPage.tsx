@@ -372,7 +372,7 @@ export function ResultsPage({
   // - Solar cost comes from the estimate's total/system cost.
   // - Battery cost is the portion of the combined cost above the solar cost,
   //   with a fallback to explicit battery pricing when available.
-  const solarSystemCost = estimate?.costs?.totalCost ?? estimate?.costs?.systemCost ?? finalTotalCost
+  const solarSystemCost = estimate?.costs?.totalCost ?? finalTotalCost
   const explicitBatteryPrice =
     batteryDetails?.battery?.price ??
     (batteryImpact ? batteryImpact.batterySizeKwh && batteryImpact.annualSavings && 0 : undefined)
@@ -795,7 +795,7 @@ export function ResultsPage({
                     </code>
                     <button
                       onClick={async () => {
-                        const trackingUrl = `https://solarclaculatorcanada.org/track/${leadId}`
+                        const trackingUrl = `https://www.solarcalculatorcanada.org/track/${leadId}`
                         try {
                           await navigator.clipboard.writeText(trackingUrl)
                           // Show temporary success message

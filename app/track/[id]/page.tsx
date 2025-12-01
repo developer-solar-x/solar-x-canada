@@ -299,16 +299,173 @@ function TrackPageContent() {
           roofAge: simplifiedData.roofAge,
           roofPolygon: simplifiedData.roofPolygon,
         },
-        photos: simplifiedData.photos || [],
-        photoSummary: simplifiedData.photoSummary,
+        photos: (() => {
+          // Helper to construct full Supabase Storage URL from filename/path
+          const constructSupabaseUrl = (filenameOrPath: string): string | null => {
+            if (!filenameOrPath || typeof filenameOrPath !== 'string') return null
+            
+            // If already a full URL, return as-is
+            if (filenameOrPath.startsWith('http://') || filenameOrPath.startsWith('https://') || filenameOrPath.startsWith('data:')) {
+              return filenameOrPath
+            }
+            
+            // If it's just a filename (UUID-like), try to construct Supabase Storage URL
+            // Format: https://{project}.supabase.co/storage/v1/object/public/photos/{path}
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+            if (!supabaseUrl) return null
+            
+            // If path already includes 'photos/', use it directly
+            if (filenameOrPath.includes('/')) {
+              // Remove 'photos/' prefix if present (it's added by the storage path)
+              const path = filenameOrPath.startsWith('photos/') ? filenameOrPath : `photos/${filenameOrPath}`
+              return `${supabaseUrl}/storage/v1/object/public/${path}`
+            }
+            
+            // If it's just a filename, try common folder structures
+            // Photos are stored as: photos/{category}/{year}/{month}/{random}-{filename}
+            // Try to find it in common categories and recent dates
+            const now = new Date()
+            const year = now.getFullYear()
+            const month = String(now.getMonth() + 1).padStart(2, '0')
+            const categories = ['roof', 'electrical', 'general', 'other']
+            
+            // Try the most likely path first (current year/month)
+            for (const category of categories) {
+              const path = `photos/${category}/${year}/${month}/${filenameOrPath}`
+              // Return the constructed URL (browser will try to load it)
+              // If it fails, the onError handler will hide it
+              return `${supabaseUrl}/storage/v1/object/public/${path}`
+            }
+            
+            // Fallback: try direct in photos bucket
+            return `${supabaseUrl}/storage/v1/object/public/photos/${filenameOrPath}`
+          }
+          
+          // First try simplifiedData.photos (already formatted)
+          if (simplifiedData.photos && Array.isArray(simplifiedData.photos) && simplifiedData.photos.length > 0) {
+            // Process and filter photos
+            return simplifiedData.photos
+              .map((photo: any) => {
+                const url = photo.preview || photo.url || photo.uploadedUrl
+                if (!url) return null
+                
+                // If it's already a valid URL, return as-is
+                if (typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:'))) {
+                  return photo
+                }
+                
+                // Try to construct full URL from filename
+                const fullUrl = constructSupabaseUrl(url)
+                if (fullUrl) {
+                  return {
+                    ...photo,
+                    preview: fullUrl,
+                    url: fullUrl,
+                    uploadedUrl: fullUrl,
+                  }
+                }
+                
+                return null
+              })
+              .filter(Boolean)
+          }
+          
+          // Try leadFields.photo_urls (from database)
+          const photoUrls = leadFields?.photo_urls
+          if (photoUrls) {
+            const urls = Array.isArray(photoUrls) ? photoUrls : (typeof photoUrls === 'string' ? JSON.parse(photoUrls || '[]') : [])
+            // Convert URL strings to photo objects with preview property
+            return urls
+              .map((url: string) => {
+                if (!url) return null
+                
+                // If already a full URL, use it
+                if (typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:'))) {
+                  return {
+                    preview: url,
+                    url: url,
+                    uploadedUrl: url,
+                  }
+                }
+                
+                // Try to construct full URL
+                const fullUrl = constructSupabaseUrl(url)
+                if (fullUrl) {
+                  return {
+                    preview: fullUrl,
+                    url: fullUrl,
+                    uploadedUrl: fullUrl,
+                  }
+                }
+                
+                return null
+              })
+              .filter(Boolean)
+          }
+          
+          return []
+        })(),
+        photoSummary: simplifiedData.photoSummary || (leadFields?.photo_summary ? (typeof leadFields.photo_summary === 'string' ? JSON.parse(leadFields.photo_summary) : leadFields.photo_summary) : undefined),
         monthlyBill: typeof simplifiedData.monthlyBill === 'string' 
           ? parseFloat(simplifiedData.monthlyBill) 
           : simplifiedData.monthlyBill,
-        energyUsage: simplifiedData.energyUsage || (simplifiedData.annualUsageKwh ? {
+        energyUsage: (() => {
+          // First try direct energyUsage object
+          if (simplifiedData.energyUsage) {
+            return simplifiedData.energyUsage
+          }
+          
+          // Try to extract from net metering data (for net metering flows)
+          const netMetering = simplifiedData.netMetering
+          if (netMetering) {
+            const touTotalLoad = netMetering.tou?.annual?.totalLoad
+            const uloTotalLoad = netMetering.ulo?.annual?.totalLoad
+            const tieredTotalLoad = netMetering.tiered?.annual?.totalLoad
+            const annualKwh = touTotalLoad || uloTotalLoad || tieredTotalLoad || 0
+            
+            if (annualKwh > 0) {
+              return {
+                annualKwh,
+                monthlyKwh: annualKwh / 12,
+                dailyKwh: annualKwh / 365,
+              }
+            }
+          }
+          
+          // Try annualUsageKwh field
+          if (simplifiedData.annualUsageKwh) {
+            return {
           annualKwh: simplifiedData.annualUsageKwh,
           monthlyKwh: simplifiedData.annualUsageKwh / 12,
           dailyKwh: simplifiedData.annualUsageKwh / 365,
-        } : undefined),
+            }
+          }
+          
+          // Try leadFields
+          if (leadFields?.annual_usage_kwh) {
+            return {
+              annualKwh: parseFloat(String(leadFields.annual_usage_kwh)),
+              monthlyKwh: parseFloat(String(leadFields.annual_usage_kwh)) / 12,
+              dailyKwh: parseFloat(String(leadFields.annual_usage_kwh)) / 365,
+            }
+          }
+          
+          // Try energy_usage field from leadFields
+          if (leadFields?.energy_usage) {
+            const energyUsage = typeof leadFields.energy_usage === 'string' 
+              ? JSON.parse(leadFields.energy_usage) 
+              : leadFields.energy_usage
+            if (energyUsage?.annualKwh || energyUsage?.annual_kwh) {
+              return {
+                annualKwh: energyUsage.annualKwh || energyUsage.annual_kwh || 0,
+                monthlyKwh: energyUsage.monthlyKwh || energyUsage.monthly_kwh || (energyUsage.annualKwh || energyUsage.annual_kwh || 0) / 12,
+                dailyKwh: energyUsage.dailyKwh || energyUsage.daily_kwh || (energyUsage.annualKwh || energyUsage.annual_kwh || 0) / 365,
+              }
+            }
+          }
+          
+          return undefined
+        })(),
         tou: touData ? (() => {
           const before = touData.beforeSolar || 0
           const after = touData.afterSolar || 0
@@ -495,6 +652,28 @@ function TrackPageContent() {
           (leadFields?.financing_option as string | undefined) ||
           (leadFields?.financing_preference as string | undefined) ||
           undefined,
+        // Extract add-ons
+        addOns: (() => {
+          const selectedAddOns = simplifiedData.selectedAddOns || simplifiedData.selected_add_ons || leadFields?.selected_add_ons || []
+          if (Array.isArray(selectedAddOns) && selectedAddOns.length > 0) {
+            // Helper to get add-on display name
+            const getAddOnName = (id: string): string => {
+              const names: Record<string, string> = {
+                'ev_charger': 'EV Charger',
+                'heat_pump': 'Heat Pump',
+                'new_roof': 'New Roof',
+                'water_heater': 'Water Heater',
+                'battery': 'Battery Storage'
+              }
+              return names[id] || id.replace(/_/g, ' ')
+            }
+            return selectedAddOns.map((id: string) => ({
+              id,
+              name: getAddOnName(id)
+            }))
+          }
+          return []
+        })(),
       }
     }
     
@@ -539,8 +718,13 @@ function TrackPageContent() {
           // Check if this is HRS residential lead with simplified data structure
           if (lead.full_data_json) {
             const simplifiedData = lead.full_data_json
-            // Pass lead.hrs_residential_data as leadFields for easy mode fallback
-            const transformedData = transformSimplifiedData(simplifiedData, lead.hrs_residential_data)
+            // Pass lead.hrs_residential_data as leadFields, but also include lead.photo_urls if available
+            const leadFieldsWithPhotos = {
+              ...lead.hrs_residential_data,
+              photo_urls: lead.photo_urls ?? lead.hrs_residential_data?.photo_urls,
+              photo_summary: lead.photo_summary ?? lead.hrs_residential_data?.photo_summary,
+            }
+            const transformedData = transformSimplifiedData(simplifiedData, leadFieldsWithPhotos)
             
             setEstimate(transformedData.estimate)
             setLeadData(transformedData.leadData || {})
@@ -615,6 +799,35 @@ function TrackPageContent() {
     )
   }
 
+  // Handle PDF export - same as results page
+  const handleExportPDF = async () => {
+    if (trackingId) {
+      try {
+        // Fetch PDF and trigger download
+        const response = await fetch(`/api/leads/${trackingId}/export-pdf`)
+        if (!response.ok) {
+          throw new Error('Failed to generate PDF')
+        }
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `solar-estimate-${trackingId}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      } catch (error) {
+        console.error('Error downloading PDF:', error)
+        // Fallback: open in new tab
+        window.open(`/api/leads/${trackingId}/export-pdf`, '_blank')
+      }
+    } else {
+      // Fallback: print page
+      window.print()
+    }
+  }
+
   return (
     <ResultsPage
       estimate={estimate}
@@ -642,6 +855,7 @@ function TrackPageContent() {
       programType={programType}
       netMetering={netMetering}
       financingOption={financingOption}
+      onExportPDF={handleExportPDF}
     />
   )
 }

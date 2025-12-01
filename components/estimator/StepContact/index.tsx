@@ -168,7 +168,7 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
       
       // For final submission, also trim heavy net metering monthly data before sending to leads API
       const slimData = stripNetMeteringMonthly(data)
-
+      
       // For detailed HRS residential, send simplified data with original data for fallback extraction
       // For other leads, use the existing format
       const requestBody = isDetailedHrsResidential

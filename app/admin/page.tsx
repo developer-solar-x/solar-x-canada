@@ -837,14 +837,14 @@ export default function AdminPage() {
             <div className="bg-white rounded-2xl shadow-xl p-12 max-w-md">
               <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-6">
                 <BarChart3 className="text-white" size={40} />
-              </div>
+            </div>
               <h1 className="text-3xl font-bold text-navy-500 mb-4">Sales KPI Dashboard</h1>
               <p className="text-gray-600 mb-6">
                 Track performance metrics across your sales team
               </p>
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-50 border-2 border-yellow-400 rounded-lg">
                 <span className="text-yellow-700 font-semibold">Coming Soon</span>
-              </div>
+            </div>
               <p className="text-sm text-gray-500 mt-6">
                 This feature is currently under development and will be available soon.
               </p>

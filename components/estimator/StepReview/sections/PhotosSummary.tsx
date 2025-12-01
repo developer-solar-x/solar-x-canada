@@ -41,6 +41,11 @@ export function PhotosSummary({ photos, photoSummary, onImageClick }: PhotosSumm
               src={photo.preview} 
               alt={`Property ${idx + 1}`}
               className="w-full h-full object-cover"
+              onError={(e) => {
+                // Hide broken images
+                const target = e.target as HTMLImageElement
+                target.style.display = 'none'
+              }}
             />
           </div>
         ))}
