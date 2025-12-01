@@ -14,6 +14,30 @@ import { extractSimplifiedData } from '@/lib/estimator-data-simplifier'
 import type { StepContactProps } from './types'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
+// Helper to strip heavy monthly data from net metering results before sending to APIs
+function stripNetMeteringMonthly(data: any): any {
+  if (!data || typeof data !== 'object') return data
+
+  const netMetering = (data as any).netMetering
+  if (!netMetering || typeof netMetering !== 'object') return data
+
+  const stripPlan = (plan: any) => {
+    if (!plan || typeof plan !== 'object') return plan
+    const { monthly, ...rest } = plan
+    return rest
+  }
+
+  return {
+    ...data,
+    netMetering: {
+      ...netMetering,
+      tou: stripPlan((netMetering as any).tou),
+      ulo: stripPlan((netMetering as any).ulo),
+      tiered: stripPlan((netMetering as any).tiered),
+    },
+  }
+}
+
 export function StepContact({ data, onComplete, onBack }: StepContactProps) {
   const router = useRouter()
   const [formData, setFormData] = useState({
@@ -102,15 +126,18 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
 
       if (shouldSavePartialLead) {
         try {
+          // Trim heavy net metering monthly data before sending to partial lead API
+          const slimEstimatorData = stripNetMeteringMonthly({
+            ...dataWithContact,
+            email: partialLeadEmail,
+          })
+
           const response = await fetch('/api/partial-lead', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               email: partialLeadEmail,
-              estimatorData: {
-                ...dataWithContact,
-                email: partialLeadEmail,
-              },
+              estimatorData: slimEstimatorData,
               currentStep: 8, // Contact / Submit step
             }),
           })
@@ -129,6 +156,9 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
       
       const apiEndpoint = isDetailedHrsResidential ? '/api/leads/hrs-residential' : '/api/leads'
       
+      // For final submission, also trim heavy net metering monthly data before sending to leads API
+      const slimData = stripNetMeteringMonthly(data)
+
       // For detailed HRS residential, send simplified data with original data for fallback extraction
       // For other leads, use the existing format
       const requestBody = isDetailedHrsResidential
@@ -145,7 +175,7 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
           }
         : {
             ...formData,
-            ...data,
+            ...slimData,
             // Include simplifiedData as full_data_json for quick estimates
             // This ensures all fields are available in full_data_json
             full_data_json: simplifiedData,
@@ -291,12 +321,13 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
           monthlyKwh: simplifiedData.production?.monthlyKwh?.length || 0,
           dailyAverageKwh: simplifiedData.production?.dailyAverageKwh,
         })
+        const costsDebug = simplifiedData.costs as any
         console.log('  💵 Costs:', {
-          totalCost: simplifiedData.costs?.totalCost,
-          netCost: simplifiedData.costs?.netCost,
-          incentives: simplifiedData.costs?.incentives,
-          totalCostWithoutTax: simplifiedData.costs?.totalCostWithoutTax,
-          totalCostWithoutTaxAndIncentives: simplifiedData.costs?.totalCostWithoutTaxAndIncentives,
+          totalCost: costsDebug?.totalCost,
+          netCost: costsDebug?.netCost,
+          incentives: costsDebug?.incentives,
+          totalCostWithoutTax: costsDebug?.totalCostWithoutTax,
+          totalCostWithoutTaxAndIncentives: costsDebug?.totalCostWithoutTaxAndIncentives,
         })
         console.log('  📞 Contact:', {
           fullName: simplifiedData.fullName,
