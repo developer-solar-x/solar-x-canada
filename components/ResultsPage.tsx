@@ -34,6 +34,7 @@ import { EnvironmentalTab } from '@/components/estimator/StepReview/tabs/Environ
 import { ImageModal } from '@/components/ui/ImageModal'
 import { NetMeteringResults } from '@/components/ResultsPage/sections/NetMeteringResults'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
+import { FINANCING_OPTIONS } from '@/config/provinces'
 
 interface ResultsPageProps {
   estimate?: {
@@ -113,6 +114,7 @@ interface ResultsPageProps {
     tou?: any
     ulo?: any
   }
+  financingOption?: string
   onMatchInstaller?: () => void
   onExportPDF?: () => void
 }
@@ -142,6 +144,7 @@ export function ResultsPage({
   ulo,
   programType,
   netMetering,
+  financingOption,
   onMatchInstaller,
   onExportPDF,
   ...data // Accept additional data props (including touBeforeAfter, uloBeforeAfter, annualEscalator)
@@ -168,6 +171,18 @@ export function ResultsPage({
     setSelectedImage(image)
     setImageModalOpen(true)
   }
+
+  // Determine selected financing option from explicit prop or spread data.
+  const rawFinancingOption: string | undefined =
+    (data as any)?.financingOption ?? financingOption
+  const financingOptionLabel =
+    rawFinancingOption
+      ? FINANCING_OPTIONS.find(option => option.id === rawFinancingOption)?.name ||
+        rawFinancingOption
+      : null
+  const isCashPurchase =
+    rawFinancingOption === 'cash' ||
+    (financingOptionLabel || '').toLowerCase().includes('cash')
 
   // Use solarOverride if available (matches StepReview logic)
   // Priority: solarOverride (from battery savings step) > estimate.system (from API)
@@ -352,6 +367,19 @@ export function ResultsPage({
   // Get combined costs (if battery is included)
   const finalTotalCost = combinedTotalCost ?? estimate?.costs?.totalCost ?? 0
   const finalNetCost = combinedNetCost ?? estimate?.costs?.netCost ?? 0
+
+  // Derive solar vs battery cost for public results:
+  // - Solar cost comes from the estimate's total/system cost.
+  // - Battery cost is the portion of the combined cost above the solar cost,
+  //   with a fallback to explicit battery pricing when available.
+  const solarSystemCost = estimate?.costs?.totalCost ?? estimate?.costs?.systemCost ?? finalTotalCost
+  const explicitBatteryPrice =
+    batteryDetails?.battery?.price ??
+    (batteryImpact ? batteryImpact.batterySizeKwh && batteryImpact.annualSavings && 0 : undefined)
+  const inferredBatteryCost =
+    finalTotalCost > solarSystemCost ? finalTotalCost - solarSystemCost : 0
+  const batterySystemCost = explicitBatteryPrice ?? inferredBatteryCost
+  const totalSystemCost = solarSystemCost + (batterySystemCost || 0)
   
   // Get touBeforeAfter and uloBeforeAfter from data (same as StepReview)
   // These are pre-calculated in step 4 and should be used directly
@@ -731,6 +759,12 @@ export function ResultsPage({
     }
   }
 
+  // Battery capacity (for subtle display in the System Size card)
+  const batteryKwh =
+    batteryDetails?.battery?.nominalKwh ??
+    batteryImpact?.batterySizeKwh ??
+    0
+
   return (
     <main className="min-h-screen bg-white flex flex-col">
       <div className="flex-1 flex flex-col">
@@ -815,6 +849,11 @@ export function ResultsPage({
               <div className="text-xs text-gray-600 mt-2 font-medium">
                 {numPanels} panels
               </div>
+              {batteryKwh > 0 && (
+                <div className="text-[11px] text-gray-600 mt-1 font-medium">
+                  + {batteryKwh} kWh battery
+                </div>
+              )}
             </div>
 
             {/* Percentage Offset */}
@@ -1262,90 +1301,6 @@ export function ResultsPage({
               </div>
               </div>
 
-              {/* Monthly Production Chart */}
-              <div className="bg-white rounded-2xl p-6 md:p-8 shadow-md">
-                <h2 className="text-2xl font-bold text-forest-500 mb-6">
-                  Monthly Production Estimate
-                </h2>
-                <div className="space-y-3">
-                  {estimate?.production?.monthlyKwh?.map((kwh, index) => {
-                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                    const monthlyKwh = estimate?.production?.monthlyKwh || []
-                    const maxKwh = monthlyKwh.length > 0 ? Math.max(...monthlyKwh) : 0
-                    const percentage = maxKwh > 0 ? (kwh / maxKwh) * 100 : 0
-                    
-                    return (
-                      <div key={index} className="flex items-center gap-3 md:gap-4">
-                        <div className="w-12 md:w-16 text-sm font-medium text-gray-700 flex-shrink-0">
-                          {monthNames[index]}
-                        </div>
-                        <div className="flex-1 bg-gray-100 rounded-full h-8 md:h-10 relative overflow-hidden min-w-0">
-                          <div 
-                            className="bg-gradient-to-r from-sky-400 to-forest-500 h-full rounded-full flex items-center justify-end pr-2 transition-all duration-500"
-                            style={{ width: `${Math.max(percentage, 5)}%` }}
-                          >
-                            {percentage > 15 && (
-                              <span className="text-xs font-semibold text-white whitespace-nowrap">
-                                {formatKwh(kwh)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="w-20 md:w-24 text-xs md:text-sm font-medium text-gray-700 text-right flex-shrink-0">
-                          {formatKwh(kwh)}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-                <p className="text-sm text-gray-600 mt-4">
-                  Production varies by season, with peak generation in summer months when days are longer and sunnier.
-                </p>
-              </div>
-
-              {/* Cost Breakdown */}
-              <div className="bg-white rounded-2xl p-8 shadow-md">
-                <h2 className="text-2xl font-bold text-forest-500 mb-6">
-                  Cost Breakdown
-                </h2>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center py-3 border-b border-gray-200">
-                    <span className="text-gray-700">System Cost</span>
-                    <span className="font-semibold text-gray-900">{formatCurrency(finalTotalCost)}</span>
-                  </div>
-                  {solarRebateAmount > 0 && (
-                    <div className="flex justify-between items-center py-3 border-b border-gray-200">
-                      <span className="text-gray-700">Solar Rebates</span>
-                      <span className="font-semibold text-green-600">-{formatCurrency(solarRebateAmount)}</span>
-                    </div>
-                  )}
-                  {batteryRebateAmount > 0 && (
-                    <div className="flex justify-between items-center py-3 border-b border-gray-200">
-                      <span className="text-gray-700">Battery Rebates</span>
-                      <span className="font-semibold text-green-600">-{formatCurrency(batteryRebateAmount)}</span>
-                    </div>
-                  )}
-                  {totalRebates > 0 && (
-                    <div className="flex justify-between items-center py-2 border-b-2 border-gray-300">
-                      <span className="font-semibold text-gray-700">Total Rebates</span>
-                      <span className="font-semibold text-green-600">-{formatCurrency(totalRebates)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center py-4 bg-forest-50 rounded-lg px-4">
-                    <span className="font-bold text-gray-900">Your Net Investment</span>
-                    <span className="font-bold text-2xl text-forest-600">{formatCurrency(finalNetCost)}</span>
-                  </div>
-                </div>
-
-                {/* Pricing, rebates & incentives disclaimer */}
-                <div className="mt-4 flex items-start gap-2 text-xs text-gray-700">
-                  <InfoTooltip
-                    content="Estimated pricing, incentives, and rebates are based on current publicly available program information. Programs may change, close, or require specific eligibility criteria. Final pricing and incentives are confirmed only through a formal proposal from a qualified installer."
-                  />
-                  <span>Pricing and rebates are estimates only – final amounts come from your installer.</span>
-                </div>
-              </div>
-
               {/* Rate Plan Information (TOU/ULO) - hide for net metering since we show dedicated cards above */}
               {!isNetMetering && (touData || uloData) && (
                 <div className="bg-white rounded-2xl p-8 shadow-md">
@@ -1756,6 +1711,171 @@ export function ResultsPage({
                     <CheckCircle className="text-forest-500 flex-shrink-0 mt-0.5" size={18} />
                     <span className="text-gray-700">Transparent calculations</span>
                   </div>
+                </div>
+              </div>
+
+              {/* System Specifications – under Why Trust card, reusing card styling */}
+              <div className="bg-white rounded-2xl p-8 shadow-md">
+                <h3 className="text-2xl font-bold text-forest-500 mb-4">System Specifications</h3>
+                <div className="space-y-3 text-sm text-gray-700">
+                  <div className="flex justify-between items-center border-b border-gray-200 pb-2">
+                    <span className="font-medium">System Size</span>
+                    <span className="font-semibold">{formatKw(systemSizeKw)}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-gray-200 pb-2">
+                    <span className="font-medium">Number of Panels</span>
+                    <span className="font-semibold">{numPanels ?? 0}</span>
+                  </div>
+                  {batteryKwh > 0 && (
+                    <div className="flex justify-between items-center border-b border-gray-200 pb-2">
+                      <span className="font-medium">Battery Capacity</span>
+                      <span className="font-semibold">{batteryKwh} kWh</span>
+                    </div>
+                  )}
+                  {estimate?.production?.annualKwh && (
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">Annual Production</span>
+                      <span className="font-semibold">
+                        {formatKwh(estimate.production.annualKwh)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Monthly Production Estimate – moved under trust area */}
+              <div className="bg-white rounded-2xl p-6 md:p-8 shadow-md">
+                <h3 className="text-2xl font-bold text-forest-500 mb-6">
+                  Monthly Production Estimate
+                </h3>
+                <div className="space-y-3">
+                  {estimate?.production?.monthlyKwh?.map((kwh, index) => {
+                    const monthNames = [
+                      'Jan',
+                      'Feb',
+                      'Mar',
+                      'Apr',
+                      'May',
+                      'Jun',
+                      'Jul',
+                      'Aug',
+                      'Sep',
+                      'Oct',
+                      'Nov',
+                      'Dec',
+                    ]
+                    const monthlyKwh = estimate?.production?.monthlyKwh || []
+                    const maxKwh = monthlyKwh.length > 0 ? Math.max(...monthlyKwh) : 0
+                    const percentage = maxKwh > 0 ? (kwh / maxKwh) * 100 : 0
+
+                    return (
+                      <div key={index} className="flex items-center gap-3 md:gap-4">
+                        <div className="w-12 md:w-16 text-sm font-medium text-gray-700 flex-shrink-0">
+                          {monthNames[index]}
+                        </div>
+                        <div className="flex-1 bg-gray-100 rounded-full h-8 md:h-10 relative overflow-hidden min-w-0">
+                          <div
+                            className="bg-gradient-to-r from-sky-400 to-forest-500 h-full rounded-full transition-all duration-500"
+                            style={{ width: `${Math.max(percentage, 5)}%` }}
+                          />
+                        </div>
+                        <div className="w-20 md:w-24 text-xs md:text-sm font-medium text-gray-700 text-right flex-shrink-0">
+                          {formatKwh(kwh)}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                <p className="text-sm text-gray-600 mt-4">
+                  Production varies by season, with peak generation in summer months when days are longer
+                  and sunnier.
+                </p>
+              </div>
+
+              {/* Cost Breakdown – moved here, preserving original card styling */}
+              <div className="bg-white rounded-2xl p-8 shadow-md">
+                <h3 className="text-2xl font-bold text-forest-500 mb-6">Cost Breakdown</h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center py-3 border-b border-gray-200">
+                    <span className="text-gray-700">Solar System Cost</span>
+                    <span className="font-semibold text-gray-900">
+                      {formatCurrency(solarSystemCost)}
+                    </span>
+                  </div>
+                  {batterySystemCost > 0 && (
+                    <div className="flex justify-between items-center py-3 border-b border-gray-200">
+                      <span className="text-gray-700">Battery Cost</span>
+                      <span className="font-semibold text-gray-900">
+                        {formatCurrency(batterySystemCost)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center py-3 border-b border-gray-200">
+                    <span className="font-semibold text-gray-800">Total System Cost</span>
+                    <span className="font-semibold text-gray-900">
+                      {formatCurrency(totalSystemCost)}
+                    </span>
+                  </div>
+                  {solarRebateAmount > 0 && (
+                    <div className="flex justify-between items-center py-3 border-b border-gray-200">
+                      <span className="text-gray-700">Solar Rebates</span>
+                      <span className="font-semibold text-green-600">
+                        -{formatCurrency(solarRebateAmount)}
+                      </span>
+                    </div>
+                  )}
+                  {batteryRebateAmount > 0 && (
+                    <div className="flex justify-between items-center py-3 border-b border-gray-200">
+                      <span className="text-gray-700">Battery Rebates</span>
+                      <span className="font-semibold text-green-600">
+                        -{formatCurrency(batteryRebateAmount)}
+                      </span>
+                    </div>
+                  )}
+                  {totalRebates > 0 && (
+                    <div className="flex justify-between items-center py-2 border-b-2 border-gray-300">
+                      <span className="font-semibold text-gray-700">Total Rebates</span>
+                      <span className="font-semibold text-green-600">
+                        -{formatCurrency(totalRebates)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center py-4 bg-forest-50 rounded-lg px-4">
+                    <span className="font-bold text-gray-900">Your Net Investment</span>
+                    <span className="font-bold text-2xl text-forest-600">
+                      {formatCurrency(finalNetCost)}
+                    </span>
+                  </div>
+                  {financingOptionLabel && (
+                    <div className="pt-3 border-t border-gray-200">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-semibold text-gray-700">Payment Method</span>
+                        <span
+                          className={
+                            isCashPurchase
+                              ? 'inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-800 text-[11px] font-semibold uppercase tracking-wide'
+                              : 'font-semibold text-gray-900'
+                          }
+                        >
+                          {financingOptionLabel}
+                        </span>
+                      </div>
+                      {isCashPurchase && (
+                        <p className="mt-2 text-[11px] text-green-700 font-medium">
+                          Cash purchase offers the lowest lifetime cost and highest long‑term savings.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 flex items-start gap-2 text-xs text-gray-700">
+                  <InfoTooltip
+                    content="Estimated pricing, incentives, and rebates are based on current publicly available program information. Programs may change, close, or require specific eligibility criteria. Final pricing and incentives are confirmed only through a formal proposal from a qualified installer."
+                  />
+                  <span>
+                    Pricing and rebates are estimates only – final amounts come from your installer.
+                  </span>
                 </div>
               </div>
             </div>

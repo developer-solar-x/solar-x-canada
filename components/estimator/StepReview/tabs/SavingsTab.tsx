@@ -104,9 +104,10 @@ export function SavingsTab({
       }
     })
 
-    const allValues = savingsSeries.flatMap(d => [d.touProfit, d.uloProfit, d.tieredProfit])
-    const maxValue = Math.max(...allValues, netCost)
-    const minValue = Math.min(...allValues, -netCost)
+    // Y-axis domain for profit view (0 = break-even). Include 0 explicitly so it's always visible.
+    const allValues = savingsSeries.flatMap(d => [d.touProfit, d.uloProfit, d.tieredProfit, 0])
+    const maxValue = Math.max(...allValues)
+    const minValue = Math.min(...allValues)
     const padding = Math.max(Math.abs(maxValue), Math.abs(minValue)) * 0.15
     const yDomain = [
       Math.floor((minValue - padding) / 10000) * 10000,
@@ -220,13 +221,13 @@ export function SavingsTab({
                   activeDot={{ r: isMobile ? 7 : 8, fill: '#f59e0b', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
                   name="25-Year Profit (Tiered)"
                 />
-                <ReferenceLine y={0} stroke="#666" strokeDasharray="2 2" />
+                {/* 0 on the profit axis is the break-even point (system has repaid net investment) */}
                 <ReferenceLine
-                  y={netCost}
+                  y={0}
                   stroke="#16a34a"
                   strokeDasharray="4 4"
                   label={{
-                    value: `Net Investment ${formatCurrency(netCost)}`,
+                    value: 'Break-even (recovers net investment)',
                     position: 'left',
                     fill: '#166534',
                     fontSize: 11,
@@ -325,12 +326,16 @@ export function SavingsTab({
     const paybackUloYear = paybackUloYears !== Infinity && paybackUloYears <= 25 ? Math.ceil(paybackUloYears) : null
     const year25Data = savingsSeries.find(d => d.year === 25)
 
-    // Calculate Y-axis domain to zoom out and center the chart
-    const allValues = savingsSeries.flatMap(d => [d.touCumulative, d.uloCumulative, d.touProfit, d.uloProfit])
-    const maxValue = Math.max(...allValues, Math.max(touCombinedNet, uloCombinedNet))
-    const minValue = Math.min(...allValues, -Math.max(touCombinedNet, uloCombinedNet))
+    // Calculate Y-axis domain to zoom out and center the chart around profits.
+    // We include 0 explicitly so the break-even line is always visible.
+    const allValues = savingsSeries.flatMap(d => [d.touCumulative, d.uloCumulative, d.touProfit, d.uloProfit, 0])
+    const maxValue = Math.max(...allValues)
+    const minValue = Math.min(...allValues)
     const padding = Math.max(Math.abs(maxValue), Math.abs(minValue)) * 0.15 // 15% padding
-    const yDomain = [Math.floor((minValue - padding) / 10000) * 10000, Math.ceil((maxValue + padding) / 10000) * 10000]
+    const yDomain = [
+      Math.floor((minValue - padding) / 10000) * 10000,
+      Math.ceil((maxValue + padding) / 10000) * 10000,
+    ]
 
     return (
       <div className="space-y-6">
@@ -420,8 +425,18 @@ export function SavingsTab({
                   activeDot={{ r: isMobile ? 7 : 8, fill: '#8b5cf6', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
                   name="25-Year Profit (ULO)" 
                 />
-                <ReferenceLine y={0} stroke="#666" strokeDasharray="2 2" />
-                <ReferenceLine y={Math.max(touCombinedNet, uloCombinedNet)} stroke="#16a34a" strokeDasharray="4 4" label={{ value: `Net Investment ${formatCurrency(Math.max(touCombinedNet, uloCombinedNet))}`, position: 'left', fill: '#166534', fontSize: 11 }} />
+                {/* 0 on the profit axis is the break-even point (system has repaid net investment) */}
+                <ReferenceLine
+                  y={0}
+                  stroke="#16a34a"
+                  strokeDasharray="4 4"
+                  label={{
+                    value: 'Break-even (recovers net investment)',
+                    position: 'left',
+                    fill: '#166534',
+                    fontSize: 11,
+                  }}
+                />
                 {/* Payback period vertical lines */}
                 {paybackTouYear && paybackTouYear <= 25 && (
                   <ReferenceLine 
@@ -532,12 +547,16 @@ export function SavingsTab({
   const paybackUloYear = paybackUloYears !== Infinity && paybackUloYears <= 25 ? Math.ceil(paybackUloYears) : null
   const year25Data = savingsSeries.find(d => d.year === 25)
 
-  // Calculate Y-axis domain to zoom out and center the chart
-  const allValues = savingsSeries.flatMap(d => [d.touCumulative, d.uloCumulative, d.touProfit, d.uloProfit])
-  const maxValue = Math.max(...allValues, combinedNetCost)
-  const minValue = Math.min(...allValues, -combinedNetCost)
+  // Calculate Y-axis domain to zoom out and center the chart around profits.
+  // We include 0 explicitly so the break-even line is always visible.
+  const allValues = savingsSeries.flatMap(d => [d.touCumulative, d.uloCumulative, d.touProfit, d.uloProfit, 0])
+  const maxValue = Math.max(...allValues)
+  const minValue = Math.min(...allValues)
   const padding = Math.max(Math.abs(maxValue), Math.abs(minValue)) * 0.15 // 15% padding
-  const yDomain = [Math.floor((minValue - padding) / 10000) * 10000, Math.ceil((maxValue + padding) / 10000) * 10000]
+  const yDomain = [
+    Math.floor((minValue - padding) / 10000) * 10000,
+    Math.ceil((maxValue + padding) / 10000) * 10000,
+  ]
 
   return (
     <div className="space-y-6">
@@ -589,7 +608,7 @@ export function SavingsTab({
                 cursor={{ stroke: '#1B4E7C', strokeWidth: 2, strokeDasharray: '4 4' }} 
                 wrapperStyle={{ transform: 'none', left: 0, top: 0, zIndex: 9999, pointerEvents: 'none' }}
               />
-              <Line 
+              <Line
                 type="monotone" 
                 dataKey="touCumulative" 
                 stroke="#1B4E7C" 
@@ -599,7 +618,7 @@ export function SavingsTab({
                 activeDot={{ r: isMobile ? 6 : 7, fill: '#1B4E7C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
                 name="Cumulative Savings (TOU)" 
               />
-              <Line 
+              <Line
                 type="monotone" 
                 dataKey="uloCumulative" 
                 stroke="#DC143C" 
@@ -609,7 +628,7 @@ export function SavingsTab({
                 activeDot={{ r: isMobile ? 6 : 7, fill: '#DC143C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
                 name="Cumulative Savings (ULO)" 
               />
-              <Line 
+              <Line
                 type="monotone" 
                 dataKey="touProfit" 
                 stroke="#10b981" 
@@ -618,7 +637,7 @@ export function SavingsTab({
                 activeDot={{ r: isMobile ? 7 : 8, fill: '#10b981', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
                 name="25-Year Profit (TOU)" 
               />
-              <Line 
+              <Line
                 type="monotone" 
                 dataKey="uloProfit" 
                 stroke="#8b5cf6" 
@@ -627,8 +646,18 @@ export function SavingsTab({
                 activeDot={{ r: isMobile ? 7 : 8, fill: '#8b5cf6', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
                 name="25-Year Profit (ULO)" 
               />
-              <ReferenceLine y={0} stroke="#666" strokeDasharray="2 2" />
-              <ReferenceLine y={combinedNetCost} stroke="#16a34a" strokeDasharray="4 4" label={{ value: `Net Investment ${formatCurrency(combinedNetCost)}`, position: 'left', fill: '#166534', fontSize: 11 }} />
+              {/* 0 on the profit axis is the break-even point (system has repaid net investment) */}
+              <ReferenceLine
+                y={0}
+                stroke="#16a34a"
+                strokeDasharray="4 4"
+                label={{
+                  value: 'Break-even (recovers net investment)',
+                  position: 'left',
+                  fill: '#166534',
+                  fontSize: 11,
+                }}
+              />
               {/* Payback period vertical lines */}
               {paybackTouYear && paybackTouYear <= 25 && (
                 <ReferenceLine 

@@ -20,6 +20,7 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   const [roofArea, setRoofArea] = useState<number | null>(data.roofAreaSqft || null)
   const [roofPolygon, setRoofPolygon] = useState<any>(data.roofPolygon || null)
   const [mapSnapshot, setMapSnapshot] = useState<string | null>(data.mapSnapshot || null)
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const mapboxDrawingRef = useRef<MapboxDrawingRef>(null)
   const [estimatedPanels, setEstimatedPanels] = useState<number | null>(
     data.roofAreaSqft ? Math.floor(data.roofAreaSqft / PANEL_AREA_SQFT) : null
@@ -175,7 +176,11 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   const handleContinue = async (e?: React.MouseEvent) => {
     e?.preventDefault()
     e?.stopPropagation()
+    if (isSubmitting) {
+      return
+    }
     if (roofArea && roofPolygon) {
+      setIsSubmitting(true)
       // Capture snapshot immediately if not already captured
       let finalSnapshot = mapSnapshot
       if (!finalSnapshot && mapboxDrawingRef.current) {
@@ -226,6 +231,10 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
         }
       }
 
+      // Trigger parent step change. We intentionally do NOT reset isSubmitting here,
+      // because this step will unmount immediately after onComplete runs.
+      // Keeping isSubmitting=true guarantees the loading state is visible
+      // while the app transitions to the next step.
       onComplete(stepData)
     }
   }
@@ -288,10 +297,13 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
         <div className="space-y-3 pt-4 pb-20 lg:pb-0">
           <button
             onClick={handleContinue}
-            disabled={!roofArea || !roofPolygon}
-            className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!roofArea || !roofPolygon || isSubmitting}
+            className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            Continue
+            {isSubmitting && (
+              <span className="inline-block h-4 w-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+            )}
+            <span>{isSubmitting ? 'Saving and continuing...' : 'Continue'}</span>
           </button>
           
           {onBack && (

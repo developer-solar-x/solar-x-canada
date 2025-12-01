@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { parseJson, asNumber, getCombinedBlock, extractCityFromAddress, parseCoordinates } from './utils'
+import { BATTERY_SPECS } from '@/config/battery-specs'
 
 interface Lead {
   [key: string]: any
@@ -62,7 +63,21 @@ export function useLeadData(lead: Lead) {
   const combinedProfit25 = asNumber(combinedTotals?.profit_25y)
 
   // Battery simple values (if present) - support new field names
-  const batteryPrice = asNumber(lead.battery_cost) ?? asNumber(lead.battery_price)
+  // Many rows (especially net metering) store 0 for battery_cost by default even when a battery
+  // is selected. When cost is 0 or null, fall back to calculating from selected battery IDs
+  // using BATTERY_SPECS so the admin view shows an accurate Battery Cost.
+  const batteryPriceFromDb = asNumber(lead.battery_cost) ?? asNumber(lead.battery_price)
+  const batteryPriceFromSelection =
+    Array.isArray(selectedBatteries) && selectedBatteries.length > 0
+      ? selectedBatteries
+          .map(id => BATTERY_SPECS.find(b => b.id === id))
+          .filter(Boolean)
+          .reduce((sum, battery) => sum + (battery?.price || 0), 0)
+      : null
+  const batteryPrice =
+    typeof batteryPriceFromDb === 'number' && batteryPriceFromDb > 0
+      ? batteryPriceFromDb
+      : batteryPriceFromSelection
   const batteryRebate = asNumber(lead.battery_rebate)
   const batteryNet = asNumber(lead.battery_net_cost) ?? (batteryPrice && batteryRebate ? batteryPrice - batteryRebate : null)
 

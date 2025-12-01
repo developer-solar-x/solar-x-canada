@@ -1231,12 +1231,6 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                       <Info size={14} />
                     </button>
                   </h2>
-                  <InfoTooltip
-                    className="hidden sm:inline-flex"
-                    content={
-                      'The donut shows how much of your original annual electricity bill is wiped out by solar and net-metering credits. Bill offset = Annual Export Credits ÷ Annual Import Cost × 100%. If credits are higher than your remaining bill, the offset is capped at 100% and the extra is shown as “+X% Credit” (credits that can roll forward for up to 12 months).'
-                    }
-                  />
                 </div>
                 
                 <DonutChart

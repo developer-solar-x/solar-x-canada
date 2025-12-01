@@ -7,6 +7,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ResultsPage } from '@/components/ResultsPage'
 import { useEffect, useState, Suspense } from 'react'
+import { BATTERY_SPECS } from '@/config/battery-specs'
 
 function TrackPageContent() {
   const params = useParams()
@@ -33,6 +34,9 @@ function TrackPageContent() {
   const [addOns, setAddOns] = useState<any[]>([])
   const [tou, setTou] = useState<any>(undefined)
   const [ulo, setUlo] = useState<any>(undefined)
+  const [programType, setProgramType] = useState<'quick' | 'hrs_residential' | 'net_metering' | undefined>(undefined)
+  const [netMetering, setNetMetering] = useState<any | undefined>(undefined)
+  const [financingOption, setFinancingOption] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(true)
 
   // Use the same transform function as results page
@@ -140,7 +144,83 @@ function TrackPageContent() {
       const numPanels = simplifiedData.numPanels ||                    // From simplifiedData (13)
                        simplifiedData.estimate?.system?.numPanels ||   // From estimate (13)
                        (leadFields?.num_panels ? parseFloat(String(leadFields.num_panels)) : 0) || 0  // From database (13)
-      
+
+      // Normalize cost inputs from simplified data / estimate / database
+      const systemCostFromSimplified =
+        simplifiedData.costs?.systemCost ??
+        simplifiedData.estimate?.costs?.systemCost
+      const batteryCostFromSimplified =
+        simplifiedData.costs?.batteryCost ??
+        simplifiedData.estimate?.costs?.batteryCost
+      const solarRebateFromSimplified =
+        simplifiedData.costs?.solarRebate ??
+        simplifiedData.estimate?.costs?.solarRebate ??
+        simplifiedData.estimate?.costs?.incentives
+      const batteryRebateFromSimplified =
+        simplifiedData.costs?.batteryRebate ??
+        simplifiedData.estimate?.costs?.batteryRebate
+
+      const dbSystemCost =
+        leadFields?.system_cost != null ? parseFloat(String(leadFields.system_cost)) || 0 : 0
+      const dbBatteryCost =
+        leadFields?.battery_cost != null ? parseFloat(String(leadFields.battery_cost)) || 0 : 0
+      const dbSolarRebate =
+        leadFields?.solar_rebate != null ? parseFloat(String(leadFields.solar_rebate)) || 0 : 0
+      const dbBatteryRebate =
+        leadFields?.battery_rebate != null ? parseFloat(String(leadFields.battery_rebate)) || 0 : 0
+
+      const systemCost = (systemCostFromSimplified ?? dbSystemCost ?? 0) || 0
+      let batteryCost = (batteryCostFromSimplified ?? dbBatteryCost ?? 0) || 0
+      const solarRebate = (solarRebateFromSimplified ?? dbSolarRebate ?? 0) || 0
+      const batteryRebate = (batteryRebateFromSimplified ?? dbBatteryRebate ?? 0) || 0
+
+      // Fallback: if batteryCost is still 0 but we have selected batteries in the
+      // simplified payload, rebuild batteryCost from BATTERY_SPECS so that tracking
+      // correctly shows the Battery Cost row (especially for net metering flows).
+      if (!batteryCost) {
+        const selectedBatteryIds: string[] =
+          (Array.isArray(simplifiedData.selectedBatteryIds) && simplifiedData.selectedBatteryIds.length > 0
+            ? simplifiedData.selectedBatteryIds
+            : Array.isArray((simplifiedData as any).selectedBatteries) && (simplifiedData as any).selectedBatteries.length > 0
+            ? (simplifiedData as any).selectedBatteries
+            : Array.isArray(simplifiedData.peakShaving?.selectedBatteries) && simplifiedData.peakShaving.selectedBatteries.length > 0
+            ? simplifiedData.peakShaving.selectedBatteries
+            : simplifiedData.peakShaving?.selectedBattery && typeof simplifiedData.peakShaving.selectedBattery === 'string'
+            ? simplifiedData.peakShaving.selectedBattery.split(',').map((id: string) => id.trim())
+            : []) as string[]
+
+        if (selectedBatteryIds.length > 0) {
+          batteryCost = selectedBatteryIds
+            .map(id => BATTERY_SPECS.find(b => b.id === id))
+            .filter(Boolean)
+            .reduce((sum, battery) => sum + (battery?.price || 0), 0)
+        }
+      }
+
+      // For estimate.costs.totalCost, keep solar-only cost (matches StepReview semantics).
+      // Combined system + battery total is exposed separately via combinedTotalCost.
+      const solarOnlyTotalCost = systemCost
+      const combinedTotalCost = systemCost + batteryCost
+
+      const netCostFromSimplified =
+        simplifiedData.costs?.netCost ??
+        simplifiedData.estimate?.costs?.netCost
+      const dbNetCost =
+        leadFields?.net_cost != null ? parseFloat(String(leadFields.net_cost)) || 0 : 0
+
+      // For net metering, there are no rebates and the user's total investment should be
+      // the full solar + battery system cost. Older flows often saved solar-only netCost,
+      // so for net metering we explicitly ignore that and use the combined total instead.
+      const isNetMeteringProgram =
+        simplifiedData.programType === 'net_metering' ||
+        simplifiedData.program_type === 'net_metering'
+
+      const combinedNetCost = isNetMeteringProgram
+        ? combinedTotalCost
+        : (netCostFromSimplified ??
+            (combinedTotalCost - solarRebate - batteryRebate) ??
+            dbNetCost) || 0
+
       return {
         estimate: {
           system: {
@@ -162,38 +242,17 @@ function TrackPageContent() {
           }),
           costs: {
             ...(simplifiedData.costs || simplifiedData.estimate?.costs || {}),
-            systemCost: simplifiedData.costs?.systemCost || 
-                       simplifiedData.estimate?.costs?.systemCost || 
-                       parseFloat(leadFields?.system_cost) || 0,
-            batteryCost: simplifiedData.costs?.batteryCost || 
-                        simplifiedData.estimate?.costs?.batteryCost || 
-                        parseFloat(leadFields?.battery_cost) || 0,
-            solarRebate: simplifiedData.costs?.solarRebate || 
-                        simplifiedData.estimate?.costs?.solarRebate || 
-                        simplifiedData.estimate?.costs?.incentives || 
-                        parseFloat(leadFields?.solar_rebate) || 0,
-            batteryRebate: simplifiedData.costs?.batteryRebate || 
-                          simplifiedData.estimate?.costs?.batteryRebate || 
-                          parseFloat(leadFields?.battery_rebate) || 0,
-            netCost: simplifiedData.costs?.netCost || 
-                    simplifiedData.estimate?.costs?.netCost || 
-                    parseFloat(leadFields?.net_cost) || 0,
-            totalCost: simplifiedData.costs?.totalCost || 
-                      simplifiedData.estimate?.costs?.totalCost ||
-                      (simplifiedData.costs?.systemCost || 
-                       simplifiedData.estimate?.costs?.systemCost || 
-                       parseFloat(leadFields?.system_cost) || 0) + 
-                      (simplifiedData.costs?.batteryCost || 
-                       simplifiedData.estimate?.costs?.batteryCost || 
-                       parseFloat(leadFields?.battery_cost) || 0),
-            incentives: simplifiedData.costs?.incentives ||
-                       simplifiedData.estimate?.costs?.incentives ||
-                       (simplifiedData.costs?.solarRebate || 
-                        simplifiedData.estimate?.costs?.solarRebate || 
-                        parseFloat(leadFields?.solar_rebate) || 0) + 
-                       (simplifiedData.costs?.batteryRebate || 
-                        simplifiedData.estimate?.costs?.batteryRebate || 
-                        parseFloat(leadFields?.battery_rebate) || 0),
+            systemCost,
+            batteryCost,
+            solarRebate,
+            batteryRebate,
+            netCost: combinedNetCost,
+            // Solar-only total cost; combined total is exposed via combinedTotalCost.
+            totalCost: solarOnlyTotalCost,
+            incentives:
+              simplifiedData.costs?.incentives ??
+              simplifiedData.estimate?.costs?.incentives ??
+              solarRebate + batteryRebate,
           },
           savings: {
             annualSavings: Math.max(touAnnualSavings, uloAnnualSavings) || 0,
@@ -222,20 +281,12 @@ function TrackPageContent() {
                     simplifiedData.estimate?.costs?.solarRebate || 
                     simplifiedData.estimate?.costs?.incentives || 
                     parseFloat(leadFields?.solar_rebate) || 0,
-        batteryRebate: simplifiedData.costs?.batteryRebate || 
-                      simplifiedData.estimate?.costs?.batteryRebate || 
-                      parseFloat(leadFields?.battery_rebate) || 0,
-        combinedTotalCost: simplifiedData.costs?.totalCost || 
-                          simplifiedData.estimate?.costs?.totalCost ||
-                          (simplifiedData.costs?.systemCost || 
-                           simplifiedData.estimate?.costs?.systemCost || 
-                           parseFloat(leadFields?.system_cost) || 0) + 
-                          (simplifiedData.costs?.batteryCost || 
-                           simplifiedData.estimate?.costs?.batteryCost || 
-                           parseFloat(leadFields?.battery_cost) || 0),
-        combinedNetCost: simplifiedData.costs?.netCost || 
-                        simplifiedData.estimate?.costs?.netCost || 
-                        parseFloat(leadFields?.net_cost) || 0,
+        batteryRebate:
+          simplifiedData.costs?.batteryRebate ||
+          simplifiedData.estimate?.costs?.batteryRebate ||
+          parseFloat(leadFields?.battery_rebate) || 0,
+        combinedTotalCost,
+        combinedNetCost,
         displayPlan: uloAnnualSavings > 0 && touAnnualSavings > 0
           ? (uloAnnualSavings > touAnnualSavings ? 'ulo' : 'tou')
           : (uloAnnualSavings > 0 ? 'ulo' : touAnnualSavings > 0 ? 'tou' : undefined),
@@ -437,6 +488,13 @@ function TrackPageContent() {
               }
             : undefined,
         },
+        // Net metering results (if present) - used by ResultsPage for net metering tracking
+        netMetering: simplifiedData.netMetering || undefined,
+        financingOption:
+          simplifiedData.financingOption ||
+          (leadFields?.financing_option as string | undefined) ||
+          (leadFields?.financing_preference as string | undefined) ||
+          undefined,
       }
     }
     
@@ -506,6 +564,14 @@ function TrackPageContent() {
             setAddOns(transformedData.addOns || [])
             setTou(transformedData.tou)
             setUlo(transformedData.ulo)
+            setProgramType(simplifiedData.programType || lead.program_type || undefined)
+            setNetMetering(transformedData.netMetering || simplifiedData.netMetering || undefined)
+            setFinancingOption(
+              transformedData.financingOption ||
+                simplifiedData.financingOption ||
+                lead.hrs_residential_data?.financing_option ||
+                lead.hrs_residential_data?.financing_preference,
+            )
             setLoading(false)
             return
           }
@@ -573,6 +639,9 @@ function TrackPageContent() {
       addOns={addOns}
       tou={tou}
       ulo={ulo}
+      programType={programType}
+      netMetering={netMetering}
+      financingOption={financingOption}
     />
   )
 }

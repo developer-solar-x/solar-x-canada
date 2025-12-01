@@ -34,7 +34,7 @@ export function Hero() {
   ]
 
   return (
-    <section id="home" className="relative min-h-screen flex items-center overflow-hidden bg-forest-500">
+    <section id="home" className="relative min-h-screen flex items-center overflow-x-hidden bg-forest-500">
       {/* Professional background with subtle depth */}
       <div className="absolute inset-0 gradient-hero" />
       

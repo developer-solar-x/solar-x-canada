@@ -85,6 +85,38 @@ function getTotalNetInvestment(leads: Lead[]): number {
   }, 0)
 }
 
+// Aggregate total rebates (solar + battery) across all leads.
+// This mirrors the "Total Rebates" / "Net After Rebates" shown in the lead overview modal.
+function getTotalRebates(leads: Lead[]): number {
+  return leads.reduce((sum, lead) => {
+    // Direct solar incentives column on lead (HRS tables)
+    const fromSolarIncentives = lead.solar_incentives
+
+    // Fallback from full_data_json / estimator_data (simplified estimator data)
+    const full: any =
+      (lead as any).full_data_json ||
+      (lead as any).fullDataJson ||
+      (lead as any).estimator_data ||
+      (lead as any).estimatorData ||
+      null
+
+    const solarRebate = full?.costs?.solarRebate
+    const batteryRebate = full?.costs?.batteryRebate
+    const fromFullRebates =
+      (typeof solarRebate === 'number' ? solarRebate : 0) +
+      (typeof batteryRebate === 'number' ? batteryRebate : 0)
+
+    const solarIncentivesValue =
+      typeof fromSolarIncentives === 'number' && fromSolarIncentives > 0
+        ? fromSolarIncentives
+        : 0
+
+    const value = solarIncentivesValue + fromFullRebates
+
+    return sum + (typeof value === 'number' && !Number.isNaN(value) ? value : 0)
+  }, 0)
+}
+
 function getTouUloAnnualSavings(leads: Lead[]): { touTotal: number; uloTotal: number } {
   return leads.reduce(
     (acc, lead) => {
@@ -125,6 +157,7 @@ export function AnalyticsSection({ leads, stats, partialStats, loading = false }
   const totalNetInvestment = getTotalNetInvestment(leads)
   const { touTotal, uloTotal } = getTouUloAnnualSavings(leads)
   const hasTouOrUloSavings = touTotal > 0 || uloTotal > 0
+  const totalRebates = getTotalRebates(leads)
   const leadsWithBattery = leads.filter(
     (lead) => (lead as any).has_battery || (Array.isArray((lead as any).selected_battery_ids) && (lead as any).selected_battery_ids.length > 0)
   ).length
@@ -154,28 +187,6 @@ export function AnalyticsSection({ leads, stats, partialStats, loading = false }
       0
 
     return typeof value === 'number' && !Number.isNaN(value) ? value : 0
-  }
-
-  const getLeadPaybackYears = (lead: Lead): number => {
-    const combined = (lead as any).combined_payback_years
-    const tou = (lead as any).tou_payback_period
-    const ulo = (lead as any).ulo_payback_period
-
-    const full: any =
-      (lead as any).full_data_json ||
-      (lead as any).fullDataJson ||
-      (lead as any).estimator_data ||
-      (lead as any).estimatorData ||
-      null
-
-    const fromFull =
-      full?.tou?.paybackPeriod ??
-      full?.ulo?.paybackPeriod ??
-      full?.costs?.paybackYears ??
-      null
-
-    const value = combined ?? tou ?? ulo ?? fromFull ?? 0
-    return typeof value === 'number' && value > 0 && !Number.isNaN(value) ? value : 0
   }
 
   if (loading) {
@@ -241,13 +252,15 @@ export function AnalyticsSection({ leads, stats, partialStats, loading = false }
 
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
-            <Zap className="text-yellow-500" size={32} />
-            <span className="text-3xl font-bold text-navy-500">
-              {stats.avgSystemSize.toFixed(1)} kW
+            <DollarSign className="text-green-500" size={32} />
+            <span className="text-2xl font-bold text-navy-500">
+              {formatCurrency(totalRebates)}
             </span>
           </div>
-          <div className="text-sm text-gray-600">Avg System Size</div>
-          <div className="text-xs text-gray-500 mt-1">Across all leads</div>
+          <div className="text-sm text-gray-600">Total Rebates Collected</div>
+          <div className="text-xs text-gray-500 mt-1">
+            Sum of solar and battery rebates across all completed leads
+          </div>
         </div>
 
         <div className="card p-6">
@@ -406,18 +419,15 @@ export function AnalyticsSection({ leads, stats, partialStats, loading = false }
 
         <div className="card p-6">
           <h2 className="text-lg font-bold text-navy-500 mb-4 flex items-center gap-2">
-            <Clock size={20} />
-            Avg Payback Period
+            <DollarSign size={20} />
+            Avg Net Investment
           </h2>
           <div className="text-3xl font-bold text-navy-500 mb-2">
-            {(() => {
-              const paybacks = leads.map(getLeadPaybackYears).filter(v => v > 0)
-              if (paybacks.length === 0) return '—'
-              const avg = paybacks.reduce((sum, v) => sum + v, 0) / paybacks.length
-              return `${avg.toFixed(1)} yrs`
-            })()}
+            {stats.totalLeads > 0 ? formatCurrency(totalNetInvestment / stats.totalLeads) : '—'}
           </div>
-          <div className="text-sm text-gray-600">Average payback period where payback data is available</div>
+          <div className="text-sm text-gray-600">
+            Average net system cost after rebates across all leads with pricing data
+          </div>
         </div>
       </div>
 

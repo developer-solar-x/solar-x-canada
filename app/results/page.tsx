@@ -33,6 +33,7 @@ function ResultsPageContent() {
   const [ulo, setUlo] = useState<any>(undefined)
   const [programType, setProgramType] = useState<'quick' | 'hrs_residential' | 'net_metering' | undefined>(undefined)
   const [netMetering, setNetMetering] = useState<{ tou?: any; ulo?: any } | undefined>(undefined)
+  const [financingOption, setFinancingOption] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(true)
 
   // Helper function to transform simplified data structure to ResultsPage format
@@ -483,6 +484,12 @@ function ResultsPageContent() {
         },
         // Extract net metering data
         netMetering: simplifiedData.netMetering || undefined,
+        // Selected financing / payment method
+        financingOption:
+          simplifiedData.financingOption ||
+          (leadFields?.financing_option as string | undefined) ||
+          (leadFields?.financing_preference as string | undefined) ||
+          undefined,
       }
       
       console.log('✅ Transformed data:', {
@@ -620,6 +627,7 @@ function ResultsPageContent() {
               setTou(transformedData.tou)
               setUlo(transformedData.ulo)
               setProgramType(simplifiedData.programType || lead.program_type || undefined)
+              setFinancingOption(transformedData.financingOption || simplifiedData.financingOption || lead.hrs_residential_data?.financing_option || lead.hrs_residential_data?.financing_preference)
               // Extract net metering data if present
               setNetMetering(transformedData.netMetering || simplifiedData.netMetering || undefined)
               setLoading(false)
@@ -722,6 +730,11 @@ function ResultsPageContent() {
           setUlo(transformedData.ulo)
           setProgramType(results.programType || undefined)
           setNetMetering(transformedData.netMetering || results.netMetering || undefined)
+          setFinancingOption(
+            transformedData.financingOption ||
+              (results as any).financingOption ||
+              (results as any).financingPreference,
+          )
         } else if (results?.estimate) {
           // Use original structure
           console.log('✅ Using original structure')
@@ -947,6 +960,7 @@ function ResultsPageContent() {
       ulo={ulo}
       programType={programType}
       netMetering={netMetering}
+      financingOption={financingOption}
       onMatchInstaller={handleMatchInstaller}
       onExportPDF={handleExportPDF}
     />

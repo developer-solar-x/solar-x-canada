@@ -460,7 +460,7 @@ export function LeadDetailView({ lead, onClose, onStatusChange }: LeadDetailView
                     : 'border-transparent text-gray-600 hover:text-navy-500'
                 }`}
               >
-                Full Estimate
+                Production
               </button>
               {SHOW_PEAK_SHAVING && (
                 <button
