@@ -43,7 +43,12 @@ async function uploadFileToStorage(
       })
     
     if (error) {
-      console.error('Error uploading file to storage:', error)
+      console.error('Error uploading file to storage:', {
+        error,
+        bucket,
+        filePath,
+        contentType,
+      })
       return null
     }
     
@@ -54,7 +59,12 @@ async function uploadFileToStorage(
     
     return urlData.publicUrl
   } catch (error) {
-    console.error('Error in uploadFileToStorage:', error)
+    console.error('Error in uploadFileToStorage:', {
+      error,
+      bucket,
+      fileName,
+      folder,
+    })
     return null
   }
 }
@@ -104,7 +114,12 @@ async function uploadBase64ToStorage(
       })
     
     if (error) {
-      console.error('Error uploading base64 to storage:', error)
+      console.error('Error uploading base64 to storage:', {
+        error,
+        bucket,
+        filePath,
+        contentType,
+      })
       return null
     }
     
@@ -115,7 +130,12 @@ async function uploadBase64ToStorage(
     
     return urlData.publicUrl
   } catch (error) {
-    console.error('Error in uploadBase64ToStorage:', error)
+    console.error('Error in uploadBase64ToStorage:', {
+      error,
+      bucket,
+      fileName,
+      folder,
+    })
     return null
   }
 }
@@ -124,6 +144,7 @@ async function uploadBase64ToStorage(
 export async function POST(request: Request) {
   try {
     const formData = await request.formData()
+    console.log('📥 Installer application POST received')
     const supabase = getSupabaseAdmin()
 
     // Extract form fields
@@ -147,6 +168,12 @@ export async function POST(request: Request) {
 
     // Validate required fields
     if (!companyName || !contactPersonName || !contactEmail || !contactPhone) {
+      console.warn('Installer application validation failed: missing required fields', {
+        companyName,
+        contactPersonName,
+        contactEmail,
+        contactPhone,
+      })
       return NextResponse.json(
         { error: 'Missing required fields: companyName, contactPersonName, contactEmail, contactPhone' },
         { status: 400 }
@@ -166,6 +193,12 @@ export async function POST(request: Request) {
 
     // Upload ESA certification
     if (certificationEsaFile && certificationEsaFile.size > 0) {
+      console.log('Uploading ESA certification file for installer application', {
+        companyName,
+        fileName: certificationEsaFile.name,
+        size: certificationEsaFile.size,
+        type: certificationEsaFile.type,
+      })
       certificationEsaUrl = await uploadFileToStorage(
         supabase,
         certificationEsaFile,
@@ -177,6 +210,12 @@ export async function POST(request: Request) {
 
     // Upload Provincial certification
     if (certificationProvincialFile && certificationProvincialFile.size > 0) {
+      console.log('Uploading provincial certification file for installer application', {
+        companyName,
+        fileName: certificationProvincialFile.name,
+        size: certificationProvincialFile.size,
+        type: certificationProvincialFile.type,
+      })
       certificationProvincialUrl = await uploadFileToStorage(
         supabase,
         certificationProvincialFile,
@@ -188,6 +227,12 @@ export async function POST(request: Request) {
 
     // Upload Other certification
     if (certificationOtherFile && certificationOtherFile.size > 0) {
+      console.log('Uploading other certification file for installer application', {
+        companyName,
+        fileName: certificationOtherFile.name,
+        size: certificationOtherFile.size,
+        type: certificationOtherFile.type,
+      })
       certificationOtherUrl = await uploadFileToStorage(
         supabase,
         certificationOtherFile,
@@ -199,6 +244,12 @@ export async function POST(request: Request) {
 
     // Upload Insurance proof
     if (insuranceProofFile && insuranceProofFile.size > 0) {
+      console.log('Uploading insurance proof file for installer application', {
+        companyName,
+        fileName: insuranceProofFile.name,
+        size: insuranceProofFile.size,
+        type: insuranceProofFile.type,
+      })
       insuranceProofUrl = await uploadFileToStorage(
         supabase,
         insuranceProofFile,
@@ -214,9 +265,20 @@ export async function POST(request: Request) {
     if (manufacturerNamesStr) {
       try {
         const manufacturerNames = JSON.parse(manufacturerNamesStr)
+        console.log('Processing manufacturer certifications for installer application', {
+          companyName,
+          manufacturerNames,
+        })
         for (const manufacturerName of manufacturerNames) {
           const manufacturerFile = formData.get(`manufacturerCert_${manufacturerName}`) as File | null
           if (manufacturerFile && manufacturerFile.size > 0) {
+            console.log('Uploading manufacturer certification file', {
+              companyName,
+              manufacturerName,
+              fileName: manufacturerFile.name,
+              size: manufacturerFile.size,
+              type: manufacturerFile.type,
+            })
             const url = await uploadFileToStorage(
               supabase,
               manufacturerFile,
@@ -230,7 +292,11 @@ export async function POST(request: Request) {
           }
         }
       } catch (e) {
-        console.error('Error parsing manufacturer names:', e)
+        console.error('Error parsing manufacturer names for installer application:', {
+          error: e,
+          rawValue: manufacturerNamesStr,
+          companyName,
+        })
       }
     }
 
@@ -240,6 +306,12 @@ export async function POST(request: Request) {
     
     for (const photoFile of projectPhotosFiles) {
       if (photoFile && photoFile.size > 0) {
+        console.log('Uploading installer project photo', {
+          companyName,
+          fileName: photoFile.name,
+          size: photoFile.size,
+          type: photoFile.type,
+        })
         const url = await uploadFileToStorage(
           supabase,
           photoFile,
@@ -299,6 +371,13 @@ export async function POST(request: Request) {
     }
 
     // Insert into database
+    console.log('Inserting installer application into database', {
+      companyName,
+      contactEmail,
+      primaryServiceProvincesCount: primaryServiceProvinces?.length ?? 0,
+      projectPhotosCount: projectPhotosUrls.length,
+    })
+
     const { data: application, error } = await supabase
       .from('installer_applications')
       .insert(insertData)
@@ -306,12 +385,22 @@ export async function POST(request: Request) {
       .single()
 
     if (error) {
-      console.error('Error inserting installer application:', error)
+      console.error('Error inserting installer application:', {
+        error,
+        companyName,
+        contactEmail,
+      })
       return NextResponse.json(
         { error: 'Failed to save application', details: error.message },
         { status: 500 }
       )
     }
+
+    console.log('✅ Installer application saved successfully', {
+      applicationId: application.id,
+      companyName,
+      contactEmail,
+    })
 
     return NextResponse.json({
       success: true,
@@ -320,7 +409,11 @@ export async function POST(request: Request) {
     })
 
   } catch (error: any) {
-    console.error('Error in installer application API:', error)
+    console.error('Error in installer application API:', {
+      error,
+      message: error?.message,
+      stack: error?.stack,
+    })
     return NextResponse.json(
       { error: 'Internal server error', details: error.message },
       { status: 500 }

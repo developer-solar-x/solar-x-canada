@@ -111,7 +111,8 @@ export async function POST(request: Request) {
       annualUsageKwh,
       selectedRatePlan,
       hourlyUsageData,
-      year
+      year,
+      usageDistribution as UsageDistribution | undefined
     )
 
     return NextResponse.json({

@@ -3,6 +3,7 @@
 
 import { RatePlan, getRateForDateTime, RatePeriod } from '../config/rate-plans'
 import type { UsageDataPoint } from './battery-dispatch'
+import type { UsageDistribution } from './simple-peak-shaving'
 
 // Re-export for consumers that only need the shape, not the implementation details
 export type { UsageDataPoint } from './battery-dispatch'
@@ -163,12 +164,16 @@ export function generateHourlyFromMonthly(
   return usageData
 }
 
-// Generate full year usage data from annual total using typical patterns
+// Generate full year usage data from annual total using typical patterns.
+// If a custom TOU/ULO usage distribution is provided, we reshape the typical
+// pattern so that the share of kWh in each period matches the requested
+// percentages while keeping the annual total fixed.
 export function generateAnnualUsagePattern(
   annualKwh: number,
   ratePlan: RatePlan,
   year: number = new Date().getFullYear(),
-  useSeasonalAdjustment: boolean = true
+  useSeasonalAdjustment: boolean = true,
+  usageDistribution?: UsageDistribution
 ): UsageDataPoint[] {
   // Monthly distribution (percentage of annual usage)
   // Higher in winter (heating) and summer (cooling) - Ontario climate
@@ -197,8 +202,96 @@ export function generateAnnualUsagePattern(
     totalKwh: (annualKwh * percent) / 100
   }))
   
-  // Generate hourly data from monthly
-  return generateHourlyFromMonthly(monthlyData, ratePlan)
+  // Generate base hourly data from monthly using the typical pattern.
+  const baseUsage = generateHourlyFromMonthly(monthlyData, ratePlan)
+
+  // If no custom distribution supplied, use the base pattern.
+  if (!usageDistribution) {
+    return baseUsage
+  }
+
+  // --- Period-aware re-scaling -------------------------------------------
+  // We scale all hours that fall into each TOU/ULO period so that the
+  // resulting share of annual kWh for that period matches the requested
+  // distribution. This mimics the peak‑shaving calculator behaviour where
+  // users control how much of their load sits in on‑peak vs off‑peak hours.
+
+  const totalsByPeriod: Record<RatePeriod, number> = {
+    'ultra-low': 0,
+    'off-peak': 0,
+    'mid-peak': 0,
+    'on-peak': 0,
+  }
+
+  baseUsage.forEach(d => {
+    totalsByPeriod[d.period] += d.kwh
+  })
+
+  const totalKwhBase = Object.values(totalsByPeriod).reduce((sum, v) => sum + v, 0) || 1
+
+  // Target shares from the provided distribution (fall back to current share
+  // if a bucket is missing so we do not distort the pattern excessively).
+  const targetShare = {
+    'on-peak': usageDistribution.onPeakPercent ?? 0,
+    'mid-peak': usageDistribution.midPeakPercent ?? 0,
+    'off-peak': usageDistribution.offPeakPercent ?? 0,
+    'ultra-low': usageDistribution.ultraLowPercent ?? 0,
+  }
+
+  const totalTargetPercent =
+    (targetShare['on-peak'] || 0) +
+    (targetShare['mid-peak'] || 0) +
+    (targetShare['off-peak'] || 0) +
+    (targetShare['ultra-low'] || 0)
+
+  // Normalise to 100% if the user-entered values are slightly off.
+  if (totalTargetPercent > 0 && Math.abs(totalTargetPercent - 100) > 0.01) {
+    const normalise = 100 / totalTargetPercent
+    ;(Object.keys(targetShare) as RatePeriod[]).forEach(p => {
+      targetShare[p] = (targetShare[p] || 0) * normalise
+    })
+  }
+
+  const currentShare: Record<RatePeriod, number> = {
+    'ultra-low': (totalsByPeriod['ultra-low'] / totalKwhBase) * 100,
+    'off-peak': (totalsByPeriod['off-peak'] / totalKwhBase) * 100,
+    'mid-peak': (totalsByPeriod['mid-peak'] / totalKwhBase) * 100,
+    'on-peak': (totalsByPeriod['on-peak'] / totalKwhBase) * 100,
+  }
+
+  // Compute a per-period scale factor so we move from the current share to
+  // the requested share. If a period currently has zero usage, keep scale 1.
+  const scaleByPeriod: Record<RatePeriod, number> = {
+    'ultra-low':
+      totalsByPeriod['ultra-low'] > 0 && targetShare['ultra-low'] != null
+        ? (targetShare['ultra-low'] || 0) / Math.max(currentShare['ultra-low'], 0.0001)
+        : 1,
+    'off-peak':
+      totalsByPeriod['off-peak'] > 0 && targetShare['off-peak'] != null
+        ? (targetShare['off-peak'] || 0) / Math.max(currentShare['off-peak'], 0.0001)
+        : 1,
+    'mid-peak':
+      totalsByPeriod['mid-peak'] > 0 && targetShare['mid-peak'] != null
+        ? (targetShare['mid-peak'] || 0) / Math.max(currentShare['mid-peak'], 0.0001)
+        : 1,
+    'on-peak':
+      totalsByPeriod['on-peak'] > 0 && targetShare['on-peak'] != null
+        ? (targetShare['on-peak'] || 0) / Math.max(currentShare['on-peak'], 0.0001)
+        : 1,
+  }
+
+  const scaled = baseUsage.map(d => ({
+    ...d,
+    kwh: d.kwh * scaleByPeriod[d.period],
+  }))
+
+  const scaledTotal = scaled.reduce((sum, d) => sum + d.kwh, 0) || 1
+  const globalScale = annualKwh > 0 ? annualKwh / scaledTotal : 1
+
+  return scaled.map(d => ({
+    ...d,
+    kwh: d.kwh * globalScale,
+  }))
 }
 
 // Aggregate hourly data to daily summaries

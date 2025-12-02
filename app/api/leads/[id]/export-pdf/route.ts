@@ -466,54 +466,54 @@ async function generatePDF(lead: any, leadId: string) {
     }
   } else {
     // Regular HRS Plan Savings (non-net-metering)
-    // TOU Plan Savings
-    if (lead.tou_annual_savings || lead.tou_before_solar) {
-      addText('TIME-OF-USE (TOU) PLAN', 14, true)
-      if (lead.tou_before_solar) addText(`Current Annual Bill: $${parseFloat(String(lead.tou_before_solar)).toFixed(2)}`, 11)
-      if (lead.tou_after_solar) addText(`With Solar + Battery: $${parseFloat(String(lead.tou_after_solar)).toFixed(2)}`, 11)
-      if (lead.tou_annual_savings) {
-        const touAnnual = parseFloat(String(lead.tou_annual_savings))
-        addText(`Annual Savings: $${touAnnual.toFixed(2)}`, 11, true)
-        addText(`Monthly Savings: $${(touAnnual / 12).toFixed(2)}`, 11)
-      }
-      if (lead.tou_total_bill_savings_percent) {
-        addText(`Total Bill Savings: ${parseFloat(String(lead.tou_total_bill_savings_percent)).toFixed(1)}%`, 11)
-      }
-      if (lead.tou_payback_period) {
-        addText(`Payback Period: ${parseFloat(String(lead.tou_payback_period))} years`, 11)
-      }
-      if (lead.tou_profit_25_year) {
-        addText(`25-Year Profit: $${parseFloat(String(lead.tou_profit_25_year)).toLocaleString()}`, 11)
-      }
-      if (lead.tou_total_offset) {
-        addText(`Energy Offset: ${parseFloat(String(lead.tou_total_offset)).toFixed(1)}%`, 11)
-      }
-      yPosition += 5
+  // TOU Plan Savings
+  if (lead.tou_annual_savings || lead.tou_before_solar) {
+    addText('TIME-OF-USE (TOU) PLAN', 14, true)
+    if (lead.tou_before_solar) addText(`Current Annual Bill: $${parseFloat(String(lead.tou_before_solar)).toFixed(2)}`, 11)
+    if (lead.tou_after_solar) addText(`With Solar + Battery: $${parseFloat(String(lead.tou_after_solar)).toFixed(2)}`, 11)
+    if (lead.tou_annual_savings) {
+      const touAnnual = parseFloat(String(lead.tou_annual_savings))
+      addText(`Annual Savings: $${touAnnual.toFixed(2)}`, 11, true)
+      addText(`Monthly Savings: $${(touAnnual / 12).toFixed(2)}`, 11)
     }
+    if (lead.tou_total_bill_savings_percent) {
+      addText(`Total Bill Savings: ${parseFloat(String(lead.tou_total_bill_savings_percent)).toFixed(1)}%`, 11)
+    }
+    if (lead.tou_payback_period) {
+      addText(`Payback Period: ${parseFloat(String(lead.tou_payback_period))} years`, 11)
+    }
+    if (lead.tou_profit_25_year) {
+      addText(`25-Year Profit: $${parseFloat(String(lead.tou_profit_25_year)).toLocaleString()}`, 11)
+    }
+    if (lead.tou_total_offset) {
+      addText(`Energy Offset: ${parseFloat(String(lead.tou_total_offset)).toFixed(1)}%`, 11)
+    }
+    yPosition += 5
+  }
 
-    // ULO Plan Savings
-    if (lead.ulo_annual_savings || lead.ulo_before_solar) {
-      addText('ULTRA-LOW OVERNIGHT (ULO) PLAN', 14, true)
-      if (lead.ulo_before_solar) addText(`Current Annual Bill: $${parseFloat(String(lead.ulo_before_solar)).toFixed(2)}`, 11)
-      if (lead.ulo_after_solar) addText(`With Solar + Battery: $${parseFloat(String(lead.ulo_after_solar)).toFixed(2)}`, 11)
-      if (lead.ulo_annual_savings) {
-        const uloAnnual = parseFloat(String(lead.ulo_annual_savings))
-        addText(`Annual Savings: $${uloAnnual.toFixed(2)}`, 11, true)
-        addText(`Monthly Savings: $${(uloAnnual / 12).toFixed(2)}`, 11)
-      }
-      if (lead.ulo_total_bill_savings_percent) {
-        addText(`Total Bill Savings: ${parseFloat(String(lead.ulo_total_bill_savings_percent)).toFixed(1)}%`, 11)
-      }
-      if (lead.ulo_payback_period) {
-        addText(`Payback Period: ${parseFloat(String(lead.ulo_payback_period))} years`, 11)
-      }
-      if (lead.ulo_profit_25_year) {
-        addText(`25-Year Profit: $${parseFloat(String(lead.ulo_profit_25_year)).toLocaleString()}`, 11)
-      }
-      if (lead.ulo_total_offset) {
-        addText(`Energy Offset: ${parseFloat(String(lead.ulo_total_offset)).toFixed(1)}%`, 11)
-      }
-      yPosition += 5
+  // ULO Plan Savings
+  if (lead.ulo_annual_savings || lead.ulo_before_solar) {
+    addText('ULTRA-LOW OVERNIGHT (ULO) PLAN', 14, true)
+    if (lead.ulo_before_solar) addText(`Current Annual Bill: $${parseFloat(String(lead.ulo_before_solar)).toFixed(2)}`, 11)
+    if (lead.ulo_after_solar) addText(`With Solar + Battery: $${parseFloat(String(lead.ulo_after_solar)).toFixed(2)}`, 11)
+    if (lead.ulo_annual_savings) {
+      const uloAnnual = parseFloat(String(lead.ulo_annual_savings))
+      addText(`Annual Savings: $${uloAnnual.toFixed(2)}`, 11, true)
+      addText(`Monthly Savings: $${(uloAnnual / 12).toFixed(2)}`, 11)
+    }
+    if (lead.ulo_total_bill_savings_percent) {
+      addText(`Total Bill Savings: ${parseFloat(String(lead.ulo_total_bill_savings_percent)).toFixed(1)}%`, 11)
+    }
+    if (lead.ulo_payback_period) {
+      addText(`Payback Period: ${parseFloat(String(lead.ulo_payback_period))} years`, 11)
+    }
+    if (lead.ulo_profit_25_year) {
+      addText(`25-Year Profit: $${parseFloat(String(lead.ulo_profit_25_year)).toLocaleString()}`, 11)
+    }
+    if (lead.ulo_total_offset) {
+      addText(`Energy Offset: ${parseFloat(String(lead.ulo_total_offset)).toFixed(1)}%`, 11)
+    }
+    yPosition += 5
     }
   }
 

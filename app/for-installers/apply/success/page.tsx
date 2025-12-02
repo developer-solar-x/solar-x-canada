@@ -155,13 +155,13 @@ function InstallerApplicationSuccessContent() {
               <p className="text-sm text-gray-600 mb-2">
                 Have questions about your application?
               </p>
-              <Link
-                // href="/contact"
-                className="text-forest-600 hover:text-forest-700 font-semibold inline-flex items-center gap-2"
+              <button
+                type="button"
+                className="text-forest-600 hover:text-forest-700 font-semibold inline-flex items-center gap-2 cursor-default"
               >
                 <Mail size={18} />
                 Contact Support
-              </Link>
+              </button>
             </div>
           </div>
         </div>

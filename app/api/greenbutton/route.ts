@@ -2,6 +2,9 @@
 import { NextResponse } from 'next/server' // Pulling in the Next.js helper that makes JSON responses effortless
 import { parseGreenButtonWorkbook } from '@/lib/greenbutton/parser' // Reusing the parser we just built so data stays consistent everywhere
 
+// Force dynamic rendering to prevent static analysis issues
+export const dynamic = 'force-dynamic'
+
 // Sharing the GET handler as an async function because file reads take a moment of patience
 export async function GET() {
   try {

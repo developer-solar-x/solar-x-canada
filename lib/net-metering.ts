@@ -3,6 +3,7 @@
 
 import { RatePlan, getRateForDateTime, getExportCreditRate, TOU_RATE_PLAN } from '@/config/rate-plans'
 import { generateAnnualUsagePattern } from './usage-parser'
+import type { UsageDistribution } from './simple-peak-shaving'
 import type { UsageDataPoint } from './usage-parser'
 
 // Monthly derate factors for Ontario solar production (from FRD)
@@ -114,7 +115,8 @@ export function calculateNetMetering(
   annualUsageKwh: number,
   ratePlan: RatePlan,
   usageData?: UsageDataPoint[], // Optional: use provided hourly usage data
-  year: number = new Date().getFullYear()
+  year: number = new Date().getFullYear(),
+  usageDistribution?: UsageDistribution
 ): NetMeteringResult {
   // Generate hourly solar production pattern
   const hourlySolarProduction = generateHourlyProductionPattern(monthlySolarProduction, year)
@@ -124,7 +126,16 @@ export function calculateNetMetering(
   if (usageData && usageData.length > 0) {
     hourlyUsage = usageData
   } else {
-    hourlyUsage = generateAnnualUsagePattern(annualUsageKwh, ratePlan, year, true)
+    // When no explicit hourly data is provided, generate a synthetic pattern.
+    // If a custom TOU/ULO usage distribution was supplied from the UI, pass it
+    // through so that the share of energy in each period matches the sliders.
+    hourlyUsage = generateAnnualUsagePattern(
+      annualUsageKwh,
+      ratePlan,
+      year,
+      true,
+      usageDistribution
+    )
   }
   
   // Ensure we have exactly 8,760 hours (365 days * 24 hours)
@@ -205,15 +216,9 @@ export function calculateNetMetering(
     })
   }
   
-  // Calculate annual totals
+  // Calculate annual totals (gross credits and import cost before rollover logic)
   const totalExportCredits = Object.values(periodSummaries).reduce((sum, p) => sum + p.exportCredits, 0)
   const totalImportCost = Object.values(periodSummaries).reduce((sum, p) => sum + p.importCost, 0)
-  
-  // Calculate bill offset percentage (based on gross credits vs gross import cost)
-  // If net bill is negative (credit), offset is > 100%
-  const billOffsetPercent = totalImportCost > 0 
-    ? (totalExportCredits / totalImportCost) * 100 
-    : 100
   
   // Check for under-producing system
   if (totalSolarProduction < totalLoad * 0.6) {
@@ -240,6 +245,14 @@ export function calculateNetMetering(
   // - Negative = credit balance remaining (export credits exceeded all bills)
   // If we have year-end credits, subtract them from what we owe
   const netAnnualBill = totalNetBillFromMonthly - yearEndCredits
+
+  // Bill offset percentage for UI (used by Savings Breakdown donut, Results, etc.).
+  // This is based on the *actual* bill after rollover and credit expiry, not just
+  // gross credits. If the customer ends the year with a credit balance, offset
+  // can exceed 100%.
+  const billOffsetPercent = totalImportCost > 0
+    ? ((totalImportCost - Math.max(0, netAnnualBill)) / totalImportCost) * 100
+    : 100
   
   return {
     annual: {

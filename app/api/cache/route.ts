@@ -3,6 +3,9 @@
 import { NextResponse } from 'next/server'
 import { getCacheStats, clearCache } from '@/lib/cache'
 
+// Force dynamic rendering to prevent static analysis issues
+export const dynamic = 'force-dynamic'
+
 // GET: Get cache statistics
 export async function GET() {
   try {

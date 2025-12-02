@@ -27,19 +27,37 @@ function DonutChart({
   touOffset = 0,
   uloOffset = 0,
   tieredOffset = 0,
-  selectedPlan = 'tou'
+  selectedPlan = 'tou',
+  batterySavingsPercent = 0
 }: {
   touOffset?: number
   uloOffset?: number
   tieredOffset?: number
   selectedPlan?: 'tou' | 'ulo' | 'tiered'
+  batterySavingsPercent?: number
 }) {
-  const offset = selectedPlan === 'ulo' ? uloOffset : selectedPlan === 'tiered' ? tieredOffset : touOffset
+  // Base solar offset from the selected rate plan
+  const rawSolarOffset =
+    selectedPlan === 'ulo'
+      ? uloOffset
+      : selectedPlan === 'tiered'
+      ? tieredOffset
+      : touOffset
+
+  // Clamp solar offset to 0–100 for rendering
+  const solarOffset = Math.max(0, Math.min(100, rawSolarOffset))
+
+  // Battery can only eat into the remaining headroom after solar.
+  const rawBatteryPortion = Math.max(0, batterySavingsPercent)
+  const maxBatteryHeadroom = Math.max(0, 100 - solarOffset)
+  const batteryPortion = Math.min(rawBatteryPortion, maxBatteryHeadroom)
+
+  const totalOffset = solarOffset + batteryPortion
   // Cap display at 100% for visual representation, but keep actual value for text
-  const displayOffset = Math.min(100, offset)
-  const remaining = 100 - displayOffset
+  const displayTotalOffset = Math.min(100, totalOffset)
+  const remaining = 100 - displayTotalOffset
   const circumference = 2 * Math.PI * 120
-  const strokeDashoffset = circumference - (displayOffset / 100) * circumference
+  const batteryArcLength = (batteryPortion / 100) * circumference
   
   return (
     <div className="relative w-64 h-64 mx-auto">
@@ -53,31 +71,62 @@ function DonutChart({
           stroke="#e5e7eb"
           strokeWidth="40"
         />
-        {/* Offset circle */}
-        <circle
-          cx="140"
-          cy="140"
-          r="120"
-          fill="none"
-          stroke={selectedPlan === 'ulo' ? '#8b5cf6' : selectedPlan === 'tiered' ? '#f59e0b' : '#3b82f6'}
-          strokeWidth="40"
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          className="transition-all duration-700"
-        />
+        {/* Solar offset circle */}
+        {solarOffset > 0 && (
+          <circle
+            cx="140"
+            cy="140"
+            r="120"
+            fill="none"
+            stroke={
+              selectedPlan === 'ulo'
+                ? '#8b5cf6'
+                : selectedPlan === 'tiered'
+                ? '#f59e0b'
+                : '#3b82f6'
+            }
+            strokeWidth="40"
+            strokeDasharray={circumference}
+            strokeDashoffset={
+              circumference - (solarOffset / 100) * circumference
+            }
+            // Use a flat line cap so adjoining segments meet cleanly with no visual gap.
+            strokeLinecap="butt"
+            className="transition-all duration-700"
+          />
+        )}
+        {/* Battery savings circle – drawn on top of solar so it appears as a second segment */}
+        {batteryPortion > 0 && (
+          <circle
+            cx="140"
+            cy="140"
+            r="120"
+            fill="none"
+            stroke="#10b981" // emerald-500 to match the legend
+            strokeWidth="40"
+            // Draw only the incremental battery slice as a separate dash segment.
+            // The dash starts where the solar segment ends and covers only the
+            // additional percentage contributed by the battery.
+            strokeDasharray={`${batteryArcLength} ${circumference - batteryArcLength}`}
+            strokeDashoffset={
+              circumference - (solarOffset / 100) * circumference
+            }
+            strokeLinecap="butt"
+            className="transition-all duration-700"
+          />
+        )}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <div className="text-center">
           <div className="text-4xl font-bold text-gray-800">
-            {displayOffset.toFixed(1)}%
+            {displayTotalOffset.toFixed(1)}%
           </div>
           <div className="text-sm text-gray-600 mt-1">
-            {offset >= 100 ? 'Bill Fully Offset' : 'Bill Offset'}
+            {totalOffset >= 100 ? 'Bill Fully Offset' : 'Bill Offset'}
         </div>
-          {offset > 100 && (
+          {totalOffset > 100 && (
             <div className="text-xs text-emerald-600 mt-1 font-semibold">
-              +{(offset - 100).toFixed(1)}% Credit
+              +{(totalOffset - 100).toFixed(1)}% Credit
             </div>
           )}
         </div>
@@ -101,6 +150,13 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   const [activeTab, setActiveTab] = useState<'basic' | 'distribution'>('basic')
   const [touDistribution, setTouDistribution] = useState<UsageDistribution>(DEFAULT_TOU_DISTRIBUTION)
   const [uloDistribution, setUloDistribution] = useState<UsageDistribution>(DEFAULT_ULO_DISTRIBUTION)
+  // Tiered is a flat rate, but we still collect a notional distribution so
+  // users can describe their usage pattern for narrative / battery modelling.
+  const [tieredDistribution, setTieredDistribution] = useState<UsageDistribution>({
+    onPeakPercent: 35,
+    midPeakPercent: 30,
+    offPeakPercent: 35,
+  })
   const [overrideEstimateLoading, setOverrideEstimateLoading] = useState(false)
   const [openModal, setOpenModal] = useState<'payback' | 'profit' | 'credits' | 'coverage' | 'donut' | null>(null)
   const [showPeriodBreakdown, setShowPeriodBreakdown] = useState(false)
@@ -245,6 +301,124 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     ? calculateSimpleMultiYear({ annualSavings } as any, netCost, escalation, 25).netProfit25Year
     : 0
 
+  // Calculate battery savings percentage for net metering
+  // Battery stores excess solar and uses it during higher‑cost hours, reducing imports.
+  // This is a simplified model, but it now responds to the customer's usage
+  // distribution so that shifting more usage into peak periods increases the
+  // relative value of battery storage.
+  const calculateBatterySavingsPercent = (): number => {
+    if (selectedBatteries.length === 0 || !selectedResult) return 0
+    
+    // Get total battery capacity
+    const totalBatteryKwh = selectedBatteries
+      .map(id => BATTERY_SPECS.find(b => b.id === id))
+      .filter(Boolean)
+      .reduce((sum, battery) => sum + (battery?.usableKwh || battery?.nominalKwh || 0), 0)
+    
+    if (totalBatteryKwh === 0 || selectedResult.annual.importCost === 0) return 0
+    
+    // Estimate annual battery throughput
+    // Battery can charge/discharge daily, storing excess solar and using during peak
+    const dailyCycles = 1 // One full charge/discharge cycle per day
+    const batteryEfficiency = 0.85 // 85% round-trip efficiency
+    const annualBatteryKwhUsed = totalBatteryKwh * dailyCycles * 365 * batteryEfficiency
+
+    // --- Usage‑distribution‑aware adjustment -----------------------------------
+    // For TOU / ULO plans, adjust the effective impact of the battery based on
+    // how much of the customer's usage happens in higher‑cost periods.
+    //
+    // We compute an "effective peak share" between 0–1 and use it to scale the
+    // shifted energy. This makes the battery more valuable for customers with
+    // heavier on‑peak usage, and less valuable when most usage is already
+    // off‑peak or ultra‑low.
+
+    const getEffectivePeakShare = (): number => {
+      const clamp = (value: number, min: number, max: number) =>
+        Math.min(max, Math.max(min, value))
+
+      if (selectedPlan === 'ulo') {
+        const ultra = uloDistribution.ultraLowPercent || 0
+        const on = uloDistribution.onPeakPercent || 0
+        const mid = uloDistribution.midPeakPercent || 0
+        const off = uloDistribution.offPeakPercent || 0
+        const total = ultra + on + mid + off
+        if (total <= 0) return 0.35 // baseline
+
+        // Weight on‑peak highest, mid‑peak medium, off/ultra lowest.
+        const effective =
+          (on * 1.0 + mid * 0.6 + off * 0.3 + ultra * 0.1) / total
+        return clamp(effective, 0.1, 0.9)
+      }
+
+      // TOU or Tiered – use the matching distribution
+      const source =
+        selectedPlan === 'tiered' ? tieredDistribution : touDistribution
+
+      const on = source.onPeakPercent || 0
+      const mid = source.midPeakPercent || 0
+      const off = source.offPeakPercent || 0
+      const total = on + mid + off
+      if (total <= 0) return 0.35
+
+      const effective = (on * 1.0 + mid * 0.6 + off * 0.3) / total
+      return clamp(effective, 0.1, 0.9)
+    }
+
+    const effectivePeakShare = getEffectivePeakShare()
+
+    // Calibrate relative to a baseline "typical" peak share of ~35%.
+    const baselinePeakShare = 0.35
+    const peakShareFactor = Math.min(
+      1.5, // cap upside so the model stays conservative
+      Math.max(0.5, effectivePeakShare / baselinePeakShare)
+    )
+
+    // Battery reduces imports during higher‑cost hours when rates are highest.
+    // Estimate: battery stores excess solar (that would have been exported at
+    // lower rates) and uses it during peak periods (avoiding imports at higher
+    // rates). Savings = energy shifted * (peak_rate - export_rate) / import_cost.
+    
+    // Simplified estimate: assume battery shifts 60% of its capacity from
+    // exports to peak avoidance, scaled by how "peaky" the load is.
+    const baseShiftFraction = 0.6
+    const energyShifted = annualBatteryKwhUsed * baseShiftFraction * peakShareFactor
+    const avgRatePremium = 0.06 // 6 cents/kWh average premium (peak rate - export rate)
+    const estimatedBatterySavings = energyShifted * avgRatePremium // In dollars
+    
+    // Calculate as percentage of import cost
+    const batterySavingsPercent = (estimatedBatterySavings / selectedResult.annual.importCost) * 100
+    
+    // Cap at reasonable maximum (battery can't offset more than remaining imports)
+    const maxBatterySavings = Math.min(
+      batterySavingsPercent,
+      (100 - selectedResult.annual.billOffsetPercent) * 0.5, // Max 50% of remaining bill
+      15 // Absolute cap of 15%
+    )
+    
+    return Math.max(0, maxBatterySavings)
+  }
+  
+  const batterySavingsPercent = calculateBatterySavingsPercent()
+
+  // Distribution validation – require each plan's usage to sum to ~100%.
+  const touTotalPercent =
+    touDistribution.offPeakPercent +
+    touDistribution.midPeakPercent +
+    touDistribution.onPeakPercent
+  const uloTotalPercent =
+    (uloDistribution.ultraLowPercent || 0) +
+    uloDistribution.offPeakPercent +
+    uloDistribution.midPeakPercent +
+    uloDistribution.onPeakPercent
+  const tieredTotalPercent =
+    tieredDistribution.offPeakPercent +
+    tieredDistribution.midPeakPercent +
+    tieredDistribution.onPeakPercent
+
+  const isTouDistributionValid = Math.abs(touTotalPercent - 100) <= 0.1
+  const isUloDistributionValid = Math.abs(uloTotalPercent - 100) <= 0.1
+  const isTieredDistributionValid = Math.abs(tieredTotalPercent - 100) <= 0.1
+
   // Fetch/regenerate estimate when panel count changes (only if user modifies it)
   useEffect(() => {
     // Skip if no coordinates or panels haven't been initialized
@@ -298,62 +472,83 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     return () => clearTimeout(timeoutId)
   }, [solarPanels, systemSizeKwOverride, data.coordinates, data.roofPolygon, annualUsageKwh, data.estimate?.system?.numPanels])
 
-  // Calculate net metering for all three plans
-  useEffect(() => {
+  // Shared helper to calculate net metering for a single plan.
+  const runNetMeteringForPlan = async (planId: 'tou' | 'ulo' | 'tiered') => {
     const currentEstimate = localEstimate || data.estimate
     const monthlyProduction = currentEstimate?.production?.monthlyKwh || []
-    
-    if (!currentEstimate?.production?.monthlyKwh || monthlyProduction.length !== 12 || annualUsageKwh <= 0) {
+
+    if (
+      !currentEstimate?.production?.monthlyKwh ||
+      monthlyProduction.length !== 12 ||
+      annualUsageKwh <= 0
+    ) {
       return
     }
 
-    const calculateNetMetering = async (planId: 'tou' | 'ulo' | 'tiered') => {
-      try {
-        setLoading(true)
-        setError(null)
+    // Per‑plan validation: only skip the specific plan whose inputs are invalid.
+    if (planId === 'tou' && !isTouDistributionValid) return
+    if (planId === 'ulo' && !isUloDistributionValid) return
 
-        const distribution = planId === 'ulo' ? uloDistribution : touDistribution
-        
-        const response = await fetch('/api/net-metering', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            monthlySolarProduction: monthlyProduction,
-            annualUsageKwh: annualUsageKwh,
-            ratePlanId: planId,
-            year: new Date().getFullYear(),
-            usageDistribution: distribution,
-          }),
-        })
+    try {
+      setLoading(true)
+      setError(null)
 
-        if (!response.ok) {
-          throw new Error('Failed to calculate net metering')
-        }
+      const distribution =
+        planId === 'ulo'
+          ? uloDistribution
+          : planId === 'tou'
+          ? touDistribution
+          : undefined
+      
+      const response = await fetch('/api/net-metering', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          monthlySolarProduction: monthlyProduction,
+          annualUsageKwh: annualUsageKwh,
+          ratePlanId: planId,
+          year: new Date().getFullYear(),
+          // Tiered ignores usageDistribution; we only send it for plans that
+          // actually have a configurable distribution.
+          ...(distribution ? { usageDistribution: distribution } : {}),
+        }),
+      })
 
-        const result = await response.json()
-        
-        if (planId === 'tou') {
-          setTouResults(result.data)
-        } else if (planId === 'ulo') {
-          setUloResults(result.data)
-        } else {
-          setTieredResults(result.data)
-        }
-      } catch (err) {
-        console.error('Net metering calculation error:', err)
-        setError(err instanceof Error ? err.message : 'Failed to calculate net metering')
-      } finally {
-          setLoading(false)
+      if (!response.ok) {
+        throw new Error('Failed to calculate net metering')
       }
-    }
 
-    // Calculate all three plans
-    Promise.all([
-      calculateNetMetering('tou'),
-      calculateNetMetering('ulo'),
-      calculateNetMetering('tiered')
-    ])
-  }, [localEstimate, data.estimate, annualUsageKwh, touDistribution, uloDistribution])
+      const result = await response.json()
+      
+      if (planId === 'tou') {
+        setTouResults(result.data)
+      } else if (planId === 'ulo') {
+        setUloResults(result.data)
+      } else {
+        setTieredResults(result.data)
+      }
+    } catch (err) {
+      console.error('Net metering calculation error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to calculate net metering')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // TOU net metering – only depends on TOU inputs.
+  useEffect(() => {
+    void runNetMeteringForPlan('tou')
+  }, [localEstimate, data.estimate, annualUsageKwh, touDistribution, isTouDistributionValid])
+
+  // ULO net metering – only depends on ULO inputs.
+  useEffect(() => {
+    void runNetMeteringForPlan('ulo')
+  }, [localEstimate, data.estimate, annualUsageKwh, uloDistribution, isUloDistributionValid])
+
+  // Tiered net metering – independent of TOU/ULO distributions.
+  useEffect(() => {
+    void runNetMeteringForPlan('tiered')
+  }, [localEstimate, data.estimate, annualUsageKwh])
 
   const handleContinue = () => {
     if (!touResults || !uloResults || !tieredResults) {
@@ -731,9 +926,9 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                   </div>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid md:grid-cols-3 gap-4">
                   {/* TOU Distribution */}
-                    <div className="bg-white rounded-lg border-2 border-gray-300 p-4">
+                  <div className="bg-white rounded-lg border-2 border-gray-300 p-4">
                       <h3 className="font-bold text-blue-600 text-lg mb-3">Time-of-Use (TOU)</h3>
                       <div className="space-y-3">
                       <div className="flex items-center justify-between">
@@ -785,13 +980,9 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                     <div className="pt-3 border-t border-gray-300 mt-3">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-bold text-gray-700">
-                          Total: {(
-                            touDistribution.offPeakPercent +
-                            touDistribution.midPeakPercent +
-                            touDistribution.onPeakPercent
-                          ).toFixed(1)}%
+                          Total: {touTotalPercent.toFixed(1)}%
                         </span>
-                        {Math.abs(touDistribution.offPeakPercent + touDistribution.midPeakPercent + touDistribution.onPeakPercent - 100) > 0.1 ? (
+                        {!isTouDistributionValid ? (
                           <span className="text-red-600 text-xs font-semibold">(must = 100%)</span>
                         ) : (
                           <span className="text-green-600 text-xs font-semibold">✓ Valid</span>
@@ -799,7 +990,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                       </div>
                     </div>
                   </div>
-
+                  
                   {/* ULO Distribution */}
                     <div className="bg-white rounded-lg border-2 border-gray-300 p-4">
                       <h3 className="font-bold text-purple-600 text-lg mb-3">Ultra-Low Overnight (ULO)</h3>
@@ -855,39 +1046,120 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                           <input
                             type="number"
                             value={uloDistribution.offPeakPercent}
-                            onChange={(e) => setUloDistribution({...uloDistribution, offPeakPercent: Number(e.target.value)})}
-                              className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                            onChange={(e) =>
+                              setUloDistribution({
+                                ...uloDistribution,
+                                offPeakPercent: Number(e.target.value),
+                              })
+                            }
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
                             min="0"
                             max="100"
                             step="0.1"
                           />
                           <span className="text-sm text-gray-600">%</span>
                         </div>
-                        </div>
                       </div>
+                    </div>
                     <div className="pt-3 border-t border-gray-300 mt-3">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-bold text-gray-700">
-                          Total: {(
-                            (uloDistribution.ultraLowPercent || 0) +
-                            uloDistribution.offPeakPercent +
-                            uloDistribution.midPeakPercent +
-                            uloDistribution.onPeakPercent
-                          ).toFixed(1)}%
+                          Total: {uloTotalPercent.toFixed(1)}%
                         </span>
-                        {Math.abs((uloDistribution.ultraLowPercent || 0) + uloDistribution.offPeakPercent + uloDistribution.midPeakPercent + uloDistribution.onPeakPercent - 100) > 0.1 ? (
+                        {!isUloDistributionValid ? (
                           <span className="text-red-600 text-xs font-semibold">(must = 100%)</span>
                         ) : (
                           <span className="text-green-600 text-xs font-semibold">✓ Valid</span>
                         )}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Tiered Distribution */}
+                  <div className="bg-white rounded-lg border-2 border-gray-300 p-4">
+                    <h3 className="font-bold text-amber-600 text-lg mb-3">Tiered (Flat Rate)</h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-semibold text-gray-700">High-Usage Hours:</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            value={tieredDistribution.onPeakPercent}
+                            onChange={(e) =>
+                              setTieredDistribution({
+                                ...tieredDistribution,
+                                onPeakPercent: Number(e.target.value),
+                              })
+                            }
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                          />
+                          <span className="text-sm text-gray-600">%</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-semibold text-gray-700">Typical Usage:</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            value={tieredDistribution.midPeakPercent}
+                            onChange={(e) =>
+                              setTieredDistribution({
+                                ...tieredDistribution,
+                                midPeakPercent: Number(e.target.value),
+                              })
+                            }
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                          />
+                          <span className="text-sm text-gray-600">%</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-semibold text-gray-700">Low-Usage Hours:</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            value={tieredDistribution.offPeakPercent}
+                            onChange={(e) =>
+                              setTieredDistribution({
+                                ...tieredDistribution,
+                                offPeakPercent: Number(e.target.value),
+                              })
+                            }
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                          />
+                          <span className="text-sm text-gray-600">%</span>
                         </div>
                       </div>
                     </div>
+                    <div className="pt-3 border-t border-gray-300 mt-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-gray-700">
+                          Total: {tieredTotalPercent.toFixed(1)}%
+                        </span>
+                        {!isTieredDistributionValid ? (
+                          <span className="text-red-600 text-xs font-semibold">(must = 100%)</span>
+                        ) : (
+                          <span className="text-green-600 text-xs font-semibold">✓ Valid</span>
                         )}
+                      </div>
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Close inputs card body and container */}
+            </div>
+            </div>
 
             {/* Key Financial Metrics - Under Calculator Inputs */}
             {!hasErrors && selectedResult && netCost > 0 && (
@@ -1161,7 +1433,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
               isOpen={openModal === 'donut'}
               onClose={() => setOpenModal(null)}
               title="Savings Breakdown Donut"
-              message="This chart shows how much of your original annual electricity bill is offset by solar and net-metering credits."
+              message="This chart shows how much of your original annual electricity bill is offset by solar credits and battery savings."
               variant="info"
               cancelText="Close"
             >
@@ -1169,24 +1441,36 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 Calculation:
               </p>
               <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 ml-2">
-                <li>
-                  <span className="font-semibold">Bill Offset %</span> = Annual Export Credits ÷ Annual Import Cost ×
-                  100%.
-                </li>
                 {selectedResult && (
+                  <>
+                    <li>
+                      <span className="font-semibold">Original annual bill</span> is your{' '}
+                      <span className="font-semibold">import cost before solar</span>:
+                      {' '}${selectedResult.annual.importCost.toFixed(2)}.
+                    </li>
+                    <li>
+                      After solar (and any battery savings we model here), your{' '}
+                      <span className="font-semibold">net annual bill</span> is:
+                      {' '}${selectedResult.annual.netAnnualBill.toFixed(2)}.
+                    </li>
+                    <li>
+                      <span className="font-semibold">Bill Offset %</span> shown in the donut is:
+                      {' '}({selectedResult.annual.importCost.toFixed(2)} − {Math.max(0, selectedResult.annual.netAnnualBill).toFixed(2)})
+                      ÷ {selectedResult.annual.importCost.toFixed(2)} × 100% ≈{' '}
+                      {selectedResult.annual.billOffsetPercent.toFixed(1)}%.
+                    </li>
+                  </>
+                )}
+                {batterySavingsPercent > 0 && (
                   <li>
-                    With your current inputs: Bill Offset ≈{' '}
-                    {`${selectedResult.annual.exportCredits.toFixed(2)} ÷ ${selectedResult.annual.importCost.toFixed(
-                      2,
-                    )} × 100% = ${selectedResult.annual.billOffsetPercent.toFixed(1)}%`}
-                    .
+                    <span className="font-semibold">Battery Savings</span> represents additional savings from storing excess solar during the day and using it during peak hours, reducing expensive imports.
                   </li>
                 )}
                 <li>
-                  If credits are equal to your annual import cost, the donut shows <span className="font-semibold">100% Bill Fully Offset</span>.
+                  If the total offset is equal to your annual import cost, the donut shows <span className="font-semibold">100% Bill Fully Offset</span>.
                 </li>
                 <li>
-                  If credits are higher than your remaining bill, the offset is capped at 100% and the extra portion is shown as
+                  If the total offset is higher than your bill, it's capped at 100% and the extra portion is shown as
                   <span className="font-semibold"> “+X% Credit”</span> under the donut.
                 </li>
                 <li>
@@ -1194,7 +1478,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 </li>
               </ul>
               <p className="mt-3 text-sm text-gray-600">
-                This helps you quickly see whether solar plus net metering fully eliminates your annual bill or still leaves a portion to pay.
+                This helps you quickly see whether solar plus battery storage fully eliminates your annual bill or still leaves a portion to pay.
               </p>
             </Modal>
           </div>
@@ -1238,20 +1522,30 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                   uloOffset={uloResults?.annual.billOffsetPercent || 0}
                   tieredOffset={tieredResults?.annual.billOffsetPercent || 0}
                   selectedPlan={selectedPlan}
+                  batterySavingsPercent={batterySavingsPercent}
                 />
 
                 <div className="mt-6 text-center text-sm text-gray-600">
-                  {selectedResult.annual.billOffsetPercent >= 100 
-                    ? `Bill Fully Offset + ${(selectedResult.annual.billOffsetPercent - 100).toFixed(1)}% Credit`
-                    : `Bill Offset: ${selectedResult.annual.billOffsetPercent.toFixed(1)}%`}
+                  {(() => {
+                    const totalOffset = selectedResult.annual.billOffsetPercent + batterySavingsPercent
+                    return totalOffset >= 100 
+                      ? `Bill Fully Offset + ${(totalOffset - 100).toFixed(1)}% Credit`
+                      : `Bill Offset: ${totalOffset.toFixed(1)}%`
+                  })()}
                 </div>
 
                 {/* Legend */}
-                <div className="mt-4 flex justify-center gap-4 text-xs">
+                <div className="mt-4 flex flex-wrap justify-center gap-3 text-xs">
                   <div className="flex items-center gap-2">
                     <div className={`w-3 h-3 rounded-full ${selectedPlan === 'ulo' ? 'bg-purple-500' : selectedPlan === 'tiered' ? 'bg-amber-500' : 'bg-blue-500'}`}></div>
-                    <span>Net Metering Credits</span>
+                    <span>Solar Credits</span>
                   </div>
+                  {batterySavingsPercent > 0 && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                      <span>Battery Savings</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-gray-300"></div>
                     <span>Remaining Bill</span>

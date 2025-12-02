@@ -99,10 +99,6 @@ export function InstallerIntakeForm({ onSubmit, onCancel }: InstallerIntakeFormP
   const manufacturerOptions = [
     'Tesla',
     'Enphase',
-    'SolarEdge',
-    'LG',
-    'Panasonic',
-    'Canadian Solar',
     'Other',
   ]
 
