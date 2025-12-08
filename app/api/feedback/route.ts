@@ -2,6 +2,17 @@
 
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
+import { Resend } from 'resend'
+
+function createResendClient() {
+  const apiKey = process.env.RESEND_API_KEY
+
+  if (!apiKey) {
+    throw new Error('Resend API key not configured. Please set RESEND_API_KEY environment variable.')
+  }
+
+  return new Resend(apiKey)
+}
 
 export async function POST(request: Request) {
   try {
@@ -56,6 +67,49 @@ export async function POST(request: Request) {
         { error: 'Failed to submit feedback', details: error.message },
         { status: 500 }
       )
+    }
+
+    // Send thank-you email if user provided an email and Resend is configured
+    if (email) {
+      try {
+        const resend = createResendClient()
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://solarcalculatorcanada.org'
+
+        await resend.emails.send({
+          from: 'Solar Calculator Canada <info@solarcalculatorcanada.org>',
+          to: email,
+          subject: 'Thanks for your feedback on Solar Calculator Canada',
+          text: `Thanks for sharing feedback with Solar Calculator Canada.\n\nType: ${type}\n\nWe read every submission and use it to improve the calculator for homeowners and installers across Canada.\n\nIf you have more details to share, you can simply reply to this email.\n\n${appUrl}`,
+          html: `
+            <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
+              <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 12px; color: #0f172a;">
+                Thanks for your feedback
+              </h1>
+              <p style="font-size: 15px; color: #334155; line-height: 1.6; margin-bottom: 12px;">
+                We really appreciate you taking the time to share feedback about Solar Calculator Canada.
+              </p>
+              <p style="font-size: 14px; color: #64748b; line-height: 1.6; margin-bottom: 16px;">
+                <strong>Feedback type:</strong> ${type}
+              </p>
+              <p style="font-size: 14px; color: #64748b; line-height: 1.6; margin-bottom: 16px;">
+                Our team reviews every submission and uses it to make the calculator more accurate and easier to use for homeowners and installers across Canada.
+              </p>
+              <p style="font-size: 14px; color: #64748b; line-height: 1.6; margin-bottom: 24px;">
+                If you have more details to share, you can simply reply to this email.
+              </p>
+              <p style="font-size: 13px; color: #94a3b8;">
+                — Solar Calculator Canada
+              </p>
+              <p style="font-size: 12px; color: #cbd5f5; margin-top: 16px;">
+                <a href="${appUrl}" style="color: #2563eb; text-decoration: none;">Visit Solar Calculator Canada</a>
+              </p>
+            </div>
+          `,
+        })
+      } catch (sendError) {
+        // Log but don't fail the API if the thank-you email cannot be sent
+        console.error('Error sending feedback confirmation email:', sendError)
+      }
     }
 
     return NextResponse.json(

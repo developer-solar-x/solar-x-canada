@@ -16,17 +16,38 @@ export default function ContactPage() {
   })
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    setError(null)
     setLoading(true)
     
-    // Simulate form submission (UI only, no backend yet)
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send message')
+      }
+
+      // Success
       setSubmitted(true)
-      setLoading(false)
       setFormData({ name: '', email: '', subject: '', message: '' })
-    }, 1000)
+      setError(null)
+    } catch (error) {
+      console.error('Error submitting contact form:', error)
+      setError(error instanceof Error ? error.message : 'Failed to send message. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -71,10 +92,10 @@ export default function ContactPage() {
                   <div>
                     <h3 className="font-bold text-forest-500 mb-1">Email</h3>
                     <a
-                      href="mailto:hello@solarcalculatorcanada.org"
+                      href="mailto:info@solarcalculatorcanada.org"
                       className="text-gray-700 hover:text-forest-500 transition-colors"
                     >
-                      hello@solarcalculatorcanada.org
+                      info@solarcalculatorcanada.org
                     </a>
                   </div>
                 </div>
@@ -134,7 +155,10 @@ export default function ContactPage() {
                     Thank you for contacting us. We'll get back to you as soon as possible.
                   </p>
                   <button
-                    onClick={() => setSubmitted(false)}
+                    onClick={() => {
+                      setSubmitted(false)
+                      setError(null)
+                    }}
                     className="btn-secondary"
                   >
                     Send Another Message
@@ -142,6 +166,11 @@ export default function ContactPage() {
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-6">
+                  {error && (
+                    <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+                      <p className="text-red-700 text-sm">{error}</p>
+                    </div>
+                  )}
                   <div>
                     <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2">
                       Name <span className="text-maple-500">*</span>

@@ -855,6 +855,7 @@ function TrackPageContent() {
       programType={programType}
       netMetering={netMetering}
       financingOption={financingOption}
+      leadId={trackingId}
       onExportPDF={handleExportPDF}
     />
   )

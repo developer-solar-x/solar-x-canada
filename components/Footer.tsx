@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Logo } from './Logo'
-import { Facebook, Linkedin, Instagram } from 'lucide-react'
+import { Facebook, Linkedin, Instagram, Mail, MapPin, Phone } from 'lucide-react'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
 export function Footer() {
@@ -18,7 +18,7 @@ export function Footer() {
     { label: 'Home', href: '/' },
     { label: 'About', href: '/about' },
     { label: 'For Installers', href: '/for-installers' },
-    // { label: 'Contact', href: '/contact' }, // preserved but not currently shown
+    { label: 'Contact', href: '/contact' },
     { label: 'Calculator', href: '/estimator' },
   ]
 
@@ -91,9 +91,7 @@ export function Footer() {
             </ul>
           </div>
 
-          {/*
-          // PRESERVED (not rendered): Original Contact column
-          // Uncomment and restore icons/imports if you want to show Contact in the footer again.
+          {/* Column 4: Contact */}
           <div>
             <h3 className="text-lg font-bold mb-4">Contact</h3>
             <ul className="space-y-4">
@@ -105,14 +103,18 @@ export function Footer() {
               </li>
               <li className="flex items-start gap-3">
                 <Mail size={18} className="mt-1 flex-shrink-0" />
-                <a href="mailto:hello@solarcalculatorcanada.org" className="text-gray-300 hover:text-white transition-colors">
-                  hello@solarcalculatorcanada.org
+                <a
+                  href="mailto:info@solarcalculatorcanada.org"
+                  className="text-gray-300 hover:text-white transition-colors"
+                >
+                  info@solarcalculatorcanada.org
                 </a>
               </li>
               <li className="flex items-start gap-3">
                 <MapPin size={18} className="mt-1 flex-shrink-0" />
                 <span className="text-gray-300">
-                  123 Solar Street<br />
+                  123 Solar Street
+                  <br />
                   Toronto, ON M5V 3A8
                 </span>
               </li>
@@ -121,7 +123,6 @@ export function Footer() {
               Mon-Fri: 8am-6pm EST
             </p>
           </div>
-          */}
         </div>
 
         {/* Global disclaimer */}

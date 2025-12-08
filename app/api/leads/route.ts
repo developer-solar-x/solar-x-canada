@@ -1,6 +1,7 @@
 // Lead submission and management API
 
 import { NextResponse } from 'next/server'
+import { headers } from 'next/headers'
 import { getSupabaseAdmin } from '@/lib/supabase'
 
 // Helper function to round numbers to 2 decimal places
@@ -981,18 +982,49 @@ export async function POST(request: Request) {
       }).catch(err => console.error('HubSpot sync queue error:', err))
     }
 
-    // Email sending temporarily disabled:
-    // Previously, we queued an async request to /api/leads/send-email here for non-quick estimates.
-    // This has been intentionally turned off so that submitting the contact form no longer sends any emails.
-    console.log('📧 Email send skipped: outbound estimate emails are currently disabled.', {
-      leadId: lead.id,
-      hasEstimateData: !!estimateData,
-      isQuickEstimate:
-        body.programType === 'quick' ||
-                           body.program_type === 'quick' ||
-                           body.estimatorMode === 'easy' ||
-        body.estimator_mode === 'easy',
-    })
+    // Queue estimate email to customer via Resend (async, best-effort)
+    const isQuickEstimate =
+      body.programType === 'quick' ||
+      body.program_type === 'quick' ||
+      body.estimatorMode === 'easy' ||
+      body.estimator_mode === 'easy'
+
+    if (!isQuickEstimate && estimateData && email) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL
+
+      if (appUrl) {
+        // Try to get the origin from the request headers, fallback to NEXT_PUBLIC_APP_URL
+        const headersList = await headers()
+        const host = headersList.get('host')
+        const protocol = headersList.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https')
+        const baseUrl = host ? `${protocol}://${host}` : appUrl
+        const emailUrl = `${baseUrl}/api/leads/send-email`
+
+        fetch(emailUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leadId: lead.id,
+          }),
+        }).catch(err => {
+          // Only log if it's not a connection refused error (common in dev)
+          if (err?.cause?.code !== 'ECONNREFUSED') {
+            console.error('Estimate email queue error:', {
+              error: err,
+              leadId: lead.id,
+            })
+          } else {
+            console.warn('Estimate email queue skipped (connection refused - may be dev environment):', {
+              leadId: lead.id,
+            })
+          }
+        })
+      } else {
+        console.warn('Estimate email not queued: NEXT_PUBLIC_APP_URL is not set.', {
+          leadId: lead.id,
+        })
+      }
+    }
 
     // Return success with lead ID
     return NextResponse.json({

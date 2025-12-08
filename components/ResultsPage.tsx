@@ -115,6 +115,7 @@ interface ResultsPageProps {
     ulo?: any
   }
   financingOption?: string
+  leadId?: string
   onMatchInstaller?: () => void
   onExportPDF?: () => void
 }
@@ -145,6 +146,7 @@ export function ResultsPage({
   programType,
   netMetering,
   financingOption,
+  leadId,
   onMatchInstaller,
   onExportPDF,
   ...data // Accept additional data props (including touBeforeAfter, uloBeforeAfter, annualEscalator)
@@ -156,6 +158,9 @@ export function ResultsPage({
   const [isMobile, setIsMobile] = useState(false)
   const [activeSummaryTab, setActiveSummaryTab] = useState<'overview' | 'savings' | 'environmental'>('overview')
   const [copyButtonText, setCopyButtonText] = useState('Copy Link')
+  const [emailSending, setEmailSending] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [emailError, setEmailError] = useState<string | null>(null)
   
   // Mobile detection
   useEffect(() => {
@@ -756,6 +761,54 @@ export function ResultsPage({
     } else {
       // Default behavior - could open print dialog or generate PDF
       window.print()
+    }
+  }
+
+  const handleEmailPdfToMe = async () => {
+    if (!leadData?.email) return
+    if (typeof window === 'undefined') return
+
+    const urlParams = new URLSearchParams(window.location.search)
+    const leadIdFromQuery = urlParams.get('leadId')
+    const effectiveLeadId = leadId || leadIdFromQuery
+
+    if (!effectiveLeadId) return
+
+    setEmailSending(true)
+    setEmailSent(false)
+    setEmailError(null)
+
+    try {
+      const fullName =
+        [leadData.firstName, leadData.lastName].filter(Boolean).join(' ') ||
+        leadData.email
+
+      const response = await fetch('/api/leads/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName,
+          email: leadData.email,
+          address: leadData.address,
+          estimate,
+          peakShaving,
+          batteryDetails,
+           leadId: effectiveLeadId,
+        }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to send email')
+      }
+
+      setEmailSent(true)
+    } catch (error) {
+      console.error('Error sending estimate email:', error)
+      setEmailError('Failed to email your results. Please try again.')
+    } finally {
+      setEmailSending(false)
     }
   }
 
@@ -1666,17 +1719,36 @@ export function ResultsPage({
                     Download PDF Summary
                   </button>
                   {leadData?.email && (
-                    <button
-                      type="button"
-                      disabled
-                      className="w-full h-11 text-sm inline-flex items-center justify-center bg-gray-100 text-gray-400 cursor-not-allowed rounded-lg font-semibold relative"
-                    >
-                      <Mail className="mr-2" size={16} />
-                      <span>Email PDF to Me</span>
-                      <span className="ml-2 px-2 py-0.5 bg-gray-200 text-gray-500 text-[10px] font-bold rounded-full uppercase tracking-wide">
-                        Coming Soon
-                      </span>
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleEmailPdfToMe}
+                        disabled={emailSending}
+                         className="w-full h-11 text-sm inline-flex items-center justify-center bg-forest-500 text-white hover:bg-forest-600 rounded-lg font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                         {emailSending ? (
+                           <>
+                             <span className="mr-2 inline-flex h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                             <span>Sending Email...</span>
+                           </>
+                         ) : (
+                           <>
+                             <Mail className="mr-2" size={16} />
+                             <span>Email PDF to Me</span>
+                           </>
+                         )}
+                      </button>
+                      {emailSent && !emailError && (
+                        <p className="text-xs text-forest-600 mt-1 text-center">
+                          Sent to {leadData.email}.
+                        </p>
+                      )}
+                      {emailError && (
+                        <p className="text-xs text-red-600 mt-1 text-center">
+                          {emailError}
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

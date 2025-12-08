@@ -9,21 +9,33 @@ import { Menu, X, ChevronDown, FileText, Building2 } from 'lucide-react'
 
 export function Header() {
   // Track scroll position for sticky header styling
+  // Initialize to false to match server render, then update on mount
   const [scrolled, setScrolled] = useState(false)
+  // Track if component is mounted to prevent hydration mismatch
+  const [mounted, setMounted] = useState(false)
   // Mobile menu open/closed state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   // Track dropdown open/closed state
   const [trackDropdownOpen, setTrackDropdownOpen] = useState(false)
 
+  // Set mounted state and initial scroll position on client
+  useEffect(() => {
+    setMounted(true)
+    // Check initial scroll position
+    setScrolled(window.scrollY > 50)
+  }, [])
+
   // Add scroll listener for header background change
   useEffect(() => {
+    if (!mounted) return
+    
     const handleScroll = () => {
       setScrolled(window.scrollY > 50)
     }
     
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
+  }, [mounted])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -59,7 +71,7 @@ export function Header() {
     { href: '/for-installers', label: 'For Installers' },
     { href: '/#how-it-works', label: 'How It Works' },
     { href: '/#faq', label: 'FAQ' },
-    // { href: '/contact', label: 'Contact' }, // preserved but not currently shown
+    { href: '/contact', label: 'Contact' },
   ]
 
   return (
@@ -67,7 +79,7 @@ export function Header() {
       {/* Main navigation header */}
       <header
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          scrolled
+          mounted && scrolled
             ? 'bg-white shadow-md'
             : 'bg-transparent'
         }`}
@@ -77,7 +89,7 @@ export function Header() {
             {/* Logo on the left */}
             <Link href="/" className="flex-shrink-0">
               <Logo 
-                variant={scrolled ? 'default' : 'white'} 
+                variant={mounted && scrolled ? 'default' : 'white'} 
                 size="md"
                 showTagline={false}
               />
@@ -90,7 +102,7 @@ export function Header() {
                   key={link.href}
                   href={link.href}
                   className={`text-sm font-medium transition-colors hover:text-maple-500 ${
-                    scrolled ? 'text-gray-700' : 'text-white'
+                    mounted && scrolled ? 'text-gray-700' : 'text-white'
                   }`}
                 >
                   {link.label}
@@ -102,7 +114,7 @@ export function Header() {
                 <button
                   onClick={() => setTrackDropdownOpen(!trackDropdownOpen)}
                   className={`text-sm font-medium transition-colors hover:text-maple-500 inline-flex items-center gap-1 ${
-                    scrolled ? 'text-gray-700' : 'text-white'
+                    mounted && scrolled ? 'text-gray-700' : 'text-white'
                   }`}
                 >
                   Track
@@ -161,7 +173,7 @@ export function Header() {
             {/* Mobile menu button */}
             <button
               className={`md:hidden p-2 rounded-lg transition-colors ${
-                scrolled ? 'text-gray-700 hover:bg-gray-100' : 'text-white hover:bg-white/10'
+                mounted && scrolled ? 'text-gray-700 hover:bg-gray-100' : 'text-white hover:bg-white/10'
               }`}
               onClick={handleToggleMenu}
               aria-label="Toggle menu"

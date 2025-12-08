@@ -3,6 +3,17 @@
 
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
+import { Resend } from 'resend'
+
+function createResendClient() {
+  const apiKey = process.env.RESEND_API_KEY
+
+  if (!apiKey) {
+    throw new Error('Resend API key not configured. Please set RESEND_API_KEY environment variable.')
+  }
+
+  return new Resend(apiKey)
+}
 
 // Helper function to upload file to Supabase Storage
 async function uploadFileToStorage(
@@ -401,6 +412,49 @@ export async function POST(request: Request) {
       companyName,
       contactEmail,
     })
+
+    // Send confirmation email to installer via Resend (best-effort)
+    try {
+      const resend = createResendClient()
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://solarcalculatorcanada.org'
+
+      await resend.emails.send({
+        from: 'Solar Calculator Canada <info@solarcalculatorcanada.org>',
+        to: contactEmail,
+        subject: 'We received your installer application',
+        text: `Hi ${contactPersonName},\n\nThanks for applying to join Solar Calculator Canada as an installer partner.\n\nWe’ve received your application for ${companyName} and will review your details and certifications. A member of our team will follow up with you by email.\n\nYou can track the status of your application any time from our installer portal.\n\n${appUrl}\n\n— Solar Calculator Canada`,
+        html: `
+          <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 640px; margin: 0 auto; padding: 24px;">
+            <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 12px; color: #0f172a;">
+              We received your installer application
+            </h1>
+            <p style="font-size: 15px; color: #334155; line-height: 1.6; margin-bottom: 8px;">
+              Hi ${contactPersonName},
+            </p>
+            <p style="font-size: 14px; color: #64748b; line-height: 1.6; margin-bottom: 12px;">
+              Thanks for applying to join Solar Calculator Canada as an installer partner.
+            </p>
+            <p style="font-size: 14px; color: #64748b; line-height: 1.6; margin-bottom: 16px;">
+              We’ve received your application for <strong>${companyName}</strong> and will review your details and certifications. A member of our team will follow up with you by email.
+            </p>
+            <p style="font-size: 14px; color: #64748b; line-height: 1.6; margin-bottom: 16px;">
+              You can track the status of your application from the installer portal.
+            </p>
+            <p style="font-size: 14px; margin-bottom: 20px;">
+              <a href="${appUrl}/for-installers" style="display: inline-block; background-color: #166534; color: #ffffff; text-decoration: none; padding: 10px 18px; border-radius: 999px; font-size: 14px; font-weight: 600;">
+                Open installer portal
+              </a>
+            </p>
+            <p style="font-size: 13px; color: #94a3b8;">
+              — Solar Calculator Canada
+            </p>
+          </div>
+        `,
+      })
+    } catch (sendError) {
+      console.error('Error sending installer application confirmation email:', sendError)
+      // Do not fail the API if the email fails
+    }
 
     return NextResponse.json({
       success: true,
