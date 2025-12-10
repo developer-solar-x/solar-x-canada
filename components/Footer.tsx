@@ -2,15 +2,15 @@
 
 import Link from 'next/link'
 import { Logo } from './Logo'
-import { Facebook, Linkedin, Instagram, Mail, MapPin, Phone } from 'lucide-react'
+import { Linkedin, Instagram, Mail, Twitter } from 'lucide-react'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
 export function Footer() {
-  // Social media links - removed Solar X specific links, using generic placeholders
+  // Social media links
   const socialLinks = [
-    { icon: Linkedin, href: '#', label: 'LinkedIn' },
-    { icon: Instagram, href: '#', label: 'Instagram' },
-    { icon: Facebook, href: '#', label: 'Facebook' },
+    { icon: Instagram, href: 'https://www.instagram.com/the.solarcalculatorcanada_org/?hl=en', label: 'Instagram' },
+    { icon: Twitter, href: 'https://x.com/SolarCalcuCA25', label: 'Twitter/X' },
+    { icon: Linkedin, href: 'https://www.linkedin.com/feed/', label: 'LinkedIn' },
   ]
 
   // Navigation columns
@@ -48,6 +48,8 @@ export function Footer() {
                 <a
                   key={index}
                   href={social.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-maple-500 transition-colors"
                   aria-label={social.label}
                 >
@@ -96,12 +98,6 @@ export function Footer() {
             <h3 className="text-lg font-bold mb-4">Contact</h3>
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
-                <Phone size={18} className="mt-1 flex-shrink-0" />
-                <a href="tel:1-800-555-1234" className="text-gray-300 hover:text-white transition-colors">
-                  1-800-555-1234
-                </a>
-              </li>
-              <li className="flex items-start gap-3">
                 <Mail size={18} className="mt-1 flex-shrink-0" />
                 <a
                   href="mailto:info@solarcalculatorcanada.org"
@@ -110,18 +106,7 @@ export function Footer() {
                   info@solarcalculatorcanada.org
                 </a>
               </li>
-              <li className="flex items-start gap-3">
-                <MapPin size={18} className="mt-1 flex-shrink-0" />
-                <span className="text-gray-300">
-                  123 Solar Street
-                  <br />
-                  Toronto, ON M5V 3A8
-                </span>
-              </li>
             </ul>
-            <p className="text-gray-200 text-sm mt-4">
-              Mon-Fri: 8am-6pm EST
-            </p>
           </div>
         </div>
 

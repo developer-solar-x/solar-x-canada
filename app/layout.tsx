@@ -1,6 +1,22 @@
 import type { Metadata, Viewport } from 'next'
+import { Inter, Montserrat } from 'next/font/google'
 import './globals.css'
 import { PreconnectLinks } from '@/components/PreconnectLinks'
+
+// Load Google Fonts using Next.js font optimization
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-inter',
+  display: 'swap',
+})
+
+const montserrat = Montserrat({
+  subsets: ['latin'],
+  weight: ['700', '800', '900'],
+  variable: '--font-montserrat',
+  display: 'swap',
+})
 
 // Metadata for SEO optimization - Optimized for Canadian solar market
 export const metadata: Metadata = {
@@ -194,7 +210,7 @@ export default function RootLayout({
   })
 
   return (
-    <html lang="en-CA" className="scroll-smooth" data-scroll-behavior="smooth">
+    <html lang="en-CA" className={`${inter.variable} ${montserrat.variable} scroll-smooth`} data-scroll-behavior="smooth">
       <body className="antialiased">
         {/* Preconnect links for performance - added early in body */}
         <PreconnectLinks />

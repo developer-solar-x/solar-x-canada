@@ -1,6 +1,6 @@
 'use client'
 
-import { Users, Clock, BarChart3, Calculator, Zap, ArrowRightFromLine, ExternalLink, TrendingUp, Building2, MessageSquare, Sparkles, LayoutDashboard, Loader2 } from 'lucide-react'
+import { Users, Clock, BarChart3, Calculator, Zap, ArrowRightFromLine, ExternalLink, TrendingUp, Building2, MessageSquare, Sparkles, LayoutDashboard, Loader2, Battery } from 'lucide-react'
 
 interface AdminSidebarProps {
   activeSection: string
@@ -183,6 +183,23 @@ export function AdminSidebar({
               {totalFeedback}
             </span>
             {activeSection === 'feedback' && (
+              <div className="absolute right-2 w-1.5 h-1.5 bg-white rounded-full"></div>
+            )}
+          </button>
+
+          <button 
+            onClick={() => handleSectionClick('batteries')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all relative group ${
+              activeSection === 'batteries' 
+                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/30' 
+                : 'hover:bg-white/10 text-white/90 hover:text-white'
+            }`}
+          >
+            <div className={`p-1.5 rounded-lg ${activeSection === 'batteries' ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'}`}>
+              <Battery size={18} className="flex-shrink-0" />
+            </div>
+            <span>Batteries</span>
+            {activeSection === 'batteries' && (
               <div className="absolute right-2 w-1.5 h-1.5 bg-white rounded-full"></div>
             )}
           </button>

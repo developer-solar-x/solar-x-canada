@@ -21,7 +21,10 @@ import { InstallersSection } from './sections/InstallersSection'
 import { FeedbackSection } from './sections/FeedbackSection'
 import { InstallerDetailView } from '@/components/admin/InstallerDetailView'
 import { FeedbackDetailView } from '@/components/admin/FeedbackDetailView'
+import { BatteriesSection } from './sections/BatteriesSection'
+import { BatteryModal, BatteryFormData } from '@/components/admin/BatteryModal'
 import { useLeadStats, usePartialLeadStats } from './hooks'
+import type { BatterySpec } from '@/config/battery-specs'
 
 // Lead type matching database schema
 interface Lead {
@@ -121,6 +124,13 @@ export default function AdminPage() {
   const [feedbackStatusFilter, setFeedbackStatusFilter] = useState('all')
   const [feedbackProvinceFilter, setFeedbackProvinceFilter] = useState('all')
   const [feedbackDateRangeFilter, setFeedbackDateRangeFilter] = useState({ start: '', end: '' })
+
+  // Batteries state
+  const [batteries, setBatteries] = useState<BatterySpec[]>([])
+  const [batteriesLoading, setBatteriesLoading] = useState(false)
+  const [batteryModalOpen, setBatteryModalOpen] = useState(false)
+  const [selectedBattery, setSelectedBattery] = useState<BatterySpec | null>(null)
+  const [batteryModalMode, setBatteryModalMode] = useState<'add' | 'edit'>('add')
 
   // Load real leads from database
   useEffect(() => {
@@ -483,6 +493,108 @@ export default function AdminPage() {
       throw error // Re-throw to let modal handle the error
     }
   }
+
+  // Fetch batteries
+  const fetchBatteries = async () => {
+    setBatteriesLoading(true)
+    try {
+      const response = await fetch('/api/batteries?includeInactive=true')
+      if (response.ok) {
+        const result = await response.json()
+        setBatteries(result.batteries || [])
+      } else {
+        console.error('Failed to fetch batteries')
+        setBatteries([])
+      }
+    } catch (error) {
+      console.error('Error fetching batteries:', error)
+      setBatteries([])
+    } finally {
+      setBatteriesLoading(false)
+    }
+  }
+
+  // Load batteries when batteries section is active
+  useEffect(() => {
+    if (activeSection === 'batteries') {
+      fetchBatteries()
+    }
+  }, [activeSection])
+
+  // Handle add battery
+  const handleAddBattery = () => {
+    setSelectedBattery(null)
+    setBatteryModalMode('add')
+    setBatteryModalOpen(true)
+  }
+
+  // Handle edit battery
+  const handleEditBattery = (battery: BatterySpec) => {
+    setSelectedBattery(battery)
+    setBatteryModalMode('edit')
+    setBatteryModalOpen(true)
+  }
+
+  // Handle save battery (add or edit)
+  const handleSaveBattery = async (batteryData: BatteryFormData) => {
+    try {
+      if (batteryModalMode === 'add') {
+        const response = await fetch('/api/batteries', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(batteryData),
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || 'Failed to create battery')
+        }
+      } else {
+        if (!selectedBattery?.id) {
+          throw new Error('Battery ID is required for update')
+        }
+
+        const response = await fetch(`/api/batteries/${selectedBattery.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(batteryData),
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || 'Failed to update battery')
+        }
+      }
+
+      // Refresh batteries list
+      await fetchBatteries()
+    } catch (error) {
+      throw error // Re-throw to let modal handle the error
+    }
+  }
+
+  // Handle delete battery
+  const handleDeleteBattery = async (battery: BatterySpec) => {
+    if (!confirm(`Are you sure you want to delete ${battery.brand} ${battery.model}?`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/batteries/${battery.id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete battery')
+      }
+
+      // Refresh batteries list
+      await fetchBatteries()
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to delete battery')
+    }
+  }
   
   // Handle lead row click to open detail view
   const handleLeadClick = (lead: Lead) => {
@@ -829,6 +941,16 @@ export default function AdminPage() {
             onFeedbackClick={handleFeedbackClick}
           />
         )}
+
+        {activeSection === 'batteries' && (
+          <BatteriesSection
+            batteries={batteries}
+            batteriesLoading={batteriesLoading}
+            onAddBattery={handleAddBattery}
+            onEditBattery={handleEditBattery}
+            onDeleteBattery={handleDeleteBattery}
+          />
+        )}
         {activeSection === 'greenbutton' && (
           <GreenButtonParserSection />
         )}
@@ -878,13 +1000,21 @@ export default function AdminPage() {
       )}
 
       {/* User Modal */}
-      <UserModal
-        isOpen={userModalOpen}
-        onClose={() => setUserModalOpen(false)}
-        onSave={handleSaveUser}
-        user={selectedUser}
-        mode={userModalMode}
-      />
+        <UserModal
+          isOpen={userModalOpen}
+          onClose={() => setUserModalOpen(false)}
+          onSave={handleSaveUser}
+          user={selectedUser}
+          mode={userModalMode}
+        />
+
+        <BatteryModal
+          isOpen={batteryModalOpen}
+          onClose={() => setBatteryModalOpen(false)}
+          onSave={handleSaveBattery}
+          battery={selectedBattery || undefined}
+          mode={batteryModalMode}
+        />
 
       {/* Delete User Modal */}
       <DeleteUserModal

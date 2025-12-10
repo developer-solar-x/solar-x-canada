@@ -35,8 +35,8 @@ export function calculateNetPrice(price: number, nominalKwh: number): number {
   return price - rebate
 }
 
-// Battery specifications database
-export const BATTERY_SPECS: BatterySpec[] = [
+// Static battery specifications (fallback if database is unavailable)
+const STATIC_BATTERY_SPECS: BatterySpec[] = [
   {
     id: 'renon-16',
     brand: 'Renon',
@@ -78,7 +78,7 @@ export const BATTERY_SPECS: BatterySpec[] = [
     usablePercent: 95,
     roundTripEfficiency: 0.92,
     inverterKw: 5.0,
-    price: 19000,
+    price: 17000,
     warranty: {
       years: 10,
       cycles: 3650
@@ -135,14 +135,55 @@ export const BATTERY_SPECS: BatterySpec[] = [
   }
 ]
 
-// Get battery by ID
-export function getBatteryById(id: string): BatterySpec | undefined {
-  return BATTERY_SPECS.find(battery => battery.id === id)
+// Export static specs for backward compatibility
+export const BATTERY_SPECS: BatterySpec[] = STATIC_BATTERY_SPECS
+
+// Get battery by ID (checks database first, then falls back to static)
+export async function getBatteryById(id: string): Promise<BatterySpec | undefined> {
+  try {
+    // Try to fetch from database first
+    if (typeof window !== 'undefined') {
+      const response = await fetch(`/api/batteries/${id}`)
+      if (response.ok) {
+        const result = await response.json()
+        return result.battery
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to fetch battery from database, using static data:', error)
+  }
+  
+  // Fallback to static data
+  return STATIC_BATTERY_SPECS.find(battery => battery.id === id)
 }
 
-// Get batteries by brand
-export function getBatteriesByBrand(brand: string): BatterySpec[] {
-  return BATTERY_SPECS.filter(battery => battery.brand === brand)
+// Synchronous version for backward compatibility (uses static data only)
+export function getBatteryByIdSync(id: string): BatterySpec | undefined {
+  return STATIC_BATTERY_SPECS.find(battery => battery.id === id)
+}
+
+// Get batteries by brand (checks database first, then falls back to static)
+export async function getBatteriesByBrand(brand: string): Promise<BatterySpec[]> {
+  try {
+    // Try to fetch from database first
+    if (typeof window !== 'undefined') {
+      const response = await fetch('/api/batteries')
+      if (response.ok) {
+        const result = await response.json()
+        return (result.batteries || []).filter((b: BatterySpec) => b.brand === brand)
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to fetch batteries from database, using static data:', error)
+  }
+  
+  // Fallback to static data
+  return STATIC_BATTERY_SPECS.filter(battery => battery.brand === brand)
+}
+
+// Synchronous version for backward compatibility (uses static data only)
+export function getBatteriesByBrandSync(brand: string): BatterySpec[] {
+  return STATIC_BATTERY_SPECS.filter(battery => battery.brand === brand)
 }
 
 // Calculate battery financial details
@@ -169,9 +210,34 @@ export function calculateBatteryFinancials(battery: BatterySpec): BatteryFinanci
   }
 }
 
-// Get all batteries with financial details
-export function getAllBatteriesWithFinancials(): BatteryFinancials[] {
-  return BATTERY_SPECS.map(calculateBatteryFinancials)
+// Get all batteries with financial details (checks database first, then falls back to static)
+export async function getAllBatteriesWithFinancials(): Promise<BatteryFinancials[]> {
+  let batteries: BatterySpec[] = []
+  
+  try {
+    // Try to fetch from database first
+    if (typeof window !== 'undefined') {
+      const response = await fetch('/api/batteries')
+      if (response.ok) {
+        const result = await response.json()
+        batteries = result.batteries || []
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to fetch batteries from database, using static data:', error)
+  }
+  
+  // Fallback to static data if database fetch failed or returned empty
+  if (batteries.length === 0) {
+    batteries = STATIC_BATTERY_SPECS
+  }
+  
+  return batteries.map(calculateBatteryFinancials)
+}
+
+// Synchronous version for backward compatibility (uses static data only)
+export function getAllBatteriesWithFinancialsSync(): BatteryFinancials[] {
+  return STATIC_BATTERY_SPECS.map(calculateBatteryFinancials)
 }
 
 // Recommend battery based on daily usage patterns
