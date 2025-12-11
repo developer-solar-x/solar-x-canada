@@ -7,6 +7,7 @@ import { RATE_PLANS, TOU_RATE_PLAN, ULO_RATE_PLAN } from '@/config/rate-plans'
 import type { RatePlan } from '@/config/rate-plans'
 import { UsageDataPoint, generateAnnualUsagePattern } from '@/lib/usage-parser'
 import type { UsageDistribution } from '@/lib/simple-peak-shaving'
+import type { BatterySpec } from '@/config/battery-specs'
 
 export async function POST(request: Request) {
   try {
@@ -26,6 +27,10 @@ export async function POST(request: Request) {
       // Rate plan
       ratePlanId, // 'tou', 'ulo', or 'tiered'
       ratePlan, // Optional: full RatePlan object
+      
+      // Battery and AI Mode
+      battery, // Optional: BatterySpec object
+      aiMode = false, // AI Optimization Mode (default OFF)
       
       // Year for calculations
       year = new Date().getFullYear(),
@@ -112,7 +117,9 @@ export async function POST(request: Request) {
       selectedRatePlan,
       hourlyUsageData,
       year,
-      usageDistribution as UsageDistribution | undefined
+      usageDistribution as UsageDistribution | undefined,
+      battery as BatterySpec | null | undefined,
+      aiMode === true
     )
 
     return NextResponse.json({

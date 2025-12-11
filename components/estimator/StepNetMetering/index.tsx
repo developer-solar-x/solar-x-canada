@@ -6,7 +6,7 @@
 // Right: Results with donut chart
 
 import { useState, useEffect } from 'react'
-import { ArrowLeft, ArrowRight, Loader2, Zap, AlertTriangle, Info, Sun, Moon, BarChart3, DollarSign, TrendingUp, Clock, Battery, Plus, X, ChevronDown } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Loader2, Zap, AlertTriangle, Info, Sun, Moon, BarChart3, DollarSign, TrendingUp, Clock, Battery, Plus, X, ChevronDown, Sparkles } from 'lucide-react'
 import type { NetMeteringResult } from '@/lib/net-metering'
 import type { EstimatorData } from '@/app/estimator/page'
 import { DEFAULT_TOU_DISTRIBUTION, DEFAULT_ULO_DISTRIBUTION, type UsageDistribution, calculateSimpleMultiYear } from '@/lib/simple-peak-shaving'
@@ -162,6 +162,8 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   const [showPeriodBreakdown, setShowPeriodBreakdown] = useState(false)
   const [showMonthlyBreakdown, setShowMonthlyBreakdown] = useState(false)
   const [selectedBatteries, setSelectedBatteries] = useState<string[]>([])
+  // AI Optimization Mode - allows grid charging at cheap rates for both TOU and ULO
+  const [aiMode, setAiMode] = useState(true)
 
   // Get production and usage data - use local estimate if available
   const estimate = localEstimate || data.estimate
@@ -319,9 +321,17 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     
     // Estimate annual battery throughput
     // Battery can charge/discharge daily, storing excess solar and using during peak
+    // With AI Mode ON, battery can also charge from grid, increasing utilization
     const dailyCycles = 1 // One full charge/discharge cycle per day
     const batteryEfficiency = 0.85 // 85% round-trip efficiency
-    const annualBatteryKwhUsed = totalBatteryKwh * dailyCycles * 365 * batteryEfficiency
+    let annualBatteryKwhUsed = totalBatteryKwh * dailyCycles * 365 * batteryEfficiency
+    
+    // AI Mode increases battery utilization by allowing grid charging
+    // When AI Mode is ON, battery can use full capacity (not limited to solar excess)
+    if (aiMode) {
+      // Full capacity utilization with grid charging
+      annualBatteryKwhUsed = totalBatteryKwh * 365 // Full annual capacity
+    }
 
     // --- Usage‑distribution‑aware adjustment -----------------------------------
     // For TOU / ULO plans, adjust the effective impact of the battery based on
@@ -500,6 +510,31 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
           ? touDistribution
           : undefined
       
+      // Get combined battery if batteries are selected
+      const combinedBattery = selectedBatteries.length > 0
+        ? selectedBatteries
+            .map(id => BATTERY_SPECS.find(b => b.id === id))
+            .filter(Boolean)
+            .reduce((combined, battery, idx) => {
+              if (!battery) return combined
+              if (idx === 0) return battery
+              return {
+                ...combined,
+                id: `${combined.id}+${battery.id}`,
+                brand: `${combined.brand}+${battery.brand}`,
+                model: `${combined.model}+${battery.model}`,
+                nominalKwh: combined.nominalKwh + battery.nominalKwh,
+                usableKwh: combined.usableKwh + battery.usableKwh,
+                inverterKw: Math.max(combined.inverterKw, battery.inverterKw),
+                price: combined.price + battery.price,
+                warranty: {
+                  years: Math.min(combined.warranty.years, battery.warranty.years),
+                  cycles: Math.min(combined.warranty.cycles, battery.warranty.cycles)
+                }
+              }
+            }, BATTERY_SPECS.find(b => b.id === selectedBatteries[0])!)
+        : null
+
       const response = await fetch('/api/net-metering', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -511,6 +546,8 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
           // Tiered ignores usageDistribution; we only send it for plans that
           // actually have a configurable distribution.
           ...(distribution ? { usageDistribution: distribution } : {}),
+          ...(combinedBattery ? { battery: combinedBattery } : {}),
+          aiMode: aiMode && selectedBatteries.length > 0, // Only enable if battery is selected
         }),
       })
 
@@ -538,12 +575,12 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   // TOU net metering – only depends on TOU inputs.
   useEffect(() => {
     void runNetMeteringForPlan('tou')
-  }, [localEstimate, data.estimate, annualUsageKwh, touDistribution, isTouDistributionValid])
+  }, [localEstimate, data.estimate, annualUsageKwh, touDistribution, isTouDistributionValid, selectedBatteries, aiMode])
 
   // ULO net metering – only depends on ULO inputs.
   useEffect(() => {
     void runNetMeteringForPlan('ulo')
-  }, [localEstimate, data.estimate, annualUsageKwh, uloDistribution, isUloDistributionValid])
+  }, [localEstimate, data.estimate, annualUsageKwh, uloDistribution, isUloDistributionValid, selectedBatteries, aiMode])
 
   // Tiered net metering – independent of TOU/ULO distributions.
   useEffect(() => {
@@ -894,21 +931,97 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                         )}
                         
                         {selectedBatteries.length > 0 && (
-                          <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-semibold text-gray-700">Total Battery Cost:</span>
-                              <span className="text-lg font-bold text-emerald-700">
-                                ${selectedBatteries
-                                  .map(id => BATTERY_SPECS.find(b => b.id === id))
-                                  .filter(Boolean)
-                                  .reduce((sum, battery) => sum + (battery?.price || 0), 0)
-                                  .toLocaleString()}
-                              </span>
+                          <>
+                            <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-semibold text-gray-700">Total Battery Cost:</span>
+                                <span className="text-lg font-bold text-emerald-700">
+                                  ${selectedBatteries
+                                    .map(id => BATTERY_SPECS.find(b => b.id === id))
+                                    .filter(Boolean)
+                                    .reduce((sum, battery) => sum + (battery?.price || 0), 0)
+                                    .toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="text-xs text-gray-600">
+                                No rebates apply to net metering systems
+                              </div>
                             </div>
-                            <div className="text-xs text-gray-600">
-                              No rebates apply to net metering systems
+
+                            {/* AI Optimization Mode Toggle */}
+                            <div className="mt-4 pt-4 border-t-2 border-gray-200">
+                              <div className="flex items-center justify-between mb-3">
+                                <label className="block text-base md:text-lg font-semibold text-gray-700 flex items-center gap-2">
+                                  <Sparkles className="text-purple-600" size={20} />
+                                  AI Optimization Mode
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => setAiMode(!aiMode)}
+                                  className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+                                    aiMode ? 'bg-purple-600' : 'bg-gray-300'
+                                  }`}
+                                  role="switch"
+                                  aria-checked={aiMode}
+                                  aria-label="Toggle AI Optimization Mode"
+                                >
+                                  <span
+                                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                                      aiMode ? 'translate-x-8' : 'translate-x-1'
+                                    }`}
+                                  />
+                                </button>
+                              </div>
+                              <div className={`p-4 rounded-lg border-2 ${
+                                aiMode 
+                                  ? 'bg-purple-50 border-purple-200' 
+                                  : 'bg-gray-50 border-gray-200'
+                              }`}>
+                                <div className="flex items-start gap-3">
+                                  <div className={`flex-shrink-0 mt-0.5 ${
+                                    aiMode ? 'text-purple-600' : 'text-gray-500'
+                                  }`}>
+                                    {aiMode ? <Zap size={18} /> : <Battery size={18} />}
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className={`font-semibold mb-1 ${
+                                      aiMode ? 'text-purple-800' : 'text-gray-700'
+                                    }`}>
+                                      {aiMode ? 'AI Mode: ON' : 'AI Mode: OFF'}
+                                    </div>
+                                    <div className="text-sm text-gray-600 space-y-1">
+                                      {aiMode ? (
+                                        <>
+                                          <p>• Battery can charge from grid at cheap rates ({selectedPlan === 'ulo' ? 'ultra-low (3.9¢/kWh)' : 'off-peak (9.8¢/kWh)'})</p>
+                                          <p>• Maximizes battery utilization and savings through energy arbitrage</p>
+                                          <p>• Can use full battery capacity (not limited to solar excess)</p>
+                                          <p className="text-xs text-purple-700 font-medium mt-2">
+                                            💡 Typically increases annual savings by $400-$1,500+
+                                          </p>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <p>• Battery only charges from solar excess (free)</p>
+                                          <p>• No grid charging - battery capacity limited to available solar excess</p>
+                                          <p>• More conservative approach, lower savings potential</p>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              {aiMode && (
+                                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                  <div className="flex items-start gap-2">
+                                    <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
+                                    <p className="text-xs text-blue-700">
+                                      <strong>How it works:</strong> When AI Mode is ON, your battery charges from the grid during cheap rate periods ({selectedPlan === 'ulo' ? 'ultra-low' : 'off-peak'}) and discharges during expensive periods (on-peak/mid-peak). This creates energy arbitrage - buying low and using it to avoid buying high, maximizing your savings.
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </div>
+                          </>
                         )}
                                 </div>
                                 </div>

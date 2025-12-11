@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { 
   Sun, Battery, TrendingUp, ChevronDown, ChevronUp, 
-  Zap, Info, AlertTriangle, BarChart3, DollarSign, Calendar, Award, Clock, X, Moon, ArrowLeft, ArrowRight, MessageSquare
+  Zap, Info, AlertTriangle, BarChart3, DollarSign, Calendar, Award, Clock, X, Moon, ArrowLeft, ArrowRight, MessageSquare, Sparkles
 } from 'lucide-react'
 import { FeedbackForm } from '@/components/FeedbackForm'
 import { BATTERY_SPECS, BatterySpec, calculateBatteryRebate, BATTERY_REBATE_PER_KWH, BATTERY_REBATE_MAX } from '@/config/battery-specs'
@@ -726,8 +726,8 @@ export function PeakShavingSalesCalculatorFRD({
   const [solarProductionInput, setSolarProductionInput] = useState<string>(String(getDefaultProduction()))
   const [selectedBatteryIds, setSelectedBatteryIds] = useState<string[]>(getDefaultBattery())
   const [ratePlan, setRatePlan] = useState<'TOU' | 'ULO'>('ULO')
-  // AI Optimization Mode is always ON (hidden from user) - allows grid charging at cheap rates for both TOU and ULO
-  const aiMode = true
+  // AI Optimization Mode - allows grid charging at cheap rates for both TOU and ULO
+  const [aiMode, setAiMode] = useState(true)
   
   // Tab navigation state
   const [activeTab, setActiveTab] = useState<'basic' | 'distribution'>('basic')
@@ -2080,6 +2080,92 @@ export function PeakShavingSalesCalculatorFRD({
                 </div>
               </div>
 
+              {/* AI Optimization Mode Toggle */}
+              {selectedBatteryIds.length > 0 && selectedBattery && (
+                <div className="pt-4 border-t-2 border-gray-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-base md:text-lg font-semibold text-gray-700 flex items-center gap-2">
+                      <Sparkles className="text-purple-600" size={20} />
+                      AI Optimization Mode
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setAiMode(!aiMode)}
+                      className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+                        aiMode ? 'bg-purple-600' : 'bg-gray-300'
+                      }`}
+                      role="switch"
+                      aria-checked={aiMode}
+                      aria-label="Toggle AI Optimization Mode"
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                          aiMode ? 'translate-x-8' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  <div className={`p-4 rounded-lg border-2 ${
+                    aiMode 
+                      ? 'bg-purple-50 border-purple-200' 
+                      : 'bg-gray-50 border-gray-200'
+                  }`}>
+                    <div className="flex items-start gap-3">
+                      <div className={`flex-shrink-0 mt-0.5 ${
+                        aiMode ? 'text-purple-600' : 'text-gray-500'
+                      }`}>
+                        {aiMode ? <Zap size={18} /> : <Battery size={18} />}
+                      </div>
+                      <div className="flex-1">
+                        <div className={`font-semibold mb-1 ${
+                          aiMode ? 'text-purple-800' : 'text-gray-700'
+                        }`}>
+                          {aiMode ? 'AI Mode: ON' : 'AI Mode: OFF'}
+                        </div>
+                        <div className="text-sm text-gray-600 space-y-1">
+                          {aiMode ? (
+                            <>
+                              <p>• Battery can charge from grid at cheap rates ({ratePlan === 'TOU' ? 'off-peak (9.8¢/kWh)' : 'ultra-low (3.9¢/kWh)'})</p>
+                              <p>• Maximizes battery utilization and savings through energy arbitrage</p>
+                              <p>• Can use full battery capacity (not limited to solar excess)</p>
+                              <p className="text-xs text-purple-700 font-medium mt-2">
+                                💡 Typically increases annual savings by $400-$1,500+
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <p>• Battery only charges from solar excess (free)</p>
+                              <p>• No grid charging - battery capacity limited to available solar excess</p>
+                              <p>• More conservative approach, lower savings potential</p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {aiMode && (
+                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
+                        <div className="text-xs text-blue-700 space-y-1">
+                          <p>
+                            <strong>How it works:</strong> When AI Mode is ON, your battery charges from the grid during cheap rate periods ({ratePlan === 'TOU' ? 'off-peak (9.8¢/kWh)' : 'ultra-low (3.9¢/kWh)'}) and discharges during expensive periods (on-peak/mid-peak). This creates energy arbitrage - buying low and using it to avoid buying high, maximizing your savings.
+                          </p>
+                          <p className="text-xs text-blue-600 italic mt-2">
+                            <strong>Note:</strong> The benefit of AI Mode depends on your usage pattern. If you have high solar excess or limited expensive period usage, the additional savings may be smaller. AI Mode typically provides the most benefit when:
+                          </p>
+                          <ul className="text-xs text-blue-600 italic ml-4 list-disc space-y-0.5 mt-1">
+                            <li>Solar excess is limited (battery needs grid charging to reach full capacity)</li>
+                            <li>You have significant on-peak/mid-peak usage to offset</li>
+                            <li>Rate spread is large ({ratePlan === 'TOU' ? 'TOU: ~10.5¢/kWh' : 'ULO: ~35¢/kWh'})</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Rebates Section - Only show in step mode (not standalone) */}
               {!manualMode && (
                 <div className="pt-4 border-t-2 border-gray-200">
@@ -2701,8 +2787,8 @@ export function PeakShavingSalesCalculatorFRD({
                         {selectedBatteryIds.length > 0 && (
                           <>
                         <li><strong>Battery (Solar-charged):</strong> Energy from battery charged by solar (free)</li>
-                            {batteryGridChargedKwh > 0 && (
-                        <li><strong>Remaining annual battery capacity charged at off peak via AI EMC:</strong> Energy from battery charged from grid at cheap rates via AI EMC</li>
+                            {aiMode && batteryGridChargedKwh > 0 && (
+                        <li><strong>Battery (Grid-charged):</strong> Energy from battery charged from grid at cheap rates ({ratePlan === 'TOU' ? 'off-peak' : 'ultra-low'}) via AI Mode</li>
                             )}
                           </>
                         )}
@@ -2738,9 +2824,12 @@ export function PeakShavingSalesCalculatorFRD({
                             {batterySolarChargedPercent.toFixed(2)}%
                           </td>
                         </tr>
-                        {batteryGridChargedKwh > 0 && (
+                        {aiMode && batteryGridChargedKwh > 0 && (
                           <tr>
-                            <td className="py-3 px-4 text-gray-700">Remaining annual battery capacity charged at off peak via AI EMC</td>
+                            <td className="py-3 px-4 text-gray-700">
+                              Battery (Grid-charged)
+                              <span className="ml-2 text-xs text-purple-600">AI Mode</span>
+                            </td>
                             <td className="py-3 px-4 text-right text-gray-600">
                               {batteryGridChargedKwh.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
@@ -2841,6 +2930,26 @@ export function PeakShavingSalesCalculatorFRD({
                       <p className="text-gray-700">
                         We calculate how much money you'll save in the first year by using your solar + battery system instead of buying all your electricity from the grid. This is based on your {ratePlan === 'ULO' ? 'Ultra-Low Overnight (ULO)' : 'Time-of-Use (TOU)'} rate plan.
                       </p>
+                      {selectedBatteryIds.length > 0 && (
+                        <div className={`mt-3 p-3 rounded-lg border ${
+                          aiMode ? 'bg-purple-50 border-purple-200' : 'bg-gray-50 border-gray-200'
+                        }`}>
+                          <div className="flex items-start gap-2">
+                            <Sparkles className={`flex-shrink-0 mt-0.5 ${aiMode ? 'text-purple-600' : 'text-gray-500'}`} size={16} />
+                            <div className="text-sm">
+                              <p className={`font-semibold ${aiMode ? 'text-purple-800' : 'text-gray-700'}`}>
+                                AI Optimization Mode: {aiMode ? 'ON' : 'OFF'}
+                              </p>
+                              <p className="text-gray-600 mt-1">
+                                {aiMode 
+                                  ? `Your battery can charge from the grid at ${ratePlan === 'TOU' ? 'off-peak (9.8¢/kWh)' : 'ultra-low (3.9¢/kWh)'} rates, maximizing savings through energy arbitrage.`
+                                  : 'Your battery only charges from solar excess, limiting capacity to available solar production.'
+                                }
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div>

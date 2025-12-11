@@ -5,6 +5,7 @@ import { RatePlan, getRateForDateTime, getExportCreditRate, TOU_RATE_PLAN } from
 import { generateAnnualUsagePattern } from './usage-parser'
 import type { UsageDistribution } from './simple-peak-shaving'
 import type { UsageDataPoint } from './usage-parser'
+import type { BatterySpec } from '@/config/battery-specs'
 
 // Monthly derate factors for Ontario solar production (from FRD)
 // Jan: 35%, Feb: 50%, Mar: 70%, Apr-Aug: 100%, Sept: 80%, Oct: 60%, Nov: 45%, Dec: 25%
@@ -67,6 +68,10 @@ export interface NetMeteringResult {
   byPeriod: NetMeteringPeriodSummary[]
   hourly: HourlyNetMeteringData[]
   warnings: string[]
+  battery?: {
+    totalGridCharged: number // kWh charged from grid (AI Mode)
+    totalSolarCharged: number // kWh charged from solar excess
+  }
 }
 
 /**
@@ -109,6 +114,7 @@ function generateHourlyProductionPattern(
 /**
  * Calculate net metering for 8,760 hours
  * Compares hourly solar production vs load and calculates exports/imports
+ * Supports battery storage with AI Mode for grid charging arbitrage
  */
 export function calculateNetMetering(
   monthlySolarProduction: number[], // 12 values (Jan-Dec) in kWh
@@ -116,7 +122,9 @@ export function calculateNetMetering(
   ratePlan: RatePlan,
   usageData?: UsageDataPoint[], // Optional: use provided hourly usage data
   year: number = new Date().getFullYear(),
-  usageDistribution?: UsageDistribution
+  usageDistribution?: UsageDistribution,
+  battery?: BatterySpec | null, // Optional battery for storage
+  aiMode: boolean = false // AI Mode enables grid charging at cheap rates
 ): NetMeteringResult {
   // Generate hourly solar production pattern
   const hourlySolarProduction = generateHourlyProductionPattern(monthlySolarProduction, year)
@@ -151,6 +159,15 @@ export function calculateNetMetering(
   
   const warnings: string[] = []
   
+  // Battery state tracking (if battery is present)
+  const hasBattery = battery != null
+  const batteryUsableKwh = battery?.usableKwh || 0
+  const batteryEfficiency = battery?.roundTripEfficiency || 0.90
+  const batteryInverterKw = battery?.inverterKw || 5.0
+  let batteryStateOfCharge = 0 // Current battery charge in kWh (0 to batteryUsableKwh)
+  let totalBatteryGridCharged = 0 // Total kWh charged from grid (for AI Mode)
+  let totalBatterySolarCharged = 0 // Total kWh charged from solar excess
+  
   // Calculate net metering for each hour
   const hourlyData: HourlyNetMeteringData[] = []
   let totalSolarProduction = 0
@@ -178,29 +195,95 @@ export function calculateNetMetering(
     const solarKwh = solar.kwh
     const loadKwh = usage.kwh
     
-    // Calculate surplus (export) and grid draw (import)
-    const surplusKwh = Math.max(0, solarKwh - loadKwh)
-    const gridDrawKwh = Math.max(0, loadKwh - solarKwh)
-    
     // Get rates for this hour
     const hour = timestamp.getHours()
     const { rate: exportCreditRate, period } = getExportCreditRate(ratePlan, timestamp, hour)
     const { rate: importRate } = getRateForDateTime(ratePlan, timestamp, hour)
     
+    // Determine if this is a cheap rate period for grid charging (AI Mode)
+    const isCheapRate = period === 'ultra-low' || period === 'off-peak'
+    const isExpensiveRate = period === 'on-peak' || period === 'mid-peak'
+    
+    // Step 1: Calculate net solar vs load (before battery)
+    const netSolar = solarKwh - loadKwh
+    const solarExcess = Math.max(0, netSolar)
+    const loadDeficit = Math.max(0, -netSolar)
+    
+    // Step 2: Battery operations (if battery exists)
+    let batteryDischarge = 0
+    let batteryChargeFromSolar = 0
+    let batteryChargeFromGrid = 0
+    let adjustedLoadDeficit = loadDeficit
+    let adjustedSolarExcess = solarExcess
+    
+    if (hasBattery) {
+      // Battery discharge: Use battery to cover load deficit
+      // Priority: discharge during expensive periods first, but also cover off-peak if needed
+      if (loadDeficit > 0 && batteryStateOfCharge > 0) {
+        // Prefer discharging during expensive periods, but allow off-peak discharge too
+        const shouldDischarge = isExpensiveRate || (loadDeficit > 0 && adjustedLoadDeficit === loadDeficit)
+        if (shouldDischarge) {
+          const maxDischarge = Math.min(
+            batteryStateOfCharge,
+            loadDeficit,
+            batteryInverterKw // Limited by inverter capacity
+          )
+          batteryDischarge = maxDischarge
+          batteryStateOfCharge -= batteryDischarge
+          adjustedLoadDeficit = Math.max(0, loadDeficit - batteryDischarge)
+        }
+      }
+      
+      // Battery charging: Priority 1 - Solar excess (free)
+      if (solarExcess > 0 && batteryStateOfCharge < batteryUsableKwh) {
+        const batteryHeadroom = batteryUsableKwh - batteryStateOfCharge
+        const maxChargeFromSolar = Math.min(
+          solarExcess,
+          batteryHeadroom,
+          batteryInverterKw
+        )
+        batteryChargeFromSolar = maxChargeFromSolar
+        batteryStateOfCharge += batteryChargeFromSolar
+        adjustedSolarExcess = Math.max(0, solarExcess - batteryChargeFromSolar)
+        totalBatterySolarCharged += batteryChargeFromSolar
+      }
+      
+      // Battery charging: Priority 2 - Grid charging (AI Mode only, during cheap rates)
+      if (aiMode && isCheapRate && batteryStateOfCharge < batteryUsableKwh) {
+        const batteryHeadroom = batteryUsableKwh - batteryStateOfCharge
+        // Only charge from grid if we have room and it's economically beneficial
+        // Charge up to full capacity during cheap periods
+        const maxChargeFromGrid = Math.min(
+          batteryHeadroom,
+          batteryInverterKw,
+          batteryUsableKwh * 0.5 // Conservative: don't charge more than half capacity per hour
+        )
+        if (maxChargeFromGrid > 0) {
+          batteryChargeFromGrid = maxChargeFromGrid
+          batteryStateOfCharge += batteryChargeFromGrid
+          totalBatteryGridCharged += batteryChargeFromGrid
+        }
+      }
+    }
+    
+    // Step 3: Calculate final exports and imports (after battery operations)
+    const finalExported = adjustedSolarExcess
+    const finalImported = adjustedLoadDeficit + batteryChargeFromGrid // Grid charging adds to imports
+    
     // Calculate credits and costs
-    const exportCredits = (surplusKwh * exportCreditRate) / 100 // Convert cents to dollars
-    const importCost = (gridDrawKwh * importRate) / 100 // Convert cents to dollars
+    const exportCredits = (finalExported * exportCreditRate) / 100 // Convert cents to dollars
+    const importCost = (finalImported * importRate) / 100 // Convert cents to dollars
     
     // Accumulate totals
     totalSolarProduction += solarKwh
     totalLoad += loadKwh
-    totalExported += surplusKwh
-    totalImported += gridDrawKwh
+    totalExported += finalExported
+    totalImported += finalImported
     
     // Accumulate by period
     const periodSummary = periodSummaries[period]
-    periodSummary.kwhExported += surplusKwh
-    periodSummary.kwhImported += gridDrawKwh
+    periodSummary.kwhExported += finalExported
+    periodSummary.kwhImported += finalImported
     periodSummary.exportCredits += exportCredits
     periodSummary.importCost += importCost
     
@@ -208,8 +291,8 @@ export function calculateNetMetering(
       timestamp,
       solarProductionKwh: solarKwh,
       loadKwh: loadKwh,
-      surplusKwh,
-      gridDrawKwh,
+      surplusKwh: finalExported,
+      gridDrawKwh: finalImported,
       exportCreditRate,
       importRate,
       period
@@ -268,7 +351,13 @@ export function calculateNetMetering(
     monthly: monthlyResults,
     byPeriod: Object.values(periodSummaries),
     hourly: hourlyData,
-    warnings
+    warnings,
+    ...(hasBattery && {
+      battery: {
+        totalGridCharged: totalBatteryGridCharged,
+        totalSolarCharged: totalBatterySolarCharged
+      }
+    })
   }
 }
 

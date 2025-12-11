@@ -1000,13 +1000,13 @@ export default function AdminPage() {
       )}
 
       {/* User Modal */}
-        <UserModal
-          isOpen={userModalOpen}
-          onClose={() => setUserModalOpen(false)}
-          onSave={handleSaveUser}
-          user={selectedUser}
-          mode={userModalMode}
-        />
+      <UserModal
+        isOpen={userModalOpen}
+        onClose={() => setUserModalOpen(false)}
+        onSave={handleSaveUser}
+        user={selectedUser}
+        mode={userModalMode}
+      />
 
         <BatteryModal
           isOpen={batteryModalOpen}
