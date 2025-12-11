@@ -578,9 +578,43 @@ export default function AdminPage() {
     }
   }
 
+  // Handle toggle battery status (active/inactive)
+  const handleToggleBatteryStatus = async (battery: BatterySpec) => {
+    const currentStatus = (battery as any).isActive !== false
+    const newStatus = !currentStatus
+    const action = newStatus ? 'activate' : 'deactivate'
+    
+    if (!confirm(`Are you sure you want to ${action} ${battery.brand} ${battery.model}?`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/batteries/${battery.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: newStatus }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || `Failed to ${action} battery`)
+      }
+
+      // Refresh batteries list
+      await fetchBatteries()
+      
+      // Dispatch event to notify other components
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('batteries-updated'))
+      }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : `Failed to ${action} battery`)
+    }
+  }
+
   // Handle delete battery
   const handleDeleteBattery = async (battery: BatterySpec) => {
-    if (!confirm(`Are you sure you want to delete ${battery.brand} ${battery.model}?`)) {
+    if (!confirm(`Are you sure you want to permanently delete ${battery.brand} ${battery.model}? This action cannot be undone.`)) {
       return
     }
 
@@ -958,6 +992,7 @@ export default function AdminPage() {
             batteriesLoading={batteriesLoading}
             onAddBattery={handleAddBattery}
             onEditBattery={handleEditBattery}
+            onToggleBatteryStatus={handleToggleBatteryStatus}
             onDeleteBattery={handleDeleteBattery}
           />
         )}

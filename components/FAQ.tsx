@@ -7,7 +7,8 @@ import { ChevronDown } from 'lucide-react'
 
 export function FAQ() {
   // Track which FAQ item is open (only one at a time)
-  const [openIndex, setOpenIndex] = useState<number | null>(0)
+  // Initialize to null to prevent hydration mismatch
+  const [openIndex, setOpenIndex] = useState<number | null>(null)
 
   // FAQ questions and answers - Updated for independent platform messaging
   const faqs = [

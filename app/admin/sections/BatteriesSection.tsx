@@ -9,6 +9,7 @@ interface BatteriesSectionProps {
   batteriesLoading: boolean
   onAddBattery: () => void
   onEditBattery: (battery: BatterySpec) => void
+  onToggleBatteryStatus: (battery: BatterySpec) => void
   onDeleteBattery: (battery: BatterySpec) => void
 }
 
@@ -17,6 +18,7 @@ export function BatteriesSection({
   batteriesLoading,
   onAddBattery,
   onEditBattery,
+  onToggleBatteryStatus,
   onDeleteBattery,
 }: BatteriesSectionProps) {
   const ITEMS_PER_PAGE = 10
@@ -163,6 +165,27 @@ export function BatteriesSection({
                         >
                           <Edit size={14} />
                           Edit
+                        </button>
+                        <button 
+                          onClick={() => onToggleBatteryStatus(battery)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all border ${
+                            (battery as any).isActive !== false
+                              ? 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200 hover:border-amber-300'
+                              : 'bg-green-50 hover:bg-green-100 text-green-700 border-green-200 hover:border-green-300'
+                          }`}
+                          title={(battery as any).isActive !== false ? 'Set to Inactive' : 'Set to Active'}
+                        >
+                          {(battery as any).isActive !== false ? (
+                            <>
+                              <XCircle size={14} />
+                              Deactivate
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle size={14} />
+                              Activate
+                            </>
+                          )}
                         </button>
                         <button 
                           onClick={() => onDeleteBattery(battery)}

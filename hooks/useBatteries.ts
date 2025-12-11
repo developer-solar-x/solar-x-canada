@@ -38,12 +38,15 @@ export function useBatteries(includeInactive: boolean = false) {
             cycles: b.warranty?.cycles || b.warranty_cycles || 6000,
           },
           description: b.description,
+          isActive: b.isActive !== undefined ? b.isActive : (b.is_active !== undefined ? b.is_active : true), // Preserve isActive from API
         }))
         
-        // Filter active batteries if needed
+        // Filter active batteries if needed (API already filters, but double-check for safety)
+        // Note: isActive can be undefined (legacy data) or false (inactive)
+        // Only show batteries where isActive is explicitly true or undefined (for backward compatibility)
         const activeBatteries = includeInactive 
           ? formattedBatteries 
-          : formattedBatteries.filter((b: any) => b.isActive !== false)
+          : formattedBatteries.filter((b: any) => b.isActive === true || b.isActive === undefined)
         
         // Use fetched batteries if available, otherwise fallback to static
         setBatteries(activeBatteries.length > 0 ? activeBatteries : BATTERY_SPECS)

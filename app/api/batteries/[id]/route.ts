@@ -144,26 +144,35 @@ export async function PUT(
   }
 }
 
-// DELETE - Soft delete a battery (set is_active to false)
-export async function DELETE(
+// PATCH - Update battery status (toggle active/inactive)
+export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
     const supabase = getSupabaseAdmin()
+    const body = await request.json()
+
+    // Only allow updating is_active via PATCH
+    if (body.isActive === undefined) {
+      return NextResponse.json(
+        { error: 'Only isActive can be updated via PATCH' },
+        { status: 400 }
+      )
+    }
 
     const { data, error } = await supabase
       .from('batteries')
-      .update({ is_active: false })
+      .update({ is_active: body.isActive })
       .eq('battery_id', id)
       .select()
       .single()
 
     if (error) {
-      console.error('Error deleting battery:', error)
+      console.error('Error updating battery status:', error)
       return NextResponse.json(
-        { error: 'Failed to delete battery', details: error.message },
+        { error: 'Failed to update battery status', details: error.message },
         { status: 500 }
       )
     }
@@ -172,6 +181,75 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Battery not found' },
         { status: 404 }
+      )
+    }
+
+    // Transform back to BatterySpec format
+    const battery = {
+      id: data.battery_id,
+      brand: data.brand,
+      model: data.model,
+      nominalKwh: parseFloat(data.nominal_kwh),
+      usableKwh: parseFloat(data.usable_kwh),
+      usablePercent: parseFloat(data.usable_percent),
+      roundTripEfficiency: parseFloat(data.round_trip_efficiency),
+      inverterKw: parseFloat(data.inverter_kw),
+      price: parseFloat(data.price),
+      warranty: {
+        years: data.warranty_years,
+        cycles: data.warranty_cycles,
+      },
+      description: data.description || undefined,
+      isActive: data.is_active,
+      displayOrder: data.display_order,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    }
+
+    return NextResponse.json({ battery })
+  } catch (error: any) {
+    console.error('Unexpected error updating battery status:', error)
+    return NextResponse.json(
+      { error: 'Internal server error', details: error.message },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE - Hard delete a battery (permanently remove from database)
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const supabase = getSupabaseAdmin()
+
+    // First check if battery exists
+    const { data: existingBattery, error: checkError } = await supabase
+      .from('batteries')
+      .select('battery_id')
+      .eq('battery_id', id)
+      .single()
+
+    if (checkError || !existingBattery) {
+      return NextResponse.json(
+        { error: 'Battery not found' },
+        { status: 404 }
+      )
+    }
+
+    // Permanently delete the battery
+    const { error } = await supabase
+      .from('batteries')
+      .delete()
+      .eq('battery_id', id)
+
+    if (error) {
+      console.error('Error deleting battery:', error)
+      return NextResponse.json(
+        { error: 'Failed to delete battery', details: error.message },
+        { status: 500 }
       )
     }
 
