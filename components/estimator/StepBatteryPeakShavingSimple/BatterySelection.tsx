@@ -2,6 +2,7 @@
 
 import { Battery, DollarSign, TrendingDown, Sun, Award, Plus, X, ChevronDown } from 'lucide-react'
 import { BATTERY_SPECS, BatterySpec, calculateBatteryFinancials } from '@/config/battery-specs'
+import { useBatteries } from '@/hooks/useBatteries'
 
 interface BatterySelectionProps {
   selectedBatteries: string[]
@@ -10,7 +11,9 @@ interface BatterySelectionProps {
 }
 
 export function BatterySelection({ selectedBatteries, onBatteriesChange, effectiveSystemSizeKw }: BatterySelectionProps) {
-  const batteries = selectedBatteries.map(id => BATTERY_SPECS.find(b => b.id === id)).filter(Boolean) as BatterySpec[]
+  // Fetch batteries from API (with fallback to static)
+  const { batteries: availableBatteries } = useBatteries(false)
+  const batteries = selectedBatteries.map(id => availableBatteries.find(b => b.id === id)).filter(Boolean) as BatterySpec[]
   
   // Calculate solar rebate if solar system exists
   const solarRebatePerKw = 1000
@@ -68,7 +71,7 @@ export function BatterySelection({ selectedBatteries, onBatteriesChange, effecti
                         }}
                         className="w-full px-3 py-2 pr-8 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-base font-bold text-navy-600 bg-white shadow-sm appearance-none cursor-pointer transition-all"
                       >
-                        {BATTERY_SPECS.map(b => (
+                        {availableBatteries.map(b => (
                           <option key={b.id} value={b.id}>
                             {b.brand} {b.model}
                           </option>
@@ -94,7 +97,7 @@ export function BatterySelection({ selectedBatteries, onBatteriesChange, effecti
         {/* Add Battery Button */}
         {selectedBatteries.length < 3 && (
           <button
-            onClick={() => onBatteriesChange([...selectedBatteries, BATTERY_SPECS[0].id])}
+            onClick={() => onBatteriesChange([...selectedBatteries, availableBatteries[0]?.id || ''])}
             className="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-red-500 hover:bg-red-50 hover:text-navy-600 transition-all flex items-center justify-center gap-2"
           >
             <Plus className="text-red-500" size={20} />

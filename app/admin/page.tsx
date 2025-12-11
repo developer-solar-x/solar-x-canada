@@ -568,6 +568,11 @@ export default function AdminPage() {
 
       // Refresh batteries list
       await fetchBatteries()
+      
+      // Dispatch event to notify other components
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('batteries-updated'))
+      }
     } catch (error) {
       throw error // Re-throw to let modal handle the error
     }
@@ -591,6 +596,11 @@ export default function AdminPage() {
 
       // Refresh batteries list
       await fetchBatteries()
+      
+      // Dispatch event to notify other components
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('batteries-updated'))
+      }
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Failed to delete battery')
     }

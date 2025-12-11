@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { FeedbackForm } from '@/components/FeedbackForm'
 import { BATTERY_SPECS, BatterySpec, calculateBatteryRebate, BATTERY_REBATE_PER_KWH, BATTERY_REBATE_MAX } from '@/config/battery-specs'
+import { useBatteries } from '@/hooks/useBatteries'
 import { RATE_PLANS, RatePlan, ULO_RATE_PLAN, TOU_RATE_PLAN } from '@/config/rate-plans'
 import {
   calculateFRDPeakShaving,
@@ -674,7 +675,7 @@ export function PeakShavingSalesCalculatorFRD({
     if (batteryIds.length === 0) return null
     
     const batteries = batteryIds
-      .map(id => BATTERY_SPECS.find(b => b.id === id))
+      .map(id => availableBatteries.find(b => b.id === id))
       .filter((b): b is BatterySpec => b !== undefined)
     
     if (batteries.length === 0) return null
@@ -728,6 +729,9 @@ export function PeakShavingSalesCalculatorFRD({
   const [ratePlan, setRatePlan] = useState<'TOU' | 'ULO'>('ULO')
   // AI Optimization Mode - allows grid charging at cheap rates for both TOU and ULO
   const [aiMode, setAiMode] = useState(true)
+  
+  // Fetch batteries from API (with fallback to static)
+  const { batteries: availableBatteries, refetch: refetchBatteries } = useBatteries(false)
   
   // Tab navigation state
   const [activeTab, setActiveTab] = useState<'basic' | 'distribution'>('basic')
@@ -1977,7 +1981,7 @@ export function PeakShavingSalesCalculatorFRD({
                       ? 'Select a battery...' 
                       : 'Add another battery (stackable)...'}
                   </option>
-                  {BATTERY_SPECS.map(battery => (
+                  {availableBatteries.map(battery => (
                     <option 
                       key={battery.id} 
                       value={battery.id}
@@ -2001,7 +2005,7 @@ export function PeakShavingSalesCalculatorFRD({
                       }, {} as Record<string, { count: number; indices: number[] }>)
                       
                       return Object.entries(batteryGroups).map(([batteryId, group]) => {
-                      const battery = BATTERY_SPECS.find(b => b.id === batteryId)
+                      const battery = availableBatteries.find(b => b.id === batteryId)
                       if (!battery) return null
                       return (
                         <div

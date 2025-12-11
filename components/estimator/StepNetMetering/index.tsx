@@ -15,6 +15,7 @@ import { InfoTooltip } from '@/components/ui/InfoTooltip'
 import { Modal } from '@/components/ui/Modal'
 import { formatCurrency, isValidEmail } from '@/lib/utils'
 import { BATTERY_SPECS, type BatterySpec } from '@/config/battery-specs'
+import { useBatteries } from '@/hooks/useBatteries'
 
 interface StepNetMeteringProps {
   data: EstimatorData
@@ -164,6 +165,9 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   const [selectedBatteries, setSelectedBatteries] = useState<string[]>([])
   // AI Optimization Mode - allows grid charging at cheap rates for both TOU and ULO
   const [aiMode, setAiMode] = useState(true)
+  
+  // Fetch batteries from API (with fallback to static)
+  const { batteries: availableBatteries, refetch: refetchBatteries } = useBatteries(false)
 
   // Get production and usage data - use local estimate if available
   const estimate = localEstimate || data.estimate
@@ -282,12 +286,12 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   // For net metering, include battery cost but NO rebates (net metering doesn't qualify for rebates)
   const solarSystemCost = estimate?.costs?.systemCost || estimate?.costs?.totalCost || 0
   const solarRebate = 0 // Net metering doesn't qualify for rebates
-  const batteryCost = selectedBatteries.length > 0
-    ? selectedBatteries
-        .map(id => BATTERY_SPECS.find(b => b.id === id))
-        .filter(Boolean)
-        .reduce((sum, battery) => sum + (battery?.price || 0), 0)
-    : 0
+      const batteryCost = selectedBatteries.length > 0
+        ? selectedBatteries
+            .map(id => availableBatteries.find(b => b.id === id))
+            .filter(Boolean)
+            .reduce((sum, battery) => sum + (battery?.price || 0), 0)
+        : 0
   const batteryRebate = 0 // No rebates for net metering
   const netCost = solarSystemCost + batteryCost - solarRebate - batteryRebate // Total system cost (solar + battery, no rebates)
   // annualEscalator is stored as a percentage (e.g. 4.5 for 4.5%), but the payback
@@ -313,7 +317,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     
     // Get total battery capacity
     const totalBatteryKwh = selectedBatteries
-      .map(id => BATTERY_SPECS.find(b => b.id === id))
+      .map(id => availableBatteries.find(b => b.id === id))
       .filter(Boolean)
       .reduce((sum, battery) => sum + (battery?.usableKwh || battery?.nominalKwh || 0), 0)
     
@@ -513,7 +517,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
       // Get combined battery if batteries are selected
       const combinedBattery = selectedBatteries.length > 0
         ? selectedBatteries
-            .map(id => BATTERY_SPECS.find(b => b.id === id))
+            .map(id => availableBatteries.find(b => b.id === id))
             .filter(Boolean)
             .reduce((combined, battery, idx) => {
               if (!battery) return combined
@@ -532,7 +536,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                   cycles: Math.min(combined.warranty.cycles, battery.warranty.cycles)
                 }
               }
-            }, BATTERY_SPECS.find(b => b.id === selectedBatteries[0])!)
+            }, availableBatteries.find(b => b.id === selectedBatteries[0])!)
         : null
 
       const response = await fetch('/api/net-metering', {
@@ -605,7 +609,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     const currentSolarRebate = 0 // Net metering doesn't qualify for rebates
     const currentBatteryCost = selectedBatteries.length > 0
       ? selectedBatteries
-          .map(id => BATTERY_SPECS.find(b => b.id === id))
+          .map(id => availableBatteries.find(b => b.id === id))
           .filter(Boolean)
           .reduce((sum, battery) => sum + (battery?.price || 0), 0)
       : 0
@@ -881,7 +885,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                       
                       <div className="space-y-3">
                         {selectedBatteries.map((batteryId, index) => {
-                          const battery = BATTERY_SPECS.find(b => b.id === batteryId)
+                          const battery = availableBatteries.find(b => b.id === batteryId)
                           if (!battery) return null
                           
                           return (
@@ -900,7 +904,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                                       }}
                                       className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm font-semibold text-gray-700 bg-white"
                                     >
-                                      {BATTERY_SPECS.map(b => (
+                                      {availableBatteries.map(b => (
                                         <option key={b.id} value={b.id}>
                                           {b.brand} {b.model} - ${b.price.toLocaleString()}
                                         </option>
@@ -922,7 +926,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                         
                         {selectedBatteries.length < 3 && (
                           <button
-                            onClick={() => setSelectedBatteries([...selectedBatteries, BATTERY_SPECS[0].id])}
+                            onClick={() => setSelectedBatteries([...selectedBatteries, availableBatteries[0]?.id || ''])}
                             className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 transition-all flex items-center justify-center gap-2 text-sm font-semibold"
                           >
                             <Plus className="text-emerald-500" size={18} />
@@ -937,7 +941,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                                 <span className="text-sm font-semibold text-gray-700">Total Battery Cost:</span>
                                 <span className="text-lg font-bold text-emerald-700">
                                   ${selectedBatteries
-                                    .map(id => BATTERY_SPECS.find(b => b.id === id))
+                                    .map(id => availableBatteries.find(b => b.id === id))
                                     .filter(Boolean)
                                     .reduce((sum, battery) => sum + (battery?.price || 0), 0)
                                     .toLocaleString()}
