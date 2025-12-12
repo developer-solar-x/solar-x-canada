@@ -996,18 +996,14 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                                     <div className="text-sm text-gray-600 space-y-1">
                                       {aiMode ? (
                                         <>
-                                          <p>• Battery can charge from grid at cheap rates ({selectedPlan === 'ulo' ? 'ultra-low (3.9¢/kWh)' : 'off-peak (9.8¢/kWh)'})</p>
-                                          <p>• Maximizes battery utilization and savings through energy arbitrage</p>
-                                          <p>• Can use full battery capacity (not limited to solar excess)</p>
-                                          <p className="text-xs text-purple-700 font-medium mt-2">
-                                            💡 Typically increases annual savings by $400-$1,500+
-                                          </p>
+                                          <p>• Maximize Solar Capture</p>
+                                          <p>• 100% Efficient Grid Arbitrage</p>
+                                          <p>• Ensures a full cycle daily for Maximum ROI</p>
                                         </>
                                       ) : (
                                         <>
                                           <p>• Battery only charges from solar excess (free)</p>
                                           <p>• No grid charging - battery capacity limited to available solar excess</p>
-                                          <p>• More conservative approach, lower savings potential</p>
                                         </>
                                       )}
                                     </div>
