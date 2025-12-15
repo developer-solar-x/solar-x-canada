@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { Resend } from 'resend'
+import { sendInternalNotificationEmail } from '@/lib/internal-email'
 
 function createResendClient() {
   const apiKey = process.env.RESEND_API_KEY
@@ -67,6 +68,34 @@ export async function POST(request: Request) {
         { error: 'Failed to submit feedback', details: error.message },
         { status: 500 }
       )
+    }
+
+    // Fire-and-forget internal notification for bug reports
+    if (type === 'bug') {
+      ;(async () => {
+        try {
+          const subject = `🐛 New Bug Feedback: ${province || 'Unknown province'}`
+          const textLines: string[] = []
+          textLines.push(`Feedback ID: ${data.id}`)
+          textLines.push(`Type: ${type}`)
+          textLines.push(`Province: ${province || 'N/A'}`)
+          textLines.push(`Email: ${email || 'N/A'}`)
+          textLines.push('')
+          textLines.push('Description:')
+          textLines.push(description)
+          textLines.push('')
+          textLines.push(
+            `Admin link: ${(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')}/admin/feedback`
+          )
+
+          await sendInternalNotificationEmail({
+            subject,
+            text: textLines.join('\n'),
+          })
+        } catch (err) {
+          console.error('Internal bug feedback notification email error:', err)
+        }
+      })()
     }
 
     // Send thank-you email if user provided an email and Resend is configured
@@ -285,6 +314,40 @@ export async function PATCH(request: Request) {
       reviewNotes: data.review_notes,
       submittedAt: data.created_at,
       created_at: data.created_at,
+    }
+
+    // Fire-and-forget internal notification on important status changes
+    if (status && ['in_progress', 'resolved', 'closed'].includes(status)) {
+      ;(async () => {
+        try {
+          const subject = `Feedback ${status.toUpperCase()}: ${data.type} (${data.province || 'N/A'})`
+          const textLines: string[] = []
+          textLines.push(`Feedback ID: ${data.id}`)
+          textLines.push(`Type: ${data.type}`)
+          textLines.push(`Status: ${data.status}`)
+          textLines.push(`Province: ${data.province || 'N/A'}`)
+          textLines.push(`Email: ${data.email || 'N/A'}`)
+          if (reviewNotes) {
+            textLines.push('')
+            textLines.push('Review notes:')
+            textLines.push(String(reviewNotes))
+          }
+          textLines.push('')
+          textLines.push('Description:')
+          textLines.push(data.description || '')
+          textLines.push('')
+          textLines.push(
+            `Admin link: ${(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')}/admin/feedback`
+          )
+
+          await sendInternalNotificationEmail({
+            subject,
+            text: textLines.join('\n'),
+          })
+        } catch (err) {
+          console.error('Internal feedback status-change notification email error:', err)
+        }
+      })()
     }
 
     return NextResponse.json(

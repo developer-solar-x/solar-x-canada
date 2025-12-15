@@ -4,6 +4,7 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { Resend } from 'resend'
+import { sendInternalNotificationEmail } from '@/lib/internal-email'
 
 function createResendClient() {
   const apiKey = process.env.RESEND_API_KEY
@@ -455,6 +456,45 @@ export async function POST(request: Request) {
       console.error('Error sending installer application confirmation email:', sendError)
       // Do not fail the API if the email fails
     }
+
+    // Fire-and-forget internal notification about new installer application
+    ;(async () => {
+      try {
+        const subject = `New Installer Application: ${companyName} (${primaryServiceProvinces?.join(', ') || 'No provinces'})`
+        const textLines: string[] = []
+        textLines.push(`Application ID: ${application.id}`)
+        textLines.push(`Company: ${companyName}`)
+        textLines.push(`Contact: ${contactPersonName}`)
+        textLines.push(`Email: ${contactEmail}`)
+        textLines.push(`Phone: ${contactPhone}`)
+        if (websiteUrl) textLines.push(`Website: ${websiteUrl}`)
+        if (yearsInBusiness) textLines.push(`Years in business: ${yearsInBusiness}`)
+        if (primaryServiceProvinces?.length) {
+          textLines.push(`Provinces: ${primaryServiceProvinces.join(', ')}`)
+        }
+        if (numberOfInstalls) {
+          textLines.push(`Number of installs: ${numberOfInstalls}`)
+        }
+        if (generalLiabilityCoverage) {
+          textLines.push(`Liability coverage: ${generalLiabilityCoverage}`)
+        }
+        textLines.push(`ESA cert: ${certificationEsaUrl ? 'Yes' : 'No'}`)
+        textLines.push(`Provincial cert: ${certificationProvincialUrl ? 'Yes' : 'No'}`)
+        textLines.push(`Insurance proof: ${insuranceProofUrl ? 'Yes' : 'No'}`)
+        textLines.push(`Project photos: ${projectPhotosUrls.length}`)
+        textLines.push('')
+        textLines.push(
+          `Admin link: ${(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')}/admin/installers/${application.id}`
+        )
+
+        await sendInternalNotificationEmail({
+          subject,
+          text: textLines.join('\n'),
+        })
+      } catch (err) {
+        console.error('Internal installer application notification email error:', err)
+      }
+    })()
 
     return NextResponse.json({
       success: true,

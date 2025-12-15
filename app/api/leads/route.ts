@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { getSupabaseAdmin } from '@/lib/supabase'
+import { sendInternalNotificationEmail } from '@/lib/internal-email'
 
 // Helper function to round numbers to 2 decimal places
 function roundTo2Decimals(value: number | null | undefined): number {
@@ -972,6 +973,123 @@ export async function POST(request: Request) {
         console.warn(`Failed to log activity to ${tableName}:`, error)
       }
     }
+
+    // Fire-and-forget: internal notification email about new lead
+    ;(async () => {
+      try {
+        const fullData = insertData.full_data_json || body || {}
+        const programType =
+          insertData.program_type ||
+          fullData.programType ||
+          fullData.program_type ||
+          'unknown'
+        const estimatorMode =
+          insertData.estimator_mode ||
+          fullData.estimatorMode ||
+          fullData.estimator_mode ||
+          'unknown'
+
+        const isHomeowner =
+          fullData.isHomeowner ??
+          insertData.is_homeowner ??
+          fullData.is_home_owner ??
+          null
+        const hasBattery =
+          insertData.has_battery ||
+          !!insertData.selected_battery_ids?.length ||
+          !!fullData.hasBattery ||
+          !!fullData.selectedBatteryIds?.length
+
+        const monthlyBill =
+          insertData.monthly_bill ||
+          fullData.monthlyBill ||
+          fullData.energyUsage?.monthlyBill ||
+          null
+        const annualUsage =
+          insertData.annual_usage_kwh ||
+          fullData.annualUsageKwh ||
+          fullData.energyUsage?.annualKwh ||
+          null
+
+        const photoCount =
+          (Array.isArray(insertData.photo_urls)
+            ? insertData.photo_urls.length
+            : 0) ||
+          (Array.isArray(fullData.photos) ? fullData.photos.length : 0)
+
+        const city =
+          insertData.city ||
+          fullData.city ||
+          (typeof insertData.address === 'string'
+            ? insertData.address.split(',')[1]?.trim()
+            : '') ||
+          ''
+        const province =
+          insertData.province || fullData.province || 'ON'
+
+        const fullName =
+          insertData.full_name ||
+          fullData.fullName ||
+          `${fullData.firstName || ''} ${fullData.lastName || ''}`.trim() ||
+          'Unknown'
+
+        const isHighIntent =
+          (isHomeowner === true || hasBattery) &&
+          (!!monthlyBill && monthlyBill >= 150) &&
+          photoCount >= 3 &&
+          insertData.consent === true
+
+        const subjectPrefix = isHighIntent
+          ? '🔥 HIGH-INTENT LEAD'
+          : 'New Lead'
+
+        const subject = `${subjectPrefix}: ${fullName} • ${city || 'Unknown City'}, ${
+          province || '??'
+        } • ${programType} / ${estimatorMode}`
+
+        const textLines: string[] = []
+        textLines.push(`Lead ID: ${lead.id}`)
+        textLines.push(`Program: ${programType}`)
+        textLines.push(`Estimator Mode: ${estimatorMode}`)
+        textLines.push(`Name: ${fullName}`)
+        textLines.push(`Email: ${email || fullData.email || 'N/A'}`)
+        textLines.push(
+          `Phone: ${insertData.phone || fullData.phone || 'N/A'}`
+        )
+        textLines.push(`City/Province: ${city || 'N/A'}, ${province || 'N/A'}`)
+        textLines.push(
+          `Homeowner: ${
+            isHomeowner === null ? 'Unknown' : isHomeowner ? 'Yes' : 'No'
+          }`
+        )
+        textLines.push(`Has Battery: ${hasBattery ? 'Yes' : 'No or N/A'}`)
+        if (monthlyBill) {
+          textLines.push(`Monthly Bill: ~$${Math.round(monthlyBill)}`)
+        }
+        if (annualUsage) {
+          textLines.push(
+            `Annual Usage: ~${Math.round(annualUsage).toLocaleString()} kWh`
+          )
+        }
+        if (photoCount) {
+          textLines.push(`Photos Uploaded: ${photoCount}`)
+        }
+        textLines.push(
+          `Consent to contact: ${insertData.consent ? 'Yes' : 'No or N/A'}`
+        )
+        textLines.push('')
+        textLines.push(
+          `Admin link: ${(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')}/admin/leads/${lead.id}`
+        )
+
+        await sendInternalNotificationEmail({
+          subject,
+          text: textLines.join('\n'),
+        })
+      } catch (err) {
+        console.error('Internal lead notification email error:', err)
+      }
+    })()
 
     // Queue HubSpot sync (async, don't wait for response)
     if (process.env.HUBSPOT_ACCESS_TOKEN) {

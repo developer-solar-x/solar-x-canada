@@ -3,6 +3,7 @@
 
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
+import { sendInternalNotificationEmail } from '@/lib/internal-email'
 
 // Helper function to upload base64 image to Supabase Storage
 async function uploadBase64ToStorage(
@@ -391,6 +392,7 @@ export async function POST(request: Request) {
       preferred_contact_method: body.preferredContactMethod || null,
       comments: body.comments || null,
       consent: body.consent !== undefined ? body.consent : false,
+      is_homeowner: body.isHomeowner !== undefined ? body.isHomeowner : null,
       financing_option: body.financingOption || null,
       
       // Full JSON backup
@@ -411,7 +413,91 @@ export async function POST(request: Request) {
         { status: 500 }
       )
     }
-    
+
+    // Fire-and-forget: internal notification email about new detailed HRS lead
+    ;(async () => {
+      try {
+        const fullData = body || {}
+        const fullName =
+          insertData.full_name ||
+          fullData.fullName ||
+          `${fullData.firstName || ''} ${fullData.lastName || ''}`.trim() ||
+          'Unknown'
+        const isHomeowner =
+          fullData.isHomeowner ??
+          insertData.is_homeowner ??
+          fullData.is_home_owner ??
+          null
+        const hasBattery =
+          insertData.has_battery ||
+          !!insertData.selected_battery_ids?.length ||
+          !!fullData.hasBattery ||
+          !!fullData.selectedBatteryIds?.length
+
+        const monthlyBill =
+          insertData.monthly_bill ||
+          fullData.monthlyBill ||
+          fullData.energyUsage?.monthlyBill ||
+          null
+        const photoCount = Array.isArray(insertData.photo_urls)
+          ? insertData.photo_urls.length
+          : 0
+
+        const subjectPrefix =
+          (isHomeowner === true || hasBattery) &&
+          (!!monthlyBill && monthlyBill >= 150) &&
+          photoCount >= 3 &&
+          insertData.consent === true
+            ? '🔥 HIGH-INTENT HRS LEAD'
+            : 'New HRS Lead'
+
+        const subject = `${subjectPrefix}: ${fullName} • ${insertData.city || 'Unknown City'}, ${
+          insertData.province || '??'
+        }`
+
+        const textLines: string[] = []
+        textLines.push(`Lead ID: ${data.id}`)
+        textLines.push('Program: HRS Residential Detailed')
+        textLines.push(`Name: ${fullName}`)
+        textLines.push(`Email: ${insertData.email || fullData.email || 'N/A'}`)
+        textLines.push(
+          `Phone: ${insertData.phone || fullData.phone || 'N/A'}`
+        )
+        textLines.push(
+          `City/Province: ${insertData.city || 'N/A'}, ${
+            insertData.province || 'N/A'
+          }`
+        )
+        textLines.push(
+          `Homeowner: ${
+            isHomeowner === null ? 'Unknown' : isHomeowner ? 'Yes' : 'No'
+          }`
+        )
+        textLines.push(`Has Battery: ${hasBattery ? 'Yes' : 'No or N/A'}`)
+        if (monthlyBill) {
+          textLines.push(`Monthly Bill: ~$${Math.round(monthlyBill)}`)
+        }
+        textLines.push(`Photos Uploaded: ${photoCount}`)
+        textLines.push(
+          `Consent to contact: ${insertData.consent ? 'Yes' : 'No or N/A'}`
+        )
+        textLines.push('')
+        textLines.push(
+          `Admin link: ${(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')}/admin/leads/${data.id}`
+        )
+
+        await sendInternalNotificationEmail({
+          subject,
+          text: textLines.join('\n'),
+        })
+      } catch (err) {
+        console.error(
+          'Internal HRS residential lead notification email error:',
+          err
+        )
+      }
+    })()
+
     return NextResponse.json({
       success: true,
       leadId: data.id,

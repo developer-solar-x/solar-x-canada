@@ -2,6 +2,7 @@
 
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
+import { sendInternalNotificationEmail } from '@/lib/internal-email'
 
 // GET: Fetch a lead by ID
 export async function GET(
@@ -197,6 +198,30 @@ export async function PATCH(
         if (error) {
           console.warn(`Failed to log activity to ${tableName}:`, error)
         }
+      }
+
+      // Fire-and-forget internal notification for important status changes
+      if (['contacted', 'proposal_sent', 'closed_won', 'closed_lost'].includes(status)) {
+        ;(async () => {
+          try {
+            const subject = `Lead Status: ${status.toUpperCase()} (ID: ${id})`
+            const textLines: string[] = []
+            textLines.push(`Lead ID: ${id}`)
+            textLines.push(`Old status: ${currentLead.status}`)
+            textLines.push(`New status: ${status}`)
+            textLines.push('')
+            textLines.push(
+              `Admin link: ${(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')}/admin/leads/${id}`
+            )
+
+            await sendInternalNotificationEmail({
+              subject,
+              text: textLines.join('\n'),
+            })
+          } catch (err) {
+            console.error('Internal lead status-change notification email error:', err)
+          }
+        })()
       }
     }
 

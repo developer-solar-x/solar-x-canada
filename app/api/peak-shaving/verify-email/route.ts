@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { Resend } from 'resend'
+import { sendInternalNotificationEmail } from '@/lib/internal-email'
 
 function createResendClient() {
   const apiKey = process.env.RESEND_API_KEY
@@ -175,6 +176,30 @@ export async function POST(request: NextRequest) {
           // Don't fail the request if email fails - code is still stored in DB
         }
       }
+
+    // Fire-and-forget internal notification only for non-solar-x access requests
+    if (!isSolarXEmail) {
+      ;(async () => {
+        try {
+          const subject = `New Peak-Shaving Access Request: ${normalizedEmail}`
+          const textLines: string[] = []
+          textLines.push(`Email: ${normalizedEmail}`)
+          textLines.push(`Existing lead: ${existingLead ? 'Yes' : 'No'}`)
+          textLines.push(`Solar-X email: ${isSolarXEmail ? 'Yes' : 'No'}`)
+          textLines.push('')
+          textLines.push(
+            `Admin link (leads): ${(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')}/admin/peak-shaving-leads`
+          )
+
+          await sendInternalNotificationEmail({
+            subject,
+            text: textLines.join('\n'),
+          })
+        } catch (err) {
+          console.error('Internal peak-shaving access notification email error:', err)
+        }
+      })()
+    }
 
     return NextResponse.json({
       success: true,
