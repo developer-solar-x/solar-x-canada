@@ -3,39 +3,19 @@
 // Navigation header component with sticky behavior and mobile menu
 
 import { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { Logo } from './Logo'
 import { Menu, X, ChevronDown, FileText, Building2, Calculator } from 'lucide-react'
 
 export function Header() {
-  // Track scroll position for sticky header styling
-  // Initialize to false to match server render, then update on mount
-  const [scrolled, setScrolled] = useState(false)
-  // Track if component is mounted to prevent hydration mismatch
-  const [mounted, setMounted] = useState(false)
+  const pathname = usePathname()
+  const isEstimatorRoute = pathname?.startsWith('/estimator')
+
   // Mobile menu open/closed state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   // Tools dropdown open/closed state
   const [toolsDropdownOpen, setToolsDropdownOpen] = useState(false)
-
-  // Set mounted state and initial scroll position on client
-  useEffect(() => {
-    setMounted(true)
-    // Check initial scroll position
-    setScrolled(window.scrollY > 50)
-  }, [])
-
-  // Add scroll listener for header background change
-  useEffect(() => {
-    if (!mounted) return
-    
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 50)
-    }
-    
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [mounted])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -79,9 +59,7 @@ export function Header() {
       {/* Main navigation header */}
       <header
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          mounted && scrolled
-            ? 'bg-white shadow-md'
-            : 'bg-transparent'
+          isEstimatorRoute ? 'bg-forest-500 shadow-md' : 'bg-white shadow-md'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -89,7 +67,7 @@ export function Header() {
             {/* Logo on the left */}
             <Link href="/" className="flex-shrink-0">
               <Logo 
-                variant={mounted && scrolled ? 'default' : 'white'} 
+                variant={isEstimatorRoute ? 'white' : 'default'}
                 size="md"
                 showTagline={false}
               />
@@ -101,8 +79,10 @@ export function Header() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`text-sm font-medium transition-colors hover:text-maple-500 ${
-                    mounted && scrolled ? 'text-gray-700' : 'text-white'
+                  className={`text-sm font-medium transition-colors ${
+                    isEstimatorRoute
+                      ? 'text-white hover:text-maple-300'
+                      : 'text-gray-700 hover:text-maple-500'
                   }`}
                 >
                   {link.label}
@@ -113,8 +93,10 @@ export function Header() {
               <div className="relative tools-dropdown-container">
                 <button
                   onClick={() => setToolsDropdownOpen(!toolsDropdownOpen)}
-                  className={`text-sm font-medium transition-colors hover:text-maple-500 inline-flex items-center gap-1 ${
-                    mounted && scrolled ? 'text-gray-700' : 'text-white'
+                  className={`text-sm font-medium inline-flex items-center gap-1 transition-colors ${
+                    isEstimatorRoute
+                      ? 'text-white hover:text-maple-300'
+                      : 'text-gray-700 hover:text-maple-500'
                   }`}
                 >
                   Tools
@@ -183,9 +165,11 @@ export function Header() {
 
             {/* Mobile menu button */}
             <button
-              className={`md:hidden p-2 rounded-lg transition-colors ${
-                mounted && scrolled ? 'text-gray-700 hover:bg-gray-100' : 'text-white hover:bg-white/10'
-              }`}
+            className={`md:hidden p-2 rounded-lg transition-colors ${
+              isEstimatorRoute
+                ? 'text-white hover:bg-white/10'
+                : 'text-gray-700 hover:bg-gray-100'
+            }`}
               onClick={handleToggleMenu}
               aria-label="Toggle menu"
             >

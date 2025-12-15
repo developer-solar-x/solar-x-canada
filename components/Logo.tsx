@@ -1,41 +1,62 @@
-// Logo component with brand styling
-// Displays a text-based logo
+import Image from 'next/image'
 
 interface LogoProps {
   variant?: 'default' | 'white' | 'dark';
   size?: 'sm' | 'md' | 'lg';
   showTagline?: boolean;
+  framed?: boolean;
 }
 
 export function Logo({ 
   variant = 'default', 
   size = 'md',
-  showTagline = false 
+  showTagline = false,
+  framed = true,
 }: LogoProps) {
-  // Text sizes for different logo sizes
-  const textSizes = {
-    sm: 'text-xl',
-    md: 'text-2xl',
-    lg: 'text-3xl'
-  };
-  
+  const dimensions: Record<NonNullable<LogoProps['size']>, { height: number; paddingX: string }> = {
+    sm: { height: 32, paddingX: 'px-3' },
+    md: { height: 40, paddingX: 'px-4' },
+    lg: { height: 48, paddingX: 'px-5' },
+  }
+
   const taglineSizes = {
     sm: 'text-xs',
     md: 'text-sm',
     lg: 'text-base'
   };
   
-  const textColor = variant === 'white' || variant === 'dark' 
-    ? 'text-white' 
-    : 'text-navy-500';
-  
+  const { height, paddingX } = dimensions[size]
+
+  const containerBorder =
+    variant === 'white' || variant === 'dark'
+      ? 'border-white/20 shadow-md'
+      : 'border-emerald-100 shadow-sm'
+
+  const isFramed = framed && (variant === 'white' || variant === 'dark')
+
   return (
     <div className="flex flex-col items-start">
-      <div className={`font-bold font-display ${textSizes[size]} ${textColor}`}>
-        Solar Calculator Canada
+      <div
+        className={`inline-flex items-center justify-center h-12 md:h-16 ${
+          isFramed
+            ? `rounded-lg bg-white ${containerBorder} ${paddingX}`
+            : ''
+        }`}
+      >
+        <Image
+          src="/logo.png"
+          alt="Solar Calculator Canada"
+          height={height}
+          width={height * 5}
+          priority={size === 'lg'}
+        />
       </div>
       {showTagline && (
-        <div className={`${taglineSizes[size]} ${variant === 'white' || variant === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+        <div
+          className={`${taglineSizes[size]} ${
+            variant === 'white' || variant === 'dark' ? 'text-gray-300' : 'text-gray-600'
+          } mt-1`}
+        >
           Free Solar Estimate Tool
         </div>
       )}

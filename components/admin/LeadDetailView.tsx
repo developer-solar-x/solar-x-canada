@@ -33,6 +33,7 @@ interface Lead {
   annual_savings?: number
   solar_annual_savings?: number
   combined_annual_savings?: number
+  is_homeowner?: boolean | null
   created_at: string
   hubspot_synced?: boolean
   rate_plan?: string

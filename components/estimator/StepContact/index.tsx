@@ -58,6 +58,7 @@ export function StepContact({ data, onComplete, onBack }: StepContactProps) {
     preferredContactMethod: 'phone',
     comments: '',
     consent: false,
+    isHomeowner: false,
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})

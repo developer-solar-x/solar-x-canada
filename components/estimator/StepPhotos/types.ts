@@ -53,7 +53,7 @@ export interface PhotoSummaryProps {
   getPhotosForCategory: (categoryId: string) => UploadedPhoto[]
   hasRequiredPhotos: boolean
   onContinue: () => void
-  onSkip: () => void
+  onSkip?: () => void
   onBack?: () => void
 }
 

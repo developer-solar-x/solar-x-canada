@@ -136,6 +136,22 @@ export function ContactFormFields({ formData, setFormData, errors }: ContactForm
         </label>
         {errors.consent && <p className="text-red-500 text-sm mt-1 ml-8">{errors.consent}</p>}
       </div>
+
+      {/* Homeowner Confirmation */}
+      <div>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={formData.isHomeowner}
+            onChange={(e) => setFormData({ ...formData, isHomeowner: e.target.checked })}
+            className="w-5 h-5 text-red-500 rounded mt-0.5"
+          />
+          <span className="text-sm text-gray-700">
+            I am the homeowner.
+          </span>
+        </label>
+        {errors.isHomeowner && <p className="text-red-500 text-sm mt-1 ml-8">{errors.isHomeowner}</p>}
+      </div>
     </>
   )
 }

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { formatRelativeTime, formatCurrency } from '@/lib/utils'
 import { asNumber, getAddOnName, getCombinedBlock } from '../utils'
-import { getBatteryById } from '@/config/battery-specs'
+import { getBatteryByIdSync } from '@/config/battery-specs'
 
 interface OverviewTabProps {
   lead: any
@@ -109,6 +109,17 @@ export function OverviewTab({
                 <div>
                   <div className="text-xs text-gray-500">Best Time</div>
                   <div className="text-sm font-medium capitalize">{lead.preferred_contact_time}</div>
+                </div>
+              </div>
+            )}
+            {lead.is_homeowner !== undefined && lead.is_homeowner !== null && (
+              <div className="flex items-start gap-3">
+                <Home className="text-gray-400 flex-shrink-0 mt-0.5" size={18} />
+                <div>
+                  <div className="text-xs text-gray-500">Homeowner</div>
+                  <div className="text-sm font-medium">
+                    {lead.is_homeowner ? 'Yes' : 'No (renter / other)'}
+                  </div>
                 </div>
               </div>
             )}
@@ -582,7 +593,7 @@ export function OverviewTab({
                   {(() => {
                     // Try to get battery name from peakShaving first
                     if (selectedBatteryFromPeak) {
-                      const battery = getBatteryById(selectedBatteryFromPeak)
+                      const battery = getBatteryByIdSync(selectedBatteryFromPeak)
                       if (battery) {
                         return `${battery.brand} ${battery.model}`
                       }
@@ -591,7 +602,7 @@ export function OverviewTab({
                     // Otherwise, try to get from selectedBatteries array
                     if (selectedBatteries && selectedBatteries.length > 0) {
                       const batteryNames = selectedBatteries.map(id => {
-                        const battery = getBatteryById(id)
+                        const battery = getBatteryByIdSync(id)
                         return battery ? `${battery.brand} ${battery.model}` : id
                       })
                       return batteryNames.join(', ')

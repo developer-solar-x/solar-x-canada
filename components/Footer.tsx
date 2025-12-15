@@ -37,7 +37,7 @@ export function Footer() {
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
           {/* Column 1: Brand */}
           <div className="lg:col-span-2">
-            <Logo variant="white" size="lg" />
+            <Logo variant="white" size="lg" framed={false} />
             <p className="mt-6 text-gray-300 leading-relaxed max-w-md">
               Canada's independent platform connecting homeowners with vetted solar installers. Transparent estimates, unbiased matching, and double warranty protection.
             </p>
@@ -112,7 +112,7 @@ export function Footer() {
 
         {/* Global disclaimer */}
         <div className="pt-8 border-t border-white/10 mb-8">
-          <div className="flex items-start gap-2 text-xs text-gray-200 max-w-4xl">
+          <div className="flex flex-col gap-3 text-xs text-gray-200 max-w-4xl">
             <InfoTooltip
               className="mt-0.5"
               iconSize={18}
@@ -121,6 +121,11 @@ export function Footer() {
             <p className="leading-relaxed">
               Estimates only – actual pricing, production, incentives, and savings may differ. See tooltip for
               full details.
+            </p>
+            <p className="leading-relaxed">
+              We do not currently have a formal privacy policy. By using this site and providing your information,
+              you acknowledge that your details may be shared with vetted solar installers for the purpose of
+              contacting you about your estimate.
             </p>
           </div>
         </div>
@@ -132,13 +137,13 @@ export function Footer() {
               © 2024. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm">
-              <Link href="#" className="text-gray-200 hover:text-white transition-colors">
-                Privacy Policy
-              </Link>
-              <Link href="#" className="text-gray-200 hover:text-white transition-colors">
+              <span className="text-gray-400">
+                No Privacy Policy (information may be shared with vetted installers)
+              </span>
+              <Link href="/terms" className="text-gray-200 hover:text-white transition-colors">
                 Terms of Service
               </Link>
-              <Link href="#" className="text-gray-200 hover:text-white transition-colors">
+              <Link href="/accessibility" className="text-gray-200 hover:text-white transition-colors">
                 Accessibility
               </Link>
             </div>

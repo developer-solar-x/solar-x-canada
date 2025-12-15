@@ -39,7 +39,7 @@ export function PhotoUploadSection({
   const activePhotos = getPhotosForCategory(activeCategory)
 
   return (
-    <div className="space-y-4 sm:space-y-6 min-w-0">
+    <div className="space-y-3 sm:space-y-4 min-w-0">
       <div>
         <h2 className="text-xl sm:text-2xl font-bold text-navy-500 mb-2">
           Property Photos
@@ -50,7 +50,7 @@ export function PhotoUploadSection({
       </div>
 
       {/* Info banner */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-3.5">
         <div className="flex items-start gap-2 sm:gap-3">
           <Camera className="text-blue-500 flex-shrink-0 mt-0.5" size={18} />
           <div className="text-xs sm:text-sm text-blue-800 min-w-0">
@@ -75,7 +75,7 @@ export function PhotoUploadSection({
 
       {/* Active category info */}
       {activeCategoryData && (
-        <div className="card p-3 sm:p-4">
+        <div className="card p-3 sm:p-3.5">
           <div className="flex items-start justify-between mb-3 gap-2">
             <div className="min-w-0 flex-1">
               <h3 className="font-semibold text-sm sm:text-base text-navy-500 flex items-center gap-2 flex-wrap">
@@ -122,7 +122,7 @@ export function PhotoUploadSection({
       )}
 
       {/* Photo tips */}
-      <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200">
+      <div className="bg-gray-50 rounded-lg p-3 sm:p-3.5 border border-gray-200">
         <h4 className="font-semibold text-gray-800 mb-2 text-xs sm:text-sm">Photo Tips</h4>
         <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
           <li>Take photos in good lighting (daytime preferred)</li>

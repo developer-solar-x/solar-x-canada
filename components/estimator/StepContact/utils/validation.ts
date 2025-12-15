@@ -20,6 +20,10 @@ export function validateContactForm(formData: ContactFormData): Record<string, s
     errors.phone = 'Invalid phone number'
   }
 
+  if (!formData.isHomeowner) {
+    errors.isHomeowner = 'You must confirm you are the homeowner'
+  }
+
   // Consent is optional - users can proceed without checking the box
   // if (!formData.consent) {
   //   errors.consent = 'You must agree to receive communications'

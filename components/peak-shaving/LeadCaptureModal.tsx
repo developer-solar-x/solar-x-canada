@@ -20,6 +20,7 @@ export function LeadCaptureModal({ isOpen, onVerified, onClose }: LeadCaptureMod
   const [success, setSuccess] = useState<string | null>(null)
   const [codeSent, setCodeSent] = useState(false)
   const [isSolarXEmail, setIsSolarXEmail] = useState(false)
+  const [isHomeowner, setIsHomeowner] = useState(false)
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -32,6 +33,7 @@ export function LeadCaptureModal({ isOpen, onVerified, onClose }: LeadCaptureMod
       setSuccess(null)
       setCodeSent(false)
       setIsSolarXEmail(false)
+      setIsHomeowner(false)
     }
   }, [isOpen])
 
@@ -48,6 +50,10 @@ export function LeadCaptureModal({ isOpen, onVerified, onClose }: LeadCaptureMod
   const handleSendCode = async () => {
     if (!email || !email.includes('@')) {
       setError('Please enter a valid email address')
+      return
+    }
+    if (!isHomeowner) {
+      setError('You must confirm you are the homeowner to continue')
       return
     }
 
@@ -230,6 +236,16 @@ export function LeadCaptureModal({ isOpen, onVerified, onClose }: LeadCaptureMod
                 />
               </div>
             </div>
+
+            <label className="flex items-start gap-2 text-xs text-gray-700">
+              <input
+                type="checkbox"
+                checked={isHomeowner}
+                onChange={(e) => setIsHomeowner(e.target.checked)}
+                className="mt-0.5 w-4 h-4 text-emerald-500 border-gray-300 rounded focus:ring-emerald-500"
+              />
+              <span>I am the homeowner.</span>
+            </label>
 
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">

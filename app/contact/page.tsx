@@ -5,7 +5,7 @@
 import { useState, FormEvent } from 'react'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
-import { Mail, Phone, MapPin, Send, CheckCircle } from 'lucide-react'
+import { Mail, Send, CheckCircle } from 'lucide-react'
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -13,6 +13,7 @@ export default function ContactPage() {
     email: '',
     subject: '',
     message: '',
+    isHomeowner: false,
   })
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -51,9 +52,10 @@ export default function ContactPage() {
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
     })
   }
 
@@ -91,51 +93,11 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-forest-500 mb-1">Email</h3>
-                    <a
-                      href="mailto:info@solarcalculatorcanada.org"
-                      className="text-gray-700 hover:text-forest-500 transition-colors"
-                    >
-                      info@solarcalculatorcanada.org
-                    </a>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-forest-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Phone className="text-forest-500" size={24} />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-forest-500 mb-1">Phone</h3>
-                    <a
-                      href="tel:1-800-555-1234"
-                      className="text-gray-700 hover:text-forest-500 transition-colors"
-                    >
-                      1-800-555-1234
-                    </a>
-                    <p className="text-sm text-gray-500 mt-1">Mon-Fri: 8am-6pm EST</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-forest-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <MapPin className="text-forest-500" size={24} />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-forest-500 mb-1">Address</h3>
                     <p className="text-gray-700">
-                      123 Solar Street<br />
-                      Toronto, ON M5V 3A8<br />
-                      Canada
+                      We primarily provide support by email. Please use the form to reach us and we’ll respond as soon as possible.
                     </p>
                   </div>
                 </div>
-              </div>
-
-              <div className="mt-8 p-6 bg-sky-50 rounded-xl border border-sky-100">
-                <h3 className="font-bold text-forest-500 mb-2">Response Time</h3>
-                <p className="text-gray-700 text-sm">
-                  We typically respond to inquiries within 24-48 hours during business days. For urgent matters, please call us directly.
-                </p>
               </div>
             </div>
 
@@ -201,6 +163,20 @@ export default function ContactPage() {
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-forest-500 focus:border-forest-500 transition-colors"
                       placeholder="your.email@example.com"
                     />
+                  </div>
+
+                  <div>
+                    <label className="flex items-start gap-2 text-sm font-semibold text-gray-700">
+                      <input
+                        type="checkbox"
+                        name="isHomeowner"
+                        checked={formData.isHomeowner}
+                        onChange={handleChange}
+                        className="mt-1 w-4 h-4 text-forest-500 border-gray-300 rounded focus:ring-forest-500"
+                        required
+                      />
+                      <span>I am the homeowner</span>
+                    </label>
                   </div>
 
                   <div>

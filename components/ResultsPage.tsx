@@ -161,6 +161,7 @@ export function ResultsPage({
   const [emailSending, setEmailSending] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
   const [emailError, setEmailError] = useState<string | null>(null)
+  const [abandonedNotified, setAbandonedNotified] = useState(false)
   
   // Mobile detection
   useEffect(() => {
@@ -171,6 +172,48 @@ export function ResultsPage({
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
+
+  // Notify internally when a user reaches results page without a saved lead ID (abandoned estimate)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (abandonedNotified) return
+
+    const urlParams = new URLSearchParams(window.location.search)
+    const leadIdFromQuery = urlParams.get('leadId')
+    const effectiveLeadId = leadId || leadIdFromQuery
+
+    if (effectiveLeadId) return
+
+    // Only notify if we have at least some useful context
+    const hasMeaningfulData =
+      !!(leadData?.email || leadData?.address || estimate?.system?.sizeKw)
+
+    if (!hasMeaningfulData) return
+
+    ;(async () => {
+      try {
+        await fetch('/api/leads/abandoned', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: leadData?.email,
+            address: leadData?.address,
+            province: leadData?.province,
+            city: undefined,
+            programType,
+            estimatorMode: (data as any)?.estimatorMode,
+            systemSizeKw: estimate?.system?.sizeKw,
+            numPanels: estimate?.system?.numPanels,
+            monthlyBill,
+            annualUsageKwh: energyUsage?.annualKwh,
+          }),
+        })
+        setAbandonedNotified(true)
+      } catch (err) {
+        console.error('Failed to notify abandoned estimate:', err)
+      }
+    })()
+  }, [abandonedNotified, leadData, estimate, programType, leadId, monthlyBill, energyUsage, data])
 
   const handleImageClick = (image: { src: string; alt: string; title: string }) => {
     setSelectedImage(image)

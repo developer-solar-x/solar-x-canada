@@ -13,13 +13,13 @@ export function PhotoSummary({
   onBack,
 }: PhotoSummaryProps) {
   return (
-    <div className="card p-4 sm:p-6 lg:sticky lg:top-6">
+    <div className="card p-3 sm:p-4 lg:sticky lg:top-6">
       <div className="flex items-center gap-2 mb-3 sm:mb-4">
         <Camera className="text-red-500 flex-shrink-0" size={20} />
         <h3 className="font-bold text-base sm:text-lg text-navy-500">Photo Summary</h3>
       </div>
 
-      <div className="space-y-2 sm:space-y-3">
+      <div className="space-y-2">
         {categories.map(category => {
           const categoryPhotos = getPhotosForCategory(category.id)
           const isComplete = category.required ? categoryPhotos.length > 0 : true
@@ -79,13 +79,6 @@ export function PhotoSummary({
           className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base py-2 sm:py-2.5"
         >
           Continue
-        </button>
-        
-        <button
-          onClick={onSkip}
-          className="btn-outline border-gray-300 text-gray-700 w-full text-xs sm:text-sm py-2 sm:py-2.5"
-        >
-          Skip Photos
         </button>
         
         {onBack && (

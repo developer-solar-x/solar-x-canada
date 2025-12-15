@@ -12,6 +12,7 @@ export interface ContactFormData {
   preferredContactMethod: string
   comments: string
   consent: boolean
+  isHomeowner: boolean
 }
 
 export interface ContactFormFieldsProps {

@@ -17,6 +17,7 @@ export function FeedbackForm({ isModal = false, onClose, onSuccess }: FeedbackFo
     province: '',
     description: '',
     email: '',
+    isHomeowner: false,
   })
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -66,6 +67,7 @@ export function FeedbackForm({ isModal = false, onClose, onSuccess }: FeedbackFo
           description: formData.description,
           province: formData.province || null,
           email: formData.email || null,
+          isHomeowner: formData.isHomeowner || null,
         }),
       })
 
@@ -86,9 +88,10 @@ export function FeedbackForm({ isModal = false, onClose, onSuccess }: FeedbackFo
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
     })
     setError('')
   }
@@ -137,10 +140,10 @@ export function FeedbackForm({ isModal = false, onClose, onSuccess }: FeedbackFo
               Close
             </button>
           ) : (
-            <button
+              <button
               onClick={() => {
                 setSubmitted(false)
-                setFormData({ type: '', province: '', description: '', email: '' })
+                setFormData({ type: '', province: '', description: '', email: '', isHomeowner: false })
               }}
               className="btn-secondary"
             >
@@ -233,19 +236,32 @@ export function FeedbackForm({ isModal = false, onClose, onSuccess }: FeedbackFo
           </div>
 
           {/* Email (Optional) */}
-          <div>
-            <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
-              Email <span className="text-gray-400 text-xs">(optional, for follow-up)</span>
+          <div className="space-y-2">
+            <div>
+              <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+                Email <span className="text-gray-400 text-xs">(optional, for follow-up)</span>
+              </label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-forest-500 focus:border-forest-500 transition-colors"
+                placeholder="your.email@example.com"
+              />
+            </div>
+
+            <label className="flex items-start gap-2 text-xs text-gray-700">
+              <input
+                type="checkbox"
+                name="isHomeowner"
+                checked={formData.isHomeowner}
+                onChange={handleChange}
+                className="mt-0.5 w-4 h-4 text-forest-500 border-gray-300 rounded focus:ring-forest-500"
+              />
+              <span>I am the homeowner.</span>
             </label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-forest-500 focus:border-forest-500 transition-colors"
-              placeholder="your.email@example.com"
-            />
           </div>
 
           {/* Error Message */}

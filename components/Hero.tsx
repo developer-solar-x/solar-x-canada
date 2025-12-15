@@ -59,23 +59,6 @@ export function Hero() {
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           {/* Left column - Text content */}
           <div className="text-white space-y-6 animate-fade-in relative z-20">
-            {/* Eyebrow text */}
-            <div className="flex items-center gap-3">
-              <div className="w-1 h-5 bg-maple-400 rounded-full" />
-              <p className="eyebrow text-white/90 tracking-wider">
-                INDEPENDENT PLATFORM
-              </p>
-            </div>
-
-            {/* General accuracy & estimate disclaimer (compact tooltip) */}
-            <div className="mt-4 flex items-center gap-2 text-xs text-white/80 max-w-xl">
-              <InfoTooltip
-                className="bg-white/5 rounded-full"
-                content="All calculations provided on this website are estimates only. Actual system performance, pricing, incentives, and savings may differ based on utility rates, site conditions, equipment selection, installation details, and final engineering review."
-              />
-              <span>Estimates only – actual performance and savings may differ.</span>
-            </div>
-
             {/* Main headline */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight font-display text-white drop-shadow-lg">
               Check Your Solar Savings in Minutes

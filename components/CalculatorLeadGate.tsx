@@ -21,6 +21,7 @@ export interface LeadFormData {
   province: string
   contactPreference: 'email' | 'phone' | 'either'
   permissionGranted: boolean
+  isHomeowner: boolean
 }
 
 export function CalculatorLeadGate({ onSubmit, onCancel }: CalculatorLeadGateProps) {
@@ -35,6 +36,7 @@ export function CalculatorLeadGate({ onSubmit, onCancel }: CalculatorLeadGatePro
     province: 'Ontario',
     contactPreference: 'either',
     permissionGranted: false,
+    isHomeowner: false,
   })
   const [errors, setErrors] = useState<Partial<Record<keyof LeadFormData, string>>>({})
   const [loading, setLoading] = useState(false)
@@ -79,6 +81,9 @@ export function CalculatorLeadGate({ onSubmit, onCancel }: CalculatorLeadGatePro
     }
     if (!formData.permissionGranted) {
       newErrors.permissionGranted = 'You must agree to be contacted'
+    }
+    if (!formData.isHomeowner) {
+      newErrors.isHomeowner = 'You must confirm you are the homeowner'
     }
 
     setErrors(newErrors)
@@ -354,6 +359,26 @@ export function CalculatorLeadGate({ onSubmit, onCancel }: CalculatorLeadGatePro
             )}
           </div>
 
+          {/* Homeowner Confirmation */}
+          <div>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="isHomeowner"
+                checked={formData.isHomeowner}
+                onChange={handleChange}
+                className="mt-1 w-5 h-5 text-forest-500 border-gray-300 rounded focus:ring-forest-500"
+                required
+              />
+              <span className="text-sm text-gray-700">
+                I am the homeowner. <span className="text-maple-500">*</span>
+              </span>
+            </label>
+            {errors.isHomeowner && (
+              <p className="text-sm text-maple-500 mt-1 ml-8">{errors.isHomeowner}</p>
+            )}
+          </div>
+
           {/* Submit Buttons */}
           <div className="flex gap-4 pt-4">
             <button
@@ -375,7 +400,7 @@ export function CalculatorLeadGate({ onSubmit, onCancel }: CalculatorLeadGatePro
           </div>
 
           <p className="text-sm text-gray-500 text-center">
-            <span className="text-maple-500">*</span> Required fields. Your information is secure and will only be shared with vetted installers.
+            <span className="text-maple-500">*</span> Required fields. Your information may be shared with vetted installers so they can contact you about your estimate.
           </p>
         </form>
       </div>

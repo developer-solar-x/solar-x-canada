@@ -16,7 +16,7 @@ import { isValidEmail } from '@/lib/utils'
 
 export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
   const [activeCategory, setActiveCategory] = useState<string>('roof')
-  const [showSkipModal, setShowSkipModal] = useState(false)
+  const [validationError, setValidationError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   // State for image modal
@@ -118,15 +118,31 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
 
   // Handle continue
   const handleContinue = () => {
-    // Filter photos that have been successfully uploaded
-    const uploadedPhotos = photos.filter(p => p.uploadedUrl)
-    
-    // Warn if some photos failed to upload
-    const failedPhotos = photos.filter(p => p.uploadError)
-    if (failedPhotos.length > 0) {
-      console.warn(`${failedPhotos.length} photo(s) failed to upload, but continuing anyway`)
+    // Require at least one photo before continuing
+    if (photos.length === 0) {
+      setValidationError('Please upload at least one property photo before continuing.')
+      return
+    }
+
+    // Block continue while any photos are still uploading
+    const uploadingPhotos = photos.filter(p => p.uploading)
+    if (uploadingPhotos.length > 0) {
+      setValidationError('Your photos are still uploading. Please wait a moment and try again.')
+      return
+    }
+
+    // Block continue if any photos failed to upload or have no Supabase URL
+    const notUploaded = photos.filter(p => !p.uploadedUrl)
+    if (notUploaded.length > 0) {
+      setValidationError('Some photos could not be saved. Please re-upload or remove any photos with an error before continuing.')
+      return
     }
     
+    // Clear any previous validation error on successful continue
+    if (validationError) {
+      setValidationError(null)
+    }
+
     const stepData = {
       photos: photos.map(p => ({
         id: p.id,
@@ -146,18 +162,6 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
 
     void saveProgressToPartialLead(stepData)
 
-    onComplete(stepData)
-  }
-
-  // Skip photos (allow but warn)
-  const handleSkip = () => {
-    setShowSkipModal(true)
-  }
-
-  // Confirm skip
-  const confirmSkip = () => {
-    const stepData = { photos: [], photoSummary: { total: 0, byCategory: [] } }
-    void saveProgressToPartialLead(stepData)
     onComplete(stepData)
   }
 
@@ -212,28 +216,18 @@ export function StepPhotos({ data, onComplete, onBack }: StepPhotosProps) {
           getPhotosForCategory={getPhotosForCategory}
           hasRequiredPhotos={hasRequiredPhotos()}
           onContinue={handleContinue}
-          onSkip={handleSkip}
           onBack={onBack}
         />
       </div>
 
-      {/* Skip Photos Confirmation Modal */}
-      <Modal
-        isOpen={showSkipModal}
-        onClose={() => setShowSkipModal(false)}
-        onConfirm={confirmSkip}
-        title="Skip Photo Upload?"
-        message="Skipping photos may result in a less accurate estimate and could require an additional site visit. Are you sure you want to continue without uploading photos?"
-        confirmText="Yes, Skip Photos"
-        cancelText="No, Upload Photos"
-        variant="warning"
-      >
-        <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-          <p className="text-xs text-yellow-800">
-            <strong>Note:</strong> Photos help us provide accurate quotes faster and may eliminate the need for an initial site visit.
-          </p>
+      {/* Validation error */}
+      {validationError && (
+        <div className="max-w-6xl mx-auto mt-4">
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">
+            {validationError}
+          </div>
         </div>
-      </Modal>
+      )}
 
       {/* Image Modal for viewing photos in full size */}
       {selectedImage && (

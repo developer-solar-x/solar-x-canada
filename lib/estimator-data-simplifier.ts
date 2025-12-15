@@ -110,6 +110,7 @@ export interface SimplifiedEstimatorData {
   preferredContactMethod?: string
   comments?: string
   consent?: boolean
+  isHomeowner?: boolean
   
   // Financing option (payment method)
   financingOption?: string
@@ -513,6 +514,7 @@ export function extractSimplifiedData(data: EstimatorData): SimplifiedEstimatorD
   if ((data as any).preferredContactMethod) simplified.preferredContactMethod = (data as any).preferredContactMethod
   if ((data as any).comments) simplified.comments = (data as any).comments
   if ((data as any).consent !== undefined) simplified.consent = (data as any).consent
+  if ((data as any).isHomeowner !== undefined) simplified.isHomeowner = (data as any).isHomeowner
   
   // Financing option (payment method)
   if (data.financingOption) simplified.financingOption = data.financingOption
