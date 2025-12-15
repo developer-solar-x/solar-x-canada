@@ -23,6 +23,7 @@ import { InstallerDetailView } from '@/components/admin/InstallerDetailView'
 import { FeedbackDetailView } from '@/components/admin/FeedbackDetailView'
 import { BatteriesSection } from './sections/BatteriesSection'
 import { BatteryModal, BatteryFormData } from '@/components/admin/BatteryModal'
+import { PeakShavingLeadsSection } from './sections/PeakShavingLeadsSection'
 import { useLeadStats, usePartialLeadStats } from './hooks'
 import type { BatterySpec } from '@/config/battery-specs'
 
