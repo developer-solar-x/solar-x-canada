@@ -24,7 +24,8 @@ export function PartialLeadDetailView({
   partialLead, 
   onClose, 
   onDelete,
-  onSendReminder 
+  onSendReminder,
+  sendingEmail = false
 }: PartialLeadDetailViewProps) {
   // Calculate progress metrics using the same logic as the estimator flows
   const totalSteps = getPartialLeadTotalSteps({
@@ -58,12 +59,14 @@ export function PartialLeadDetailView({
     return names[addOnId] || addOnId
   }
   
-  // Get program type
-  const programType = (partialLead as any).program_type ?? partialLead.estimator_data?.programType ?? null
+  // Get program type - cast to any since real partial leads from DB have programType in estimator_data
+  const estimatorDataAny = partialLead.estimator_data as any
+  const programType = (partialLead as any).program_type ?? estimatorDataAny?.programType ?? null
   const isNetMetering = programType === 'net_metering'
   const isHRS = programType === 'hrs_residential'
   const estimatorMode = partialLead.estimator_data?.estimatorMode
-  const isQuick = estimatorMode === 'quick' || estimatorMode === 'easy'
+  // Note: estimatorMode can be 'easy' or 'detailed', 'quick' is not a valid estimatorMode value
+  const isQuick = estimatorMode === 'easy'
   const isDetailed = estimatorMode === 'detailed'
 
   // Priority badge
