@@ -5,6 +5,7 @@ Allow: /
 # Disallow admin and API routes
 Disallow: /admin/
 Disallow: /api/
+Disallow: /peakshaving-calculator/manual
 
 # Sitemap location
 Sitemap: https://www.solarcalculatorcanada.org/sitemap.xml

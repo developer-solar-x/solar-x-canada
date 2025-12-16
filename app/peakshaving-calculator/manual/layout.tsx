@@ -18,6 +18,14 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://www.solarcalculatorcanada.org/peakshaving-calculator/manual',
   },
+  robots: {
+    index: false,
+    follow: false,
+    googleBot: {
+      index: false,
+      follow: false,
+    },
+  },
   openGraph: {
     title: 'Battery Peak Shaving Calculator Canada | Solar + Battery Savings',
     description: 'Calculate solar + battery savings with peak shaving in Canada. Compare TOU vs ULO rate plans.',
