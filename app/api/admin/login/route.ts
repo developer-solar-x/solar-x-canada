@@ -7,6 +7,7 @@ import { getSupabaseAdmin } from '@/lib/supabase'
 // Session configuration
 const SESSION_COOKIE_NAME = 'solarx_admin_session'
 const SESSION_MAX_AGE = 60 * 60 * 24 // 24 hours in seconds
+const SOLARX_SESSION_MAX_AGE = 60 * 60 * 24 * 30 // 30 days (1 month) in seconds
 
 export async function POST(request: Request) {
   try {
@@ -70,6 +71,11 @@ export async function POST(request: Request) {
       .update({ last_login_at: new Date().toISOString() })
       .eq('id', adminUser.id)
 
+    // Check if user has Solar X email for extended session
+    const normalizedEmail = email.toLowerCase().trim()
+    const isSolarXEmail = normalizedEmail.endsWith('@solar-x.ca')
+    const sessionMaxAge = isSolarXEmail ? SOLARX_SESSION_MAX_AGE : SESSION_MAX_AGE
+
     // Create session token (using Supabase session)
     const sessionToken = authData.session?.access_token || generateSessionToken()
     
@@ -79,7 +85,7 @@ export async function POST(request: Request) {
       httpOnly: true, // Prevents JavaScript access (XSS protection)
       secure: process.env.NODE_ENV === 'production', // HTTPS only in production
       sameSite: 'lax', // CSRF protection
-      maxAge: SESSION_MAX_AGE,
+      maxAge: sessionMaxAge,
       path: '/', // Available across entire site
     })
 
@@ -92,7 +98,7 @@ export async function POST(request: Request) {
     }), {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: SESSION_MAX_AGE,
+      maxAge: sessionMaxAge,
       path: '/',
     })
 
