@@ -16,7 +16,8 @@ interface PartialLeadDetailViewProps {
   partialLead: MockPartialLead
   onClose: () => void
   onDelete?: (id: string) => void
-  onSendReminder?: (email: string) => void
+  onSendReminder?: (partialLeadId: string) => void
+  sendingEmail?: boolean
 }
 
 export function PartialLeadDetailView({ 
@@ -629,11 +630,12 @@ export function PartialLeadDetailView({
           <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 rounded-b-xl px-6 py-4 flex items-center justify-between">
             <div className="flex gap-2">
               <button 
-                onClick={() => onSendReminder?.(partialLead.email)}
-                className="btn-primary text-sm px-6 py-2 inline-flex items-center gap-2"
+                onClick={() => onSendReminder?.(partialLead.id)}
+                disabled={sendingEmail}
+                className="btn-primary text-sm px-6 py-2 inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send size={16} />
-                Send Follow-Up Email
+                {sendingEmail ? 'Sending...' : 'Send Follow-Up Email'}
               </button>
             </div>
             <div className="flex gap-2">

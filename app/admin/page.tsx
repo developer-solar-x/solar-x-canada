@@ -674,8 +674,32 @@ export default function AdminPage() {
   }
 
   // Handle sending follow-up email
-  const handleSendReminder = (email: string) => {
-    alert(`Follow-up email would be sent to: ${email}\n\nIn production, this would trigger an automated email campaign.`)
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const handleSendReminder = async (partialLeadId: string) => {
+    if (sendingEmail) return
+    
+    try {
+      setSendingEmail(true)
+      
+      const response = await fetch('/api/partial-lead/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ partialLeadId }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to send email')
+      }
+
+      alert(`Follow-up email sent successfully to ${selectedPartialLead?.email || 'the user'}!`)
+    } catch (error) {
+      console.error('Error sending follow-up email:', error)
+      alert(`Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setSendingEmail(false)
+    }
   }
 
   // Handle deleting partial lead
@@ -1042,6 +1066,7 @@ export default function AdminPage() {
           onClose={handleClosePartialLeadView}
           onDelete={handleDeletePartialLead}
           onSendReminder={handleSendReminder}
+          sendingEmail={sendingEmail}
         />
       )}
 

@@ -123,9 +123,10 @@ export function Footer() {
               full details.
             </p>
             <p className="leading-relaxed">
-              We do not currently have a formal privacy policy. By using this site and providing your information,
-              you acknowledge that your details may be shared with vetted solar installers for the purpose of
-              contacting you about your estimate.
+              By using this site and providing your information, you acknowledge that your details may be shared with vetted solar installers for the purpose of contacting you about your estimate. For more details, please see our{' '}
+              <Link href="/privacy" className="text-white hover:text-gray-200 underline">
+                Privacy Policy
+              </Link>.
             </p>
           </div>
         </div>
@@ -137,9 +138,9 @@ export function Footer() {
               © 2024. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm">
-              <span className="text-gray-400">
-                No Privacy Policy (information may be shared with vetted installers)
-              </span>
+              <Link href="/privacy" className="text-gray-200 hover:text-white transition-colors">
+                Privacy Policy
+              </Link>
               <Link href="/terms" className="text-gray-200 hover:text-white transition-colors">
                 Terms of Service
               </Link>
