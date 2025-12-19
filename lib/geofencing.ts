@@ -194,8 +194,58 @@ export function isWithinOntario(
 }
 
 /**
+ * Check if location is within Alberta (strict)
+ * Accepts any city in Alberta province
+ */
+export function isWithinAlberta(
+  city: string | undefined,
+  province: string | undefined,
+  lat?: number,
+  lng?: number,
+  postalCode?: string
+): boolean {
+  if (!province) return false
+  
+  // MUST be Alberta - strict check
+  const normalizedProvince = province.toUpperCase().trim()
+  if (normalizedProvince !== 'AB' && normalizedProvince !== 'ALBERTA') {
+    return false
+  }
+  
+  // Any city in Alberta is accepted
+  // Optional: Additional validation with Alberta postal codes if provided
+  if (postalCode) {
+    const cleanPostalCode = postalCode.replace(/\s/g, '').toUpperCase()
+    // Alberta postal codes: T
+    const albertaPostalPrefixes = ['T']
+    const isAlbertaPostal = albertaPostalPrefixes.some(prefix => 
+      cleanPostalCode.startsWith(prefix)
+    )
+    if (!isAlbertaPostal) return false
+  }
+  
+  return true
+}
+
+/**
+ * Check if location is within service area (Ontario or Alberta)
+ * Accepts any city in Ontario or Alberta province
+ */
+export function isWithinServiceArea(
+  city: string | undefined,
+  province: string | undefined,
+  lat?: number,
+  lng?: number,
+  postalCode?: string
+): boolean {
+  return isWithinOntario(city, province, lat, lng, postalCode) || 
+         isWithinAlberta(city, province, lat, lng, postalCode)
+}
+
+/**
  * Main geofencing check function
  * Returns validation result with helpful message
+ * Accepts Ontario and Alberta addresses
  */
 export function validateServiceArea(
   city: string | undefined,
@@ -209,8 +259,8 @@ export function validateServiceArea(
   message?: string
   suggestedAction?: string
 } {
-  // Check if location is in Ontario
-  const isValid = isWithinOntario(city, province, lat, lng, postalCode)
+  // Check if location is in Ontario or Alberta
+  const isValid = isWithinServiceArea(city, province, lat, lng, postalCode)
   
   if (isValid) {
     return {
@@ -224,8 +274,8 @@ export function validateServiceArea(
   
   return {
     isValid: false,
-    message: `We currently only service Ontario.`,
-    suggestedAction: `We're currently serving Ontario only. ${locationStr} is outside our service area.`
+    message: `We currently only service Ontario and Alberta.`,
+    suggestedAction: `We're currently serving Ontario and Alberta only. ${locationStr} is outside our service area.`
   }
 }
 

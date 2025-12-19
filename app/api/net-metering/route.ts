@@ -3,6 +3,7 @@
 
 import { NextResponse } from 'next/server'
 import { calculateNetMetering, calculateNetMeteringTiered } from '@/lib/net-metering'
+import { calculateAlbertaSolarClub } from '@/lib/alberta-solar-club'
 import { RATE_PLANS, TOU_RATE_PLAN, ULO_RATE_PLAN } from '@/config/rate-plans'
 import type { RatePlan } from '@/config/rate-plans'
 import { UsageDataPoint, generateAnnualUsagePattern } from '@/lib/usage-parser'
@@ -31,6 +32,9 @@ export async function POST(request: Request) {
       // Battery and AI Mode
       battery, // Optional: BatterySpec object
       aiMode = false, // AI Optimization Mode (default OFF)
+      
+      // Province (for Alberta Solar Club)
+      province, // Optional: province code (e.g., 'AB', 'ON')
       
       // Year for calculations
       year = new Date().getFullYear(),
@@ -70,6 +74,45 @@ export async function POST(request: Request) {
       )
     }
 
+    // Normalize usage data (needed for both Alberta and regular calculations)
+    let hourlyUsageData: UsageDataPoint[] | undefined
+    if (usageData && Array.isArray(usageData) && usageData.length > 0) {
+      hourlyUsageData = usageData as UsageDataPoint[]
+    } else if (annualUsageKwh) {
+      // Will be generated in calculateNetMetering or calculateAlbertaSolarClub
+      hourlyUsageData = undefined
+    }
+
+    // Check if Alberta - use Solar Club calculation
+    const isAlberta = province && (
+      province.toUpperCase() === 'AB' || 
+      province.toUpperCase() === 'ALBERTA' ||
+      province.toUpperCase().includes('ALBERTA') ||
+      province.toUpperCase().includes('AB')
+    )
+    
+    if (isAlberta) {
+      // Use Alberta Solar Club calculation
+      const result = calculateAlbertaSolarClub(
+        monthlyProduction,
+        annualUsageKwh,
+        hourlyUsageData,
+        year,
+        usageDistribution as UsageDistribution | undefined,
+        battery as BatterySpec | null | undefined,
+        aiMode === true
+      )
+      
+      return NextResponse.json({
+        success: true,
+        data: result,
+        ratePlan: {
+          id: 'alberta_solar_club',
+          name: 'Alberta Solar Club'
+        }
+      })
+    }
+    
     // Determine rate plan
     let selectedRatePlan: RatePlan | null = null
     
@@ -99,15 +142,6 @@ export async function POST(request: Request) {
       if (!selectedRatePlan) {
         selectedRatePlan = TOU_RATE_PLAN
       }
-    }
-
-    // Normalize usage data
-    let hourlyUsageData: UsageDataPoint[] | undefined
-    if (usageData && Array.isArray(usageData) && usageData.length > 0) {
-      hourlyUsageData = usageData as UsageDataPoint[]
-    } else if (annualUsageKwh) {
-      // Will be generated in calculateNetMetering
-      hourlyUsageData = undefined
     }
 
     // Calculate net metering

@@ -23,6 +23,7 @@ export function InfoTooltip({ content, className = '', iconSize = 16 }: InfoTool
         onMouseLeave={() => setIsOpen(false)}
         onClick={() => setIsOpen(!isOpen)}
         aria-label="More information"
+        suppressHydrationWarning
       >
         <Info size={iconSize} className="text-blue-500" />
       </button>

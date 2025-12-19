@@ -62,6 +62,8 @@ export interface EstimatorData {
   // Step 1: Location
   address?: string
   coordinates?: { lat: number; lng: number }
+  city?: string
+  province?: string
   
   // Email (captured early for progress saving)
   email?: string

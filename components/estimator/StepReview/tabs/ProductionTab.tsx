@@ -1,15 +1,19 @@
 'use client'
 
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { formatNumber } from '@/lib/utils'
 
 interface ProductionTabProps {
   annualKwh: number
-  productionChartData: Array<{ month: string; production: number }>
+  // Combined dataset: include production and usage for each month
+  productionChartData: Array<{ month: string; production: number; usage?: number }>
   isMobile: boolean
 }
 
 export function ProductionTab({ annualKwh, productionChartData, isMobile }: ProductionTabProps) {
+  // Build daily average from annual
+  const dailyAvg = Math.round(annualKwh / 365)
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -22,21 +26,23 @@ export function ProductionTab({ annualKwh, productionChartData, isMobile }: Prod
         <div>
           <div className="text-sm text-gray-600 mb-1">Daily Average</div>
           <div className="text-xl font-bold text-navy-500">
-            {Math.round(annualKwh / 365)} kWh
+            {dailyAvg} kWh
           </div>
         </div>
       </div>
 
-      {/* Production chart */}
-      <div className="h-[20rem] sm:h-64">
+      {/* Production vs Usage Bar Chart */}
+      <div className="h-[22rem] sm:h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={productionChartData}>
+          <BarChart data={productionChartData} margin={isMobile ? { top: 10, right: 10, left: 10, bottom: 10 } : { top: 20, right: 30, left: 20, bottom: 20 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="month" />
             <YAxis />
             <Tooltip />
-            <Line type="monotone" dataKey="production" stroke="#1B4E7C" strokeWidth={isMobile ? 2 : 2} />
-          </LineChart>
+            <Legend wrapperStyle={{ fontSize: isMobile ? 11 : 12 }} />
+            <Bar dataKey="production" name="Production (kWh)" fill="#1B4E7C" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="usage" name="Usage (kWh)" fill="#DC143C" radius={[4, 4, 0, 0]} />
+          </BarChart>
         </ResponsiveContainer>
       </div>
     </div>

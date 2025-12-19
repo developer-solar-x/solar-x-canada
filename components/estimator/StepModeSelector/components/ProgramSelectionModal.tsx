@@ -138,6 +138,7 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                           <p>Solar + battery system</p>
                           <p>• Store energy for peak hours</p>
                           <p>• Reduce electricity costs</p>
+                          <p>• Up to $10,000 CAD in rebates</p>
                         </div>
                       </button>
                       
@@ -184,6 +185,7 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                           <p>Solar + battery system</p>
                           <p>• Store energy for peak hours</p>
                           <p>• Reduce electricity costs</p>
+                          <p>• Up to $10,000 CAD in rebates</p>
                         </div>
                       </button>
                       

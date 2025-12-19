@@ -175,14 +175,14 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
       const result = await response.json()
 
       if (result.success && result.data) {
-        // Validate service area (Toronto only)
+        // Validate service area (Ontario or Alberta)
         const validation = validateServiceArea(
           result.data.city,
           result.data.province,
           result.data.coordinates.lat,
           result.data.coordinates.lng,
           result.data.postalCode,
-          true // Strict mode - Toronto only
+          true // Service area validation for ON and AB
         )
 
         if (!validation.isValid) {
@@ -269,7 +269,7 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
                 latitude,
                 longitude,
                 result.data.postalCode,
-                true // Strict mode - Toronto only
+                true // Strict mode - Ontario and Alberta
               )
 
               if (!validation.isValid) {

@@ -88,6 +88,7 @@ export function FAQ() {
               <button
                 className="w-full px-6 py-5 flex items-center justify-between text-left hover:bg-gray-50 transition-colors rounded-xl"
                 onClick={() => setOpenIndex(openIndex === index ? null : index)}
+                suppressHydrationWarning
               >
                 <span
                   className={`text-lg font-semibold pr-8 ${

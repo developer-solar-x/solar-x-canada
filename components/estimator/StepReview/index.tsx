@@ -16,6 +16,7 @@ import { SystemSummaryCards } from './sections/SystemSummaryCards'
 import { CostBreakdown } from './sections/CostBreakdown'
 import { BatteryDetails } from './sections/BatteryDetails'
 import { FinancingOptions } from './sections/FinancingOptions'
+import { SolarClubAlberta } from './sections/SolarClubAlberta'
 import { SavingsTab } from './tabs/SavingsTab'
 import { ProductionTab } from './tabs/ProductionTab'
 import { EnvironmentalTab } from './tabs/EnvironmentalTab'
@@ -387,6 +388,15 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
     ? (numPanels * panelWattage) / 1000
     : (data.solarOverride?.sizeKw ?? estimateData.system.sizeKw)
 
+  const provinceCode = (data.province || '').toString().toUpperCase()
+  const isOntarioResidential = provinceCode === 'ON' || provinceCode === 'ONTARIO'
+  // Show Ontario residential disclaimer once system is ~20 kW DC (≈10 kW AC inverter limit with ~2:1 DC/AC)
+  const ontarioDcLimitKw = 20
+  const showOntarioResidentialLimitNotice =
+    isOntarioResidential &&
+    data.leadType === 'residential' &&
+    effectiveSystemSizeKw > ontarioDcLimitKw
+
   const selectedBattery = aggregatedBattery || (hasBatteryDetails ? data.batteryDetails?.battery : null)
   const annualUsageKwh = data.peakShaving?.annualUsageKwh || data.energyUsage?.annualKwh || 0
 
@@ -453,6 +463,20 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
     month: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][i],
     production: kwh,
   }))
+
+  // Derive monthly usage for comparison chart
+  const selectedRatePlanId = (data.netMetering?.selectedRatePlan as 'tou' | 'ulo' | 'tiered') || undefined
+  const netMeteringMonthly = selectedRatePlanId && (data.netMetering as any)?.[selectedRatePlanId]?.monthly
+  const annualUsage = data.energyUsage?.annualKwh || data.peakShaving?.annualUsageKwh || data.annualUsageKwh || 0
+  const averageMonthlyUsage = annualUsage > 0 ? annualUsage / 12 : 0
+  const usageChartByMonth: number[] = Array.isArray(netMeteringMonthly) && netMeteringMonthly.length === 12
+    ? netMeteringMonthly.map((m: any) => m.totalLoad || 0)
+    : (averageMonthlyUsage > 0 ? Array(12).fill(averageMonthlyUsage) : Array(12).fill(0))
+
+  // Merge usage into productionChartData
+  for (let i = 0; i < productionChartData.length; i++) {
+    (productionChartData[i] as any).usage = usageChartByMonth[i] || 0
+  }
 
   const solarTotalCost = estimate.costs?.totalCost || 0
   // For net metering, no rebates apply - net cost equals total cost
@@ -588,6 +612,14 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             <p className="text-white/90">{data.address}</p>
           </div>
 
+          {showOntarioResidentialLimitNotice && (
+            <div className="card border border-amber-300 bg-amber-50 text-amber-900 p-4">
+              <h3 className="font-semibold text-amber-900 mb-1">Ontario residential inverter limit</h3>
+              <p className="text-sm">Residential approvals in Ontario are capped at a 10 kW AC inverter. Typical DC/AC ratios mean systems above ~15–20 kW DC may be clipped or require a smaller inverter. Your design is approximately {effectiveSystemSizeKw.toFixed(1)} kW DC.</p>
+              <p className="text-xs mt-2 text-amber-800">Expect the AC side to be limited to 10 kW for residential; larger systems may need commercial review or separate approval.</p>
+            </div>
+          )}
+
 
           {/* 2x2 Grid Layout for Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -673,6 +705,14 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             combinedNetCost={combinedNetCost}
             programType={data.programType}
           />
+
+          {/* Solar Club Alberta - show only for Alberta province */}
+          {data.province && (data.province.toUpperCase() === 'AB' || data.province.toUpperCase() === 'ALBERTA') && (
+            <SolarClubAlberta
+              systemSizeKw={estimateData.system.sizeKw}
+              annualProductionKwh={estimateData.production?.annualKwh}
+            />
+          )}
 
           {/* Annual Savings Card - showing ULO and TOU results from Step 4 */}
           {includeBattery && (data.touBeforeAfter || data.uloBeforeAfter) && (

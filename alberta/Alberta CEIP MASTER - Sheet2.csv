@@ -1,0 +1,29 @@
+City ,Loan MAX Amount,Interest Rate,Amortization,Rebate amount,Energy Audit Required,Commercial/Residential ,Max Rebate,Notable Terms & Conditions ,Other good to know for PM,Limitations,Pay Out
+Airdrie,"$50,000",2.75%,25 Years,$600,YES,Residential,$3100,https://chatgpt.com/share/693c2150-6dbc-8011-8771-1017af0eeddf,https://chatgpt.com/share/693c2150-6dbc-8011-8771-1017af0eeddf,No New Construction (only retrofit),
+Banff,"$50,000",3%,20 Years,$750 per KW,YES,Commercial,"$15,000",,Alberta CEIP PM Checklist,"Project below $7,500 total cost don't qualify.",
+Banff,"$50,000",3%,20 Years,$450 per KW,YES,Residential,"$9,000",,Alberta CEIP PM Checklist,"Project below $7,500 total cost don't qualify.",
+Calgary,"$50,000",3.75%,20 Years,10%,YES,Residential,"$5,000",https://chatgpt.com/s/t_693c31304e7c819199fcca55d32cad38,,,
+Canmore,"$50,000",2.70%,20 Years,$500,YES,Residential,$500,,,,
+Cold Lake,"$50,000",3.10%,20 Years,$580,YES,Residential,$580,https://chatgpt.com/s/t_693c32a423888191991f5f6697986874,,,
+Devon,"$50,000",4,25 Years,"$1,100",YES,Residential,,,Alberta CEIP PM Checklist,Last day to submit qualification is 01-31-26,
+Drayton Valley,"$50,000",4.16%,20 Years,$350,YES,Residential,$350,https://chatgpt.com/s/t_693c3422396c8191b511a58a635da55c,,,Alberta Municipalities pays the Qualified Contractor directly after upgrades are completed and approved.
+Edmonton,"$50,000",6%,20 Years,N/A,YES,Residential,N/A,,Alberta CEIP PM Checklist,,"CEIP funds are disbursed toward approved project costs, with repayment collected through the property tax system rather than monthly payments, and no cash rebate paid directly to the participant."
+Edmonton,"$1,000,000",6%,20 Years,N/A,YES,Commercial,N/A,,Alberta CEIP PM Checklist,,"CEIP funds are disbursed toward approved project costs, with repayment collected through the property tax system rather than monthly payments, and no cash rebate paid directly to the participant."
+Grand Prairie,"$50,000",3%,20 Years,$525,YES,Residential,,https://chatgpt.com/s/t_693c366851e88191869ddbac38651e33,,,25% paid upfront
+Jasper,"$60,000",3%,25 Years,N/A,YES,Residential,N/A,Admin Fee: 5%,,,
+Leduc,Up to 100% of project cost,Blended: 0 % interest on the first 73 % of project cost,20 Years,"$1,350 incentive Tax Incentive",YES,Residential,,Interest Rate: Remaining financed portion charged at BMO prime rate (adjusted annually),Alberta CEIP PM Checklist,,no direct cash payout from CEIP financing
+Lethbridge,"$50,000",2.83%,20 Years,"$1,350 incentive Tax Incentive",YES,Residential,"$5,400 (Multi Unit)","For multi-unit residential Properties, the project incentive may be offered on a per unit basis up to a maximum of $5,400, provided that each unit completes upgrades financed through CEIP.",,,
+Medicine Hat,"$50,000",3.25%,20 Years,6.60%,,,10.2%,An additional incentive of up to 3.6% of financed Project Costs is offered by the Municipality for completed CEIP Projects on residential properties built before the year 1990.,,,
+Pincher Creek Region,"$50,000",2%,20 Years,$450,YES,Residential,$450 incentive per CEIP project,Financing is attached to the property tax roll and repaid via Clean Energy Improvement Tax,Alberta CEIP PM Checklist,,
+Okotoks,"$50,000",3%,20 Years,$500,YES,Residential,$500,,Alberta CEIP PM Checklist,,
+St. Albert,Up to 100% of project cost,1.62% but capped off at 3%,20 Years,"$1,400",YES,Residential,"$1,400",,Alberta CEIP PM Checklist,,CEIP financing is paid toward approved project costs and issued to the qualified contractor after project completion and documentation approval
+Rocky Mountain House,Up to 100% of project cost,3.50%,20 Years,,YES,Residential,"$2,100",,Alberta CEIP PM Checklist,,CEIP financing funds are applied to approved project costs and issued to the qualified contractor upon verification of completed work and eligibility documentation;
+Stettler,Up to 100% of project cost,5.6% fixed for the project term,25 Years,$580,YES,Residential,$580,,Alberta CEIP PM Checklist,,
+Sturgeon County,"$50,000",3.50%,20 Years,Up to 5% of approved project cost,YES,Residential,Equal to 5% of total eligible project cost,Rebate Incentive automatically reduces the Clean Energy Improvement Tax/financing balance — not issued as cash,Alberta CEIP PM Checklist,,
+Sturgeon County,"$300,000",Commercial defaults may use a different below-market rate; check commercial Terms & Conditions,20 Years,Up to 5% of approved project cost,YES,Commercial,Equal to 5% of total eligible project cost,,Alberta CEIP PM Checklist,,
+Spruce Grove,"$50,000",3.50%,20 Years,7.5% of financed costs,YES,Residential,7.5% of total eligible financed cost per project,,Alberta CEIP PM Checklist,,Funds are remitted to the qualified contractor for verified eligible work
+Wetaskiwin,Up to 100% of project cost,3.20%,20 Years,$650,YES,Residential,$650 per completed CEIP Project,,Alberta CEIP PM Checklist,,Funds are paid directly to the qualified contractor for verified work.
+Stirling,Up to 100% of project cost,"Competitive, matching the municipality’s own low borrowing rate + 1%",25 Years,N/A,YES,Residential,N/A,,Alberta CEIP PM Checklist,,
+Strathcona County,Up to 100% of project cost,2%,20 Years,5% incentive on completed CEIP projects.,YES,Residential,5% of eligible project cost per project.,,Alberta CEIP PM Checklist,,The municipality will pay the CEIP Qualified Contractor directly for verified eligible costs
+Taber,Up to 100% of project cost,2%,20 Years,$400,YES,Residential,$900 total (when Solar PV is included).,,Alberta CEIP PM Checklist,,
+Westlock,Up to 100% of project cost,3%,25 Years,$500,YES,Residential,$500 per property,,Alberta CEIP PM Checklist,,

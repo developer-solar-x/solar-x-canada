@@ -35,6 +35,7 @@ import { ImageModal } from '@/components/ui/ImageModal'
 import { NetMeteringResults } from '@/components/ResultsPage/sections/NetMeteringResults'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
 import { FINANCING_OPTIONS } from '@/config/provinces'
+import { SolarClubAlberta } from '@/components/estimator/StepReview/sections/SolarClubAlberta'
 
 interface ResultsPageProps {
   estimate?: {
@@ -235,7 +236,7 @@ export function ResultsPage({
   // Use solarOverride if available (matches StepReview logic)
   // Priority: solarOverride (from battery savings step) > estimate.system (from API)
   // If we have exact panel count, calculate system size directly from it (no rounding needed)
-  // 14 panels × 500W = 7000W = 7.0 kW exactly
+  // 14 panels � 500W = 7000W = 7.0 kW exactly
   const panelWattage = 500 // Standard panel wattage
   const numPanels = solarOverride?.numPanels ?? estimate?.system?.numPanels
   
@@ -252,7 +253,7 @@ export function ResultsPage({
   }
   
   // Debug logging (remove after confirming fix)
-  console.log('🔍 ResultsPage System Size Debug:', {
+  console.log('?? ResultsPage System Size Debug:', {
     numPanels,
     calculatedFromPanels: solarOverride?.numPanels ? (solarOverride.numPanels * panelWattage) / 1000 : null,
     finalSystemSizeKw: systemSizeKw,
@@ -615,7 +616,7 @@ export function ResultsPage({
   const ulo25YearSavings = get25YearProfit(uloData, ulo, uloCombinedAnnual, uloCombinedNet)
   
   // Debug logging to verify calculation
-  console.log('🔍 25-Year Profit Calculation:', {
+  console.log('?? 25-Year Profit Calculation:', {
     touCombinedAnnual,
     touCombinedNet,
     tou25YearSavings,
@@ -895,7 +896,7 @@ export function ResultsPage({
                         try {
                           await navigator.clipboard.writeText(trackingUrl)
                           // Show temporary success message
-                          setCopyButtonText('✓ Copied!')
+                          setCopyButtonText('? Copied!')
                           setTimeout(() => {
                             setCopyButtonText('Copy Link')
                           }, 2000)
@@ -904,7 +905,7 @@ export function ResultsPage({
                         }
                       }}
                       className={`text-xs px-3 py-1 rounded transition-colors font-medium ${
-                        copyButtonText === '✓ Copied!' 
+                        copyButtonText === '? Copied!' 
                           ? 'bg-green-500 text-white' 
                           : 'bg-white/20 hover:bg-white/30 text-white'
                       }`}
@@ -1209,7 +1210,7 @@ export function ResultsPage({
                     25-Year Lifetime Savings
                   </div>
                   <div className="text-xs text-gray-600 mt-2 font-medium">
-                    {formatCurrency(Math.round(finalAnnualSavings))}/yr × 25 years
+                    {formatCurrency(Math.round(finalAnnualSavings))}/yr � 25 years
                   </div>
                   {ratePlan && (
                     <div className="text-xs text-forest-700 mt-2 font-semibold">
@@ -1312,7 +1313,7 @@ export function ResultsPage({
                     </h3>
                     {estimate?.environmental && (
                       <p className="text-gray-700 leading-relaxed">
-                        Your solar system will offset approximately {estimate.environmental.co2OffsetTonsPerYear?.toFixed(1) || '0'} tons of CO₂ per year. 
+                        Your solar system will offset approximately {estimate.environmental.co2OffsetTonsPerYear?.toFixed(1) || '0'} tons of CO? per year. 
                         That's equivalent to planting {estimate.environmental.treesEquivalent || 0} trees or taking {estimate.environmental.carsOffRoadEquivalent?.toFixed(1) || '0'} cars off the road annually.
                       </p>
                     )}
@@ -1707,7 +1708,7 @@ export function ResultsPage({
                 <InfoTooltip
                   content="These results are estimates for educational and informational purposes only. They do not constitute a quote, contract, guarantee of performance, or confirmation of eligibility for any program or incentive. A qualified installer must provide a formal proposal and conduct a site assessment before any system is approved or installed."
                 />
-                <span>Results are informational only – not a formal quote or contract.</span>
+                <span>Results are informational only � not a formal quote or contract.</span>
               </div>
 
                   <button
@@ -1829,7 +1830,7 @@ export function ResultsPage({
                 </div>
               </div>
 
-              {/* System Specifications – under Why Trust card, reusing card styling */}
+              {/* System Specifications � under Why Trust card, reusing card styling */}
               <div className="bg-white rounded-2xl p-8 shadow-md">
                 <h3 className="text-2xl font-bold text-forest-500 mb-4">System Specifications</h3>
                 <div className="space-y-3 text-sm text-gray-700">
@@ -1858,7 +1859,7 @@ export function ResultsPage({
                 </div>
               </div>
 
-              {/* Monthly Production Estimate – moved under trust area */}
+              {/* Monthly Production Estimate � moved under trust area */}
               <div className="bg-white rounded-2xl p-6 md:p-8 shadow-md">
                 <h3 className="text-2xl font-bold text-forest-500 mb-6">
                   Monthly Production Estimate
@@ -1907,7 +1908,7 @@ export function ResultsPage({
                 </p>
               </div>
 
-              {/* Cost Breakdown – moved here, preserving original card styling */}
+              {/* Cost Breakdown � moved here, preserving original card styling */}
               <div className="bg-white rounded-2xl p-8 shadow-md">
                 <h3 className="text-2xl font-bold text-forest-500 mb-6">Cost Breakdown</h3>
                 <div className="space-y-4">
@@ -1977,7 +1978,7 @@ export function ResultsPage({
                       </div>
                       {isCashPurchase && (
                         <p className="mt-2 text-[11px] text-green-700 font-medium">
-                          Cash purchase offers the lowest lifetime cost and highest long‑term savings.
+                          Cash purchase offers the lowest lifetime cost and highest long?term savings.
                         </p>
                       )}
                     </div>
@@ -1989,10 +1990,18 @@ export function ResultsPage({
                     content="Estimated pricing, incentives, and rebates are based on current publicly available program information. Programs may change, close, or require specific eligibility criteria. Final pricing and incentives are confirmed only through a formal proposal from a qualified installer."
                   />
                   <span>
-                    Pricing and rebates are estimates only – final amounts come from your installer.
+                    Pricing and rebates are estimates only � final amounts come from your installer.
                   </span>
                 </div>
               </div>
+
+              {/* Solar Club Alberta - show only for Alberta province */}
+              {leadData?.province && (leadData.province.toUpperCase() === 'AB' || leadData.province.toUpperCase() === 'ALBERTA') && (
+                <SolarClubAlberta
+                  systemSizeKw={estimate?.system?.sizeKw || solarOverride?.sizeKw || 0}
+                  annualProductionKwh={estimate?.production?.annualKwh}
+                />
+              )}
             </div>
           </div>
         </div>

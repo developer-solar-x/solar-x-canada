@@ -14,7 +14,7 @@ export function ServiceAreaWarning({ warning, onDismiss }: ServiceAreaWarningPro
             {warning}
           </p>
           <p className="text-xs text-red-700 mb-3">
-            We currently only provide solar installation services in Ontario. 
+            We currently provide solar installation services in Ontario. 
             This ensures we can deliver the highest quality service and support to our customers.
           </p>
           <p className="text-xs text-red-600 font-semibold">

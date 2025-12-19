@@ -5,8 +5,9 @@
 // Left: Calculator inputs (usage, panels, rate plan)
 // Right: Results with donut chart
 
-import { useState, useEffect } from 'react'
-import { ArrowLeft, ArrowRight, Loader2, Zap, AlertTriangle, Info, Sun, Moon, BarChart3, DollarSign, TrendingUp, Clock, Battery, Plus, X, ChevronDown, Sparkles } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
+import { ArrowLeft, ArrowRight, Loader2, Zap, AlertTriangle, Info, Sun, Moon, BarChart3, DollarSign, TrendingUp, TrendingDown, Clock, Battery, Plus, X, ChevronDown, Sparkles, Leaf } from 'lucide-react'
 import type { NetMeteringResult } from '@/lib/net-metering'
 import type { EstimatorData } from '@/app/estimator/page'
 import { DEFAULT_TOU_DISTRIBUTION, DEFAULT_ULO_DISTRIBUTION, type UsageDistribution, calculateSimpleMultiYear } from '@/lib/simple-peak-shaving'
@@ -14,6 +15,7 @@ import { BLENDED_RATE } from '../StepEnergySimple/constants'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
 import { Modal } from '@/components/ui/Modal'
 import { formatCurrency, isValidEmail } from '@/lib/utils'
+import { AlbertaSavingsBreakdown } from './AlbertaSavingsBreakdown'
 import { BATTERY_SPECS, type BatterySpec } from '@/config/battery-specs'
 import { useBatteries } from '@/hooks/useBatteries'
 
@@ -144,6 +146,52 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   const [error, setError] = useState<string | null>(null)
   const [localEstimate, setLocalEstimate] = useState<any>(null)
   
+  // Check if province is Alberta - check multiple possible locations and make it reactive
+  const isAlberta = useMemo(() => {
+    // Check multiple possible locations for province
+    const province = data.province || 
+                     data.estimate?.province || 
+                     (data as any).location?.province || 
+                     (data as any).address?.province ||
+                     (data.address && extractProvinceFromAddress(data.address))
+    
+    if (!province) {
+      // Debug: log when province is not found
+      if (process.env.NODE_ENV === 'development') {
+        console.log('StepNetMetering: Province not found in data:', {
+          'data.province': data.province,
+          'data.estimate?.province': data.estimate?.province,
+          'data.address': data.address
+        })
+      }
+      return false
+    }
+    
+    const provinceUpper = String(province).toUpperCase().trim()
+    const isAlbertaResult = (
+      provinceUpper === 'AB' || 
+      provinceUpper === 'ALBERTA' ||
+      provinceUpper.includes('ALBERTA') ||
+      provinceUpper.includes('AB')
+    )
+    
+    // Debug: log province detection
+    if (process.env.NODE_ENV === 'development') {
+      console.log('StepNetMetering: Province detection:', { province, provinceUpper, isAlbertaResult })
+    }
+    
+    return isAlbertaResult
+  }, [data.province, data.estimate?.province, data.address])
+  
+  // Helper function to extract province from address string
+  function extractProvinceFromAddress(address: string): string | null {
+    if (!address) return null
+    const addressUpper = address.toUpperCase()
+    // Check for common province patterns in address
+    const provinceMatch = addressUpper.match(/\b(AB|ALBERTA|ON|ONTARIO|BC|BRITISH COLUMBIA|MB|MANITOBA|SK|SASKATCHEWAN|QC|QUEBEC|NS|NOVA SCOTIA|NB|NEW BRUNSWICK|NL|NEWFOUNDLAND|PE|PRINCE EDWARD ISLAND|YT|YUKON|NT|NORTHWEST TERRITORIES|NU|NUNAVUT)\b/)
+    return provinceMatch ? provinceMatch[1] : null
+  }
+  
   // Inputs
   const [annualUsageInput, setAnnualUsageInput] = useState('')
   const [solarPanels, setSolarPanels] = useState(0)
@@ -212,7 +260,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             monthlyBill: data.monthlyBill,
             annualUsageKwh: calculatedUsage,
             energyUsage: data.energyUsage,
-            province: 'ON',
+            province: data.province || 'ON',
             roofAzimuth: data.roofAzimuth || 180,
             programType: data.programType || 'net_metering',
           }),
@@ -300,12 +348,34 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   const escalation = escalatorPercent > 1 ? escalatorPercent / 100 : escalatorPercent
 
   // Calculate metrics for selected plan
-  const selectedResult = selectedPlan === 'ulo' ? uloResults : selectedPlan === 'tiered' ? tieredResults : touResults
+  // For Alberta, always use touResults (which contains Alberta data)
+  const selectedResult = isAlberta ? touResults : (selectedPlan === 'ulo' ? uloResults : selectedPlan === 'tiered' ? tieredResults : touResults)
   const annualSavings = selectedResult ? selectedResult.annual.importCost - selectedResult.annual.netAnnualBill : 0
   const paybackYears = selectedResult && netCost > 0 ? calculatePayback(annualSavings, netCost, escalation) : Infinity
   const profit25 = selectedResult && netCost > 0 
     ? calculateSimpleMultiYear({ annualSavings } as any, netCost, escalation, 25).netProfit25Year
     : 0
+
+  // Build monthly production vs usage chart data
+  const productionUsageChartData = useMemo(() => {
+    const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    if (selectedResult?.monthly && selectedResult.monthly.length === 12) {
+      return selectedResult.monthly.map((m, idx) => ({
+        month: names[idx],
+        production: Math.round(m.totalSolarProduction || 0),
+        usage: Math.round(m.totalLoad || 0),
+      }))
+    }
+    // Fallback to estimate production and evenly distributed usage if monthly not present
+    const prod = (estimate?.production?.monthlyKwh || []) as number[]
+    const annualUse = annualUsageKwh || data.energyUsage?.annualKwh || data.annualUsageKwh || 0
+    const avgUse = annualUse > 0 ? Math.round(annualUse / 12) : 0
+    return prod.map((kwh: number, idx: number) => ({
+      month: names[idx],
+      production: Math.round(kwh || 0),
+      usage: avgUse,
+    }))
+  }, [selectedResult?.monthly, estimate?.production?.monthlyKwh, annualUsageKwh, data.energyUsage?.annualKwh, data.annualUsageKwh])
 
   // Calculate battery savings percentage for net metering
   // Battery stores excess solar and uses it during higher‑cost hours, reducing imports.
@@ -465,7 +535,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             monthlyBill: data.monthlyBill,
             annualUsageKwh: annualUsageKwh,
             energyUsage: data.energyUsage,
-            province: 'ON',
+            province: data.province || 'ON',
             roofAzimuth: data.roofAzimuth || 180,
             roofAreaSqft: data.roofAreaSqft,
             overrideSystemSizeKw: systemSizeKwOverride,
@@ -486,8 +556,93 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     return () => clearTimeout(timeoutId)
   }, [solarPanels, systemSizeKwOverride, data.coordinates, data.roofPolygon, annualUsageKwh, data.estimate?.system?.numPanels])
 
+  // For Alberta, run a single calculation instead of multiple plans
+  useEffect(() => {
+    if (!isAlberta) return
+    
+    const currentEstimate = localEstimate || data.estimate
+    const monthlyProduction = currentEstimate?.production?.monthlyKwh || []
+    const calculatedUsage = annualUsageKwh || data.energyUsage?.annualKwh || data.annualUsageKwh || 0
+
+    if (
+      !currentEstimate?.production?.monthlyKwh ||
+      monthlyProduction.length !== 12 ||
+      calculatedUsage <= 0
+    ) {
+      return
+    }
+
+    const runAlbertaCalculation = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+
+        const combinedBattery = selectedBatteries.length > 0
+          ? (selectedBatteries
+              .map(id => availableBatteries.find(b => b.id === id))
+              .filter(Boolean) as BatterySpec[])
+              .reduce<BatterySpec | null>((combined, battery) => {
+                if (!combined) return battery
+                return {
+                  ...combined,
+                  id: `${combined.id}+${battery.id}`,
+                  brand: `${combined.brand}+${battery.brand}`,
+                  model: `${combined.model}+${battery.model}`,
+                  nominalKwh: combined.nominalKwh + battery.nominalKwh,
+                  usableKwh: combined.usableKwh + battery.usableKwh,
+                  inverterKw: Math.max(combined.inverterKw, battery.inverterKw),
+                  price: combined.price + battery.price,
+                  warranty: {
+                    years: Math.min(combined.warranty.years, battery.warranty.years),
+                    cycles: Math.min(combined.warranty.cycles, battery.warranty.cycles)
+                  },
+                  usablePercent: combined.usablePercent ?? battery.usablePercent ?? 0,
+                  roundTripEfficiency: combined.roundTripEfficiency ?? battery.roundTripEfficiency ?? 1
+                }
+              }, null)
+          : null
+
+        const response = await fetch('/api/net-metering', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            monthlySolarProduction: monthlyProduction,
+            annualUsageKwh: calculatedUsage,
+            ratePlanId: 'tou', // Use TOU as placeholder, API will detect Alberta
+            province: data.province,
+            year: new Date().getFullYear(),
+            ...(combinedBattery ? { battery: combinedBattery } : {}),
+            aiMode: aiMode && selectedBatteries.length > 0,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || 'Failed to calculate Alberta Solar Club net metering')
+        }
+
+        const result = await response.json()
+        if (result.success && result.data) {
+          // Store as touResults for compatibility
+          setTouResults(result.data)
+          setUloResults(result.data) // Same for both
+          setTieredResults(result.data) // Same for all
+        }
+      } catch (err) {
+        console.error('Alberta Solar Club calculation error:', err)
+        setError(err instanceof Error ? err.message : 'Failed to calculate Alberta Solar Club savings')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    runAlbertaCalculation()
+  }, [isAlberta, localEstimate, data.estimate, annualUsageKwh, data.energyUsage?.annualKwh, data.annualUsageKwh, selectedBatteries, aiMode, data.province])
+
   // Shared helper to calculate net metering for a single plan.
   const runNetMeteringForPlan = async (planId: 'tou' | 'ulo' | 'tiered') => {
+    // Skip if Alberta (handled separately above)
+    if (isAlberta) return
     const currentEstimate = localEstimate || data.estimate
     const monthlyProduction = currentEstimate?.production?.monthlyKwh || []
 
@@ -516,12 +671,11 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
       
       // Get combined battery if batteries are selected
       const combinedBattery = selectedBatteries.length > 0
-        ? selectedBatteries
+        ? (selectedBatteries
             .map(id => availableBatteries.find(b => b.id === id))
-            .filter(Boolean)
-            .reduce((combined, battery, idx) => {
-              if (!battery) return combined
-              if (idx === 0) return battery
+            .filter(Boolean) as BatterySpec[])
+            .reduce<BatterySpec | null>((combined, battery) => {
+              if (!combined) return battery
               return {
                 ...combined,
                 id: `${combined.id}+${battery.id}`,
@@ -534,9 +688,11 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 warranty: {
                   years: Math.min(combined.warranty.years, battery.warranty.years),
                   cycles: Math.min(combined.warranty.cycles, battery.warranty.cycles)
-                }
+                },
+                usablePercent: combined.usablePercent ?? battery.usablePercent ?? 0,
+                roundTripEfficiency: combined.roundTripEfficiency ?? battery.roundTripEfficiency ?? 1
               }
-            }, availableBatteries.find(b => b.id === selectedBatteries[0])!)
+            }, null)
         : null
 
       const response = await fetch('/api/net-metering', {
@@ -546,6 +702,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
           monthlySolarProduction: monthlyProduction,
           annualUsageKwh: annualUsageKwh,
           ratePlanId: planId,
+          province: data.province, // Pass province for Alberta detection
           year: new Date().getFullYear(),
           // Tiered ignores usageDistribution; we only send it for plans that
           // actually have a configurable distribution.
@@ -720,33 +877,35 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
               <div className="p-4 border-b border-gray-200 bg-gray-50">
                 <h2 className="text-3xl md:text-4xl font-bold text-gray-800">Calculator Inputs</h2>
                 
-            {/* Tab Navigation */}
-                <div className="mt-4 flex gap-2 border-b border-gray-300">
-                <button
-                  onClick={() => setActiveTab('basic')}
-                    className={`px-4 py-2 font-semibold text-sm transition-colors ${
-                    activeTab === 'basic'
-                        ? 'text-emerald-600 border-b-2 border-emerald-600'
-                        : 'text-gray-600 hover:text-gray-800'
-                  }`}
-                >
-                    Basic Inputs
-                </button>
-                <button
-                  onClick={() => setActiveTab('distribution')}
-                    className={`px-4 py-2 font-semibold text-sm transition-colors ${
-                    activeTab === 'distribution'
-                        ? 'text-emerald-600 border-b-2 border-emerald-600'
-                        : 'text-gray-600 hover:text-gray-800'
-                  }`}
-                >
-                  Usage Distribution
-                </button>
-              </div>
+            {/* Tab Navigation - Hide for Alberta */}
+                {!isAlberta && (
+                  <div className="mt-4 flex gap-2 border-b border-gray-300">
+                    <button
+                      onClick={() => setActiveTab('basic')}
+                      className={`px-4 py-2 font-semibold text-sm transition-colors ${
+                        activeTab === 'basic'
+                          ? 'text-emerald-600 border-b-2 border-emerald-600'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      Basic Inputs
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('distribution')}
+                      className={`px-4 py-2 font-semibold text-sm transition-colors ${
+                        activeTab === 'distribution'
+                          ? 'text-emerald-600 border-b-2 border-emerald-600'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      Usage Distribution
+                    </button>
+                  </div>
+                )}
             </div>
 
               <div className="p-4 md:p-5 space-y-3">
-            {activeTab === 'basic' && (
+            {(activeTab === 'basic' || isAlberta) && (
               <>
                     {/* Annual Usage */}
                     <div>
@@ -826,47 +985,121 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                         </div>
                         </div>
 
-                    {/* Rate Plan Selection */}
-                    <div>
-                      <label className="block text-base md:text-lg font-semibold text-gray-700 mb-2">
-                        Rate Plan
-                      </label>
-                      <div className="grid grid-cols-3 gap-2">
-                        <button
-                          onClick={() => setSelectedPlan('tou')}
-                          className={`px-4 py-3 rounded-lg border-2 font-semibold transition-all ${
-                            selectedPlan === 'tou'
-                              ? 'bg-blue-500 border-blue-600 text-white'
-                              : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
-                          }`}
-                        >
-                          <div className="text-xs mb-1">TOU</div>
-                          <div className="text-sm">Time of Use</div>
-                        </button>
-                        <button
-                          onClick={() => setSelectedPlan('ulo')}
-                          className={`px-4 py-3 rounded-lg border-2 font-semibold transition-all ${
-                            selectedPlan === 'ulo'
-                              ? 'bg-purple-500 border-purple-600 text-white'
-                              : 'bg-white border-gray-300 text-gray-700 hover:border-purple-400'
-                          }`}
-                        >
-                          <div className="text-xs mb-1">ULO</div>
-                          <div className="text-sm">Ultra-Low Overnight</div>
-                        </button>
-                        <button
-                          onClick={() => setSelectedPlan('tiered')}
-                          className={`px-4 py-3 rounded-lg border-2 font-semibold transition-all ${
-                            selectedPlan === 'tiered'
-                              ? 'bg-amber-500 border-amber-600 text-white'
-                              : 'bg-white border-gray-300 text-gray-700 hover:border-amber-400'
-                          }`}
-                        >
-                          <div className="text-xs mb-1">Tiered</div>
-                          <div className="text-sm">Flat Rate</div>
-                        </button>
-                                </div>
-                                </div>
+                    {/* Rate Plan Selection - Show Solar Club rates for Alberta, otherwise show TOU/ULO/Tiered */}
+                    {isAlberta ? (
+                      <div>
+                        <label className="block text-base md:text-lg font-semibold text-gray-700 mb-2">
+                          Solar Club Alberta Rates
+                        </label>
+                        <div className="space-y-3">
+                          {/* Low Production Solar Rate */}
+                          <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-2 border-blue-300 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <div>
+                                <div className="font-bold text-blue-900 text-lg">LOW PRODUCTION SOLAR RATE</div>
+                                <div className="text-2xl font-bold text-blue-600 mt-1">6.89¢/kWh</div>
+                              </div>
+                              <TrendingDown className="text-blue-600" size={32} />
+                            </div>
+                            <p className="text-sm text-blue-800 mb-3">
+                              Designed for low production seasons when you consume more electricity than your array produces.
+                            </p>
+                            <p className="text-xs text-blue-700">
+                              Pay a lower rate for the electricity you consume or use your banked credits to offset your bill.
+                            </p>
+                            <div className="mt-3 pt-3 border-t border-blue-300 flex items-center gap-4 text-xs text-blue-700">
+                              <div className="flex items-center gap-1">
+                                <DollarSign size={14} />
+                                <span>3% Cash Back</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Leaf size={14} />
+                                <span>Carbon Offset Credit Platform</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* High Production Solar Rate */}
+                          <div className="bg-gradient-to-r from-amber-50 to-orange-100 border-2 border-amber-300 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <div>
+                                <div className="font-bold text-amber-900 text-lg">HIGH PRODUCTION SOLAR RATE</div>
+                                <div className="text-2xl font-bold text-amber-600 mt-1">33.00¢/kWh</div>
+                              </div>
+                              <TrendingUp className="text-amber-600" size={32} />
+                            </div>
+                            <p className="text-sm text-amber-800 mb-3">
+                              Designed for high production seasons when your array produces more electricity than you consume.
+                            </p>
+                            <p className="text-xs text-amber-700">
+                              Allows you to earn and bank credits on the electricity you export to use against future bills.
+                            </p>
+                            <div className="mt-3 pt-3 border-t border-amber-300 flex items-center gap-4 text-xs text-amber-700">
+                              <div className="flex items-center gap-1">
+                                <DollarSign size={14} />
+                                <span>3% Cash Back</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Leaf size={14} />
+                                <span>Carbon Offset Credit Platform</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+                            <div className="flex items-start gap-2">
+                              <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
+                              <p className="text-xs text-blue-800">
+                                <strong>How it works:</strong> You can switch between these rates with 10 days notice. 
+                                Use the high rate (33¢/kWh) during spring/summer when production is high, and switch to 
+                                the low rate (6.89¢/kWh) during fall/winter when you consume more than you produce.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-base md:text-lg font-semibold text-gray-700 mb-2">
+                          Rate Plan
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                          <button
+                            onClick={() => setSelectedPlan('tou')}
+                            className={`px-4 py-3 rounded-lg border-2 font-semibold transition-all ${
+                              selectedPlan === 'tou'
+                                ? 'bg-blue-500 border-blue-600 text-white'
+                                : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
+                            }`}
+                          >
+                            <div className="text-xs mb-1">TOU</div>
+                            <div className="text-sm">Time of Use</div>
+                          </button>
+                          <button
+                            onClick={() => setSelectedPlan('ulo')}
+                            className={`px-4 py-3 rounded-lg border-2 font-semibold transition-all ${
+                              selectedPlan === 'ulo'
+                                ? 'bg-purple-500 border-purple-600 text-white'
+                                : 'bg-white border-gray-300 text-gray-700 hover:border-purple-400'
+                            }`}
+                          >
+                            <div className="text-xs mb-1">ULO</div>
+                            <div className="text-sm">Ultra-Low Overnight</div>
+                          </button>
+                          <button
+                            onClick={() => setSelectedPlan('tiered')}
+                            className={`px-4 py-3 rounded-lg border-2 font-semibold transition-all ${
+                              selectedPlan === 'tiered'
+                                ? 'bg-amber-500 border-amber-600 text-white'
+                                : 'bg-white border-gray-300 text-gray-700 hover:border-amber-400'
+                            }`}
+                          >
+                            <div className="text-xs mb-1">Tiered</div>
+                            <div className="text-sm">Flat Rate</div>
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Battery Selection (Optional - No Rebates) */}
                     <div className="pt-4 border-t border-gray-200">
@@ -1028,7 +1261,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
               </>
             )}
 
-            {activeTab === 'distribution' && (
+            {activeTab === 'distribution' && !isAlberta && (
                   <div className="space-y-4">
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <div className="flex items-start gap-2">
@@ -1275,95 +1508,142 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             </div>
 
             {/* Key Financial Metrics - Under Calculator Inputs */}
-            {!hasErrors && selectedResult && netCost > 0 && (
+            {!hasErrors && selectedResult && (
               <div className="bg-white rounded-xl shadow-md border-2 border-gray-200 p-6">
                 <h2 className="text-2xl font-bold text-gray-800 mb-4">Key Financial Metrics</h2>
                 
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Payback Period */}
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Clock className="text-blue-600" size={20} />
-                      <div className="text-xs text-blue-700 font-semibold flex items-center gap-1">
-                        Payback Period
-                        <button
-                          onClick={() => setOpenModal('payback')}
-                          className="text-blue-600 hover:text-blue-800 transition-colors"
-                          aria-label="Learn more about payback period"
-                        >
-                          <Info size={14} />
-                        </button>
+                {isAlberta ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <DollarSign className="text-emerald-600" size={20} />
+                        <div className="text-xs text-emerald-700 font-semibold">Annual Credits</div>
                       </div>
+                      <div className="text-2xl font-bold text-emerald-900">
+                        ${selectedResult.annual.exportCredits.toFixed(0)}
+                      </div>
+                      <div className="text-xs text-gray-600 mt-1">From exported solar</div>
                     </div>
-                    <div className="text-2xl font-bold text-blue-900">
-                      {paybackYears === Infinity ? 'N/A' : `${paybackYears.toFixed(1)} yrs`}
+                    <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Zap className="text-amber-600" size={20} />
+                        <div className="text-xs text-amber-700 font-semibold">Energy Coverage</div>
+                      </div>
+                      <div className="text-2xl font-bold text-amber-900">
+                        {((selectedResult.annual.totalSolarProduction / selectedResult.annual.totalLoad) * 100).toFixed(1)}%
+                      </div>
+                      <div className="text-xs text-gray-600 mt-1">Of your usage from solar</div>
                     </div>
-                    <div className="text-xs text-gray-600 mt-1">Time to recover investment</div>
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <TrendingUp className="text-blue-600" size={20} />
+                        <div className="text-xs text-blue-700 font-semibold">Year-End Credits</div>
+                      </div>
+                      <div className="text-2xl font-bold text-blue-900">
+                        {formatCurrency(selectedResult.monthly?.[selectedResult.monthly.length - 1]?.creditRollover || 0)}
+                      </div>
+                      <div className="text-xs text-gray-600 mt-1">Carry-forward after 12-month rollover</div>
+                    </div>
+                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Info className="text-gray-600" size={20} />
+                        <div className="text-xs text-gray-700 font-semibold">Bill Offset</div>
+                      </div>
+                      <div className="text-2xl font-bold text-gray-900">
+                        {selectedResult.annual.billOffsetPercent.toFixed(1)}%
+                      </div>
+                      <div className="text-xs text-gray-600 mt-1">Import cost reduced by credits</div>
+                    </div>
                   </div>
+                ) : (
+                  netCost > 0 && (
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Payback Period */}
+                      <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Clock className="text-blue-600" size={20} />
+                          <div className="text-xs text-blue-700 font-semibold flex items-center gap-1">
+                            Payback Period
+                            <button
+                              onClick={() => setOpenModal('payback')}
+                              className="text-blue-600 hover:text-blue-800 transition-colors"
+                              aria-label="Learn more about payback period"
+                            >
+                              <Info size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="text-2xl font-bold text-blue-900">
+                          {paybackYears === Infinity ? 'N/A' : `${paybackYears.toFixed(1)} yrs`}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">Time to recover investment</div>
+                      </div>
 
-                  {/* 25-Year Profit */}
-                  <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <TrendingUp className="text-green-600" size={20} />
-                      <div className="text-xs text-green-700 font-semibold flex items-center gap-1">
-                        25-Year Profit
-                        <button
-                          onClick={() => setOpenModal('profit')}
-                          className="text-green-600 hover:text-green-800 transition-colors"
-                          aria-label="Learn more about 25-year profit"
-                        >
-                          <Info size={14} />
-                        </button>
+                      {/* 25-Year Profit */}
+                      <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <TrendingUp className="text-green-600" size={20} />
+                          <div className="text-xs text-green-700 font-semibold flex items-center gap-1">
+                            25-Year Profit
+                            <button
+                              onClick={() => setOpenModal('profit')}
+                              className="text-green-600 hover:text-green-800 transition-colors"
+                              aria-label="Learn more about 25-year profit"
+                            >
+                              <Info size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className={`text-2xl font-bold ${profit25 >= 0 ? 'text-green-900' : 'text-gray-700'}`}>
+                          {profit25 >= 0 ? '+' : ''}{formatCurrency(Math.round(profit25))}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">Total profit after payback</div>
                       </div>
-                    </div>
-                    <div className={`text-2xl font-bold ${profit25 >= 0 ? 'text-green-900' : 'text-gray-700'}`}>
-                      {profit25 >= 0 ? '+' : ''}{formatCurrency(Math.round(profit25))}
-                    </div>
-                    <div className="text-xs text-gray-600 mt-1">Total profit after payback</div>
-                  </div>
 
-                  {/* Annual Credits */}
-                  <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <DollarSign className="text-emerald-600" size={20} />
-                      <div className="text-xs text-emerald-700 font-semibold flex items-center gap-1">
-                        Annual Credits
-                        <button
-                          onClick={() => setOpenModal('credits')}
-                          className="text-emerald-600 hover:text-emerald-800 transition-colors"
-                          aria-label="Learn more about annual credits"
-                        >
-                          <Info size={14} />
-                        </button>
+                      {/* Annual Credits */}
+                      <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <DollarSign className="text-emerald-600" size={20} />
+                          <div className="text-xs text-emerald-700 font-semibold flex items-center gap-1">
+                            Annual Credits
+                            <button
+                              onClick={() => setOpenModal('credits')}
+                              className="text-emerald-600 hover:text-emerald-800 transition-colors"
+                              aria-label="Learn more about annual credits"
+                            >
+                              <Info size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="text-2xl font-bold text-emerald-900">
+                          ${selectedResult.annual.exportCredits.toFixed(0)}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">From exported solar</div>
                       </div>
-                    </div>
-                    <div className="text-2xl font-bold text-emerald-900">
-                      ${selectedResult.annual.exportCredits.toFixed(0)}
-                    </div>
-                    <div className="text-xs text-gray-600 mt-1">From exported solar</div>
-                  </div>
 
-                  {/* Energy Coverage */}
-                  <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Zap className="text-amber-600" size={20} />
-                      <div className="text-xs text-amber-700 font-semibold flex items-center gap-1">
-                        Energy Coverage
-                        <button
-                          onClick={() => setOpenModal('coverage')}
-                          className="text-amber-600 hover:text-amber-800 transition-colors"
-                          aria-label="Learn more about energy coverage"
-                        >
-                          <Info size={14} />
-                        </button>
+                      {/* Energy Coverage */}
+                      <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Zap className="text-amber-600" size={20} />
+                          <div className="text-xs text-amber-700 font-semibold flex items-center gap-1">
+                            Energy Coverage
+                            <button
+                              onClick={() => setOpenModal('coverage')}
+                              className="text-amber-600 hover:text-amber-800 transition-colors"
+                              aria-label="Learn more about energy coverage"
+                            >
+                              <Info size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="text-2xl font-bold text-amber-900">
+                          {((selectedResult.annual.totalSolarProduction / selectedResult.annual.totalLoad) * 100).toFixed(1)}%
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">Of your usage from solar</div>
                       </div>
                     </div>
-                    <div className="text-2xl font-bold text-amber-900">
-                      {((selectedResult.annual.totalSolarProduction / selectedResult.annual.totalLoad) * 100).toFixed(1)}%
-                    </div>
-                    <div className="text-xs text-gray-600 mt-1">Of your usage from solar</div>
-                  </div>
-                </div>
+                  )
+                )}
 
                 {/* Electricity rate & savings disclaimer */}
                 <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -1613,8 +1893,23 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
               </div>
             )}
 
-            {/* Savings Breakdown with Donut Chart */}
-            {!hasErrors && selectedResult && (
+            {/* Alberta Solar Club Savings Breakdown */}
+            {!hasErrors && selectedResult && isAlberta && (selectedResult as any)?.alberta && (
+              <AlbertaSavingsBreakdown
+                result={selectedResult as any}
+                systemSizeKw={systemSizeKwOverride || estimate?.system?.sizeKw || 0}
+                annualUsageKwh={annualUsageKwh}
+                monthlyBill={data.monthlyBill}
+                currentPanels={solarPanels || estimate?.system?.numPanels || 0}
+                onUpsizeSystem={(newPanels) => {
+                  setSolarPanels(newPanels)
+                  // Trigger recalculation by updating panels
+                }}
+              />
+            )}
+
+            {/* Savings Breakdown with Donut Chart (for non-Alberta) */}
+            {!hasErrors && selectedResult && !isAlberta && (
               <div className="bg-white rounded-xl shadow-md border-2 border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
@@ -1704,6 +1999,27 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                     </div>
                   </div>
                 </div>
+                {/* Production vs Usage (Monthly) */}
+                {productionUsageChartData && productionUsageChartData.length === 12 && (
+                  <div className="mb-4 bg-white rounded-lg p-3 border border-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-sm font-semibold text-gray-700">Production vs Usage (Monthly)</h4>
+                    </div>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={productionUsageChartData} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="month" />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="production" name="Production (kWh)" fill="#1B4E7C" radius={[4,4,0,0]} />
+                          <Bar dataKey="usage" name="Usage (kWh)" fill="#DC143C" radius={[4,4,0,0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
                   
                   <div className="space-y-3">
                     {/* Annual Credits */}
