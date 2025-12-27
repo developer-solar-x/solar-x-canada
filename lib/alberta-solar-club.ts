@@ -83,6 +83,7 @@ export interface AlbertaSolarClubResult extends NetMeteringResult {
 /**
  * Calculate net metering for Alberta Solar Club
  * Uses seasonal rates: 33¢/kWh for exports in high production months, 6.89¢/kWh for imports in low production months
+ * @param snowLossFactor - Winter snow loss (0.03 = 3% loss, 0.05 = 5% loss). Default: 0.03
  */
 export function calculateAlbertaSolarClub(
   monthlySolarProduction: number[], // 12 values (Jan-Dec) in kWh
@@ -91,7 +92,8 @@ export function calculateAlbertaSolarClub(
   year: number = new Date().getFullYear(),
   usageDistribution?: UsageDistribution,
   battery?: BatterySpec | null,
-  aiMode: boolean = false
+  aiMode: boolean = false,
+  snowLossFactor: number = 0.03 // Default: 3% winter snow loss
 ): AlbertaSolarClubResult {
   // Generate hourly solar production pattern
   const hourlySolarProduction = generateHourlyProductionPattern(monthlySolarProduction, year)
@@ -138,7 +140,10 @@ export function calculateAlbertaSolarClub(
     const month = timestamp.getMonth()
     const isHighProductionMonth = HIGH_PRODUCTION_MONTHS.includes(month)
     
-    const solarKwh = solar.kwh
+    // Apply snow loss reduction for low production (winter) months
+    const isLowProductionMonth = LOW_PRODUCTION_MONTHS.includes(month)
+    const snowMultiplier = isLowProductionMonth ? (1 - snowLossFactor) : 1.0
+    const solarKwh = solar.kwh * snowMultiplier
     const loadKwh = usage.kwh || 0
     
     // Determine rates based on season
@@ -219,7 +224,14 @@ export function calculateAlbertaSolarClub(
   const totalExportCredits = highProductionExportCredits + lowProductionExportCredits
   const totalImportCost = highProductionImportCost + lowProductionImportCost
   const netAnnualBill = totalImportCost - totalExportCredits
-  const billOffsetPercent = totalImportCost > 0 ? (totalExportCredits / totalImportCost) * 100 : 100
+  
+  // Credit-to-Import Ratio (for technical users - can be >100%)
+  const creditToImportRatio = totalImportCost > 0 ? (totalExportCredits / totalImportCost) * 100 : 100
+  
+  // Net Bill Reduction (homeowner-friendly metric)
+  // Calculate pre-solar bill estimate (if not provided, use import cost as baseline)
+  // This will be passed from the UI, but we need a fallback
+  const billOffsetPercent = creditToImportRatio // Keep for backwards compatibility
   
   // Calculate cash back (3% on imports)
   const cashBackAmount = totalImportCost * CASH_BACK_RATE

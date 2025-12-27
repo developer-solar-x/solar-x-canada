@@ -93,6 +93,7 @@ export async function POST(request: Request) {
     
     if (isAlberta) {
       // Use Alberta Solar Club calculation
+      const snowLossFactor = body.snowLossFactor !== undefined ? Number(body.snowLossFactor) : 0.03 // Default 3% for Alberta
       const result = calculateAlbertaSolarClub(
         monthlyProduction,
         annualUsageKwh,
@@ -100,7 +101,8 @@ export async function POST(request: Request) {
         year,
         usageDistribution as UsageDistribution | undefined,
         battery as BatterySpec | null | undefined,
-        aiMode === true
+        aiMode === true,
+        snowLossFactor
       )
       
       return NextResponse.json({
@@ -112,7 +114,7 @@ export async function POST(request: Request) {
         }
       })
     }
-    
+
     // Determine rate plan
     let selectedRatePlan: RatePlan | null = null
     

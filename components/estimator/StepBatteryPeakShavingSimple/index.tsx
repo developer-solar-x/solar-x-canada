@@ -144,8 +144,29 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
   const [showSavingsInfo, setShowSavingsInfo] = useState(false)
   // This state toggles the 25-year profit explainer so folks can explore the long-term story when they are ready
   const [showProfitInfo, setShowProfitInfo] = useState(false)
+  // Check if province is Alberta - batteries are storage-only (no grid arbitrage)
+  const isAlberta = useMemo(() => {
+    const province = data.province || 
+                     data.estimate?.province || 
+                     (data as any).location?.province || 
+                     (data as any).address?.province
+    
+    if (!province) {
+      return false
+    }
+    
+    const provinceUpper = String(province).toUpperCase().trim()
+    return (
+      provinceUpper === 'AB' || 
+      provinceUpper === 'ALBERTA' ||
+      provinceUpper.includes('ALBERTA') ||
+      provinceUpper.includes('AB')
+    )
+  }, [data.province, data.estimate?.province, data.address])
+  
   // AI Optimization Mode state (always ON, hidden from user) - allows grid charging at cheap rates
-  const [aiMode, setAiMode] = useState(true)
+  // For Alberta, batteries are storage-only, so AI mode is disabled
+  const [aiMode, setAiMode] = useState(!isAlberta)
   // Hydrate annual usage from storage after mount (both standalone and estimator)
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -409,7 +430,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
         touRatePlan,
         touDistribution,
         offsetCapInfo.capFraction,
-        aiMode  // AI Mode enables battery grid charging for arbitrage (both TOU and ULO)
+        isAlberta ? false : aiMode  // AI Mode disabled for Alberta (batteries are storage-only)
       )
       const combinedAnnualRaw = combinedModel.combinedAnnualSavings
       // Clamp savings so they never exceed the current bill the homeowner is paying today
@@ -471,7 +492,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
     }
 
     setTouResults(newResults)
-  }, [annualUsageInput, selectedBatteries, touDistribution, customRates.tou, data.estimate, systemSizeKwOverride, overrideEstimate, effectiveSolarProductionKwh, offsetCapInfo.capFraction, aiMode])
+  }, [annualUsageInput, selectedBatteries, touDistribution, customRates.tou, data.estimate, systemSizeKwOverride, overrideEstimate, effectiveSolarProductionKwh, offsetCapInfo.capFraction, aiMode, isAlberta])
 
   // Calculate ULO results for selected batteries
   useEffect(() => {
@@ -524,7 +545,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
         uloRatePlan,
         uloDistribution,
         offsetCapInfo.capFraction,
-        aiMode  // AI Mode applies to ULO plans
+        isAlberta ? false : aiMode  // AI Mode disabled for Alberta (batteries are storage-only)
       )
       const combinedAnnualRaw = combinedModel.combinedAnnualSavings
       // Clamp to keep savings realistic relative to today’s bill
@@ -585,7 +606,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
     }
 
     setUloResults(newResults)
-  }, [annualUsageInput, selectedBatteries, uloDistribution, customRates.ulo, data.estimate, systemSizeKwOverride, overrideEstimate, effectiveSolarProductionKwh, offsetCapInfo.capFraction, aiMode])
+  }, [annualUsageInput, selectedBatteries, uloDistribution, customRates.ulo, data.estimate, systemSizeKwOverride, overrideEstimate, effectiveSolarProductionKwh, offsetCapInfo.capFraction, aiMode, isAlberta])
 
   // Calculate FRD results for offset percentage display
   const frdResults = useMemo(() => {
@@ -611,7 +632,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
         battery,
         getCustomTouRatePlan(customRates.tou),
         touDistribution,
-        aiMode, // AI Mode now works for both TOU and ULO plans
+        isAlberta ? false : aiMode, // AI Mode disabled for Alberta (batteries are storage-only)
         { p_day: 0.5, p_night: 0.5 }
       )
       
@@ -621,7 +642,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
         battery,
         getCustomUloRatePlan(customRates.ulo),
         uloDistribution,
-        aiMode, // AI Mode now works for both TOU and ULO plans
+        isAlberta ? false : aiMode, // AI Mode disabled for Alberta (batteries are storage-only)
         { p_day: 0.5, p_night: 0.5 }
       )
       
@@ -630,7 +651,7 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
       console.warn('FRD calculation error:', e)
       return { tou: null, ulo: null }
     }
-  }, [annualUsageKwh, effectiveSolarProductionKwh, selectedBatteries, touDistribution, uloDistribution, customRates.tou, customRates.ulo, aiMode])
+  }, [annualUsageKwh, effectiveSolarProductionKwh, selectedBatteries, touDistribution, uloDistribution, customRates.tou, customRates.ulo, aiMode, isAlberta])
 
   const handleComplete = () => {
     const selectedTouResult = touResults.get('combined')

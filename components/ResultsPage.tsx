@@ -18,7 +18,9 @@ import {
   CheckCircle,
   ArrowRight,
   Leaf,
-  Clock
+  Clock,
+  ChevronDown,
+  Sun
 } from 'lucide-react'
 import { formatCurrency, formatKw, formatKwh } from '@/lib/utils'
 import { computeSolarBatteryOffsetCap } from '@/lib/peak-shaving/offset-cap'
@@ -2005,6 +2007,130 @@ export function ResultsPage({
             </div>
           </div>
         </div>
+      </section>
+
+      {/* Comprehensive Assumption Summary Box */}
+      <section className="max-w-6xl mx-auto px-4 pb-8">
+        <details className="bg-gradient-to-br from-gray-50 to-slate-50 border-2 border-gray-300 rounded-xl shadow-lg overflow-hidden">
+          <summary className="cursor-pointer p-6 hover:bg-gray-100 transition-colors">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gray-500 rounded-lg">
+                  <InfoTooltip content="All calculations are based on the assumptions listed below. Actual results may vary based on weather, usage patterns, and equipment performance." />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Calculation Assumptions & Disclaimers</h3>
+                  <p className="text-sm text-gray-600 mt-1">Click to expand details</p>
+                </div>
+              </div>
+              <ChevronDown className="text-gray-600" size={24} />
+            </div>
+          </summary>
+          
+          <div className="px-6 pb-6 pt-4 border-t-2 border-gray-200 bg-white">
+            <div className="space-y-6">
+              {/* System Design Assumptions */}
+              <div>
+                <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <Zap className="text-yellow-600" size={18} />
+                  System Design Assumptions
+                </h4>
+                <ul className="space-y-2 text-sm text-gray-700 ml-6 list-disc">
+                  <li><strong>Roof Orientation:</strong> {roofAzimuth ? `${roofAzimuth}° (detected from roof drawing)` : '180° South-facing (default)'}</li>
+                  <li><strong>Roof Pitch:</strong> {roofData?.roofPitch || 'Medium (20-40°)'}</li>
+                  <li><strong>Shading Level:</strong> {roofData?.shadingLevel || 'Minimal'} - accounts for tree shadows and obstructions</li>
+                  <li><strong>Usable Roof Area:</strong> 90% after obstructions, further reduced by shading factor</li>
+                  <li><strong>Panel Efficiency:</strong> 500W panels with standard degradation (0.5%/year)</li>
+                  {leadData?.province && (leadData.province.toUpperCase() === 'AB' || leadData.province.toUpperCase().includes('ALBERTA')) && (
+                    <li><strong>Alberta Snow Loss:</strong> 3-5% annual production loss during winter months (Oct-Mar)</li>
+                  )}
+                </ul>
+              </div>
+
+              {/* Weather & Production Assumptions */}
+              <div>
+                <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <Sun className="text-yellow-500" size={18} />
+                  Weather & Production Assumptions
+                </h4>
+                <ul className="space-y-2 text-sm text-gray-700 ml-6 list-disc">
+                  <li><strong>Solar Data:</strong> Based on NREL PVWatts database for your location</li>
+                  <li><strong>Weather Variance:</strong> Actual production may vary ±5-10% based on annual weather patterns</li>
+                  <li><strong>Seasonal Variation:</strong> Higher production in summer (Jun-Aug), lower in winter (Dec-Feb)</li>
+                  <li><strong>System Performance:</strong> Assumes optimal panel angle and no major equipment failures</li>
+                </ul>
+              </div>
+
+              {/* Usage & Savings Assumptions */}
+              <div>
+                <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <DollarSign className="text-green-600" size={18} />
+                  Usage & Savings Assumptions
+                </h4>
+                <ul className="space-y-2 text-sm text-gray-700 ml-6 list-disc">
+                  <li><strong>Annual Usage:</strong> Based on your monthly bill ({monthlyBill ? `$${monthlyBill}/month` : 'or appliance data'})</li>
+                  <li><strong>Usage Patterns:</strong> Typical residential consumption patterns (peak/mid-peak/off-peak)</li>
+                  <li><strong>Usage Stability:</strong> Assumes no major changes in electricity consumption</li>
+                  <li><strong>Rate Escalation:</strong> {data.annualEscalator ? `${data.annualEscalator}% annual electricity rate increase` : '3% annual electricity rate increase (default)'}</li>
+                  {(data.hasEV || data.hasElectricHeating) && (
+                    <li><strong>Future Electrification:</strong> {data.hasEV && 'EV charging (+3,500 kWh/year)'} {data.hasEV && data.hasElectricHeating && ' & '} {data.hasElectricHeating && 'Electric heating (+6,500 kWh/year)'}</li>
+                  )}
+                </ul>
+              </div>
+
+              {/* Alberta Solar Club Specific Assumptions */}
+              {leadData?.province && (leadData.province.toUpperCase() === 'AB' || leadData.province.toUpperCase().includes('ALBERTA')) && (
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                    <Leaf className="text-amber-600" size={18} />
+                    Alberta Solar Club Assumptions
+                  </h4>
+                  <ul className="space-y-2 text-sm text-gray-700 ml-6 list-disc">
+                    <li><strong>Rate Switching:</strong> Assumes you switch to high export rate (33¢/kWh) in April and low import rate (6.89¢/kWh) in October</li>
+                    <li><strong>Credit Banking:</strong> Credits roll over month-to-month but expire after 12 months if unused</li>
+                    <li><strong>Cash Back:</strong> 3% cash back on all imported energy (paid annually)</li>
+                    <li><strong>Carbon Credits:</strong> Estimated value, actual credits depend on market conditions</li>
+                    <li className="text-red-600 font-semibold">⚠️ Forgetting to switch rates could reduce savings by $300-500/year</li>
+                  </ul>
+                </div>
+              )}
+
+              {/* Battery Assumptions (if applicable) */}
+              {selectedBattery && (
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                    <Battery className="text-blue-600" size={18} />
+                    Battery Storage Assumptions
+                  </h4>
+                  <ul className="space-y-2 text-sm text-gray-700 ml-6 list-disc">
+                    <li><strong>Battery Type:</strong> {batteryDetails?.battery?.brand} {batteryDetails?.battery?.model}</li>
+                    <li><strong>Usable Capacity:</strong> {batteryDetails?.battery?.usableKwh} kWh</li>
+                    <li><strong>Round-trip Efficiency:</strong> {((batteryDetails?.battery?.roundTripEfficiency || 0) * 100).toFixed(0)}%</li>
+                    {leadData?.province && (leadData.province.toUpperCase() === 'AB' || leadData.province.toUpperCase().includes('ALBERTA')) ? (
+                      <li><strong>Alberta Mode:</strong> Battery charges from solar only (no grid charging/arbitrage)</li>
+                    ) : (
+                      <li><strong>AI Optimization:</strong> Battery may charge from grid at off-peak rates to maximize savings</li>
+                    )}
+                    <li><strong>Lifespan:</strong> {batteryDetails?.battery?.warranty?.years || 10} year warranty, {(batteryDetails?.battery?.warranty?.cycles || 6000).toLocaleString()} cycles</li>
+                  </ul>
+                </div>
+              )}
+
+              {/* General Disclaimers */}
+              <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4">
+                <h4 className="font-bold text-yellow-900 mb-2">⚠️ Important Disclaimers</h4>
+                <div className="space-y-1 text-xs text-yellow-800">
+                  <p>• These are <strong>estimates only</strong> and not a guarantee of actual performance or savings</p>
+                  <p>• Actual results depend on weather, usage patterns, equipment performance, and utility rate changes</p>
+                  <p>• System design and final pricing subject to site inspection and engineering review</p>
+                  <p>• Incentives and rebates are subject to availability and program terms at time of installation</p>
+                  <p>• All financial projections assume current electricity rates and regulatory conditions</p>
+                  <p>• Consult with a licensed installer for accurate system design and final pricing</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </details>
       </section>
 
       {/* Feedback Form Modal */}

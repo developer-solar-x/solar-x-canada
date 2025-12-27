@@ -135,6 +135,37 @@ export function RoofDetailsForm({ formData, setFormData, data }: RoofDetailsForm
             <option value="significant">Significant (Heavy shade)</option>
           </select>
         </div>
+        
+        {/* Snow Loss (Alberta only) */}
+        {data.province && (data.province.toUpperCase() === 'AB' || data.province.toUpperCase() === 'ALBERTA' || data.province.toUpperCase().includes('ALBERTA')) && (
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                Winter Snow Loss (Alberta)
+              </label>
+              <div className="relative group">
+                <Info className="text-blue-500 cursor-help hover:text-blue-600 transition-colors" size={18} />
+                <div className="absolute left-0 bottom-full mb-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl">
+                  <div className="font-semibold mb-1">Alberta Winter Impact</div>
+                  <div>Snow accumulation in winter months (Oct-Mar) reduces solar production by 3-5% annually. Typical clearing assumes occasional snow removal.</div>
+                  <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                </div>
+              </div>
+            </div>
+            <select
+              value={formData.snowLossFactor || 0.03}
+              onChange={(e) => setFormData({ ...formData, snowLossFactor: Number(e.target.value) })}
+              className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none"
+            >
+              <option value={0.03}>Typical clearing (3% loss)</option>
+              <option value={0.05}>Minimal clearing (5% loss)</option>
+              <option value={0}>No snow impact (0% loss)</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Most Alberta homes: 3% loss. Remote/hard to access: 5% loss.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Roof Orientation - only show if not already detected from polygon AND single section */}

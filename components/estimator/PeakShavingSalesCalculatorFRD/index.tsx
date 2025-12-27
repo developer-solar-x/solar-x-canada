@@ -727,8 +727,30 @@ export function PeakShavingSalesCalculatorFRD({
   const [solarProductionInput, setSolarProductionInput] = useState<string>(String(getDefaultProduction()))
   const [selectedBatteryIds, setSelectedBatteryIds] = useState<string[]>(getDefaultBattery())
   const [ratePlan, setRatePlan] = useState<'TOU' | 'ULO'>('ULO')
+  // Check if province is Alberta - check multiple possible locations and make it reactive
+  const isAlberta = useMemo(() => {
+    // Check multiple possible locations for province
+    const province = data.province || 
+                     data.estimate?.province || 
+                     (data as any).location?.province || 
+                     (data as any).address?.province
+    
+    if (!province) {
+      return false
+    }
+    
+    const provinceUpper = String(province).toUpperCase().trim()
+    return (
+      provinceUpper === 'AB' || 
+      provinceUpper === 'ALBERTA' ||
+      provinceUpper.includes('ALBERTA') ||
+      provinceUpper.includes('AB')
+    )
+  }, [data.province, data.estimate?.province, data.address])
+  
   // AI Optimization Mode - allows grid charging at cheap rates for both TOU and ULO
-  const [aiMode, setAiMode] = useState(true)
+  // For Alberta, batteries are storage-only (no grid arbitrage), so AI mode is disabled
+  const [aiMode, setAiMode] = useState(!isAlberta) // Default to false for Alberta
   
   // Fetch batteries from API (with fallback to static)
   const { batteries: availableBatteries, refetch: refetchBatteries } = useBatteries(false)
@@ -1111,13 +1133,13 @@ export function PeakShavingSalesCalculatorFRD({
         ratePlanObj,
         distribution,
         offsetCapInfo.capFraction, // Apply winter cap to keep expectations realistic
-        aiMode  // AI Mode enables battery grid charging for arbitrage (both TOU and ULO)
+        isAlberta ? false : aiMode  // AI Mode disabled for Alberta (batteries are storage-only)
       )
     } catch (e) {
       console.error('Calculation error:', e)
       return null
     }
-  }, [annualUsageKwh, solarProductionKwh, selectedBattery, selectedBatteryIds.length, ratePlan, aiMode, offsetCapInfo.capFraction, touDistribution, uloDistribution])
+  }, [annualUsageKwh, solarProductionKwh, selectedBattery, selectedBatteryIds.length, ratePlan, aiMode, isAlberta, offsetCapInfo.capFraction, touDistribution, uloDistribution])
 
   // Also calculate FRD result for offset percentages display
   const frdResult = useMemo<FRDPeakShavingResult | null>(() => {
@@ -1135,14 +1157,14 @@ export function PeakShavingSalesCalculatorFRD({
         selectedBattery,
         ratePlanObj,
         distribution,
-        aiMode, // AI Mode now works for both TOU and ULO plans
+        isAlberta ? false : aiMode, // AI Mode disabled for Alberta (batteries are storage-only)
         { p_day: 0.5, p_night: 0.5 }
       )
     } catch (e) {
       console.error('FRD Calculation error:', e)
       return null
     }
-  }, [annualUsageKwh, solarProductionKwh, selectedBattery, ratePlan, aiMode, touDistribution, uloDistribution])
+  }, [annualUsageKwh, solarProductionKwh, selectedBattery, ratePlan, aiMode, isAlberta, touDistribution, uloDistribution])
 
   // Use FRD result for offset percentages, combined result for costs
   const result = frdResult
@@ -2084,8 +2106,8 @@ export function PeakShavingSalesCalculatorFRD({
                 </div>
               </div>
 
-              {/* AI Optimization Mode Toggle */}
-              {selectedBatteryIds.length > 0 && selectedBattery && (
+              {/* AI Optimization Mode Toggle - Hidden for Alberta (batteries are storage-only) */}
+              {selectedBatteryIds.length > 0 && selectedBattery && !isAlberta && (
                 <div className="pt-4 border-t-2 border-gray-200">
                   <div className="flex items-center justify-between mb-3">
                     <label className="block text-base md:text-lg font-semibold text-gray-700 flex items-center gap-2">
@@ -2163,6 +2185,31 @@ export function PeakShavingSalesCalculatorFRD({
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Alberta Note - Batteries are storage-only */}
+              {selectedBatteryIds.length > 0 && selectedBattery && isAlberta && (
+                <div className="pt-4 border-t-2 border-gray-200">
+                  <div className="p-4 bg-amber-50 border-2 border-amber-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <Battery className="text-amber-600 flex-shrink-0 mt-0.5" size={18} />
+                      <div className="flex-1">
+                        <div className="font-semibold text-amber-900 mb-1">
+                          Battery Storage Mode (Alberta)
+                        </div>
+                        <div className="text-sm text-amber-800 space-y-1">
+                          <p>
+                            In Alberta, batteries are used for <strong>backup power and storage only</strong>, not for grid arbitrage. 
+                            Your battery will charge from solar excess and provide backup power during outages.
+                          </p>
+                          <p className="text-xs text-amber-700 mt-2">
+                            <strong>Note:</strong> AI Optimization Mode (grid charging) is not available in Alberta as batteries do not participate in rate arbitrage programs.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -3347,7 +3394,7 @@ export function PeakShavingSalesCalculatorFRD({
                         ULO_RATE_PLAN,
                         uloDistribution,
                         offsetCapInfo.capFraction,
-                        selectedBattery && selectedBatteryIds.length > 0 ? aiMode : false
+                        selectedBattery && selectedBatteryIds.length > 0 ? (isAlberta ? false : aiMode) : false
                       )
                       uloCombined = uloResult
                     } catch (e) {
@@ -3440,7 +3487,7 @@ export function PeakShavingSalesCalculatorFRD({
                         selectedBattery,
                         TOU_RATE_PLAN,
                         touDistribution,
-                        aiMode,
+                        isAlberta ? false : aiMode,
                         { p_day: 0.5, p_night: 0.5 }
                       )
                       
@@ -3451,7 +3498,7 @@ export function PeakShavingSalesCalculatorFRD({
                         selectedBattery,
                         ULO_RATE_PLAN,
                         uloDistribution,
-                        aiMode,
+                        isAlberta ? false : aiMode,
                         { p_day: 0.5, p_night: 0.5 }
                       )
                     } catch (e) {

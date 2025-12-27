@@ -15,6 +15,13 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
   const programType = data.programType || 'hrs_residential'
   const leadType = data.leadType || 'residential'
   
+  // Check if province is Alberta
+  const isAlberta = data.province && (
+    data.province.toUpperCase() === 'AB' || 
+    data.province.toUpperCase() === 'ALBERTA' ||
+    data.province.toUpperCase().includes('ALBERTA')
+  )
+  
   const [formData, setFormData] = useState({
     roofType: data.roofType || 'asphalt_shingle',
     roofAge: data.roofAge || '0-5',
@@ -23,17 +30,37 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
     monthlyBill: data.monthlyBill || '',
     roofAzimuth: data.roofAzimuth || 180, // Default to south if not detected
     annualEscalator: data.annualEscalator, // Preserve existing annualEscalator
+    hasEV: data.hasEV || false,
+    hasElectricHeating: data.hasElectricHeating || false,
+    snowLossFactor: data.snowLossFactor || (isAlberta ? 0.03 : 0), // Alberta default: 3% snow loss
   })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Calculate adjusted usage for EV and electric heating
+    let baseUsage = data.energyUsage?.annualKwh || data.annualUsageKwh || 0
+    let adjustedUsage = baseUsage
+    
+    if (formData.hasEV) {
+      adjustedUsage += 3500 // Average EV usage: 3,000-4,000 kWh/year
+    }
+    if (formData.hasElectricHeating) {
+      adjustedUsage += 6500 // Average electric heating: 5,000-8,000 kWh/year
+    }
+    
     const stepData = {
       ...formData,
       programType,
       leadType,
       // Preserve energyUsage from previous step (calculated from appliances)
-      energyUsage: data.energyUsage,
-      annualUsageKwh: data.energyUsage?.annualKwh || data.annualUsageKwh,
+      energyUsage: data.energyUsage ? {
+        ...data.energyUsage,
+        annualKwh: adjustedUsage,
+        adjustedForEV: formData.hasEV,
+        adjustedForElectricHeating: formData.hasElectricHeating,
+      } : undefined,
+      annualUsageKwh: adjustedUsage,
       // annualEscalator is already in formData, so it will be included automatically
     }
 

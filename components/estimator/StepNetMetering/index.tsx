@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
-import { ArrowLeft, ArrowRight, Loader2, Zap, AlertTriangle, Info, Sun, Moon, BarChart3, DollarSign, TrendingUp, TrendingDown, Clock, Battery, Plus, X, ChevronDown, Sparkles, Leaf } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ArrowUp, Loader2, Zap, AlertTriangle, Info, Sun, Moon, BarChart3, DollarSign, TrendingUp, TrendingDown, Clock, Battery, Plus, X, ChevronDown, Sparkles, Leaf, CheckCircle, Lightbulb } from 'lucide-react'
 import type { NetMeteringResult } from '@/lib/net-metering'
 import type { EstimatorData } from '@/app/estimator/page'
 import { DEFAULT_TOU_DISTRIBUTION, DEFAULT_ULO_DISTRIBUTION, type UsageDistribution, calculateSimpleMultiYear } from '@/lib/simple-peak-shaving'
@@ -1507,56 +1507,144 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             </div>
             </div>
 
+            {/* Alberta-Specific Informational Cards - Left Column */}
+            {!hasErrors && selectedResult && isAlberta && (selectedResult as any)?.alberta && (() => {
+              const annual = selectedResult.annual
+              
+              // Calculate upsizing suggestion data
+              const energyCoverage = annual.totalLoad > 0 ? (annual.totalSolarProduction / annual.totalLoad) * 100 : 0
+              const currentSystemSizeKw = systemSizeKwOverride || estimate?.system?.sizeKw || 0
+              const currentPanelsCount = solarPanels || estimate?.system?.numPanels || Math.round((currentSystemSizeKw * 1000) / 500)
+              const isUndersized = energyCoverage < 100 && annual.totalSolarProduction < annualUsageKwh
+              const suggestedUpsizePanels = isUndersized ? Math.ceil(currentPanelsCount * 1.2) : null
+              const suggestedUpsizeKw = suggestedUpsizePanels ? (suggestedUpsizePanels * 500) / 1000 : null
+              const estimatedAdditionalProduction = suggestedUpsizeKw && currentSystemSizeKw > 0
+                ? (suggestedUpsizeKw - currentSystemSizeKw) * (annual.totalSolarProduction / currentSystemSizeKw)
+                : 0
+              const estimatedAdditionalHighSeasonExports = estimatedAdditionalProduction * 0.6 * 0.5
+              const estimatedAdditionalCredits = estimatedAdditionalHighSeasonExports * 0.33
+              
+              return (
+                <>
+                  {/* Alberta-Optimized Calculator Callout */}
+                  <div className="bg-gradient-to-r from-blue-50 to-sky-50 border-2 border-blue-300 rounded-xl p-4 shadow-md">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-blue-500 rounded-lg flex-shrink-0">
+                        <Info className="text-white" size={20} />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-blue-900 mb-1">Alberta-Optimized Calculator</h4>
+                        <p className="text-sm text-blue-800">
+                          Unlike generic calculators, this model includes Alberta Solar Club seasonal rates (33¢/kWh export, 6.89¢/kWh import), 
+                          credit banking, month-to-month rollover, and local weather patterns.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Rate Switching Reminder */}
+                  <div className="bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-300 rounded-xl p-5 shadow-md">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-orange-500 rounded-lg flex-shrink-0">
+                        <AlertTriangle className="text-white" size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-bold text-orange-900 mb-2">Important: Rate Switching Required</h4>
+                        <p className="text-sm text-orange-800 mb-3">
+                          <strong>These savings assume you switch to the high export rate in April and low import rate in October.</strong> 
+                          Solar Club Alberta requires manual rate changes to maximize your benefits.
+                        </p>
+                        <div className="bg-white rounded-lg p-3 border border-orange-200">
+                          <div className="text-xs text-orange-900 space-y-1">
+                            <div className="flex justify-between items-center">
+                              <span><strong>High Production Season (Apr-Sep):</strong></span>
+                              <span className="text-emerald-600 font-semibold">Switch to 33¢/kWh export rate</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span><strong>Low Production Season (Oct-Mar):</strong></span>
+                              <span className="text-blue-600 font-semibold">Switch to 6.89¢/kWh import rate</span>
+                            </div>
+                            <div className="mt-2 pt-2 border-t border-orange-200 text-red-600 font-semibold">
+                              ⚠️ Forgetting to switch could reduce your savings by $300-500/year
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Upsizing Suggestion */}
+                  {isUndersized && suggestedUpsizePanels && (
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl p-6 shadow-lg">
+                      <div className="flex items-start gap-3 mb-4">
+                        <div className="p-2 bg-blue-500 rounded-lg flex-shrink-0">
+                          <Lightbulb className="text-white" size={24} />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-lg font-bold text-blue-900 mb-1">Consider Sizing Up Your System</h4>
+                          <p className="text-sm text-blue-700 mb-3">
+                            Your system covers {energyCoverage.toFixed(1)}% of your usage. With Alberta Solar Club's premium export rate (33¢/kWh), 
+                            a larger system could generate more export credits during high production months.
+                          </p>
+                          
+                          <div className="bg-white rounded-lg p-4 border border-blue-200 mb-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <div className="text-xs text-blue-700 mb-1">Current System</div>
+                                <div className="text-lg font-bold text-gray-800">{currentSystemSizeKw.toFixed(1)} kW</div>
+                                <div className="text-xs text-gray-600">{currentPanelsCount} panels</div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-blue-700 mb-1">Suggested Size</div>
+                                <div className="text-lg font-bold text-blue-600">{suggestedUpsizeKw?.toFixed(1)} kW</div>
+                                <div className="text-xs text-gray-600">{suggestedUpsizePanels} panels (+{suggestedUpsizePanels - currentPanelsCount})</div>
+                              </div>
+                            </div>
+                            
+                            {estimatedAdditionalCredits > 0 && (
+                              <div className="mt-3 pt-3 border-t border-blue-200">
+                                <div className="text-xs text-blue-700 mb-1">Estimated Additional Annual Credits</div>
+                                <div className="text-xl font-bold text-emerald-600">
+                                  +{formatCurrency(estimatedAdditionalCredits)}
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  From extra exports at 33¢/kWh during high production months
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <button
+                            onClick={() => {
+                              setSolarPanels(suggestedUpsizePanels)
+                            }}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                          >
+                            <ArrowUp size={18} />
+                            Try {suggestedUpsizePanels} Panels ({suggestedUpsizeKw?.toFixed(1)} kW)
+                          </button>
+                          
+                          <div className="mt-3 flex items-start gap-2 text-xs text-blue-700 bg-blue-50 rounded-lg p-3 border border-blue-200">
+                            <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
+                            <span>
+                              Upsizing helps maximize export credits at the premium 33¢/kWh rate. The extra cost is offset by 
+                              increased credits during spring/summer months, which can be banked for winter.
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )
+            })()}
+
             {/* Key Financial Metrics - Under Calculator Inputs */}
-            {!hasErrors && selectedResult && (
+            {!hasErrors && selectedResult && !isAlberta && (
               <div className="bg-white rounded-xl shadow-md border-2 border-gray-200 p-6">
                 <h2 className="text-2xl font-bold text-gray-800 mb-4">Key Financial Metrics</h2>
                 
-                {isAlberta ? (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <DollarSign className="text-emerald-600" size={20} />
-                        <div className="text-xs text-emerald-700 font-semibold">Annual Credits</div>
-                      </div>
-                      <div className="text-2xl font-bold text-emerald-900">
-                        ${selectedResult.annual.exportCredits.toFixed(0)}
-                      </div>
-                      <div className="text-xs text-gray-600 mt-1">From exported solar</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Zap className="text-amber-600" size={20} />
-                        <div className="text-xs text-amber-700 font-semibold">Energy Coverage</div>
-                      </div>
-                      <div className="text-2xl font-bold text-amber-900">
-                        {((selectedResult.annual.totalSolarProduction / selectedResult.annual.totalLoad) * 100).toFixed(1)}%
-                      </div>
-                      <div className="text-xs text-gray-600 mt-1">Of your usage from solar</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <TrendingUp className="text-blue-600" size={20} />
-                        <div className="text-xs text-blue-700 font-semibold">Year-End Credits</div>
-                      </div>
-                      <div className="text-2xl font-bold text-blue-900">
-                        {formatCurrency(selectedResult.monthly?.[selectedResult.monthly.length - 1]?.creditRollover || 0)}
-                      </div>
-                      <div className="text-xs text-gray-600 mt-1">Carry-forward after 12-month rollover</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Info className="text-gray-600" size={20} />
-                        <div className="text-xs text-gray-700 font-semibold">Bill Offset</div>
-                      </div>
-                      <div className="text-2xl font-bold text-gray-900">
-                        {selectedResult.annual.billOffsetPercent.toFixed(1)}%
-                      </div>
-                      <div className="text-xs text-gray-600 mt-1">Import cost reduced by credits</div>
-                    </div>
-                  </div>
-                ) : (
-                  netCost > 0 && (
+                {netCost > 0 && (
                     <div className="grid grid-cols-2 gap-4">
                       {/* Payback Period */}
                       <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
@@ -1642,7 +1730,6 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                         <div className="text-xs text-gray-600 mt-1">Of your usage from solar</div>
                       </div>
                     </div>
-                  )
                 )}
 
                 {/* Electricity rate & savings disclaimer */}
@@ -1905,6 +1992,9 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                   setSolarPanels(newPanels)
                   // Trigger recalculation by updating panels
                 }}
+                hideInfoCallout={true}
+                hideRateSwitching={true}
+                hideUpsizing={true}
               />
             )}
 
@@ -1970,8 +2060,8 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
               </div>
             )}
 
-            {/* Detailed Breakdown - Separate Container */}
-            {!hasErrors && selectedResult && (
+            {/* Detailed Breakdown - Separate Container (Hidden for Alberta, shown in AlbertaSavingsBreakdown) */}
+            {!hasErrors && selectedResult && !isAlberta && (
               <div className="bg-white rounded-xl shadow-md border-2 border-gray-200 p-6">
                 <h2 className="text-2xl font-bold text-gray-800 mb-4">Detailed Breakdown</h2>
                 
@@ -2013,8 +2103,8 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                           <YAxis />
                           <Tooltip />
                           <Legend />
-                          <Bar dataKey="production" name="Production (kWh)" fill="#1B4E7C" radius={[4,4,0,0]} />
-                          <Bar dataKey="usage" name="Usage (kWh)" fill="#DC143C" radius={[4,4,0,0]} />
+                          <Bar dataKey="production" name="Production (kWh)" fill="#f59e0b" radius={[4,4,0,0]} />
+                          <Bar dataKey="usage" name="Usage (kWh)" fill="#6b7280" radius={[4,4,0,0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>

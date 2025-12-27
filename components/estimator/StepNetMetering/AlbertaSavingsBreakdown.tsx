@@ -3,7 +3,7 @@
 // Interactive Alberta Solar Club Savings Breakdown Component
 
 import { useState } from 'react'
-import { TrendingUp, TrendingDown, DollarSign, Zap, Leaf, Info, ChevronDown, ChevronUp, ArrowUp, Lightbulb } from 'lucide-react'
+import { TrendingUp, TrendingDown, DollarSign, Zap, Leaf, Info, ChevronDown, ChevronUp, ArrowUp, Lightbulb, AlertTriangle, Clock } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
@@ -14,9 +14,12 @@ interface AlbertaSavingsBreakdownProps {
   monthlyBill?: number
   onUpsizeSystem?: (newPanels: number) => void // Callback to update system size
   currentPanels?: number // Current number of panels
+  hideInfoCallout?: boolean
+  hideRateSwitching?: boolean
+  hideUpsizing?: boolean
 }
 
-export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, monthlyBill, onUpsizeSystem, currentPanels }: AlbertaSavingsBreakdownProps) {
+export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, monthlyBill, onUpsizeSystem, currentPanels, hideInfoCallout = false, hideRateSwitching = false, hideUpsizing = false }: AlbertaSavingsBreakdownProps) {
   const [expandedSection, setExpandedSection] = useState<'high' | 'low' | 'benefits' | null>('high')
   
   if (!result?.alberta) {
@@ -53,6 +56,19 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
     ? annualUsageKwh * LOW_IMPORT_RATE
     : undefined
   
+  // Net Bill Reduction (homeowner-friendly metric)
+  // Shows how much better off they are vs. pre-solar bill
+  const netBillReduction = preSolarAnnualBill && preSolarAnnualBill > 0
+    ? ((preSolarAnnualBill - netBill) / preSolarAnnualBill) * 100
+    : 0
+  
+  // Confidence Range (±10% for weather and usage variance)
+  const savingsMin = annualSavings * 0.9
+  const savingsMax = annualSavings * 1.1
+  
+  // Credit-to-Import Ratio (technical metric)
+  const creditToImportRatio = annual.importCost > 0 ? (exportCredits / annual.importCost) * 100 : 100
+  
   // Calculate if system could benefit from upsizing
   const energyCoverage = annual.totalLoad > 0 ? (annual.totalSolarProduction / annual.totalLoad) * 100 : 0
   const isUndersized = energyCoverage < 100 && annual.totalSolarProduction < annualUsageKwh
@@ -70,6 +86,24 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
   
   return (
     <div className="space-y-4">
+      {/* "Why This Is Different" Callout */}
+      {!hideInfoCallout && (
+      <div className="bg-gradient-to-r from-blue-50 to-sky-50 border-2 border-blue-300 rounded-xl p-4 shadow-md">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-blue-500 rounded-lg flex-shrink-0">
+            <Info className="text-white" size={20} />
+          </div>
+          <div>
+            <h4 className="font-bold text-blue-900 mb-1">Alberta-Optimized Calculator</h4>
+            <p className="text-sm text-blue-800">
+              Unlike generic calculators, this model includes Alberta Solar Club seasonal rates (33¢/kWh export, 6.89¢/kWh import), 
+              credit banking, month-to-month rollover, and local weather patterns.
+            </p>
+          </div>
+        </div>
+      </div>
+      )}
+
       {/* Annual Savings Summary Card */}
       <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-300 rounded-xl p-6 shadow-lg">
         <div className="flex items-center justify-between mb-4">
@@ -78,11 +112,15 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
             <p className="text-sm text-amber-700">With Alberta Solar Club</p>
           </div>
           <div className="text-right">
-            <div className="text-4xl font-bold text-amber-600">
-              {formatCurrency(annualSavings)}
+            <div className="text-3xl font-bold text-amber-600">
+              {formatCurrency(savingsMin)} – {formatCurrency(savingsMax)}
+            </div>
+            <div className="text-xs text-amber-600 mt-1 flex items-center justify-end gap-1">
+              <InfoTooltip content="Range accounts for weather variations (±5%) and usage changes (±5%). Actual savings depend on your consumption patterns and weather conditions." />
+              <span>Estimated range</span>
             </div>
             <div className="text-sm text-amber-700 mt-1">
-              {savingsPercent.toFixed(1)}% savings
+              {netBillReduction > 0 ? `${netBillReduction.toFixed(0)}% net bill reduction` : ''}
             </div>
           </div>
         </div>
@@ -109,6 +147,61 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
           </div>
         </div>
       </div>
+
+      {/* Rate Switching Reminder - Critical for Alberta Solar Club */}
+      {!hideRateSwitching && (
+      <div className="bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-300 rounded-xl p-5 shadow-md">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-orange-500 rounded-lg flex-shrink-0">
+            <AlertTriangle className="text-white" size={20} />
+          </div>
+          <div className="flex-1">
+            <h4 className="font-bold text-orange-900 mb-2">Important: Rate Switching Required</h4>
+            <p className="text-sm text-orange-800 mb-3">
+              <strong>These savings assume you switch to the high export rate in April and low import rate in October.</strong> 
+              Solar Club Alberta requires manual rate changes to maximize your benefits.
+            </p>
+            <div className="bg-white rounded-lg p-3 border border-orange-200">
+              <div className="text-xs text-orange-900 space-y-1">
+                <div className="flex justify-between items-center">
+                  <span><strong>High Production Season (Apr-Sep):</strong></span>
+                  <span className="text-emerald-600 font-semibold">Switch to 33¢/kWh export rate</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span><strong>Low Production Season (Oct-Mar):</strong></span>
+                  <span className="text-blue-600 font-semibold">Switch to 6.89¢/kWh import rate</span>
+                </div>
+                <div className="mt-2 pt-2 border-t border-orange-200 text-red-600 font-semibold">
+                  ⚠️ Forgetting to switch could reduce your savings by $300-500/year
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      )}
+
+      {/* Credit Expiry Warning (if year-end credits are high) */}
+      {result.monthly && result.monthly.length > 0 && result.monthly[result.monthly.length - 1]?.creditRollover > 500 && (
+        <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-400 rounded-xl p-5 shadow-md">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-yellow-500 rounded-lg flex-shrink-0">
+              <Clock className="text-white" size={20} />
+            </div>
+            <div className="flex-1">
+              <h4 className="font-bold text-yellow-900 mb-2">Credit Expiry Notice</h4>
+              <p className="text-sm text-yellow-800 mb-2">
+                You have <strong>{formatCurrency(result.monthly[result.monthly.length - 1].creditRollover)}</strong> in banked credits at year-end. 
+                <strong className="text-red-600"> Credits expire after 12 months if unused.</strong>
+              </p>
+              <div className="text-xs text-yellow-700 bg-white rounded p-2 border border-yellow-200">
+                <strong>Example:</strong> Credits earned in April 2024 expire in March 2025. Make sure your system is sized to use credits annually, 
+                or consider sizing down slightly to avoid losing value.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* High Production Season Card */}
       <div className="bg-white rounded-xl border-2 border-amber-300 shadow-md overflow-hidden">
@@ -390,7 +483,7 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
       </div>
 
       {/* Upsizing Suggestion for Alberta Solar Club */}
-      {isUndersized && suggestedUpsizePanels && onUpsizeSystem && (
+      {!hideUpsizing && isUndersized && suggestedUpsizePanels && onUpsizeSystem && (
         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl p-6 shadow-lg">
           <div className="flex items-start gap-3 mb-4">
             <div className="p-2 bg-blue-500 rounded-lg flex-shrink-0">
