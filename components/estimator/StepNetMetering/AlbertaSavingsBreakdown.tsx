@@ -2,10 +2,11 @@
 
 // Interactive Alberta Solar Club Savings Breakdown Component
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { TrendingUp, TrendingDown, DollarSign, Zap, Leaf, Info, ChevronDown, ChevronUp, ArrowUp, Lightbulb, AlertTriangle, Clock } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts'
 
 interface AlbertaSavingsBreakdownProps {
   result: any // AlbertaSolarClubResult
@@ -17,9 +18,10 @@ interface AlbertaSavingsBreakdownProps {
   hideInfoCallout?: boolean
   hideRateSwitching?: boolean
   hideUpsizing?: boolean
+  systemCost?: number // Total system cost for payback calculation
 }
 
-export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, monthlyBill, onUpsizeSystem, currentPanels, hideInfoCallout = false, hideRateSwitching = false, hideUpsizing = false }: AlbertaSavingsBreakdownProps) {
+export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, monthlyBill, onUpsizeSystem, currentPanels, hideInfoCallout = false, hideRateSwitching = false, hideUpsizing = false, systemCost }: AlbertaSavingsBreakdownProps) {
   const [expandedSection, setExpandedSection] = useState<'high' | 'low' | 'benefits' | null>('high')
   
   if (!result?.alberta) {
@@ -84,6 +86,58 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
   const estimatedAdditionalHighSeasonExports = estimatedAdditionalProduction * 0.6 * 0.5
   const estimatedAdditionalCredits = estimatedAdditionalHighSeasonExports * 0.33 // 33¢/kWh
   
+  // Calculate payback period
+  const totalSystemCost = systemCost || (systemSizeKw * 2500)
+  const paybackYears = annualSavings > 0 && totalSystemCost > 0
+    ? totalSystemCost / annualSavings
+    : Infinity
+  const paybackProgress = paybackYears !== Infinity && paybackYears <= 25
+    ? Math.min((1 / paybackYears) * 100, 100)
+    : 0
+  
+  // Prepare monthly chart data
+  const monthlyChartData = useMemo(() => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const highProductionMonths = [3, 4, 5, 6, 7, 8] // Apr-Sep (0-indexed: 3-8)
+    
+    if (result.monthly && result.monthly.length === 12) {
+      return result.monthly.map((month: any, idx: number) => {
+        // Get monthly production and usage from monthly result
+        // MonthlyNetMeteringResult has totalSolarProduction and totalLoad
+        const monthlyProduction = month.totalSolarProduction || 0
+        const monthlyUsage = month.totalLoad || 0
+        
+        // Determine if this is high production season (Apr-Sep)
+        const isHighSeason = highProductionMonths.includes(idx)
+        
+        return {
+          month: monthNames[idx],
+          production: Math.round(monthlyProduction),
+          usage: Math.round(monthlyUsage),
+          season: isHighSeason ? 'high' : 'low',
+          monthIndex: idx
+        }
+      })
+    }
+    
+    // Fallback: use annual data to estimate monthly distribution
+    const annualProduction = annual.totalSolarProduction || 0
+    const annualUsage = annualUsageKwh || 0
+    
+    // Typical monthly distribution for production (higher in summer)
+    const productionDistribution = [0.03, 0.05, 0.07, 0.10, 0.12, 0.13, 0.13, 0.12, 0.10, 0.07, 0.05, 0.03]
+    // Typical monthly distribution for usage (higher in winter/summer)
+    const usageDistribution = [0.11, 0.10, 0.085, 0.07, 0.065, 0.075, 0.095, 0.095, 0.075, 0.07, 0.08, 0.095]
+    
+    return monthNames.map((monthName, idx) => ({
+      month: monthName,
+      production: Math.round(annualProduction * productionDistribution[idx]),
+      usage: Math.round(annualUsage * usageDistribution[idx]),
+      season: highProductionMonths.includes(idx) ? 'high' : 'low',
+      monthIndex: idx
+    }))
+  }, [result.monthly, result, annual, annualUsageKwh])
+  
   return (
     <div className="space-y-4">
       {/* "Why This Is Different" Callout */}
@@ -147,6 +201,64 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
           </div>
         </div>
       </div>
+
+      {/* Monthly Production vs Usage Chart */}
+      {monthlyChartData.length === 12 && (
+        <div className="bg-white rounded-xl border-2 border-gray-200 p-4 shadow-md">
+          <h3 className="text-lg font-bold text-gray-800 mb-3">Monthly Production vs Usage</h3>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={monthlyChartData} margin={{ top: 10, right: 20, left: 10, bottom: 50 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis 
+                  dataKey="month" 
+                  tick={{ fontSize: 11 }}
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
+                />
+                <YAxis 
+                  tick={{ fontSize: 11 }}
+                  width={45}
+                  label={{ value: 'kWh', angle: -90, position: 'insideLeft', style: { fontSize: 11 } }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'white', 
+                    border: '1px solid #e5e7eb', 
+                    borderRadius: '8px',
+                    padding: '8px'
+                  }}
+                  formatter={(value: number) => `${value.toLocaleString()} kWh`}
+                />
+                <Legend 
+                  wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }}
+                  formatter={(value) => {
+                    if (value === 'production') return 'Solar Production'
+                    if (value === 'usage') return 'Energy Usage'
+                    return value
+                  }}
+                />
+                <Bar 
+                  dataKey="production" 
+                  name="production"
+                  radius={[4, 4, 0, 0]}
+                >
+                  {monthlyChartData.map((entry: { season: string; month: string; production: number; usage: number; exportCredits: number; importCost: number }, index: number) => (
+                    <Cell key={`cell-production-${index}`} fill={entry.season === 'high' ? '#f59e0b' : '#fbbf24'} />
+                  ))}
+                </Bar>
+                <Bar 
+                  dataKey="usage" 
+                  name="usage"
+                  fill="#6b7280" 
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       {/* Rate Switching Reminder - Critical for Alberta Solar Club */}
       {!hideRateSwitching && (
@@ -441,6 +553,55 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
           </div>
         )}
       </div>
+
+      {/* Payback Period Card */}
+      {totalSystemCost > 0 && annualSavings > 0 && (
+        <div className="bg-gradient-to-br from-teal-50 to-emerald-50 border-2 border-teal-300 rounded-xl p-6 shadow-lg">
+          <h3 className="text-xl font-bold text-teal-900 mb-4">Estimated Payback Period</h3>
+          <div className="mb-4">
+            <div className="flex items-baseline gap-2 mb-2">
+              <div className="text-4xl font-bold text-teal-600">
+                {paybackYears === Infinity ? 'N/A' : `${paybackYears.toFixed(1)}`}
+              </div>
+              {paybackYears !== Infinity && (
+                <div className="text-xl font-semibold text-teal-700">years</div>
+              )}
+            </div>
+            <div className="text-sm text-teal-700 mb-4">
+              System Cost: {formatCurrency(totalSystemCost)} ÷ Annual Savings: {formatCurrency(annualSavings)}
+            </div>
+            
+            {/* Progress Bar */}
+            {paybackYears !== Infinity && paybackYears <= 25 && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs text-teal-700">
+                  <span>Break-even Progress</span>
+                  <span>{paybackProgress.toFixed(1)}%</span>
+                </div>
+                <div className="w-full bg-teal-100 rounded-full h-4 overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-teal-500 to-emerald-500 h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2"
+                    style={{ width: `${Math.min(paybackProgress, 100)}%` }}
+                  >
+                    {paybackProgress >= 10 && (
+                      <span className="text-xs font-bold text-white">
+                        {paybackYears.toFixed(1)} yrs
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-xs text-gray-600">
+                  {paybackYears <= 10 
+                    ? `Great investment! Your system pays for itself in ${paybackYears.toFixed(1)} years.`
+                    : paybackYears <= 15
+                    ? `Solid investment with ${paybackYears.toFixed(1)} year payback period.`
+                    : `Long-term investment with ${paybackYears.toFixed(1)} year payback period.`}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Key Metrics Summary */}
       <div className="bg-gray-50 rounded-xl border border-gray-200 p-5">

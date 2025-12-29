@@ -22,6 +22,7 @@ interface SavingsTabProps {
   annualEscalator?: number // Annual rate increase from Step 3
   touBeforeAfter?: { before: number; after: number; savings: number } | null
   uloBeforeAfter?: { before: number; after: number; savings: number } | null
+  province?: string
 }
 
 export function SavingsTab({
@@ -37,9 +38,63 @@ export function SavingsTab({
   annualEscalator = 4.5, // Default to 4.5% if not provided
   touBeforeAfter,
   uloBeforeAfter,
+  province,
 }: SavingsTabProps) {
+  // Check if province is Alberta - check multiple sources
+  const provinceFromProp = province
+  const provinceUpper = provinceFromProp ? provinceFromProp.toUpperCase() : ''
+  const isAlbertaFromProp = provinceUpper === 'AB' || provinceUpper === 'ALBERTA' || provinceUpper.includes('ALBERTA')
+  
+  // Also check localStorage for province (fallback)
+  let isAlberta = isAlbertaFromProp
+  if (typeof window !== 'undefined' && !isAlberta) {
+    try {
+      const savedData = localStorage.getItem('solarx_estimator_draft')
+      if (savedData) {
+        const parsed = JSON.parse(savedData)
+        const savedProvince = parsed?.data?.province || parsed?.data?.location?.province
+        if (savedProvince) {
+          const savedProvinceUpper = savedProvince.toUpperCase()
+          isAlberta = savedProvinceUpper === 'AB' || savedProvinceUpper === 'ALBERTA' || savedProvinceUpper.includes('ALBERTA')
+          console.log('[SavingsTab] Found province in localStorage:', savedProvince, 'isAlberta:', isAlberta)
+        }
+      }
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+  }
+  
+  // Check if netMetering has alberta property (for Alberta Solar Club)
+  // Check multiple possible structures:
+  // 1. netMetering.alberta (direct)
+  // 2. netMetering.tou.alberta (Alberta stored in tou property)
+  // 3. netMetering.data.alberta (wrapped in data)
+  // 4. netMetering.ratePlan.id === 'alberta_solar_club'
+  const hasAlbertaData = netMetering && (
+    (netMetering as any).alberta !== undefined ||
+    (netMetering as any).tou?.alberta !== undefined ||
+    (netMetering as any).data?.alberta !== undefined ||
+    (netMetering as any).ratePlan?.id === 'alberta_solar_club' ||
+    (netMetering as any).tou?.ratePlan?.id === 'alberta_solar_club'
+  )
+  
+  // Debug logging
+  if (programType === 'net_metering') {
+    console.log('[SavingsTab] Net Metering Debug:', {
+      provinceFromProp,
+      isAlbertaFromProp,
+      isAlberta,
+      hasAlbertaData,
+      netMeteringKeys: netMetering ? Object.keys(netMetering as any) : null,
+      netMeteringHasAlberta: netMetering ? (netMetering as any).alberta !== undefined : false,
+      netMeteringTouHasAlberta: netMetering ? (netMetering as any).tou?.alberta !== undefined : false,
+      netMeteringStructure: netMetering ? JSON.stringify(netMetering).substring(0, 500) : null,
+    })
+  }
+  
   // Net Metering-only savings view (TOU, ULO, Tiered)
-  if (programType === 'net_metering' && netMetering) {
+  // For Alberta, they use Alberta Solar Club, not TOU/ULO/Tiered, so don't show this section
+  if (programType === 'net_metering' && netMetering && !isAlberta && !hasAlbertaData) {
     const escalation = (annualEscalator ?? 4.5) / 100
     const years = 25
     const netCost = combinedNetCost || 0
@@ -250,6 +305,189 @@ export function SavingsTab({
   const solarAnnual = estimate.savings?.annualSavings || 0
   const escalation = (annualEscalator ?? 4.5) / 100 // Convert percentage to decimal
   const years = 25
+
+  // For Alberta, use Solar Club savings from netMetering instead of TOU/ULO
+  // Check both isAlberta flag and if netMetering has alberta property
+  // Handle multiple possible structures:
+  // 1. netMetering.tou.alberta (most common - Alberta stored in tou property)
+  // 2. netMetering.alberta (direct)
+  // 3. netMetering.data.alberta (wrapped in data)
+  const albertaNetMetering = (netMetering as any)?.tou?.alberta ? (netMetering as any).tou :
+                              (netMetering as any)?.alberta ? (netMetering as any) :
+                              (netMetering as any)?.data?.alberta ? (netMetering as any).data :
+                              null
+  
+  if ((isAlberta || hasAlbertaData) && albertaNetMetering && albertaNetMetering.alberta) {
+    const albertaData = albertaNetMetering
+    const annual = albertaData.annual || {}
+    const alberta = albertaData.alberta || {}
+    
+    // Calculate annual savings: importCost (before) - netAnnualBill (after) + cash back
+    const importCost = annual.importCost || 0
+    const netAnnualBill = annual.netAnnualBill || 0
+    const cashBack = alberta.cashBackAmount || 0
+    const solarClubAnnualSavings = Math.max(0, importCost - netAnnualBill + cashBack)
+    
+    const netCost = combinedNetCost || 0
+    
+    // Calculate payback
+    const calculatePayback = (firstYearSavings: number, netCost: number, escalationRate: number): number => {
+      if (netCost <= 0 || firstYearSavings <= 0) return 0
+      let cumulativeSavings = 0
+      for (let year = 1; year <= 25; year++) {
+        const yearSavings = firstYearSavings * Math.pow(1 + escalationRate, year - 1)
+        cumulativeSavings += yearSavings
+        if (cumulativeSavings >= netCost) {
+          const prevYearSavings = year > 1 ? firstYearSavings * Math.pow(1 + escalationRate, year - 2) : 0
+          const prevCumulative = cumulativeSavings - yearSavings
+          const remaining = netCost - prevCumulative
+          const fraction = remaining / yearSavings
+          return (year - 1) + fraction
+        }
+      }
+      return Infinity
+    }
+    
+    const paybackYears = calculatePayback(solarClubAnnualSavings, netCost, escalation)
+    
+    // Build cumulative savings series
+    const series = Array.from({ length: years }, (_, idx) => {
+      const y = idx + 1
+      const yearSavings = solarClubAnnualSavings * Math.pow(1 + escalation, idx)
+      return { year: y, annualSavings: yearSavings }
+    })
+    
+    let cumulative = 0
+    const savingsSeries = series.map(row => {
+      cumulative += row.annualSavings
+      return {
+        year: row.year,
+        cumulativeSavings: cumulative,
+        profit: cumulative - netCost
+      }
+    })
+    
+    const paybackYear = paybackYears !== Infinity && paybackYears <= 25 ? Math.ceil(paybackYears) : null
+    const year25Data = savingsSeries.find(d => d.year === 25)
+    
+    // Calculate Y-axis domain
+    const allValues = savingsSeries.flatMap(d => [d.cumulativeSavings, d.profit, 0])
+    const maxValue = Math.max(...allValues)
+    const minValue = Math.min(...allValues)
+    const padding = Math.max(Math.abs(maxValue), Math.abs(minValue)) * 0.15
+    const yDomain = [
+      Math.floor((minValue - padding) / 10000) * 10000,
+      Math.ceil((maxValue + padding) / 10000) * 10000,
+    ]
+    
+    return (
+      <div className="space-y-6">
+        <div className="grid sm:grid-cols-3 gap-4">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <div className="text-xs text-gray-600 mb-1">Annual Savings (Year 1)</div>
+            <div className="text-[13px] text-gray-600">Solar Club</div>
+            <div className="text-base sm:text-xl font-bold text-navy-600">{formatCurrency(Math.round(solarClubAnnualSavings))}</div>
+          </div>
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <div className="text-xs text-gray-600 mb-1">Payback</div>
+            <div className="text-[13px] text-gray-600">Solar Club</div>
+            <div className="text-base sm:text-xl font-bold text-navy-600">{paybackYears === Infinity ? 'N/A' : `${paybackYears.toFixed(1)} yrs`}</div>
+          </div>
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <div className="text-xs text-gray-600 mb-1">25-Year Profit</div>
+            <div className="text-[13px] text-gray-600">Solar Club</div>
+            <div className="text-base sm:text-xl font-bold text-navy-600">{year25Data ? formatCurrency(Math.round(year25Data.profit)) : 'N/A'}</div>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="chart-scroll-container h-[22rem] sm:h-96 md:h-[28rem] w-full overflow-x-visible overflow-y-visible relative z-10 flex items-center justify-center">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={savingsSeries} margin={isMobile ? { top: 20, right: 30, left: 40, bottom: 40 } : { top: 20, right: 80, left: 60, bottom: 60 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="year" 
+                  tick={{ fontSize: isMobile ? 10 : 11 }} 
+                  label={{ value: 'Year', position: 'insideBottom', offset: -5, style: { fontSize: 12 } }}
+                />
+                <YAxis 
+                  domain={yDomain}
+                  tick={{ fontSize: isMobile ? 10 : 11 }} 
+                  tickFormatter={(v: number) => `$${Math.round(v/1000)}k`}
+                  label={{ value: 'Amount', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }}
+                  width={isMobile ? 45 : 60}
+                />
+                <Tooltip 
+                  content={<SavingsTooltip />} 
+                  allowEscapeViewBox={{ x: true, y: true }} 
+                  cursor={{ stroke: '#DC143C', strokeWidth: 2, strokeDasharray: '4 4' }} 
+                  wrapperStyle={{ transform: 'none', left: 0, top: 0, zIndex: 9999, pointerEvents: 'none' }}
+                />
+                <Line
+                  type="monotone" 
+                  dataKey="cumulativeSavings" 
+                  stroke="#DC143C" 
+                  strokeWidth={isMobile ? 2 : 2.5} 
+                  strokeDasharray="5 5" 
+                  dot={{ r: isMobile ? 3 : 4, fill: '#DC143C', strokeWidth: 2, stroke: 'white' }} 
+                  activeDot={{ r: isMobile ? 6 : 7, fill: '#DC143C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
+                  name="Cumulative Savings (Solar Club)" 
+                />
+                <Line
+                  type="monotone" 
+                  dataKey="profit" 
+                  stroke="#DC143C" 
+                  strokeWidth={isMobile ? 3 : 3.5} 
+                  dot={{ r: isMobile ? 4 : 5, fill: '#DC143C', strokeWidth: 2, stroke: 'white' }} 
+                  activeDot={{ r: isMobile ? 7 : 8, fill: '#DC143C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
+                  name="25-Year Profit (Solar Club)" 
+                />
+                <ReferenceLine
+                  y={0}
+                  stroke="#16a34a"
+                  strokeDasharray="4 4"
+                  label={{
+                    value: 'Break-even (recovers net investment)',
+                    position: 'left',
+                    fill: '#166534',
+                    fontSize: 11,
+                  }}
+                />
+                {paybackYear && paybackYear <= 25 && (
+                  <ReferenceLine 
+                    x={paybackYear} 
+                    stroke="#DC143C" 
+                    strokeDasharray="3 3" 
+                    strokeWidth={2}
+                    label={{ value: `Solar Club: ${paybackYears.toFixed(1)} yrs`, position: 'top', fill: '#DC143C', fontSize: 11, fontWeight: 'bold', offset: 5 }} 
+                  />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-0.5 bg-[#DC143C] border-dashed border border-[#DC143C]"></div>
+                <span className="text-gray-700">Cumulative Savings (Solar Club)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-1 bg-[#DC143C]"></div>
+                <span className="text-gray-700">25-Year Profit (Solar Club)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <p className="text-xs text-gray-600">
+          Alberta Solar Club projections are based on your system cost, first-year Solar Club savings, 
+          and the electricity rate escalation over 25 years. Savings include export credits at 33¢/kWh 
+          during high production months and 3% cash back on imports.
+        </p>
+      </div>
+    )
+  }
 
   // Use beforeAfter values from step 4 if available (most accurate - matches step 4 display)
   // Calculate annual savings as before - after (same as step 4)

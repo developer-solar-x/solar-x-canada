@@ -145,6 +145,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [localEstimate, setLocalEstimate] = useState<any>(null)
+  const [systemCost, setSystemCost] = useState<number | null>(null)
   
   // Check if province is Alberta - check multiple possible locations and make it reactive
   const isAlberta = useMemo(() => {
@@ -213,6 +214,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   const [selectedBatteries, setSelectedBatteries] = useState<string[]>([])
   // AI Optimization Mode - allows grid charging at cheap rates for both TOU and ULO
   const [aiMode, setAiMode] = useState(true)
+  const [systemCostInput, setSystemCostInput] = useState<string>('')
   
   // Fetch batteries from API (with fallback to static)
   const { batteries: availableBatteries, refetch: refetchBatteries } = useBatteries(false)
@@ -332,14 +334,17 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
 
   // Get net cost and escalation rate
   // For net metering, include battery cost but NO rebates (net metering doesn't qualify for rebates)
-  const solarSystemCost = estimate?.costs?.systemCost || estimate?.costs?.totalCost || 0
+  const defaultSystemCost = estimate?.costs?.systemCost || estimate?.costs?.totalCost || (effectiveSystemSizeKw * 2500)
+  const solarSystemCost = systemCostInput && !isNaN(parseFloat(systemCostInput)) && parseFloat(systemCostInput) > 0
+    ? parseFloat(systemCostInput)
+    : defaultSystemCost
   const solarRebate = 0 // Net metering doesn't qualify for rebates
-      const batteryCost = selectedBatteries.length > 0
-        ? selectedBatteries
-            .map(id => availableBatteries.find(b => b.id === id))
-            .filter(Boolean)
-            .reduce((sum, battery) => sum + (battery?.price || 0), 0)
-        : 0
+  const batteryCost = selectedBatteries.length > 0
+    ? selectedBatteries
+        .map(id => availableBatteries.find(b => b.id === id))
+        .filter(Boolean)
+        .reduce((sum, battery) => sum + (battery?.price || 0), 0)
+    : 0
   const batteryRebate = 0 // No rebates for net metering
   const netCost = solarSystemCost + batteryCost - solarRebate - batteryRebate // Total system cost (solar + battery, no rebates)
   // annualEscalator is stored as a percentage (e.g. 4.5 for 4.5%), but the payback
@@ -985,78 +990,103 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                         </div>
                         </div>
 
+                    {/* System Cost Input - For Alberta */}
+                    {isAlberta && (
+                      <div className="pt-2 border-t border-gray-200">
+                        <label className="block text-base md:text-lg font-semibold text-gray-700 mb-2">
+                          Estimated Total System Cost
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+                          <input
+                            type="number"
+                            value={systemCostInput || (effectiveSystemSizeKw * 2500).toFixed(0)}
+                            onChange={(e) => setSystemCostInput(e.target.value)}
+                            className="w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-base md:text-lg font-semibold text-gray-700"
+                            placeholder={(effectiveSystemSizeKw * 2500).toFixed(0)}
+                            min="0"
+                            step="100"
+                          />
+                        </div>
+                        <div className="mt-2 flex items-start gap-2 p-2 bg-gray-50 border border-gray-200 rounded-lg">
+                          <Info className="text-gray-500 flex-shrink-0 mt-0.5" size={16} />
+                          <p className="text-xs text-gray-600">
+                            Default: ${(effectiveSystemSizeKw * 2500).toLocaleString()} (System Size × $2,500/kW). Adjust to match your actual quote.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Rate Plan Selection - Show Solar Club rates for Alberta, otherwise show TOU/ULO/Tiered */}
                     {isAlberta ? (
                       <div>
-                        <label className="block text-base md:text-lg font-semibold text-gray-700 mb-2">
+                        <label className="block text-base md:text-lg font-semibold text-gray-700 mb-3">
                           Solar Club Alberta Rates
                         </label>
-                        <div className="space-y-3">
-                          {/* Low Production Solar Rate */}
-                          <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-2 border-blue-300 rounded-lg p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <div>
-                                <div className="font-bold text-blue-900 text-lg">LOW PRODUCTION SOLAR RATE</div>
-                                <div className="text-2xl font-bold text-blue-600 mt-1">6.89¢/kWh</div>
+                        
+                        {/* Visual Season Timeline */}
+                        <div className="bg-white border-2 border-gray-200 rounded-lg p-4 mb-3 shadow-sm relative overflow-visible">
+                          <div className="flex items-center h-16 rounded-lg overflow-visible">
+                            {/* Low Production Season (Oct-Mar) */}
+                            <div className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 h-full flex items-center justify-center relative group overflow-visible">
+                              <div className="text-center text-white z-10">
+                                <div className="text-xs font-semibold mb-0.5">Winter Rate</div>
+                                <div className="text-lg font-bold">6.89¢/kWh</div>
+                                <div className="text-[10px] opacity-90">Buy Low</div>
                               </div>
-                              <TrendingDown className="text-blue-600" size={32} />
-                            </div>
-                            <p className="text-sm text-blue-800 mb-3">
-                              Designed for low production seasons when you consume more electricity than your array produces.
-                            </p>
-                            <p className="text-xs text-blue-700">
-                              Pay a lower rate for the electricity you consume or use your banked credits to offset your bill.
-                            </p>
-                            <div className="mt-3 pt-3 border-t border-blue-300 flex items-center gap-4 text-xs text-blue-700">
-                              <div className="flex items-center gap-1">
-                                <DollarSign size={14} />
-                                <span>3% Cash Back</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Leaf size={14} />
-                                <span>Carbon Offset Credit Platform</span>
+                              <div className="absolute top-2 right-2 z-50">
+                                <InfoTooltip
+                                  content="Low Production Season (Oct-Mar): Pay a lower rate for electricity you consume or use your banked credits to offset your bill. Includes 3% Cash Back and Carbon Offset Credit Platform."
+                                  iconSize={14}
+                                />
                               </div>
                             </div>
-                          </div>
-
-                          {/* High Production Solar Rate */}
-                          <div className="bg-gradient-to-r from-amber-50 to-orange-100 border-2 border-amber-300 rounded-lg p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <div>
-                                <div className="font-bold text-amber-900 text-lg">HIGH PRODUCTION SOLAR RATE</div>
-                                <div className="text-2xl font-bold text-amber-600 mt-1">33.00¢/kWh</div>
+                            
+                            {/* Divider */}
+                            <div className="w-1 bg-white h-full z-10 relative"></div>
+                            
+                            {/* High Production Season (Apr-Sep) */}
+                            <div className="flex-1 bg-gradient-to-r from-amber-500 to-orange-500 h-full flex items-center justify-center relative group overflow-visible">
+                              <div className="text-center text-white z-10">
+                                <div className="text-xs font-semibold mb-0.5">Summer Rate</div>
+                                <div className="text-lg font-bold">33.00¢/kWh</div>
+                                <div className="text-[10px] opacity-90">Sell High</div>
                               </div>
-                              <TrendingUp className="text-amber-600" size={32} />
-                            </div>
-                            <p className="text-sm text-amber-800 mb-3">
-                              Designed for high production seasons when your array produces more electricity than you consume.
-                            </p>
-                            <p className="text-xs text-amber-700">
-                              Allows you to earn and bank credits on the electricity you export to use against future bills.
-                            </p>
-                            <div className="mt-3 pt-3 border-t border-amber-300 flex items-center gap-4 text-xs text-amber-700">
-                              <div className="flex items-center gap-1">
-                                <DollarSign size={14} />
-                                <span>3% Cash Back</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Leaf size={14} />
-                                <span>Carbon Offset Credit Platform</span>
+                              <div className="absolute top-2 right-2 z-50">
+                                <InfoTooltip
+                                  content="High Production Season (Apr-Sep): Earn and bank credits on electricity you export to use against future bills. Includes 3% Cash Back and Carbon Offset Credit Platform."
+                                  iconSize={14}
+                                />
                               </div>
                             </div>
                           </div>
-
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
-                            <div className="flex items-start gap-2">
-                              <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
-                              <p className="text-xs text-blue-800">
-                                <strong>How it works:</strong> You can switch between these rates with 10 days notice. 
-                                Use the high rate (33¢/kWh) during spring/summer when production is high, and switch to 
-                                the low rate (6.89¢/kWh) during fall/winter when you consume more than you produce.
-                              </p>
+                          
+                          {/* Month labels */}
+                          <div className="flex justify-between mt-2 text-xs text-gray-600">
+                            <div className="flex items-center gap-1">
+                              <div className="w-3 h-3 bg-blue-500 rounded"></div>
+                              <span>Oct-Mar</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <div className="w-3 h-3 bg-amber-500 rounded"></div>
+                              <span>Apr-Sep</span>
                             </div>
                           </div>
                         </div>
+                        
+                        {/* How it works - Collapsible */}
+                        <details className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <summary className="text-xs font-semibold text-blue-900 cursor-pointer flex items-center gap-2">
+                            <Info size={14} />
+                            How it works
+                          </summary>
+                          <p className="text-xs text-blue-800 mt-2 pl-5">
+                            You can switch between these rates with 10 days notice. Use the high rate (33¢/kWh) during 
+                            spring/summer when production is high, and switch to the low rate (6.89¢/kWh) during 
+                            fall/winter when you consume more than you produce. Both rates include 3% Cash Back and 
+                            Carbon Offset Credit Platform benefits.
+                          </p>
+                        </details>
                       </div>
                     ) : (
                       <div>
@@ -1540,7 +1570,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                         </p>
                       </div>
                     </div>
-                  </div>
+                      </div>
 
                   {/* Rate Switching Reminder */}
                   <div className="bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-300 rounded-xl p-5 shadow-md">
@@ -1559,16 +1589,16 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                             <div className="flex justify-between items-center">
                               <span><strong>High Production Season (Apr-Sep):</strong></span>
                               <span className="text-emerald-600 font-semibold">Switch to 33¢/kWh export rate</span>
-                            </div>
+                    </div>
                             <div className="flex justify-between items-center">
                               <span><strong>Low Production Season (Oct-Mar):</strong></span>
                               <span className="text-blue-600 font-semibold">Switch to 6.89¢/kWh import rate</span>
-                            </div>
+                      </div>
                             <div className="mt-2 pt-2 border-t border-orange-200 text-red-600 font-semibold">
                               ⚠️ Forgetting to switch could reduce your savings by $300-500/year
-                            </div>
-                          </div>
-                        </div>
+                      </div>
+                    </div>
+                      </div>
                       </div>
                     </div>
                   </div>
@@ -1995,6 +2025,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 hideInfoCallout={true}
                 hideRateSwitching={true}
                 hideUpsizing={true}
+                systemCost={netCost}
               />
             )}
 

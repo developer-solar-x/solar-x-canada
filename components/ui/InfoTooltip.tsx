@@ -18,24 +18,23 @@ export function InfoTooltip({ content, className = '', iconSize = 16 }: InfoTool
     <div className={`relative inline-flex items-center ${className}`}>
       <button
         type="button"
-        className="inline-flex items-center justify-center rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
+        className="inline-flex items-center justify-center rounded-full hover:bg-black/20 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 transition-colors bg-white/20 backdrop-blur-sm"
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
         onClick={() => setIsOpen(!isOpen)}
         aria-label="More information"
         suppressHydrationWarning
       >
-        <Info size={iconSize} className="text-blue-500" />
+        <Info size={iconSize} className="text-white drop-shadow-md" />
       </button>
       
       {isOpen && (
         <div
-          className="absolute z-50 w-64 p-3 mt-2 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg shadow-lg pointer-events-none"
+          className="absolute z-[100] w-64 p-3 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg shadow-xl pointer-events-auto"
           style={{
-            bottom: '100%',
+            bottom: 'calc(100% + 8px)',
             left: '50%',
             transform: 'translateX(-50%)',
-            marginBottom: '8px',
           }}
           onMouseEnter={() => setIsOpen(true)}
           onMouseLeave={() => setIsOpen(false)}
@@ -43,7 +42,7 @@ export function InfoTooltip({ content, className = '', iconSize = 16 }: InfoTool
           <div className="whitespace-normal">{content}</div>
           {/* Arrow */}
           <div
-            className="absolute w-2 h-2 bg-white border-r border-b border-gray-200 transform rotate-45"
+            className="absolute w-2 h-2 bg-white border-r border-b border-gray-200"
             style={{
               bottom: '-5px',
               left: '50%',

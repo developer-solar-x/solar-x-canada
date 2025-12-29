@@ -1676,6 +1676,7 @@ export function ResultsPage({
                       }
                       return null
                     })()}
+                    province={leadData?.province}
                   />
                 )}
 
@@ -2036,7 +2037,13 @@ export function ResultsPage({
                   System Design Assumptions
                 </h4>
                 <ul className="space-y-2 text-sm text-gray-700 ml-6 list-disc">
-                  <li><strong>Roof Orientation:</strong> {roofAzimuth ? `${roofAzimuth}° (detected from roof drawing)` : '180° South-facing (default)'}</li>
+                  <li><strong>Roof Orientation:</strong> {(() => {
+                    const azimuth = (estimate as any)?.roof?.azimuth ??
+                      (roofData as any)?.roofAzimuth ??
+                      ((roofData?.roofPolygon?.features?.[0]?.properties as any)?.azimuth) ??
+                      180
+                    return azimuth !== 180 ? `${azimuth}° (detected from roof drawing)` : '180° South-facing (default)'
+                  })()}</li>
                   <li><strong>Roof Pitch:</strong> {roofData?.roofPitch || 'Medium (20-40°)'}</li>
                   <li><strong>Shading Level:</strong> {roofData?.shadingLevel || 'Minimal'} - accounts for tree shadows and obstructions</li>
                   <li><strong>Usable Roof Area:</strong> 90% after obstructions, further reduced by shading factor</li>

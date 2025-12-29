@@ -831,6 +831,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                 annualEscalator={data.annualEscalator}
                 touBeforeAfter={data.touBeforeAfter}
                 uloBeforeAfter={data.uloBeforeAfter}
+                province={data.province}
               />
             )}
 

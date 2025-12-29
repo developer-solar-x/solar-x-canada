@@ -26,35 +26,35 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels }:
   const { tou, ulo, tiered } = netMeteringData
 
   // Use billOffsetPercent from the result if available, otherwise calculate it
-  const touBillOffset = tou?.annual.billOffsetPercent ?? (tou?.annual.importCost > 0 
-    ? Math.min(100, (tou.annual.exportCredits / tou.annual.importCost) * 100)
+  const touBillOffset = tou?.annual?.billOffsetPercent ?? (tou?.annual?.importCost && tou.annual.importCost > 0 
+    ? Math.min(100, ((tou.annual.exportCredits || 0) / tou.annual.importCost) * 100)
     : 100)
-  const uloBillOffset = ulo?.annual.billOffsetPercent ?? (ulo?.annual.importCost > 0
-    ? Math.min(100, (ulo.annual.exportCredits / ulo.annual.importCost) * 100)
+  const uloBillOffset = ulo?.annual?.billOffsetPercent ?? (ulo?.annual?.importCost && ulo.annual.importCost > 0
+    ? Math.min(100, ((ulo.annual.exportCredits || 0) / ulo.annual.importCost) * 100)
     : 100)
-  const tieredBillOffset = tiered?.annual.billOffsetPercent ?? (tiered?.annual.importCost > 0
-    ? Math.min(100, (tiered.annual.exportCredits / tiered.annual.importCost) * 100)
+  const tieredBillOffset = tiered?.annual?.billOffsetPercent ?? (tiered?.annual?.importCost && tiered.annual.importCost > 0
+    ? Math.min(100, ((tiered.annual.exportCredits || 0) / tiered.annual.importCost) * 100)
     : 100)
   const bestPlan = touBillOffset >= uloBillOffset ? 'TOU' : 'ULO'
 
   // Calculate energy offset (what % of usage is covered by production)
-  const touEnergyOffset = tou?.annual.totalLoad > 0
-    ? Math.min(100, (tou.annual.totalSolarProduction / tou.annual.totalLoad) * 100)
+  const touEnergyOffset = tou?.annual?.totalLoad && tou.annual.totalLoad > 0
+    ? Math.min(100, ((tou.annual.totalSolarProduction || 0) / tou.annual.totalLoad) * 100)
     : 0
-  const uloEnergyOffset = ulo?.annual.totalLoad > 0
-    ? Math.min(100, (ulo.annual.totalSolarProduction / ulo.annual.totalLoad) * 100)
+  const uloEnergyOffset = ulo?.annual?.totalLoad && ulo.annual.totalLoad > 0
+    ? Math.min(100, ((ulo.annual.totalSolarProduction || 0) / ulo.annual.totalLoad) * 100)
     : 0
-  const tieredEnergyOffset = tiered?.annual.totalLoad > 0
-    ? Math.min(100, (tiered.annual.totalSolarProduction / tiered.annual.totalLoad) * 100)
+  const tieredEnergyOffset = tiered?.annual?.totalLoad && tiered.annual.totalLoad > 0
+    ? Math.min(100, ((tiered.annual.totalSolarProduction || 0) / tiered.annual.totalLoad) * 100)
     : 0
 
   // Calculate before/after bills for comparison
-  const touBeforeBill = tou?.annual.importCost ?? 0
-  const touAfterBill = tou?.annual.netAnnualBill ?? 0
-  const uloBeforeBill = ulo?.annual.importCost ?? 0
-  const uloAfterBill = ulo?.annual.netAnnualBill ?? 0
-  const tieredBeforeBill = tiered?.annual.importCost ?? 0
-  const tieredAfterBill = tiered?.annual.netAnnualBill ?? 0
+  const touBeforeBill = tou?.annual?.importCost ?? 0
+  const touAfterBill = tou?.annual?.netAnnualBill ?? 0
+  const uloBeforeBill = ulo?.annual?.importCost ?? 0
+  const uloAfterBill = ulo?.annual?.netAnnualBill ?? 0
+  const tieredBeforeBill = tiered?.annual?.importCost ?? 0
+  const tieredAfterBill = tiered?.annual?.netAnnualBill ?? 0
 
   // Plan metrics for TOU / ULO / Tiered (year-1 savings, payback, 25-year profit)
   const planConfigs = [
