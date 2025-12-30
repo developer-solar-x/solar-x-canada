@@ -18,6 +18,15 @@ export function StepRoofSimple({ data, onComplete, onBack, onUpgradeMode }: Step
   const [useCustom, setUseCustom] = useState(!!data.roofAreaSqft && !data.roofSizePreset)
 
   const handleContinue = () => {
+    // Data flow tracing: Verify province and programType are preserved
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[StepRoofSimple] Data flow trace:', {
+        'data.province': data.province,
+        'data.programType': data.programType,
+        'Note': 'province and programType should be preserved by parent handler',
+      })
+    }
+    
     if (useCustom && customSize) {
       onComplete({
         roofAreaSqft: parseInt(customSize),

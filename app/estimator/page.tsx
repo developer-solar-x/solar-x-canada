@@ -323,6 +323,21 @@ export default function EstimatorPage() {
       // Only include annualEscalator if we have a value (either from stepData or existing data)
       ...(annualEscalatorValue !== undefined && { annualEscalator: annualEscalatorValue })
     }
+    
+    // Data flow tracing: Log critical fields to verify they're preserved
+    // Note: Spread operator ({...data, ...stepData}) preserves fields from data unless stepData overrides them
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[handleStepComplete] Data preservation check:', {
+        'stepData.province': stepData.province,
+        'stepData.programType': stepData.programType,
+        'data.province (before)': data.province,
+        'data.programType (before)': data.programType,
+        'updatedData.province': updatedData.province,
+        'updatedData.programType': updatedData.programType,
+        'Note': 'Fields are preserved via spread operator unless stepData overrides them',
+      })
+    }
+    
     setData(updatedData)
     
     // Partial leads feature disabled

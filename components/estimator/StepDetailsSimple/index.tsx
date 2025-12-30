@@ -15,8 +15,19 @@ import type { StepDetailsSimpleProps } from './types'
 
 export function StepDetailsSimple({ data, onComplete, onBack, onUpgradeMode }: StepDetailsSimpleProps) {
   // Program type and lead type are already selected in the initial modal
+  // Use existing programType from data, don't override with default unless missing
   const programType = data.programType || 'hrs_residential'
   const leadType = data.leadType || 'residential'
+  
+  // Data flow tracing: Log province and programType to verify they're preserved
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[StepDetailsSimple] Data flow trace:', {
+      'data.programType': data.programType,
+      'data.province': data.province,
+      'programType (used)': programType,
+      'data.leadType': data.leadType,
+    })
+  }
   
   const [roofType, setRoofType] = useState<string>(data.roofType || 'asphalt_shingle')
   const [roofCondition, setRoofCondition] = useState<string>(data.roofAge || '6-15')
@@ -49,7 +60,8 @@ export function StepDetailsSimple({ data, onComplete, onBack, onUpgradeMode }: S
   const productionEfficiency = Math.round((orientationEfficiency / 100) * (pitchEfficiency / 100) * 100 * 100) / 100
 
   const handleContinue = () => {
-    onComplete({
+    // Preserve province and other data fields when completing step
+    const stepData: any = {
       programType,
       leadType,
       roofType,
@@ -57,7 +69,18 @@ export function StepDetailsSimple({ data, onComplete, onBack, onUpgradeMode }: S
       shadingLevel: shadeLevel,
       roofPitch: 'medium', // Default for easy mode
       roofAzimuth: roofOrientation, // Include roof orientation
-    })
+    }
+    
+    // Data flow tracing: Log what we're passing up
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[StepDetailsSimple] Completing step with data:', {
+        programType: stepData.programType,
+        province: data.province,
+        'Note': 'province should be preserved by parent handler',
+      })
+    }
+    
+    onComplete(stepData)
   }
 
   return (

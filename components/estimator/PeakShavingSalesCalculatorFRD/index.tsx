@@ -824,7 +824,7 @@ export function PeakShavingSalesCalculatorFRD({
             monthlyBill: data.monthlyBill,
             annualUsageKwh: data.energyUsage?.annualKwh || data.annualUsageKwh,
             energyUsage: data.energyUsage,
-            province: 'ON',
+            province: data.province || 'ON',
             roofAzimuth: data.roofAzimuth || 180,
             roofAreaSqft: data.roofAreaSqft,
           }),

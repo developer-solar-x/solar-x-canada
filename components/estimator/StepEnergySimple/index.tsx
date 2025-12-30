@@ -72,6 +72,15 @@ export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: St
       ? annualEscalator 
       : undefined
 
+    // Data flow tracing: Verify province and programType are preserved
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[StepEnergySimple] Data flow trace:', {
+        'data.province': data.province,
+        'data.programType': data.programType,
+        'Note': 'province and programType should be preserved by parent handler',
+      })
+    }
+
     const stepData = {
       monthlyBill: useMonthlyBill && monthlyBillInput ? parseFloat(monthlyBillInput) : undefined,
       systemType: hasBattery ? 'battery_system' : 'grid_tied',

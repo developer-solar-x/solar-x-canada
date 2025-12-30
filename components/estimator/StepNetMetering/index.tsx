@@ -214,10 +214,22 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   const [selectedBatteries, setSelectedBatteries] = useState<string[]>([])
   // AI Optimization Mode - allows grid charging at cheap rates for both TOU and ULO
   const [aiMode, setAiMode] = useState(true)
+  
+  // In quick estimate mode, net metering does not support battery
+  const isQuickEstimate = data.estimatorMode === 'easy'
+  const shouldShowBatterySelection = !isQuickEstimate
   const [systemCostInput, setSystemCostInput] = useState<string>('')
   
   // Fetch batteries from API (with fallback to static)
+  // Only fetch if battery selection is enabled (not in quick estimate mode)
   const { batteries: availableBatteries, refetch: refetchBatteries } = useBatteries(false)
+  
+  // Clear batteries if in quick estimate mode (net metering doesn't support battery in quick estimate)
+  useEffect(() => {
+    if (isQuickEstimate && selectedBatteries.length > 0) {
+      setSelectedBatteries([])
+    }
+  }, [isQuickEstimate, selectedBatteries.length])
 
   // Get production and usage data - use local estimate if available
   const estimate = localEstimate || data.estimate
@@ -339,12 +351,12 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     ? parseFloat(systemCostInput)
     : defaultSystemCost
   const solarRebate = 0 // Net metering doesn't qualify for rebates
-  const batteryCost = selectedBatteries.length > 0
-    ? selectedBatteries
-        .map(id => availableBatteries.find(b => b.id === id))
-        .filter(Boolean)
-        .reduce((sum, battery) => sum + (battery?.price || 0), 0)
-    : 0
+      const batteryCost = selectedBatteries.length > 0
+        ? selectedBatteries
+            .map(id => availableBatteries.find(b => b.id === id))
+            .filter(Boolean)
+            .reduce((sum, battery) => sum + (battery?.price || 0), 0)
+        : 0
   const batteryRebate = 0 // No rebates for net metering
   const netCost = solarSystemCost + batteryCost - solarRebate - batteryRebate // Total system cost (solar + battery, no rebates)
   // annualEscalator is stored as a percentage (e.g. 4.5 for 4.5%), but the payback
@@ -1039,8 +1051,8 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                                   content="Low Production Season (Oct-Mar): Pay a lower rate for electricity you consume or use your banked credits to offset your bill. Includes 3% Cash Back and Carbon Offset Credit Platform."
                                   iconSize={14}
                                 />
-                              </div>
                             </div>
+                              </div>
                             
                             {/* Divider */}
                             <div className="w-1 bg-white h-full z-10 relative"></div>
@@ -1057,23 +1069,23 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                                   content="High Production Season (Apr-Sep): Earn and bank credits on electricity you export to use against future bills. Includes 3% Cash Back and Carbon Offset Credit Platform."
                                   iconSize={14}
                                 />
-                              </div>
                             </div>
                           </div>
+                              </div>
                           
                           {/* Month labels */}
                           <div className="flex justify-between mt-2 text-xs text-gray-600">
-                            <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1">
                               <div className="w-3 h-3 bg-blue-500 rounded"></div>
                               <span>Oct-Mar</span>
-                            </div>
-                            <div className="flex items-center gap-1">
+                              </div>
+                              <div className="flex items-center gap-1">
                               <div className="w-3 h-3 bg-amber-500 rounded"></div>
                               <span>Apr-Sep</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        
+
                         {/* How it works - Collapsible */}
                         <details className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                           <summary className="text-xs font-semibold text-blue-900 cursor-pointer flex items-center gap-2">
@@ -1132,6 +1144,8 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                     )}
 
                     {/* Battery Selection (Optional - No Rebates) */}
+                    {/* Hide battery selection in quick estimate mode - net metering doesn't support battery in quick estimate */}
+                    {shouldShowBatterySelection && (
                     <div className="pt-4 border-t border-gray-200">
                       <h3 className="text-base font-bold text-gray-800 mb-3 flex items-center gap-2">
                         <Battery className="text-emerald-600" size={18} />
@@ -1287,7 +1301,8 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                           </>
                         )}
                                 </div>
-                                </div>
+                    </div>
+                    )}
               </>
             )}
 

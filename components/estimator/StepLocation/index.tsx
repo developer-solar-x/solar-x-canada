@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import { MapPin, Loader2 } from 'lucide-react'
 import { validateServiceArea } from '@/lib/geofencing'
 import { isValidEmail } from '@/lib/utils'
+import { validateIPCountry } from '@/lib/ip-geolocation'
 import { EmailInput } from './components/EmailInput'
 import { AddressInput } from './components/AddressInput'
 import { CoordinatesInput } from './components/CoordinatesInput'
@@ -195,18 +196,32 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
             province: result.data.province,
           })
         } else {
-          // Within service area - proceed
-          const locationData: LocationData = {
-            address: result.data.address,
-            coordinates: result.data.coordinates,
-            city: result.data.city,
-            province: result.data.province,
-            email: email,
-          }
-          onComplete(locationData)
+          // Within service area - validate IP country
+          const ipValidation = await validateIPCountry(result.data.province)
           
-          // Save to partial leads (email is required)
-          saveProgressToPartialLead(locationData)
+          if (!ipValidation.isValid) {
+            // IP country doesn't match Canadian address
+            setServiceAreaWarning(ipValidation.message || 'Location verification failed')
+            setPendingData({
+              address: result.data.address,
+              coordinates: result.data.coordinates,
+              city: result.data.city,
+              province: result.data.province,
+            })
+          } else {
+            // Both validations passed - proceed
+            const locationData: LocationData = {
+              address: result.data.address,
+              coordinates: result.data.coordinates,
+              city: result.data.city,
+              province: result.data.province,
+              email: email,
+            }
+            onComplete(locationData)
+            
+            // Save to partial leads (email is required)
+            saveProgressToPartialLead(locationData)
+          }
         }
       } else {
         setError('Address not found. Please try a different address.')
@@ -282,18 +297,32 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
                   province: result.data.province,
                 })
               } else {
-                // Within service area - proceed
-                const locationData: LocationData = {
-                  address: result.data.address,
-                  coordinates: result.data.coordinates,
-                  city: result.data.city,
-                  province: result.data.province,
-                  email: email,
-                }
-                onComplete(locationData)
+                // Within service area - validate IP country
+                const ipValidation = await validateIPCountry(result.data.province)
                 
-                // Save to partial leads (email is required)
-                saveProgressToPartialLead(locationData)
+                if (!ipValidation.isValid) {
+                  // IP country doesn't match Canadian address
+                  setServiceAreaWarning(ipValidation.message || 'Location verification failed')
+                  setPendingData({
+                    address: result.data.address,
+                    coordinates: result.data.coordinates,
+                    city: result.data.city,
+                    province: result.data.province,
+                  })
+                } else {
+                  // Both validations passed - proceed
+                  const locationData: LocationData = {
+                    address: result.data.address,
+                    coordinates: result.data.coordinates,
+                    city: result.data.city,
+                    province: result.data.province,
+                    email: email,
+                  }
+                  onComplete(locationData)
+                  
+                  // Save to partial leads (email is required)
+                  saveProgressToPartialLead(locationData)
+                }
               }
             } else {
               setError('Could not determine your address. Please enter it manually.')
@@ -360,20 +389,44 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
       })
       if (resp.ok) {
         const result = await resp.json()
-        const dataOut: LocationData = result.success && result.data ? {
-          address: result.data.address,
-          coordinates: { lat: parsedLat, lng: parsedLng },
-          city: result.data.city,
-          province: result.data.province,
-          email: email,
-        } : { 
-          coordinates: { lat: parsedLat, lng: parsedLng },
-          email: email,
+        if (result.success && result.data) {
+          // Validate IP country if province is available
+          const ipValidation = await validateIPCountry(result.data.province)
+          
+          if (!ipValidation.isValid) {
+            // IP country doesn't match Canadian address
+            setServiceAreaWarning(ipValidation.message || 'Location verification failed')
+            setPendingData({
+              address: result.data.address,
+              coordinates: { lat: parsedLat, lng: parsedLng },
+              city: result.data.city,
+              province: result.data.province,
+            })
+            setLoading(false)
+            return
+          }
+          
+          const dataOut: LocationData = {
+            address: result.data.address,
+            coordinates: { lat: parsedLat, lng: parsedLng },
+            city: result.data.city,
+            province: result.data.province,
+            email: email,
+          }
+          onComplete(dataOut)
+          
+          // Save to partial leads (email is required)
+          saveProgressToPartialLead(dataOut)
+        } else {
+          const dataOut: LocationData = {
+            coordinates: { lat: parsedLat, lng: parsedLng },
+            email: email,
+          }
+          onComplete(dataOut)
+          
+          // Save to partial leads (email is required)
+          saveProgressToPartialLead(dataOut)
         }
-        onComplete(dataOut)
-        
-        // Save to partial leads (email is required)
-        saveProgressToPartialLead(dataOut)
       } else {
         const coordData: LocationData = {
           coordinates: { lat: parsedLat, lng: parsedLng },

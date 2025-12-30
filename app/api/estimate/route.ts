@@ -246,7 +246,10 @@ export async function POST(request: Request) {
         coordinates,
         roofPolygon,
         pvWattsData: productionData.pvWattsData,
-      }
+      },
+      
+      // Province (for Alberta Solar Club detection)
+      province: province,
     }
 
     return NextResponse.json({

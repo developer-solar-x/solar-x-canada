@@ -131,6 +131,7 @@ export function StepModeSelector({ onComplete }: StepModeSelectorProps) {
         onSelect={handleProgramSelect}
         onClose={() => setShowProgramModal(false)}
         isQuickEstimate={selectedMode === 'easy'}
+        estimatorMode={selectedMode}
       />
     </div>
   )
