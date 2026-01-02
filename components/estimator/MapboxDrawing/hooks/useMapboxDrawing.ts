@@ -237,7 +237,7 @@ export function useMapboxDrawing({
             'circle-stroke-width': 2,
           },
         },
-        // Highlight selected section with thicker border
+        // Highlight selected section with thicker border (must be after other stroke layers)
         {
           id: 'gl-draw-polygon-stroke-selected',
           type: 'line',
@@ -252,7 +252,7 @@ export function useMapboxDrawing({
               ['==', ['%', ['to-number', ['get', 'user_featureCount']], 6], 4], '#8B5CF6',
               '#EC4899'
             ],
-            'line-width': 6, // Thicker border for selected section
+            'line-width': 8, // Thicker border for selected section (increased from 6)
             'line-opacity': 1,
           },
         },
@@ -787,14 +787,33 @@ export function useMapboxDrawing({
         // Update area immediately (real-time) without waiting for snapshot
         setCurrentArea(totalAreaSqFt)
         
-        // Call callback immediately with valid data only (no snapshot yet for real-time updates)
-        onAreaCalculatedRef.current(totalAreaSqFt, validData, undefined)
+        // Only call callback if we have valid features and area > 0
+        // This prevents clearing results when polygons are temporarily filtered during selection
+        if (totalAreaSqFt > 0 && validFeatures.length > 0) {
+          onAreaCalculatedRef.current(totalAreaSqFt, validData, undefined)
+        }
         
         // Add angle labels
         addAngleLabels()
         
         // Add section labels - pass validFeatures so properties are available
         addSectionLabels(validFeatures)
+        
+        // Re-apply highlight if a section is selected (in case updateArea cleared it)
+        if (selectedSectionIndex !== null && selectedSectionIndex !== undefined && map.current && map.current.isStyleLoaded()) {
+          const selectedLayer = map.current.getLayer('gl-draw-polygon-stroke-selected')
+          if (selectedLayer) {
+            try {
+              map.current.setFilter('gl-draw-polygon-stroke-selected', [
+                'all',
+                ['==', '$type', 'Polygon'],
+                ['==', ['to-number', ['get', 'user_featureCount']], selectedSectionIndex]
+              ])
+            } catch (e) {
+              // Ignore errors
+            }
+          }
+        }
         
         // Debounce snapshot capture - capture after user stops editing (separate from real-time area)
         snapshotTimeoutRef.current = setTimeout(() => {
@@ -909,18 +928,36 @@ export function useMapboxDrawing({
     map.current.on('draw.create', updateArea)
     map.current.on('draw.update', updateArea)
     map.current.on('draw.delete', updateArea)
-    map.current.on('draw.modechange', () => {
-      // Trigger update when mode changes (e.g., after deleting a vertex)
-      // This ensures immediate feedback when user deletes and mode changes
-      setTimeout(() => {
-        updateArea()
-      }, 0)
+    map.current.on('draw.modechange', (e: any) => {
+      // Only trigger updateArea for mode changes that actually affect geometry
+      // Don't update when just selecting/deselecting (simple_select <-> direct_select)
+      const mode = e.mode
+      const previousMode = e.previousMode
+      
+      // Only update if mode change indicates actual geometry change
+      // Skip updates for selection-only mode changes
+      if (mode === 'simple_select' && previousMode === 'direct_select') {
+        // User finished editing, update area
+        setTimeout(() => {
+          updateArea()
+        }, 0)
+      } else if (mode === 'direct_select' && (previousMode === 'simple_select' || previousMode === 'draw_polygon')) {
+        // User started editing or finished drawing, update area
+        setTimeout(() => {
+          updateArea()
+        }, 0)
+      } else if (mode !== 'simple_select' && mode !== 'direct_select') {
+        // Mode changed to something else (like draw_polygon), update area
+        setTimeout(() => {
+          updateArea()
+        }, 0)
+      }
+      // Otherwise, it's just selection change, don't update area
     })
     map.current.on('draw.selectionchange', () => {
-      // Trigger update when selection changes (e.g., after deletion)
-      setTimeout(() => {
-        updateArea()
-      }, 0)
+      // Don't call updateArea on selection change - it doesn't change the area
+      // Only update highlight if needed
+      // Selection changes don't affect area calculations, so we skip updateArea to prevent clearing results
     })
     
     // Handle right-click for vertex deletion (more intuitive)
@@ -1090,23 +1127,51 @@ export function useMapboxDrawing({
 
   // Update selected section highlight when selectedSectionIndex changes
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return
+    if (!map.current) return
     
-    const selectedLayer = map.current.getLayer('gl-draw-polygon-stroke-selected')
-    if (selectedLayer) {
-      if (selectedSectionIndex !== null && selectedSectionIndex !== undefined) {
-        // Show highlight for selected section
-        map.current.setFilter('gl-draw-polygon-stroke-selected', [
-          'all',
-          ['==', 'active', 'false'],
-          ['==', '$type', 'Polygon'],
-          ['==', ['to-number', ['get', 'user_featureCount']], selectedSectionIndex]
-        ])
+    const updateHighlight = () => {
+      if (!map.current || !map.current.isStyleLoaded()) {
+        // Retry after a short delay if style isn't loaded
+        setTimeout(updateHighlight, 100)
+        return
+      }
+      
+      const selectedLayer = map.current.getLayer('gl-draw-polygon-stroke-selected')
+      if (selectedLayer) {
+        if (selectedSectionIndex !== null && selectedSectionIndex !== undefined) {
+          // Show highlight for selected section
+          try {
+            // Move layer to top to ensure it's visible above other layers
+            try {
+              map.current.moveLayer('gl-draw-polygon-stroke-selected')
+            } catch {
+              // Layer might already be at top, ignore
+            }
+            
+            // Show highlight regardless of active state (so it works even when polygon is selected/active)
+            map.current.setFilter('gl-draw-polygon-stroke-selected', [
+              'all',
+              ['==', '$type', 'Polygon'],
+              ['==', ['to-number', ['get', 'user_featureCount']], selectedSectionIndex]
+            ])
+          } catch (e) {
+            console.warn('Failed to set highlight filter:', e)
+          }
+        } else {
+          // Hide highlight when no section is selected
+          try {
+            map.current.setFilter('gl-draw-polygon-stroke-selected', ['literal', false])
+          } catch (e) {
+            console.warn('Failed to hide highlight:', e)
+          }
+        }
       } else {
-        // Hide highlight when no section is selected
-        map.current.setFilter('gl-draw-polygon-stroke-selected', ['literal', false])
+        // Layer doesn't exist yet, retry after a short delay
+        setTimeout(updateHighlight, 200)
       }
     }
+    
+    updateHighlight()
   }, [selectedSectionIndex])
 
   // Undo function - needs to be defined after updateArea
