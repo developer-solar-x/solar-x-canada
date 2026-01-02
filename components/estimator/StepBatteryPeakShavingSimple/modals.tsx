@@ -54,59 +54,101 @@ export function ProfitInfoModal({ open, onClose, touResults, uloResults }: Profi
     <Modal
       isOpen={open}
       onClose={onClose}
-      title="How 25‑Year Profit Is Calculated"
-      message="We extend the same Year‑1 savings curve out to 25 years, then subtract the combined net cost to show the long-term outcome."
+      title="Understanding Your 25-Year Profit"
+      message="See how much money you'll keep after your solar and battery system pays for itself over 25 years."
       variant="info"
       cancelText="Close"
     >
       <div className="space-y-4 text-sm text-gray-700">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 className="font-semibold text-blue-900 mb-2">Simple Explanation</h3>
+          <p className="text-sm text-blue-800">
+            Your 25-year profit is the money you'll have left after your system pays for itself. Think of it as your total savings over 25 years, minus what you paid upfront.
+          </p>
+        </div>
+
         <div>
-          <span className="font-semibold">What the model assumes</span>
-          <div className="mt-1 text-xs text-gray-600 ml-1">
-            • Year 1 savings: This is the amount you'll save in your first year after installing solar and battery, shown in the "Annual Savings" card above. We use this as the starting point for our 25-year projection.
-          </div>
-          <div className="mt-1 text-xs text-gray-600 ml-1">
-            • Long-term projection gently increases utility prices while trimming solar+battery performance to stay realistic.
-          </div>
-          <div className="mt-1 text-xs text-gray-600 ml-1">
-            • Total 25‑year savings add up that adjusted curve; profit simply subtracts the combined net cost.
-          </div>
-        </div>
-
-        <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-          <div className="text-xs font-semibold text-navy-600 mb-1">Time-of-Use (TOU)</div>
-          <div className="text-xs text-gray-700">
-            Net cost: <span className="font-semibold">{formatMoney(tou?.combined?.netCost ?? 0)}</span>
-          </div>
-          <div className="text-xs text-gray-700">
-            25‑Year total savings: <span className="font-semibold text-navy-600">{formatMoney(touTotalSavings)}</span>
-          </div>
-          <div className="text-xs text-gray-700">
-            25‑Year profit: <span className="font-semibold text-green-600">{formatMoney(touProfit)}</span>
-          </div>
-          <div className="text-[11px] text-gray-600 mt-1">
-            Savings reflect the winter safeguard and the same solar+battery mix from the main view.
-          </div>
-        </div>
-
-        <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-          <div className="text-xs font-semibold text-navy-600 mb-1">Ultra-Low Overnight (ULO)</div>
-          <div className="text-xs text-gray-700">
-            Net cost: <span className="font-semibold">{formatMoney(ulo?.combined?.netCost ?? 0)}</span>
-          </div>
-          <div className="text-xs text-gray-700">
-            25‑Year total savings: <span className="font-semibold text-navy-600">{formatMoney(uloTotalSavings)}</span>
-          </div>
-          <div className="text-xs text-gray-700">
-            25‑Year profit: <span className="font-semibold text-green-600">{formatMoney(uloProfit)}</span>
-          </div>
-          <div className="text-[11px] text-gray-600 mt-1">
-            Night charging plus the winter safeguard drive the difference versus TOU.
+          <h3 className="font-semibold text-gray-800 mb-2">How We Calculate It</h3>
+          <div className="space-y-2 text-xs text-gray-700">
+            <div className="flex items-start gap-2">
+              <span className="text-green-600 font-bold mt-0.5">1.</span>
+              <div>
+                <span className="font-semibold">Start with Year 1 savings:</span> We use your first-year savings (shown in the "Annual Savings" card) as the starting point.
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-green-600 font-bold mt-0.5">2.</span>
+              <div>
+                <span className="font-semibold">Project forward 25 years:</span> We calculate how your savings grow each year as electricity rates increase, while accounting for realistic system performance.
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-green-600 font-bold mt-0.5">3.</span>
+              <div>
+                <span className="font-semibold">Subtract your investment:</span> We take your total 25-year savings and subtract what you paid for the system (after rebates).
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-green-600 font-bold mt-0.5">4.</span>
+              <div>
+                <span className="font-semibold">What's left is your profit:</span> This is the money you keep after your system has fully paid for itself.
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="text-xs text-gray-600 italic">
-          Long-term profit is one more way to see the combined effect of capped savings, rate trends, and incentives.
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-lg">
+            <div className="text-sm font-semibold text-blue-900 mb-3">Time-of-Use (TOU)</div>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-700">Your Investment:</span>
+                <span className="font-bold text-gray-900">{formatMoney(tou?.combined?.netCost ?? 0)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-700">Total Savings (25 years):</span>
+                <span className="font-bold text-blue-700">{formatMoney(touTotalSavings)}</span>
+              </div>
+              <div className="pt-2 border-t border-blue-300">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-700 font-semibold">Your Profit:</span>
+                  <span className="text-lg font-bold text-green-700">{formatMoney(touProfit)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="text-[11px] text-blue-700 mt-2 italic">
+              Includes winter safeguard and your solar + battery combination
+            </div>
+          </div>
+
+          <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-300 rounded-lg">
+            <div className="text-sm font-semibold text-purple-900 mb-3">Ultra-Low Overnight (ULO)</div>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-700">Your Investment:</span>
+                <span className="font-bold text-gray-900">{formatMoney(ulo?.combined?.netCost ?? 0)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-700">Total Savings (25 years):</span>
+                <span className="font-bold text-purple-700">{formatMoney(uloTotalSavings)}</span>
+              </div>
+              <div className="pt-2 border-t border-purple-300">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-700 font-semibold">Your Profit:</span>
+                  <span className="text-lg font-bold text-green-700">{formatMoney(uloProfit)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="text-[11px] text-purple-700 mt-2 italic">
+              Overnight charging advantage + winter safeguard included
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+          <p className="text-xs text-green-800">
+            <strong>Example:</strong> If you invest {formatMoney(tou?.combined?.netCost ?? 20000)} and save {formatMoney(Math.round((touTotalSavings || 50000) / 25))} per year on average, after 25 years you'll have saved {formatMoney(touTotalSavings || 50000)} total. Your profit of {formatMoney(touProfit || 30000)} is what you keep after your investment is paid back.
+          </p>
         </div>
       </div>
     </Modal>
@@ -165,110 +207,114 @@ export function PaybackInfoModal({ open, onClose, touResults, uloResults }: Payb
     <Modal
       isOpen={open}
       onClose={onClose}
-      title="How Full System Payback Is Calculated"
-      message="We combine the capped Year‑1 savings with a gentle long-term curve to show when the system fully repays its upfront cost."
+      title="Understanding Your Payback Period"
+      message="See how long it takes for your solar and battery system to pay for itself."
       variant="info"
       cancelText="Close"
     >
       <div className="space-y-4 text-sm text-gray-700">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 className="font-semibold text-blue-900 mb-2">What Is Payback Period?</h3>
+          <p className="text-sm text-blue-800">
+            Your payback period is how long it takes for your savings to equal what you paid for the system. Once you reach this point, your system has fully paid for itself, and everything after that is pure profit.
+          </p>
+        </div>
+
         <div>
-          <span className="font-semibold">What we include</span>
-          <div className="mt-1 text-xs text-gray-600 ml-1">
-            • Net cost: solar + battery after incentives — the investment the system must earn back.
-          </div>
-          <div className="mt-1 text-xs text-gray-600 ml-1">
-            • Year 1 savings: This is the amount you'll save in your first year after installing solar and battery, shown in the "Annual Savings" card above. We use this as the starting point for calculating when your system pays for itself.
-          </div>
-          <div className="mt-1 text-xs text-gray-600 ml-1">
-            • Long-term curve: savings rise gently with utility rates and taper slightly each year to reflect real-world performance.
-          </div>
-          <div className="mt-1 text-xs text-gray-600 ml-1">
-            • Payback moment: the first year when cumulative savings exceed the combined net cost (or “N/A” if that point never arrives).
+          <h3 className="font-semibold text-gray-800 mb-2">How We Calculate It</h3>
+          <div className="space-y-2 text-xs text-gray-700">
+            <div className="flex items-start gap-2">
+              <span className="text-blue-600 font-bold mt-0.5">1.</span>
+              <div>
+                <span className="font-semibold">Start with your investment:</span> We use your total system cost (solar + battery) after rebates.
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-blue-600 font-bold mt-0.5">2.</span>
+              <div>
+                <span className="font-semibold">Use Year 1 savings:</span> Your first-year savings (shown in "Annual Savings" above) is the starting point.
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-blue-600 font-bold mt-0.5">3.</span>
+              <div>
+                <span className="font-semibold">Project savings forward:</span> We calculate how your savings grow each year as electricity rates increase, accounting for realistic system performance.
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-green-600 font-bold mt-0.5">4.</span>
+              <div>
+                <span className="font-semibold">Find the payback point:</span> We add up your savings year by year until the total equals your investment. That's your payback period.
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-          <div className="text-xs font-semibold text-navy-600 mb-1">Time-of-Use (TOU)</div>
-          <div className="text-xs text-gray-700">
-            Net cost: <span className="font-semibold">{formatMoney(tou?.combined?.netCost)}</span>
-          </div>
-          <div className="text-xs text-gray-600 ml-1 mt-1">
-            • Solar net (after rebate): {formatMoney(tou?.combined?.solarNetCost)}
-          </div>
-          {tou?.combined?.solarRebateApplied ? (
-            <div className="text-[11px] text-gray-500 ml-3">
-              Solar rebate applied: {formatMoney(tou.combined.solarRebateApplied)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-lg">
+            <div className="text-sm font-semibold text-blue-900 mb-3">Time-of-Use (TOU)</div>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-700">Your Investment:</span>
+                <span className="font-bold text-gray-900">{formatMoney(tou?.combined?.netCost)}</span>
+              </div>
+              <div className="text-[11px] text-gray-600 pl-1">
+                Solar: {formatMoney(tou?.combined?.solarNetCost)} + Battery: {formatMoney(tou?.combined?.batteryNetCost)}
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-blue-300">
+                <span className="text-gray-700">Year 1 Savings:</span>
+                <span className="font-bold text-blue-700">{formatMoney(tou?.combined?.annual)}</span>
+              </div>
+              <div className="pt-2 border-t border-blue-300">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-700 font-semibold">Payback Period:</span>
+                  <span className="text-lg font-bold text-navy-600">{formatPayback(tou?.combined?.projection?.paybackYears)}</span>
+                </div>
+              </div>
             </div>
-          ) : null}
-          <div className="text-xs text-gray-600 ml-1">
-            • Battery net (after rebate): {formatMoney(tou?.combined?.batteryNetCost)}
-          </div>
-          {tou?.combined?.batteryRebateApplied ? (
-            <div className="text-[11px] text-gray-500 ml-3">
-              Battery rebate applied: {formatMoney(tou.combined.batteryRebateApplied)}
-              {tou?.combined?.batteryGrossCost ? (
-                <> (from {formatMoney(tou.combined.batteryGrossCost)})</>
-              ) : null}
+            <div className="text-[11px] text-blue-700 mt-2 italic">
+              Savings increase over time as rates rise
             </div>
-          ) : tou?.combined?.batteryGrossCost ? (
-            <div className="text-[11px] text-gray-500 ml-3">
-              Battery price: {formatMoney(tou.combined.batteryGrossCost)}
+          </div>
+
+          <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-300 rounded-lg">
+            <div className="text-sm font-semibold text-purple-900 mb-3">Ultra-Low Overnight (ULO)</div>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-700">Your Investment:</span>
+                <span className="font-bold text-gray-900">{formatMoney(ulo?.combined?.netCost)}</span>
+              </div>
+              <div className="text-[11px] text-gray-600 pl-1">
+                Solar: {formatMoney(ulo?.combined?.solarNetCost)} + Battery: {formatMoney(ulo?.combined?.batteryNetCost)}
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-purple-300">
+                <span className="text-gray-700">Year 1 Savings:</span>
+                <span className="font-bold text-purple-700">{formatMoney(ulo?.combined?.annual)}</span>
+              </div>
+              <div className="pt-2 border-t border-purple-300">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-700 font-semibold">Payback Period:</span>
+                  <span className="text-lg font-bold text-navy-600">{formatPayback(ulo?.combined?.projection?.paybackYears)}</span>
+                </div>
+              </div>
             </div>
-          ) : null}
-          <div className="text-xs text-gray-700">
-            Year 1 savings: <span className="font-semibold">{formatMoney(tou?.combined?.annual)}</span>
-          </div>
-          <div className="text-xs text-gray-700">
-            Payback: <span className="font-bold text-navy-600">{formatPayback(tou?.combined?.projection?.paybackYears)}</span>
-          </div>
-          <div className="text-[11px] text-gray-600 mt-1">
-            Savings glide gently over time while rates rise, producing a realistic payback slope.
+            <div className="text-[11px] text-purple-700 mt-2 italic">
+              Overnight charging advantage typically shortens payback
+            </div>
           </div>
         </div>
 
-        <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-          <div className="text-xs font-semibold text-navy-600 mb-1">Ultra-Low Overnight (ULO)</div>
-          <div className="text-xs text-gray-700">
-            Net cost: <span className="font-semibold">{formatMoney(ulo?.combined?.netCost)}</span>
-          </div>
-          <div className="text-xs text-gray-600 ml-1 mt-1">
-            • Solar net (after rebate): {formatMoney(ulo?.combined?.solarNetCost)}
-          </div>
-          {ulo?.combined?.solarRebateApplied ? (
-            <div className="text-[11px] text-gray-500 ml-3">
-              Solar rebate applied: {formatMoney(ulo.combined.solarRebateApplied)}
-            </div>
-          ) : null}
-          <div className="text-xs text-gray-600 ml-1">
-            • Battery net (after rebate): {formatMoney(ulo?.combined?.batteryNetCost)}
-          </div>
-          {ulo?.combined?.batteryRebateApplied ? (
-            <div className="text-[11px] text-gray-500 ml-3">
-              Battery rebate applied: {formatMoney(ulo.combined.batteryRebateApplied)}
-              {ulo?.combined?.batteryGrossCost ? (
-                <> (from {formatMoney(ulo.combined.batteryGrossCost)})</>
-              ) : null}
-            </div>
-          ) : ulo?.combined?.batteryGrossCost ? (
-            <div className="text-[11px] text-gray-500 ml-3">
-              Battery price: {formatMoney(ulo.combined.batteryGrossCost)}
-            </div>
-          ) : null}
-          <div className="text-xs text-gray-700">
-            Year 1 savings: <span className="font-semibold">{formatMoney(ulo?.combined?.annual)}</span>
-          </div>
-          <div className="text-xs text-gray-700">
-            Payback: <span className="font-bold text-navy-600">{formatPayback(ulo?.combined?.projection?.paybackYears)}</span>
-          </div>
-          <div className="text-[11px] text-gray-600 mt-1">
-            Night charging and the same winter safeguard are both included, which is why ULO often pays back sooner.
-          </div>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+          <p className="text-xs text-green-800">
+            <strong>Example:</strong> If you invest {formatMoney(tou?.combined?.netCost || 20000)} and save {formatMoney(Math.round((tou?.combined?.annual || 2000) / 12))} per month, your system pays for itself in {formatPayback(tou?.combined?.projection?.paybackYears || 10)}. After that, all savings are pure profit!
+          </p>
         </div>
 
-        <ul className="list-disc ml-6 text-xs text-gray-600 space-y-1">
-          <li>If the net cost is ≤ 0, payback is 0 years.</li>
-          <li>If capped savings never exceed the cost, payback shows as N/A so you know the system never breaks even under these assumptions.</li>
-        </ul>
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+          <p className="text-xs text-gray-700">
+            <strong>Note:</strong> If payback shows "N/A", it means your savings won't exceed your investment within 25 years under these assumptions. A shorter payback period means your investment recovers faster.
+          </p>
+        </div>
       </div>
     </Modal>
   )

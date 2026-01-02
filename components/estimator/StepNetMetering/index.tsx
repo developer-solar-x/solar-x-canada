@@ -47,20 +47,23 @@ function DonutChart({
       ? tieredOffset
       : touOffset
 
-  // Clamp solar offset to 0–100 for rendering
-  const solarOffset = Math.max(0, Math.min(100, rawSolarOffset))
+  // Allow solar offset to exceed 100% to show credit (bill fully offset + credit)
+  const solarOffset = Math.max(0, rawSolarOffset)
 
-  // Battery can only eat into the remaining headroom after solar.
+  // Battery can add to the offset, even if solar already exceeds 100%
   const rawBatteryPortion = Math.max(0, batterySavingsPercent)
-  const maxBatteryHeadroom = Math.max(0, 100 - solarOffset)
-  const batteryPortion = Math.min(rawBatteryPortion, maxBatteryHeadroom)
+  // Allow battery to add beyond 100% if solar already exceeds 100%
+  const batteryPortion = rawBatteryPortion
 
   const totalOffset = solarOffset + batteryPortion
-  // Cap display at 100% for visual representation, but keep actual value for text
+  // For visual representation, cap at 100% for the donut chart, but allow text to show actual value
   const displayTotalOffset = Math.min(100, totalOffset)
   const remaining = 100 - displayTotalOffset
   const circumference = 2 * Math.PI * 120
-  const batteryArcLength = (batteryPortion / 100) * circumference
+  // Calculate battery arc length based on remaining headroom (only show if there's room in the visual)
+  const batteryArcLength = displayTotalOffset < 100 
+    ? (Math.min(batteryPortion, 100 - Math.min(100, solarOffset)) / 100) * circumference
+    : 0
   
   return (
     <div className="relative w-64 h-64 mx-auto">
@@ -91,7 +94,7 @@ function DonutChart({
             strokeWidth="40"
             strokeDasharray={circumference}
             strokeDashoffset={
-              circumference - (solarOffset / 100) * circumference
+              circumference - (Math.min(100, solarOffset) / 100) * circumference
             }
             // Use a flat line cap so adjoining segments meet cleanly with no visual gap.
             strokeLinecap="butt"
@@ -99,7 +102,7 @@ function DonutChart({
           />
         )}
         {/* Battery savings circle – drawn on top of solar so it appears as a second segment */}
-        {batteryPortion > 0 && (
+        {batteryPortion > 0 && displayTotalOffset < 100 && (
           <circle
             cx="140"
             cy="140"
@@ -112,7 +115,7 @@ function DonutChart({
             // additional percentage contributed by the battery.
             strokeDasharray={`${batteryArcLength} ${circumference - batteryArcLength}`}
             strokeDashoffset={
-              circumference - (solarOffset / 100) * circumference
+              circumference - (Math.min(100, solarOffset) / 100) * circumference
             }
             strokeLinecap="butt"
             className="transition-all duration-700"
@@ -2022,165 +2025,332 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             <Modal
               isOpen={openModal === 'payback'}
               onClose={() => setOpenModal(null)}
-              title="Payback Period"
-              message="The payback period is the time it takes for your solar system savings to equal the initial investment cost."
+              title="Understanding Your Payback Period"
+              message="See how long it takes for your solar system to pay for itself through net metering savings."
               variant="info"
               cancelText="Close"
             >
-              <p className="mb-3">
-                This calculation accounts for:
-              </p>
-              <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 ml-2">
-                <li>
-                  <span className="font-semibold">Net investment</span> (system cost with no rebates for net metering):{' '}
-                  {formatCurrency(netCost)}
-                </li>
-                {selectedResult && (
-                  <>
-                    <li>
-                      <span className="font-semibold">Annual export credits</span> (Year 1):{' '}
-                      {`$${selectedResult.annual.exportCredits.toFixed(2)}`}
-                    </li>
-                    <li>
-                      <span className="font-semibold">Annual import cost after solar</span> (Year 1):{' '}
-                      {`$${selectedResult.annual.importCost.toFixed(2)}`}
-                    </li>
-                    <li>
-                      <span className="font-semibold">Net annual bill</span> = Import Cost − Export Credits ={' '}
-                      {`$${selectedResult.annual.netAnnualBill.toFixed(2)}`}
-                    </li>
-                  </>
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-blue-900 mb-2">What Is Payback Period?</h3>
+                  <p className="text-sm text-blue-800">
+                    Your payback period is how long it takes for your net metering savings to equal what you paid for the system. Once you reach this point, your system has fully paid for itself, and everything after that is pure profit.
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-gray-800 mb-2">How We Calculate It</h3>
+                  <div className="space-y-3 text-sm text-gray-700">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-700 font-bold text-sm">1</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Your Investment:</span> {formatCurrency(netCost)} (system cost - note: net metering doesn't qualify for rebates)
+                      </div>
+                    </div>
+                    {selectedResult && (
+                      <>
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                            <span className="text-blue-700 font-bold text-sm">2</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold">Year 1 Savings Breakdown:</span>
+                            <div className="mt-1 text-xs text-gray-600 space-y-1 ml-4">
+                              <div>• Export Credits: ${selectedResult.annual.exportCredits.toFixed(2)} (selling excess solar)</div>
+                              <div>• Import Cost: ${selectedResult.annual.importCost.toFixed(2)} (buying from grid)</div>
+                              <div>• Net Annual Bill: ${selectedResult.annual.netAnnualBill.toFixed(2)}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-700 font-bold text-sm">3</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Project Savings Forward:</span> We calculate how your savings grow each year as electricity rates increase by {escalatorPercent.toFixed(1)}% annually.
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                        <span className="text-green-700 font-bold text-sm">=</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Your Payback Period:</span> We add up your savings year by year until the total equals your investment.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold text-gray-700">Your Payback Period:</span>
+                    <span className="text-2xl font-bold text-navy-600">
+                      {paybackYears != null && isFinite(paybackYears) ? `${paybackYears.toFixed(1)} years` : 'N/A'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-2">
+                    {paybackYears != null && isFinite(paybackYears) 
+                      ? `Your system will pay for itself in ${paybackYears.toFixed(1)} years. After that, all savings are pure profit!`
+                      : 'Your savings may not exceed your investment within 25 years under these assumptions.'}
+                  </p>
+                </div>
+
+                {paybackYears != null && isFinite(paybackYears) && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <p className="text-xs text-gray-700">
+                      <strong>What this means:</strong> After {paybackYears.toFixed(1)} years, your {formatCurrency(netCost)} investment will be fully recovered through your net metering savings. A shorter payback period means your investment recovers faster and you start earning pure profit sooner.
+                    </p>
+                  </div>
                 )}
-                <li>
-                  We estimate your <span className="font-semibold">first‑year savings</span> from net metering and then
-                  apply an annual escalation to electricity rates (typically {escalatorPercent.toFixed(1)}% per year).
-                </li>
-                <li>
-                  We add those savings year by year until the total equals your net investment. That year (including
-                  fraction) is the <span className="font-semibold">payback period</span>.
-                </li>
-              </ul>
-              <p className="mt-3 text-sm text-gray-600">
-                In this scenario, your payback period is approximately{' '}
-                {paybackYears != null && isFinite(paybackYears) ? `${paybackYears.toFixed(1)} years` : 'N/A'}. A shorter payback period means
-                your investment recovers faster.
-              </p>
+              </div>
             </Modal>
 
             <Modal
               isOpen={openModal === 'profit'}
               onClose={() => setOpenModal(null)}
-              title="25-Year Profit"
-              message="The 25-year profit represents your total financial gain over the typical lifespan of a solar panel system (25 years)."
+              title="Understanding Your 25-Year Profit"
+              message="See how much money you'll keep after your solar system pays for itself over 25 years."
               variant="success"
               cancelText="Close"
             >
-              <p className="mb-3">
-                This calculation includes:
-              </p>
-              <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 ml-2">
-                <li>
-                  <span className="font-semibold">Net investment</span>: {formatCurrency(netCost)}
-                </li>
-                <li>
-                  <span className="font-semibold">Year 1 savings</span>: This is the amount you'll save in your first year after installing solar and battery. It comes from lower import costs (buying less from the grid) plus export credits (selling excess solar energy back to the grid) under your selected plan. This amount is shown in the "Annual Savings" section above.
-                </li>
-                <li>
-                  We project these savings forward for 25 years using an annual escalation of{' '}
-                  {escalatorPercent.toFixed(1)}% (higher rates → higher savings).
-                </li>
-                <li>
-                  <span className="font-semibold">25‑Year Profit</span> = (Sum of 25 years of projected savings) − Net
-                  Investment.
-                </li>
-              </ul>
-              <p className="mt-3 text-sm text-gray-600">
-                For this scenario, your estimated 25‑year profit is{' '}
-                {profit25 >= 0 ? formatCurrency(Math.round(profit25)) : 'N/A'}. This shows the long‑term value of your
-                solar investment after the system has already paid for itself.
-              </p>
+              <div className="space-y-4">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-green-900 mb-2">What Is 25-Year Profit?</h3>
+                  <p className="text-sm text-green-800">
+                    Your 25-year profit is the money you'll have left after your solar system fully pays for itself. It's your total savings over 25 years, minus what you invested upfront.
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-gray-800 mb-2">How We Calculate It</h3>
+                  <div className="space-y-3 text-sm text-gray-700">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-700 font-bold text-sm">1</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Your Investment:</span> {formatCurrency(netCost)} (system cost after rebates)
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-700 font-bold text-sm">2</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Year 1 Savings:</span> Your first-year savings from lower grid costs and export credits (shown in "Annual Savings" above)
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-700 font-bold text-sm">3</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">25-Year Projection:</span> We calculate how your savings grow each year as electricity rates increase by {escalatorPercent.toFixed(1)}% annually
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                        <span className="text-green-700 font-bold text-sm">=</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Your Profit:</span> Total 25-year savings minus your investment
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold text-gray-700">Your 25-Year Profit:</span>
+                    <span className={`text-2xl font-bold ${profit25 >= 0 ? 'text-green-700' : 'text-gray-600'}`}>
+                      {profit25 >= 0 ? formatCurrency(Math.round(profit25)) : 'N/A'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-2">
+                    This is the money you'll keep after your system has fully paid for itself. The higher the number, the better your long-term return on investment.
+                  </p>
+                </div>
+
+                {profit25 >= 0 && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <p className="text-xs text-gray-700">
+                      <strong>What this means:</strong> Over 25 years, you'll save money on electricity, and after paying back your {formatCurrency(netCost)} investment, you'll have {formatCurrency(Math.round(profit25))} left as profit. That's money in your pocket!
+                    </p>
+                  </div>
+                )}
+              </div>
             </Modal>
 
             <Modal
               isOpen={openModal === 'credits'}
               onClose={() => setOpenModal(null)}
-              title="Annual Export Credits"
-              message="Annual export credits represent the total dollar value of excess solar energy you send back to the grid over a full year."
+              title="Understanding Annual Export Credits"
+              message="See how much money you earn by sending excess solar energy back to the grid."
               variant="info"
               cancelText="Close"
             >
-              <p className="mb-3">
-                How it works:
-              </p>
-              <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 ml-2">
-                <li>When your solar panels produce more energy than you're using, the excess is exported to the grid.</li>
-                <li>
-                  For each hour, we calculate{' '}
-                  <span className="font-semibold">Export Credits</span> = Surplus kWh × (Consumption Rate + 2¢) ÷ 100.
-                </li>
-                <li>
-                  We add up all hourly credits over the year to get your{' '}
-                  <span className="font-semibold">Annual Export Credits</span>.
-                </li>
+              <div className="space-y-4">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-emerald-900 mb-2">What Are Export Credits?</h3>
+                  <p className="text-sm text-emerald-800">
+                    When your solar panels produce more electricity than you're using, the excess energy goes back to the grid. Your utility pays you for this energy in the form of credits that can offset your future electricity bills.
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-gray-800 mb-2">How We Calculate It</h3>
+                  <div className="space-y-3 text-sm text-gray-700">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
+                        <span className="text-emerald-700 font-bold text-sm">1</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Excess Production:</span> When your solar panels produce more than you're using, the extra energy is exported to the grid.
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
+                        <span className="text-emerald-700 font-bold text-sm">2</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Credit Calculation:</span> For each hour, we calculate credits based on your export rate (typically your consumption rate + 2¢ per kWh).
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
+                        <span className="text-emerald-700 font-bold text-sm">3</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Annual Total:</span> We add up all hourly credits throughout the year to get your total annual export credits.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {selectedResult && (
-                  <>
-                    <li>
-                      In this scenario, total exported energy is approximately{' '}
-                      {Math.round(selectedResult.annual.totalExported).toLocaleString()} kWh, which generates about{' '}
-                      {`$${selectedResult.annual.exportCredits.toFixed(2)}`} in credits.
-                    </li>
-                    <li>
-                      The average export credit rate is roughly{' '}
-                      {selectedResult.annual.totalExported > 0
-                        ? `${((selectedResult.annual.exportCredits / selectedResult.annual.totalExported) * 100).toFixed(
-                            1,
-                          )}¢/kWh`
-                        : 'N/A'}
-                      .
-                    </li>
-                  </>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-700">Total Energy Exported:</span>
+                        <span className="font-bold text-gray-900">{Math.round(selectedResult.annual.totalExported).toLocaleString()} kWh</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-700">Average Credit Rate:</span>
+                        <span className="font-bold text-blue-700">
+                          {selectedResult.annual.totalExported > 0
+                            ? `${((selectedResult.annual.exportCredits / selectedResult.annual.totalExported) * 100).toFixed(1)}¢/kWh`
+                            : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="pt-2 border-t border-blue-300">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-700 font-semibold">Your Annual Credits:</span>
+                          <span className="text-xl font-bold text-emerald-700">${selectedResult.annual.exportCredits.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
-                <li>These credits can be used to offset future electricity bills and can roll forward for up to 12 months.</li>
-              </ul>
-              <p className="mt-3 text-sm text-gray-600">
-                Higher export credits typically occur in summer months when solar production is highest. These credits help offset winter bills when production is lower.
-              </p>
+
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <p className="text-xs text-gray-700">
+                    <strong>How Credits Work:</strong> These credits can be used to offset future electricity bills and can roll forward for up to 12 months. Higher export credits typically occur in summer months when solar production is highest, helping offset winter bills when production is lower.
+                  </p>
+                </div>
+              </div>
             </Modal>
 
             <Modal
               isOpen={openModal === 'coverage'}
               onClose={() => setOpenModal(null)}
-              title="Energy Coverage"
-              message="Energy coverage shows what percentage of your annual electricity usage is met by your solar production."
+              title="Understanding Energy Coverage"
+              message="See what percentage of your annual electricity needs are met by your solar system."
               variant="info"
               cancelText="Close"
             >
-              <p className="mb-3">
-                Calculation:
-              </p>
-              <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 ml-2">
-                <li>
-                  <span className="font-semibold">Energy Coverage %</span> = Annual Solar Production ÷ Annual Usage ×
-                  100%.
-                </li>
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-blue-900 mb-2">What Is Energy Coverage?</h3>
+                  <p className="text-sm text-blue-800">
+                    Energy coverage shows what percentage of your annual electricity usage is produced by your solar system. It helps you understand if your system is appropriately sized for your energy needs.
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-gray-800 mb-2">How We Calculate It</h3>
+                  <div className="space-y-2 text-sm text-gray-700">
+                    <div className="flex items-start gap-2">
+                      <span className="text-blue-600 font-bold mt-0.5">=</span>
+                      <div>
+                        <span className="font-semibold">Energy Coverage %</span> = (Annual Solar Production ÷ Annual Usage) × 100%
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {selectedResult && (
-                  <>
-                    <li>
-                      In this scenario:{' '}
-                      {Math.round(selectedResult.annual.totalSolarProduction).toLocaleString()} kWh produced ÷{' '}
-                      {Math.round(selectedResult.annual.totalLoad).toLocaleString()} kWh used ≈{' '}
-                      {((selectedResult.annual.totalSolarProduction / selectedResult.annual.totalLoad) * 100).toFixed(1)}
-                      %.
-                    </li>
-                  </>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-700">Solar Production:</span>
+                        <span className="font-bold text-gray-900">{Math.round(selectedResult.annual.totalSolarProduction).toLocaleString()} kWh</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-700">Your Usage:</span>
+                        <span className="font-bold text-gray-900">{Math.round(selectedResult.annual.totalLoad).toLocaleString()} kWh</span>
+                      </div>
+                      <div className="pt-2 border-t border-green-300">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-700 font-semibold">Energy Coverage:</span>
+                          <span className="text-2xl font-bold text-green-700">
+                            {((selectedResult.annual.totalSolarProduction / selectedResult.annual.totalLoad) * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
-                <li>100% means your solar system produces exactly what you use over a full year.</li>
-                <li>Over 100% means you're producing more than you use (excess is exported as credits).</li>
-                <li>Under 100% means you still need to purchase some electricity from the grid.</li>
-              </ul>
-              <p className="mt-3 text-sm text-gray-600">
-                Note: This is an annual average. Production varies by season - higher in summer, lower in winter. Net metering allows you to use summer excess to offset winter shortfalls.
-              </p>
+
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-gray-800 mb-2">What the Numbers Mean</h3>
+                  <div className="space-y-2 text-sm text-gray-700">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mt-0.5">
+                        <span className="text-green-700 font-bold text-xs">100%</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Exactly 100%:</span> Your solar system produces exactly what you use over a full year - perfect sizing!
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <div className="flex-shrink-0 w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center mt-0.5">
+                        <span className="text-emerald-700 font-bold text-xs">+</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Over 100%:</span> You're producing more than you use! The excess is exported as credits that can offset future bills.
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <div className="flex-shrink-0 w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center mt-0.5">
+                        <span className="text-amber-700 font-bold text-xs">-</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Under 100%:</span> You still need to purchase some electricity from the grid, but your solar system significantly reduces your bills.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <p className="text-xs text-gray-700">
+                    <strong>Important Note:</strong> This is an annual average. Production varies by season - higher in summer, lower in winter. Net metering allows you to use summer excess to offset winter shortfalls through credit banking.
+                  </p>
+                </div>
+              </div>
             </Modal>
 
             <Modal
@@ -2301,8 +2471,10 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 <div className="mt-6 text-center text-sm text-gray-600">
                   {(() => {
                     const totalOffset = selectedResult.annual.billOffsetPercent + batterySavingsPercent
-                    return totalOffset >= 100 
+                    return totalOffset > 100 
                       ? `Bill Fully Offset + ${(totalOffset - 100).toFixed(1)}% Credit`
+                      : totalOffset === 100
+                      ? 'Bill Fully Offset'
                       : `Bill Offset: ${totalOffset.toFixed(1)}%`
                   })()}
                 </div>
