@@ -4,6 +4,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { MapboxDrawing, type MapboxDrawingRef } from '../MapboxDrawing'
+import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { calculateRoofAzimuth, calculateRoofAzimuthWithConfidence, getDirectionLabel, getOrientationEfficiency, ROOF_ORIENTATIONS } from '@/lib/roof-calculations'
 import * as turf from '@turf/turf'
 import { DrawingTips } from './components/DrawingTips'
@@ -22,6 +23,39 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   const [mapSnapshot, setMapSnapshot] = useState<string | null>(data.mapSnapshot || null)
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const mapboxDrawingRef = useRef<MapboxDrawingRef>(null)
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle if not typing in an input field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        if (mapboxDrawingRef.current?.canUndo()) {
+          mapboxDrawingRef.current.undo()
+          setCanUndo(mapboxDrawingRef.current.canUndo())
+          setCanRedo(mapboxDrawingRef.current.canRedo())
+        }
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault()
+        if (mapboxDrawingRef.current?.canRedo()) {
+          mapboxDrawingRef.current.redo()
+          setCanUndo(mapboxDrawingRef.current.canUndo())
+          setCanRedo(mapboxDrawingRef.current.canRedo())
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
   const [estimatedPanels, setEstimatedPanels] = useState<number | null>(
     data.roofAreaSqft ? Math.floor(data.roofAreaSqft / PANEL_AREA_SQFT) : null
   )
@@ -44,6 +78,8 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   
   // Per-section orientation editing
   const [editingSectionIndex, setEditingSectionIndex] = useState<number | null>(null)
+  // Track which section is selected/highlighted on the map
+  const [selectedSectionIndex, setSelectedSectionIndex] = useState<number | null>(null)
 
   // Use refs to track current values without causing callback recreation
   const roofAreaRef = useRef<number | null>(roofArea)
@@ -66,6 +102,11 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   // Handle area calculation from map drawing (supports multiple polygons)
   // Memoize to prevent infinite re-renders
   const handleAreaCalculated = useCallback((areaSqFt: number, polygonData: any, snapshot?: string) => {
+    // Update undo/redo state after area calculation
+    if (mapboxDrawingRef.current) {
+      setCanUndo(mapboxDrawingRef.current.canUndo())
+      setCanRedo(mapboxDrawingRef.current.canRedo())
+    }
     // Prevent infinite loops by checking if data has actually changed
     const areaChanged = roofAreaRef.current !== areaSqFt
     const polygonChanged = JSON.stringify(roofPolygonRef.current) !== JSON.stringify(polygonData)
@@ -110,8 +151,22 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
       
       const sections = polygonData.features.map((feature: any, index: number) => {
         if (feature.geometry.type === 'Polygon') {
+          // Validate polygon has valid coordinates
+          if (!feature.geometry.coordinates || !feature.geometry.coordinates[0] || 
+              !Array.isArray(feature.geometry.coordinates[0]) || 
+              feature.geometry.coordinates[0].length < 3) {
+            // Skip invalid polygons
+            return null
+          }
+          
           const areaMeters = turf.area(feature)
           const areaSqFt = Math.round(areaMeters * 10.764)
+          
+          // Skip polygons with 0 or invalid area
+          if (areaSqFt <= 0 || !isFinite(areaSqFt)) {
+            return null
+          }
+          
           const panels = Math.floor(areaSqFt / PANEL_AREA_SQFT)
           
           // Calculate orientation with confidence for this specific section
@@ -242,7 +297,7 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   return (
     <div className="grid gap-4 lg:grid-cols-[360px_1fr] lg:gap-6 px-3 sm:px-0" style={{ minHeight: 'calc(100vh - 180px)' }}>
       {/* Left sidebar - Instructions and measurements */}
-      <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto lg:order-1 order-2" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+      <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto lg:order-1 order-2 flex flex-col" style={{ maxHeight: 'calc(100vh - 220px)' }}>
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-navy-500 mb-1 sm:mb-2">
             Draw Your Roof
@@ -255,8 +310,51 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
         {/* Drawing Tips - Collapsible */}
         <DrawingTips />
 
+        {/* Undo/Redo Controls */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              if (mapboxDrawingRef.current?.canUndo()) {
+                mapboxDrawingRef.current.undo()
+                setCanUndo(mapboxDrawingRef.current.canUndo())
+                setCanRedo(mapboxDrawingRef.current.canRedo())
+              }
+            }}
+            disabled={!canUndo}
+            className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border transition-all ${
+              canUndo
+                ? 'border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer'
+                : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+            }`}
+            title="Undo (Ctrl+Z)"
+          >
+            <ArrowLeft size={18} />
+            <span className="text-sm font-medium">Undo</span>
+          </button>
+          
+          <button
+            onClick={() => {
+              if (mapboxDrawingRef.current?.canRedo()) {
+                mapboxDrawingRef.current.redo()
+                setCanUndo(mapboxDrawingRef.current.canUndo())
+                setCanRedo(mapboxDrawingRef.current.canRedo())
+              }
+            }}
+            disabled={!canRedo}
+            className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border transition-all ${
+              canRedo
+                ? 'border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer'
+                : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+            }`}
+            title="Redo (Ctrl+Shift+Z)"
+          >
+            <span className="text-sm font-medium">Redo</span>
+            <ArrowRight size={18} />
+          </button>
+        </div>
+
         {/* Live measurements */}
-        {roofArea && (
+        {roofArea ? (
           <div className="space-y-4">
             <RoofAreaDisplay
               roofArea={roofArea}
@@ -273,6 +371,8 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
                 editingSectionIndex={editingSectionIndex}
                 setEditingSectionIndex={setEditingSectionIndex}
                 updateSectionOrientation={updateSectionOrientation}
+                selectedSectionIndex={selectedSectionIndex}
+                setSelectedSectionIndex={setSelectedSectionIndex}
               />
             )}
 
@@ -291,10 +391,10 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
               <span>Solar production is based on typical weather and shading – real output may be higher or lower.</span>
             </div>
           </div>
-        )}
+        ) : null}
 
-        {/* Action buttons */}
-        <div className="space-y-3 pt-4 pb-20 lg:pb-0">
+        {/* Action buttons - Sticky at bottom */}
+        <div className="space-y-3 pt-4 mt-auto">
           <button
             onClick={handleContinue}
             disabled={!roofArea || !roofPolygon || isSubmitting}
@@ -326,6 +426,7 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
             address={data.address || 'Your location'}
             onAreaCalculated={handleAreaCalculated}
             initialData={roofPolygon}
+            selectedSectionIndex={selectedSectionIndex}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-50">

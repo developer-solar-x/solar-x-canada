@@ -210,17 +210,17 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
             })
           } else {
             // Both validations passed - proceed
-            const locationData: LocationData = {
-              address: result.data.address,
-              coordinates: result.data.coordinates,
-              city: result.data.city,
-              province: result.data.province,
-              email: email,
-            }
-            onComplete(locationData)
-            
-            // Save to partial leads (email is required)
-            saveProgressToPartialLead(locationData)
+          const locationData: LocationData = {
+            address: result.data.address,
+            coordinates: result.data.coordinates,
+            city: result.data.city,
+            province: result.data.province,
+            email: email,
+          }
+          onComplete(locationData)
+          
+          // Save to partial leads (email is required)
+          saveProgressToPartialLead(locationData)
           }
         }
       } else {
@@ -311,17 +311,17 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
                   })
                 } else {
                   // Both validations passed - proceed
-                  const locationData: LocationData = {
-                    address: result.data.address,
-                    coordinates: result.data.coordinates,
-                    city: result.data.city,
-                    province: result.data.province,
-                    email: email,
-                  }
-                  onComplete(locationData)
-                  
-                  // Save to partial leads (email is required)
-                  saveProgressToPartialLead(locationData)
+                const locationData: LocationData = {
+                  address: result.data.address,
+                  coordinates: result.data.coordinates,
+                  city: result.data.city,
+                  province: result.data.province,
+                  email: email,
+                }
+                onComplete(locationData)
+                
+                // Save to partial leads (email is required)
+                saveProgressToPartialLead(locationData)
                 }
               }
             } else {
@@ -407,11 +407,11 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
           }
           
           const dataOut: LocationData = {
-            address: result.data.address,
-            coordinates: { lat: parsedLat, lng: parsedLng },
-            city: result.data.city,
-            province: result.data.province,
-            email: email,
+          address: result.data.address,
+          coordinates: { lat: parsedLat, lng: parsedLng },
+          city: result.data.city,
+          province: result.data.province,
+          email: email,
           }
           onComplete(dataOut)
           
@@ -419,13 +419,13 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
           saveProgressToPartialLead(dataOut)
         } else {
           const dataOut: LocationData = {
-            coordinates: { lat: parsedLat, lng: parsedLng },
-            email: email,
-          }
-          onComplete(dataOut)
-          
-          // Save to partial leads (email is required)
-          saveProgressToPartialLead(dataOut)
+          coordinates: { lat: parsedLat, lng: parsedLng },
+          email: email,
+        }
+        onComplete(dataOut)
+        
+        // Save to partial leads (email is required)
+        saveProgressToPartialLead(dataOut)
         }
       } else {
         const coordData: LocationData = {

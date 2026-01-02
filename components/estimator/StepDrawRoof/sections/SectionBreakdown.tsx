@@ -11,7 +11,9 @@ export function SectionBreakdown({
   estimatedPanels,
   editingSectionIndex,
   setEditingSectionIndex,
-  updateSectionOrientation
+  updateSectionOrientation,
+  selectedSectionIndex,
+  setSelectedSectionIndex
 }: SectionBreakdownProps) {
   return (
     <div className="bg-white p-4 rounded-lg border border-gray-200">
@@ -43,9 +45,19 @@ export function SectionBreakdown({
               <div className={`rounded-lg border-2 overflow-hidden ${
                 editingSectionIndex === index ? 'border-blue-400 shadow-md' : 'border-gray-200'
               }`}>
-                <div className="bg-gray-50 py-2 px-3 flex items-center justify-between">
+                <div 
+                  className={`bg-gray-50 py-2 px-3 flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors ${
+                    selectedSectionIndex === index ? 'bg-blue-50' : ''
+                  }`}
+                  onClick={() => setSelectedSectionIndex(selectedSectionIndex === index ? null : index)}
+                >
                   <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-sm">
+                    <div 
+                      className="w-7 h-7 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-sm"
+                      style={{ 
+                        backgroundColor: ['#DC143C', '#2563EB', '#16A34A', '#F59E0B', '#8B5CF6', '#EC4899'][index % 6]
+                      }}
+                    >
                       {index + 1}
                     </div>
                     <span className="text-sm font-bold text-gray-800">Section {index + 1}</span>
@@ -88,7 +100,7 @@ export function SectionBreakdown({
                       }`}
                     >
                       <Edit2 size={13} />
-                      {editingSectionIndex === index ? 'Cancel' : 'Correct'}
+                      {editingSectionIndex === index ? 'Cancel' : 'Edit'}
                     </button>
                   </div>
                   
@@ -116,7 +128,7 @@ export function SectionBreakdown({
                           Wrong roof orientation?
                         </p>
                         <p className="text-xs text-red-700 leading-relaxed">
-                          This section faces {section.direction.toLowerCase()}, which may produce {section.efficiency}% of optimal output. Click "Correct" if the auto-detection is wrong.
+                          This section faces {section.direction.toLowerCase()}, which may produce {section.efficiency}% of optimal output. Click "Edit" if the auto-detection is wrong.
                         </p>
                       </div>
                     </div>
@@ -128,7 +140,7 @@ export function SectionBreakdown({
                       <Info size={14} className="text-yellow-600 mt-0.5 flex-shrink-0" />
                       <div className="flex-1">
                         <p className="text-xs text-yellow-800 leading-relaxed">
-                          Moderate efficiency. Click "Correct" if the detected orientation is incorrect.
+                          Moderate efficiency. Click "Edit" if the detected orientation is incorrect.
                         </p>
                       </div>
                     </div>

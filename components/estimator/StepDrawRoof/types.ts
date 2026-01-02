@@ -28,5 +28,7 @@ export interface SectionBreakdownProps {
   editingSectionIndex: number | null
   setEditingSectionIndex: (index: number | null) => void
   updateSectionOrientation: (sectionIndex: number, newAzimuth: number) => void
+  selectedSectionIndex: number | null
+  setSelectedSectionIndex: (index: number | null) => void
 }
 

@@ -211,7 +211,7 @@ export default function RootLayout({
 
   return (
     <html lang="en-CA" className={`${inter.variable} ${montserrat.variable} scroll-smooth`} data-scroll-behavior="smooth">
-      <body className="antialiased">
+      <body className="antialiased" suppressHydrationWarning>
         {/* Preconnect links for performance - added early in body */}
         <PreconnectLinks />
         {/* Structured Data for SEO (JSON-LD) - Valid in body for HTML5 */}

@@ -10,25 +10,34 @@ import type { MapboxDrawingProps } from './types'
 
 export interface MapboxDrawingRef {
   captureSnapshot: () => Promise<string | null>
+  undo: () => void
+  redo: () => void
+  canUndo: () => boolean
+  canRedo: () => boolean
 }
 
 export const MapboxDrawing = forwardRef<MapboxDrawingRef, MapboxDrawingProps>(
-  function MapboxDrawing({ coordinates, address, onAreaCalculated, initialData }, ref) {
+  function MapboxDrawing({ coordinates, address, onAreaCalculated, initialData, selectedSectionIndex }, ref) {
     // Map container reference
     const mapContainer = useRef<HTMLDivElement>(null)
 
-    const { captureSnapshot } = useMapboxDrawing({
+    const { captureSnapshot, undo, redo, canUndo, canRedo } = useMapboxDrawing({
       coordinates,
       address,
       onAreaCalculated,
       initialData,
       mapContainer,
+      selectedSectionIndex,
     })
 
-    // Expose captureSnapshot method via ref
+    // Expose methods via ref
     useImperativeHandle(ref, () => ({
       captureSnapshot: captureSnapshot || (async () => null),
-    }), [captureSnapshot])
+      undo: undo || (() => {}),
+      redo: redo || (() => {}),
+      canUndo: canUndo || (() => false),
+      canRedo: canRedo || (() => false),
+    }), [captureSnapshot, undo, redo, canUndo, canRedo])
 
   return (
     <div className="relative w-full h-full" style={{ minHeight: '600px' }}>
@@ -36,11 +45,13 @@ export const MapboxDrawing = forwardRef<MapboxDrawingRef, MapboxDrawingProps>(
       <div 
         ref={mapContainer} 
         className="absolute inset-0"
+        tabIndex={0}
         style={{ 
           width: '100%', 
           height: '100%',
           // Image enhancement filters for better satellite clarity
           filter: 'contrast(1.1) saturate(1.15) brightness(1.05)',
+          outline: 'none',
         }}
       />
 

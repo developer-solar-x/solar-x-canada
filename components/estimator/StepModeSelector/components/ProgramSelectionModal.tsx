@@ -28,6 +28,7 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
   }>({})
   const [skippedQuestions, setSkippedQuestions] = useState(false)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  const [selectedBatteryOption, setSelectedBatteryOption] = useState<boolean | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -44,6 +45,7 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
       setQuestionAnswers({})
       setCurrentQuestionIndex(0)
       setSkippedQuestions(false)
+      setSelectedBatteryOption(null)
     } else {
       document.body.style.overflow = ''
     }
@@ -129,8 +131,14 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
   }
 
   const handleBatterySelect = (wantsBattery: boolean) => {
-    setHasBattery(wantsBattery)
-    setShowLeadTypeSelection(true)
+    setSelectedBatteryOption(wantsBattery)
+  }
+
+  const handleContinue = () => {
+    if (selectedBatteryOption !== null) {
+      setHasBattery(selectedBatteryOption)
+      setShowLeadTypeSelection(true)
+    }
   }
 
   const handleProgramSelect = (programType: 'net_metering' | 'hrs_residential') => {
@@ -293,7 +301,9 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                           <button
                             onClick={() => handleBatterySelect(true)}
                             className={`p-6 rounded-xl border-2 transition-all text-left group ${
-                              isRecommended 
+                              selectedBatteryOption === true
+                                ? 'border-navy-500 bg-navy-50 shadow-md ring-2 ring-navy-500 ring-offset-2' 
+                                : isRecommended 
                                 ? 'border-navy-500 bg-navy-50 shadow-md' 
                                 : 'border-gray-300 bg-white hover:border-navy-500 hover:bg-navy-50'
                             }`}
@@ -325,7 +335,9 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                           <button
                             onClick={() => handleBatterySelect(false)}
                             className={`p-6 rounded-xl border-2 transition-all text-left group ${
-                              isRecommended 
+                              selectedBatteryOption === false
+                                ? 'border-blue-500 bg-blue-50 shadow-md ring-2 ring-blue-500 ring-offset-2' 
+                                : isRecommended 
                                 ? 'border-blue-500 bg-blue-50 shadow-md' 
                                 : 'border-gray-300 bg-white hover:border-blue-500 hover:bg-blue-50'
                             }`}
@@ -349,12 +361,34 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                         )
                       })()}
                     </div>
+                    
+                    {/* Continue Button */}
+                    <div className="mt-6">
+                      <button
+                        onClick={handleContinue}
+                        disabled={selectedBatteryOption === null}
+                        className={`w-full py-3 px-6 rounded-lg font-semibold transition-all ${
+                          selectedBatteryOption !== null
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg'
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        }`}
+                      >
+                        Continue
+                      </button>
+                      {selectedBatteryOption === null && (
+                        <p className="text-sm text-gray-500 text-center mt-2">
+                          Please select one of the options above to continue
+                        </p>
+                      )}
+                    </div>
+                    
                     <div className="mt-4 text-center">
                       <button
                         onClick={() => {
                           setQuestionAnswers({})
                           setCurrentQuestionIndex(0)
                           setShowQuestionForm(true)
+                          setSelectedBatteryOption(null)
                         }}
                         className="text-sm text-gray-500 hover:text-gray-700 underline"
                       >
@@ -373,7 +407,11 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                       {/* HRS (Load Displacement) */}
                       <button
                         onClick={() => handleBatterySelect(true)}
-                        className="p-6 rounded-xl border-2 border-gray-300 bg-white hover:border-navy-500 hover:bg-navy-50 transition-all text-left group"
+                        className={`p-6 rounded-xl border-2 transition-all text-left group ${
+                          selectedBatteryOption === true
+                            ? 'border-navy-500 bg-navy-50 shadow-md ring-2 ring-navy-500 ring-offset-2'
+                            : 'border-gray-300 bg-white hover:border-navy-500 hover:bg-navy-50'
+                        }`}
                       >
                         <div className="flex items-center gap-3 mb-3">
                           <div className="w-12 h-12 rounded-lg bg-navy-500 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -394,7 +432,11 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                           For Alberta users, Alberta Solar Club rates and messaging will appear in StepNetMetering. */}
                       <button
                         onClick={() => handleBatterySelect(false)}
-                        className="p-6 rounded-xl border-2 border-gray-300 bg-white hover:border-blue-500 hover:bg-blue-50 transition-all text-left group"
+                        className={`p-6 rounded-xl border-2 transition-all text-left group ${
+                          selectedBatteryOption === false
+                            ? 'border-blue-500 bg-blue-50 shadow-md ring-2 ring-blue-500 ring-offset-2'
+                            : 'border-gray-300 bg-white hover:border-blue-500 hover:bg-blue-50'
+                        }`}
                       >
                         <div className="flex items-center gap-3 mb-3">
                           <div className="w-12 h-12 rounded-lg bg-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -411,6 +453,26 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                       </button>
                     </div>
                     
+                    {/* Continue Button */}
+                    <div className="mt-6">
+                      <button
+                        onClick={handleContinue}
+                        disabled={selectedBatteryOption === null}
+                        className={`w-full py-3 px-6 rounded-lg font-semibold transition-all ${
+                          selectedBatteryOption !== null
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg'
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        }`}
+                      >
+                        Continue
+                      </button>
+                      {selectedBatteryOption === null && (
+                        <p className="text-sm text-gray-500 text-center mt-2">
+                          Please select one of the options above to continue
+                        </p>
+                      )}
+                    </div>
+                    
                     <div className="mt-6 text-center">
                       <button
                         onClick={() => {
@@ -418,6 +480,7 @@ export function ProgramSelectionModal({ isOpen, onSelect, onClose, isQuickEstima
                           setCurrentQuestionIndex(0)
                           setSkippedQuestions(false)
                           setShowQuestionForm(true)
+                          setSelectedBatteryOption(null)
                         }}
                         className="text-sm text-gray-500 hover:text-gray-700 underline"
                       >
