@@ -25,6 +25,14 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   const mapboxDrawingRef = useRef<MapboxDrawingRef>(null)
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
+  
+  // Cleanup effect to reset loading state if component unmounts while submitting
+  useEffect(() => {
+    return () => {
+      // Reset submitting state on unmount to prevent stuck loading states
+      setIsSubmitting(false)
+    }
+  }, [])
 
   // Keyboard shortcuts for undo/redo
   useEffect(() => {
@@ -236,61 +244,93 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
     }
     if (roofArea && roofPolygon) {
       setIsSubmitting(true)
-      // Capture snapshot immediately if not already captured
-      let finalSnapshot = mapSnapshot
-      if (!finalSnapshot && mapboxDrawingRef.current) {
-        try {
-          finalSnapshot = await mapboxDrawingRef.current.captureSnapshot()
-        } catch (error) {
-          console.error('Failed to capture map snapshot:', error)
+      
+      // Set a timeout to reset isSubmitting if something goes wrong
+      const timeoutId = setTimeout(() => {
+        console.error('Step completion timed out - resetting loading state')
+        setIsSubmitting(false)
+      }, 10000) // 10 second timeout
+      
+      try {
+        // Capture snapshot immediately if not already captured
+        let finalSnapshot = mapSnapshot
+        if (!finalSnapshot && mapboxDrawingRef.current) {
+          try {
+            finalSnapshot = await mapboxDrawingRef.current.captureSnapshot()
+          } catch (error) {
+            console.error('Failed to capture map snapshot:', error)
+          }
         }
-      }
 
-      const stepData = {
-        roofAreaSqft: roofArea,
-        roofPolygon: roofPolygon,
-        mapSnapshot: finalSnapshot || mapSnapshot,
-        roofAzimuth: selectedAzimuth, // Overall azimuth (for single section or largest section)
-        roofSections: roofSections // Include per-section orientation data
-      }
+        const stepData = {
+          roofAreaSqft: roofArea,
+          roofPolygon: roofPolygon,
+          mapSnapshot: finalSnapshot || mapSnapshot,
+          roofAzimuth: selectedAzimuth, // Overall azimuth (for single section or largest section)
+          roofSections: roofSections // Include per-section orientation data
+        }
 
-      // Save partial lead snapshot for detailed residential flows (both HRS and net metering)
-      const email = data.email
-      if (
-        email &&
-        isValidEmail(email) &&
-        data.estimatorMode === 'detailed' &&
-        data.leadType === 'residential'
-      ) {
-        try {
-          const response = await fetch('/api/partial-lead', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email,
-              estimatorData: {
-                ...data,
-                ...stepData,
+        // Save partial lead snapshot for detailed residential flows (both HRS and net metering)
+        const email = data.email
+        if (
+          email &&
+          isValidEmail(email) &&
+          data.estimatorMode === 'detailed' &&
+          data.leadType === 'residential'
+        ) {
+          try {
+            // Add timeout to the fetch request
+            const controller = new AbortController()
+            const fetchTimeout = setTimeout(() => controller.abort(), 5000) // 5 second timeout for API call
+            
+            const response = await fetch('/api/partial-lead', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
                 email,
-              },
-              currentStep: 2, // Draw Roof step
-            }),
-          })
+                estimatorData: {
+                  ...data,
+                  ...stepData,
+                  email,
+                },
+                currentStep: 2, // Draw Roof step
+              }),
+              signal: controller.signal,
+            })
+
+            clearTimeout(fetchTimeout)
 
           if (!response.ok) {
             const err = await response.json().catch(() => ({}))
-            console.error('Failed to save partial lead (Draw Roof):', response.status, err)
+            // Log error but don't block navigation - partial lead save is optional
+            if (process.env.NODE_ENV === 'development') {
+              console.warn('Failed to save partial lead (Draw Roof) - this is non-blocking:', response.status, err)
+            }
           }
-        } catch (error) {
-          console.error('Failed to save Draw Roof progress (partial lead):', error)
+          } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              console.error('Partial lead save request timed out')
+            } else {
+              console.error('Failed to save Draw Roof progress (partial lead):', error)
+            }
+            // Continue even if partial lead save fails - don't block navigation
+          }
         }
-      }
 
-      // Trigger parent step change. We intentionally do NOT reset isSubmitting here,
-      // because this step will unmount immediately after onComplete runs.
-      // Keeping isSubmitting=true guarantees the loading state is visible
-      // while the app transitions to the next step.
-      onComplete(stepData)
+        // Clear timeout since we're proceeding
+        clearTimeout(timeoutId)
+        
+        // Trigger parent step change. We intentionally do NOT reset isSubmitting here,
+        // because this step will unmount immediately after onComplete runs.
+        // Keeping isSubmitting=true guarantees the loading state is visible
+        // while the app transitions to the next step.
+        onComplete(stepData)
+      } catch (error) {
+        // If something goes wrong, reset the loading state
+        console.error('Error in handleContinue:', error)
+        clearTimeout(timeoutId)
+        setIsSubmitting(false)
+      }
     }
   }
 

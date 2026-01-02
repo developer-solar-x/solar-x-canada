@@ -81,6 +81,15 @@ export function PhotoSummary({
           Continue
         </button>
         
+        {onSkip && (
+          <button
+            onClick={onSkip}
+            className="btn-outline border-yellow-300 text-yellow-700 bg-yellow-50 hover:bg-yellow-100 w-full text-sm sm:text-base py-2 sm:py-2.5"
+          >
+            Skip (Dev Mode)
+          </button>
+        )}
+        
         {onBack && (
           <button
             onClick={onBack}

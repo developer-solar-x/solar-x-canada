@@ -743,9 +743,14 @@ export function ResultsPage({
   
   // Calculate payback using same function as StepReview
   const calculatePayback = (firstYearSavings: number, netCost: number, escalationRate: number): number => {
-    if (netCost <= 0 || firstYearSavings <= 0) return 0
+    if (netCost <= 0) return 999 // If no cost, return very high number
+    if (firstYearSavings <= 0) {
+      // If savings are negative or zero, calculate how long it would take
+      // Use a simple linear approximation for very long payback periods
+      return 999
+    }
     let cumulativeSavings = 0
-    for (let year = 1; year <= 25; year++) {
+    for (let year = 1; year <= 100; year++) { // Extended to 100 years to catch very long paybacks
       const yearSavings = firstYearSavings * Math.pow(1 + escalationRate, year - 1)
       cumulativeSavings += yearSavings
       if (cumulativeSavings >= netCost) {
@@ -757,7 +762,15 @@ export function ResultsPage({
         return (year - 1) + fraction
       }
     }
-    return Infinity
+    // If not reached in 100 years, calculate approximate payback using geometric series
+    if (escalationRate > 0) {
+      const r = 1 + escalationRate
+      const n = Math.log(1 + (netCost * escalationRate) / firstYearSavings) / Math.log(r)
+      return isFinite(n) && n > 0 ? n : 999
+    } else {
+      // No escalation, simple division
+      return netCost / firstYearSavings
+    }
   }
   
   // Calculate payback for both plans
@@ -1279,7 +1292,7 @@ export function ResultsPage({
                           {formatCurrency(Math.round(netMeteringNarrative.annualSavings || 0))} per
                           year on electricity bills, which means your system will pay for itself in
                           about{' '}
-                          {netMeteringNarrative.paybackYears !== null
+                          {netMeteringNarrative.paybackYears != null && isFinite(netMeteringNarrative.paybackYears)
                             ? netMeteringNarrative.paybackYears.toFixed(1)
                             : 'N/A'}{' '}
                           years.{' '}
@@ -1293,10 +1306,10 @@ export function ResultsPage({
                       ) : touCombinedAnnual && uloCombinedAnnual ? (
                         <>
                           With the <strong>TOU rate plan</strong>, you'll save approximately {formatCurrency(touCombinedAnnual)} per year, 
-                          which means your system will pay for itself in about {touPaybackYears !== null ? touPaybackYears.toFixed(1) : 'N/A'} years.{' '}
+                          which means your system will pay for itself in about {touPaybackYears != null && isFinite(touPaybackYears) ? touPaybackYears.toFixed(1) : 'N/A'} years.{' '}
                           {tou25YearSavings !== null && <>Over 25 years, you could save over {formatCurrency(tou25YearSavings)}.</>}
                           {' '}With the <strong>ULO rate plan</strong>, you'll save approximately {formatCurrency(uloCombinedAnnual)} per year, 
-                          which means your system will pay for itself in about {uloPaybackYears !== null ? uloPaybackYears.toFixed(1) : 'N/A'} years.{' '}
+                          which means your system will pay for itself in about {uloPaybackYears != null && isFinite(uloPaybackYears) ? uloPaybackYears.toFixed(1) : 'N/A'} years.{' '}
                           {ulo25YearSavings !== null && <>Over 25 years, you could save over {formatCurrency(ulo25YearSavings)}.</>}
                         </>
                       ) : (
@@ -2079,9 +2092,6 @@ export function ResultsPage({
                   <li><strong>Usage Patterns:</strong> Typical residential consumption patterns (peak/mid-peak/off-peak)</li>
                   <li><strong>Usage Stability:</strong> Assumes no major changes in electricity consumption</li>
                   <li><strong>Rate Escalation:</strong> {data.annualEscalator ? `${data.annualEscalator}% annual electricity rate increase` : '3% annual electricity rate increase (default)'}</li>
-                  {(data.hasEV || data.hasElectricHeating) && (
-                    <li><strong>Future Electrification:</strong> {data.hasEV && 'EV charging (+3,500 kWh/year)'} {data.hasEV && data.hasElectricHeating && ' & '} {data.hasElectricHeating && 'Electric heating (+6,500 kWh/year)'}</li>
-                  )}
                 </ul>
               </div>
 

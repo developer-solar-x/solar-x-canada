@@ -90,8 +90,8 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
   const totalSystemCost = systemCost || (systemSizeKw * 2500)
   const paybackYears = annualSavings > 0 && totalSystemCost > 0
     ? totalSystemCost / annualSavings
-    : Infinity
-  const paybackProgress = paybackYears !== Infinity && paybackYears <= 25
+    : 999 // Return very high number instead of Infinity
+  const paybackProgress = paybackYears <= 25 && isFinite(paybackYears)
     ? Math.min((1 / paybackYears) * 100, 100)
     : 0
   
@@ -561,9 +561,9 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
           <div className="mb-4">
             <div className="flex items-baseline gap-2 mb-2">
               <div className="text-4xl font-bold text-teal-600">
-                {paybackYears === Infinity ? 'N/A' : `${paybackYears.toFixed(1)}`}
+                {paybackYears != null && isFinite(paybackYears) ? `${paybackYears.toFixed(1)}` : 'N/A'}
               </div>
-              {paybackYears !== Infinity && (
+              {paybackYears != null && isFinite(paybackYears) && (
                 <div className="text-xl font-semibold text-teal-700">years</div>
               )}
             </div>
@@ -572,7 +572,7 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
             </div>
             
             {/* Progress Bar */}
-            {paybackYears !== Infinity && paybackYears <= 25 && (
+            {paybackYears <= 25 && isFinite(paybackYears) && (
               <div className="space-y-2">
                 <div className="flex justify-between text-xs text-teal-700">
                   <span>Break-even Progress</span>

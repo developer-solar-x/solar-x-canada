@@ -147,9 +147,9 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels }:
               >
                 <div className="text-[13px] text-gray-600">{plan.label}</div>
                 <div className="text-base sm:text-xl font-bold text-navy-600">
-                  {plan.paybackYears == null || plan.paybackYears === Infinity
-                    ? 'N/A'
-                    : `${plan.paybackYears.toFixed(1)} yrs`}
+                  {plan.paybackYears != null && isFinite(plan.paybackYears)
+                    ? `${plan.paybackYears.toFixed(1)} yrs`
+                    : 'N/A'}
                 </div>
               </div>
             ))}

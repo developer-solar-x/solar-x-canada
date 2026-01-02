@@ -124,12 +124,18 @@ export function SavingsTab({
           ? planData.annual.importCost - planData.annual.netAnnualBill
           : 0)
 
+      // Recalculate 25-year profit to ensure it matches the chart calculation
+      // Use the same netCost and escalation as the chart
+      const profit25 = annualSavings > 0 && netCost > 0
+        ? calculateSimpleMultiYear({ annualSavings } as any, netCost, escalation, 25).netProfit25Year
+        : (projection?.netProfit25Year ?? 0)
+
       return {
         id: plan.id,
         label: plan.label,
         annualSavings,
         paybackYears: projection?.paybackYears as number | null | undefined,
-        profit25: projection?.netProfit25Year ?? 0,
+        profit25,
       }
     })
 
@@ -138,7 +144,7 @@ export function SavingsTab({
       const year = idx + 1
 
       const accumulate = (annual: number | undefined | null) => {
-        if (!annual || annual <= 0) return { profit: 0 }
+        if (annual === null || annual === undefined) return { profit: -netCost }
         let cumulative = 0
         for (let y = 1; y <= year; y++) {
           const yearSavings = annual * Math.pow(1 + escalation, y - 1)
@@ -159,8 +165,8 @@ export function SavingsTab({
       }
     })
 
-    // Y-axis domain for profit view (0 = break-even). Include 0 explicitly so it's always visible.
-    const allValues = savingsSeries.flatMap(d => [d.touProfit, d.uloProfit, d.tieredProfit, 0])
+    // Y-axis domain for profit view (0 = break-even). Include 0 and -netCost explicitly so the full range is visible.
+    const allValues = savingsSeries.flatMap(d => [d.touProfit, d.uloProfit, d.tieredProfit, 0, -netCost])
     const maxValue = Math.max(...allValues)
     const minValue = Math.min(...allValues)
     const padding = Math.max(Math.abs(maxValue), Math.abs(minValue)) * 0.15
@@ -192,9 +198,9 @@ export function SavingsTab({
               <div key={plan.id} className="mt-1">
                 <div className="text-[13px] text-gray-600">{plan.label}</div>
                 <div className="text-base sm:text-xl font-bold text-navy-600">
-                  {plan.paybackYears == null || plan.paybackYears === Infinity
-                    ? 'N/A'
-                    : `${plan.paybackYears.toFixed(1)} yrs`}
+                  {plan.paybackYears != null && isFinite(plan.paybackYears)
+                    ? `${plan.paybackYears.toFixed(1)} yrs`
+                    : 'N/A'}
                 </div>
               </div>
             ))}
@@ -370,8 +376,8 @@ export function SavingsTab({
     const paybackYear = paybackYears !== Infinity && paybackYears <= 25 ? Math.ceil(paybackYears) : null
     const year25Data = savingsSeries.find(d => d.year === 25)
     
-    // Calculate Y-axis domain
-    const allValues = savingsSeries.flatMap(d => [d.cumulativeSavings, d.profit, 0])
+    // Calculate Y-axis domain - include -netCost to ensure initial investment is visible
+    const allValues = savingsSeries.flatMap(d => [d.cumulativeSavings, d.profit, 0, -netCost])
     const maxValue = Math.max(...allValues)
     const minValue = Math.min(...allValues)
     const padding = Math.max(Math.abs(maxValue), Math.abs(minValue)) * 0.15
@@ -391,7 +397,7 @@ export function SavingsTab({
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
             <div className="text-xs text-gray-600 mb-1">Payback</div>
             <div className="text-[13px] text-gray-600">Solar Club</div>
-            <div className="text-base sm:text-xl font-bold text-navy-600">{paybackYears === Infinity ? 'N/A' : `${paybackYears.toFixed(1)} yrs`}</div>
+            <div className="text-base sm:text-xl font-bold text-navy-600">{paybackYears != null && isFinite(paybackYears) ? `${paybackYears.toFixed(1)} yrs` : 'N/A'}</div>
           </div>
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
             <div className="text-xs text-gray-600 mb-1">25-Year Profit</div>
@@ -565,8 +571,9 @@ export function SavingsTab({
     const year25Data = savingsSeries.find(d => d.year === 25)
 
     // Calculate Y-axis domain to zoom out and center the chart around profits.
-    // We include 0 explicitly so the break-even line is always visible.
-    const allValues = savingsSeries.flatMap(d => [d.touCumulative, d.uloCumulative, d.touProfit, d.uloProfit, 0])
+    // We include 0 and -netCost explicitly so the break-even line and initial investment are always visible.
+    // Note: touCombinedNet and uloCombinedNet are already defined above
+    const allValues = savingsSeries.flatMap(d => [d.touCumulative, d.uloCumulative, d.touProfit, d.uloProfit, 0, -touCombinedNet, -uloCombinedNet])
     const maxValue = Math.max(...allValues)
     const minValue = Math.min(...allValues)
     const padding = Math.max(Math.abs(maxValue), Math.abs(minValue)) * 0.15 // 15% padding
@@ -588,9 +595,9 @@ export function SavingsTab({
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
             <div className="text-xs text-gray-600 mb-1">Payback</div>
             <div className="text-[13px] text-gray-600">TOU</div>
-            <div className="text-base sm:text-xl font-bold text-navy-600">{paybackTouYears === Infinity ? 'N/A' : `${paybackTouYears.toFixed(1)} yrs`}</div>
+            <div className="text-base sm:text-xl font-bold text-navy-600">{paybackTouYears != null && isFinite(paybackTouYears) ? `${paybackTouYears.toFixed(1)} yrs` : 'N/A'}</div>
             <div className="mt-1 text-[13px] text-gray-600">ULO</div>
-            <div className="text-base sm:text-xl font-bold text-navy-600">{paybackUloYears === Infinity ? 'N/A' : `${paybackUloYears.toFixed(1)} yrs`}</div>
+            <div className="text-base sm:text-xl font-bold text-navy-600">{paybackUloYears != null && isFinite(paybackUloYears) ? `${paybackUloYears.toFixed(1)} yrs` : 'N/A'}</div>
           </div>
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
             <div className="text-xs text-gray-600 mb-1">25-Year Profit</div>
@@ -786,8 +793,8 @@ export function SavingsTab({
   const year25Data = savingsSeries.find(d => d.year === 25)
 
   // Calculate Y-axis domain to zoom out and center the chart around profits.
-  // We include 0 explicitly so the break-even line is always visible.
-  const allValues = savingsSeries.flatMap(d => [d.touCumulative, d.uloCumulative, d.touProfit, d.uloProfit, 0])
+  // We include 0 and -netCost explicitly so the break-even line and initial investment are always visible.
+  const allValues = savingsSeries.flatMap(d => [d.touCumulative, d.uloCumulative, d.touProfit, d.uloProfit, 0, -combinedNetCost])
   const maxValue = Math.max(...allValues)
   const minValue = Math.min(...allValues)
   const padding = Math.max(Math.abs(maxValue), Math.abs(minValue)) * 0.15 // 15% padding
@@ -809,9 +816,9 @@ export function SavingsTab({
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
           <div className="text-xs text-gray-600 mb-1">Payback</div>
           <div className="text-[13px] text-gray-600">TOU</div>
-          <div className="text-base sm:text-xl font-bold text-navy-600">{paybackTouYears === Infinity ? 'N/A' : `${paybackTouYears.toFixed(1)} yrs`}</div>
+          <div className="text-base sm:text-xl font-bold text-navy-600">{paybackTouYears != null && isFinite(paybackTouYears) ? `${paybackTouYears.toFixed(1)} yrs` : 'N/A'}</div>
           <div className="mt-1 text-[13px] text-gray-600">ULO</div>
-          <div className="text-base sm:text-xl font-bold text-navy-600">{paybackUloYears === Infinity ? 'N/A' : `${paybackUloYears.toFixed(1)} yrs`}</div>
+          <div className="text-base sm:text-xl font-bold text-navy-600">{paybackUloYears != null && isFinite(paybackUloYears) ? `${paybackUloYears.toFixed(1)} yrs` : 'N/A'}</div>
         </div>
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
           <div className="text-xs text-gray-600 mb-1">25-Year Profit</div>

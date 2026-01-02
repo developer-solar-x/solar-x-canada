@@ -52,7 +52,12 @@ export function useBatteries(includeInactive: boolean = false) {
         setBatteries(activeBatteries.length > 0 ? activeBatteries : BATTERY_SPECS)
       } else {
         // Fallback to static data on error
-        console.warn('Failed to fetch batteries from API, using static data')
+        const errorText = await response.text().catch(() => 'Unknown error')
+        console.warn('Failed to fetch batteries from API, using static data', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        })
         setBatteries(BATTERY_SPECS)
       }
     } catch (err) {

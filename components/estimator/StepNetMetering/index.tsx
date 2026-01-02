@@ -5,7 +5,7 @@
 // Left: Calculator inputs (usage, panels, rate plan)
 // Right: Results with donut chart
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
 import { ArrowLeft, ArrowRight, ArrowUp, Loader2, Zap, AlertTriangle, Info, Sun, Moon, BarChart3, DollarSign, TrendingUp, TrendingDown, Clock, Battery, Plus, X, ChevronDown, Sparkles, Leaf, CheckCircle, Lightbulb } from 'lucide-react'
 import type { NetMeteringResult } from '@/lib/net-metering'
@@ -122,7 +122,7 @@ function DonutChart({
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <div className="text-center">
           <div className="text-4xl font-bold text-gray-800">
-            {displayTotalOffset.toFixed(1)}%
+            {totalOffset.toFixed(1)}%
           </div>
           <div className="text-sm text-gray-600 mt-1">
             {totalOffset >= 100 ? 'Bill Fully Offset' : 'Bill Offset'}
@@ -238,12 +238,51 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   // Parse inputs (needed before useEffect)
   const annualUsageKwh = parseFloat(annualUsageInput) || 0
   
+  // Create a stable dependency key that only changes when roof-related data changes
+  // This prevents the dependency array from changing size between renders
+  const roofDataKey = useMemo(() => {
+    return JSON.stringify({
+      lat: data.coordinates?.lat,
+      lng: data.coordinates?.lng,
+      roofAreaSqft: data.roofAreaSqft,
+      roofType: data.roofType,
+      roofAge: data.roofAge,
+      roofPitch: data.roofPitch,
+      shadingLevel: data.shadingLevel,
+      roofAzimuth: data.roofAzimuth,
+      province: data.province,
+      programType: data.programType,
+      hasEstimate: !!data.estimate?.production?.monthlyKwh,
+      // Include roofPolygon hash (not full object to avoid large strings)
+      hasRoofPolygon: !!data.roofPolygon,
+    })
+  }, [
+    data.coordinates?.lat,
+    data.coordinates?.lng,
+    data.roofAreaSqft,
+    data.roofType,
+    data.roofAge,
+    data.roofPitch,
+    data.shadingLevel,
+    data.roofAzimuth,
+    data.province,
+    data.programType,
+    data.estimate?.production?.monthlyKwh,
+    data.roofPolygon,
+  ])
+
+  // Track if we've already fetched the initial estimate to prevent duplicate calls
+  const hasFetchedInitialEstimateRef = useRef(false)
+  const lastFetchedRoofDataRef = useRef<string | null>(null)
+  
   // Fetch estimate if missing (when component mounts or when coordinates/roof data changes)
   useEffect(() => {
     // If we already have an estimate with production data, use it
     if (data.estimate?.production?.monthlyKwh && data.estimate.production.monthlyKwh.length === 12) {
       if (!localEstimate || localEstimate !== data.estimate) {
         setLocalEstimate(data.estimate)
+        hasFetchedInitialEstimateRef.current = true
+        lastFetchedRoofDataRef.current = roofDataKey
       }
       return
     }
@@ -253,6 +292,14 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
       return
     }
 
+    // Skip if we already fetched for this roof data
+    if (lastFetchedRoofDataRef.current === roofDataKey && hasFetchedInitialEstimateRef.current) {
+      return
+    }
+
+    // Use existing system size from estimate if available, otherwise calculate from usage
+    // Note: annualUsageKwh is only used for initial sizing if no roof/system size exists
+    // Once we have a system size, it should not change when usage changes
     const calculatedUsage = annualUsageKwh || data.energyUsage?.annualKwh || data.annualUsageKwh || (data.monthlyBill ? (data.monthlyBill / BLENDED_RATE) * 12 : 0)
 
     const fetchEstimate = async () => {
@@ -277,6 +324,8 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             province: data.province || 'ON',
             roofAzimuth: data.roofAzimuth || 180,
             programType: data.programType || 'net_metering',
+            // Pass existing system size if available to prevent recalculation based on usage
+            overrideSystemSizeKw: data.estimate?.system?.sizeKw || undefined,
           }),
         })
 
@@ -289,6 +338,8 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
         
         if (result.data?.production?.monthlyKwh && result.data.production.monthlyKwh.length === 12) {
           setLocalEstimate(result.data)
+          hasFetchedInitialEstimateRef.current = true
+          lastFetchedRoofDataRef.current = roofDataKey
         } else {
           throw new Error('Invalid estimate data received - missing monthly production data')
         }
@@ -301,7 +352,10 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     }
 
     fetchEstimate()
-  }, [data.coordinates, data.roofPolygon, data.roofAreaSqft, data.estimate, annualUsageKwh, data.energyUsage?.annualKwh, data.annualUsageKwh, data.monthlyBill])
+    // Remove annualUsageKwh and related usage fields from dependencies
+    // Solar production should only change when roof-related data changes, not usage
+    // Use stable roofDataKey to prevent dependency array size changes
+  }, [roofDataKey, data.estimate])
 
   // Initialize solar panels from estimate when it becomes available
   useEffect(() => {
@@ -328,9 +382,15 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
 
   // Calculate payback period and 25-year profit for net metering
   const calculatePayback = (firstYearSavings: number, netCost: number, escalationRate: number): number => {
-    if (netCost <= 0 || firstYearSavings <= 0) return Infinity
+    if (netCost <= 0) return 999 // If no cost, return very high number
+    if (firstYearSavings <= 0) {
+      // If savings are negative or zero, calculate how long it would take
+      // Use a simple linear approximation for very long payback periods
+      // If savings are negative, payback will never happen, but show a very high number
+      return 999
+    }
     let cumulativeSavings = 0
-    for (let year = 1; year <= 25; year++) {
+    for (let year = 1; year <= 100; year++) { // Extended to 100 years to catch very long paybacks
       const yearSavings = firstYearSavings * Math.pow(1 + escalationRate, year - 1)
       cumulativeSavings += yearSavings
       if (cumulativeSavings >= netCost) {
@@ -341,7 +401,17 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
         return (year - 1) + fraction
       }
     }
-    return Infinity
+    // If not reached in 100 years, calculate approximate payback using geometric series
+    // For a geometric series: S = a * (r^n - 1) / (r - 1) where a = firstYearSavings, r = 1 + escalationRate
+    // Solve for n: netCost = firstYearSavings * ((1 + escalationRate)^n - 1) / escalationRate
+    if (escalationRate > 0) {
+      const r = 1 + escalationRate
+      const n = Math.log(1 + (netCost * escalationRate) / firstYearSavings) / Math.log(r)
+      return isFinite(n) && n > 0 ? n : 999
+    } else {
+      // No escalation, simple division
+      return netCost / firstYearSavings
+    }
   }
 
   // Get net cost and escalation rate
@@ -367,8 +437,14 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   // Calculate metrics for selected plan
   // For Alberta, always use touResults (which contains Alberta data)
   const selectedResult = isAlberta ? touResults : (selectedPlan === 'ulo' ? uloResults : selectedPlan === 'tiered' ? tieredResults : touResults)
-  const annualSavings = selectedResult ? selectedResult.annual.importCost - selectedResult.annual.netAnnualBill : 0
-  const paybackYears = selectedResult && netCost > 0 ? calculatePayback(annualSavings, netCost, escalation) : Infinity
+  
+  // Include battery arbitrage savings when battery is selected (matches handleContinue logic)
+  const batteryArbitrageSavings = selectedResult?.annual?.batteryArbitrageSavings || 0
+  const annualSavings = selectedResult 
+    ? (selectedResult.annual.importCost - selectedResult.annual.netAnnualBill) + batteryArbitrageSavings
+    : 0
+  
+  const paybackYears = calculatePayback(annualSavings, netCost, escalation)
   const profit25 = selectedResult && netCost > 0 
     ? calculateSimpleMultiYear({ annualSavings } as any, netCost, escalation, 25).netProfit25Year
     : 0
@@ -520,6 +596,11 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   const isUloDistributionValid = Math.abs(uloTotalPercent - 100) <= 0.1
   const isTieredDistributionValid = Math.abs(tieredTotalPercent - 100) <= 0.1
 
+  // Track last fetched system size to prevent duplicate fetches
+  const lastFetchedSystemSizeRef = useRef<number | null>(null)
+  const isFetchingRef = useRef(false)
+  const lastFetchedEstimateKeyRef = useRef<string | null>(null)
+  
   // Fetch/regenerate estimate when panel count changes (only if user modifies it)
   useEffect(() => {
     // Skip if no coordinates or panels haven't been initialized
@@ -527,17 +608,40 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
       return
     }
     
-    // Only fetch if we're overriding (different from original estimate)
-    const originalPanels = data.estimate?.system?.numPanels ?? 0
-    const isOverriding = solarPanels !== originalPanels
-    
-    if (!isOverriding) {
-      // Use existing estimate
+    // Check if we already fetched for this system size to prevent infinite loops
+    const currentSystemSize = systemSizeKwOverride || (solarPanels * 500) / 1000
+    if (lastFetchedSystemSizeRef.current === currentSystemSize || isFetchingRef.current) {
       return
     }
     
+    // Check if current estimate already matches the desired system size
+    const currentEstimate = localEstimate || data.estimate
+    const estimatePanels = currentEstimate?.system?.numPanels || 0
+    const estimateSystemSize = currentEstimate?.system?.sizeKw || 0
+    const desiredPanels = solarPanels
+    
+    // Create a key for this estimate request to prevent duplicate calls
+    const estimateKey = `${roofDataKey}-${currentSystemSize}`
+    
+    // If we already fetched for this exact combination, skip
+    if (lastFetchedEstimateKeyRef.current === estimateKey) {
+      return
+    }
+    
+    // If estimate already matches, don't refetch
+    if (estimatePanels === desiredPanels && Math.abs(estimateSystemSize - currentSystemSize) < 0.1) {
+      lastFetchedSystemSizeRef.current = currentSystemSize
+      lastFetchedEstimateKeyRef.current = estimateKey
+      return
+    }
+    
+    // Always refetch estimate when system size changes (solarPanels or systemSizeKwOverride)
+    // This ensures annual production updates when user modifies system size
     const run = async () => {
+      if (isFetchingRef.current) return
+      
       try {
+        isFetchingRef.current = true
         setOverrideEstimateLoading(true)
         const resp = await fetch('/api/estimate', {
           method: 'POST',
@@ -555,23 +659,28 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             province: data.province || 'ON',
             roofAzimuth: data.roofAzimuth || 180,
             roofAreaSqft: data.roofAreaSqft,
+            programType: data.programType || 'net_metering',
             overrideSystemSizeKw: systemSizeKwOverride,
           }),
         })
         if (resp.ok) {
           const json = await resp.json()
           setLocalEstimate(json.data)
+          // Track that we fetched for this system size and roof data combination
+          lastFetchedSystemSizeRef.current = currentSystemSize
+          lastFetchedEstimateKeyRef.current = estimateKey
         }
       } catch (e) {
         console.warn('Override estimate failed', e)
       } finally {
+        isFetchingRef.current = false
         setOverrideEstimateLoading(false)
       }
     }
     
     const timeoutId = setTimeout(run, 500)
     return () => clearTimeout(timeoutId)
-  }, [solarPanels, systemSizeKwOverride, data.coordinates, data.roofPolygon, annualUsageKwh, data.estimate?.system?.numPanels])
+  }, [solarPanels, systemSizeKwOverride, roofDataKey])
 
   // For Alberta, run a single calculation instead of multiple plans
   useEffect(() => {
@@ -656,7 +765,57 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     runAlbertaCalculation()
   }, [isAlberta, localEstimate, data.estimate, annualUsageKwh, data.energyUsage?.annualKwh, data.annualUsageKwh, selectedBatteries, aiMode, data.province])
 
+  // Create stable keys from estimate data to prevent unnecessary recalculations
+  const productionKey = useMemo(() => {
+    const currentEstimate = localEstimate || data.estimate
+    const monthlyProduction = currentEstimate?.production?.monthlyKwh || []
+    return monthlyProduction.length === 12 ? monthlyProduction.join(',') : null
+  }, [localEstimate?.production?.monthlyKwh, data.estimate?.production?.monthlyKwh])
+  
+  // Create stable keys from distribution objects to prevent unnecessary recalculations
+  const touDistributionKey = useMemo(() => {
+    return JSON.stringify(touDistribution)
+  }, [touDistribution.onPeakPercent, touDistribution.midPeakPercent, touDistribution.offPeakPercent])
+  
+  const uloDistributionKey = useMemo(() => {
+    return JSON.stringify(uloDistribution)
+  }, [uloDistribution.ultraLowPercent, uloDistribution.onPeakPercent, uloDistribution.midPeakPercent, uloDistribution.offPeakPercent])
+  
+  // Create stable key from selectedBatteries array
+  // Sort and join to create a stable string that only changes when IDs change
+  const batteriesKey = useMemo(() => {
+    if (selectedBatteries.length === 0) return ''
+    // Create a stable sorted string
+    const sorted = [...selectedBatteries].sort()
+    return sorted.join(',')
+  }, [selectedBatteries.length, selectedBatteries.toString()])
+  
+  // Track last calculated values to prevent duplicate calculations
+  const lastCalculatedRef = useRef<{
+    tou?: { productionKey: string; annualUsage: number; batteryIds: string; aiMode: boolean; distribution?: string }
+    ulo?: { productionKey: string; annualUsage: number; batteryIds: string; aiMode: boolean; distribution?: string }
+    tiered?: { productionKey: string; annualUsage: number; batteryIds: string; aiMode: boolean }
+  }>({})
+  
+  // Track if calculations are in progress to prevent concurrent calls
+  const calculatingRef = useRef<{ tou: boolean; ulo: boolean; tiered: boolean }>({
+    tou: false,
+    ulo: false,
+    tiered: false
+  })
+  
+  // Track last input keys to prevent duplicate calls
+  const lastInputKeysRef = useRef<{
+    tou?: string
+    ulo?: string
+    tiered?: string
+  }>({})
+
   // Shared helper to calculate net metering for a single plan.
+  // Store function in ref to avoid dependency issues
+  const runNetMeteringForPlanRef = useRef<((planId: 'tou' | 'ulo' | 'tiered') => Promise<void>) | null>(null)
+  
+  // Define the function and store it in ref
   const runNetMeteringForPlan = async (planId: 'tou' | 'ulo' | 'tiered') => {
     // Skip if Alberta (handled separately above)
     if (isAlberta) return
@@ -675,16 +834,46 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     if (planId === 'tou' && !isTouDistributionValid) return
     if (planId === 'ulo' && !isUloDistributionValid) return
 
+    // Prevent concurrent calculations for the same plan
+    if (calculatingRef.current[planId]) {
+      return
+    }
+
+    // Check if we already calculated with the same inputs
+    if (!productionKey) {
+      return // No valid production data
+    }
+    
+    // Get distribution for this plan (needed for both duplicate check and API call)
+      // Parse distribution from stable key
+      const distribution = planId === 'tou' 
+        ? touDistribution
+        : planId === 'ulo'
+        ? uloDistribution
+        : undefined
+    
+    const batteryIds = batteriesKey
+    const distributionKey = planId === 'tou' 
+      ? touDistributionKey
+      : planId === 'ulo'
+      ? uloDistributionKey
+      : undefined
+    const lastCalc = lastCalculatedRef.current[planId]
+    
+    if (lastCalc && 
+        lastCalc.productionKey === productionKey &&
+        lastCalc.annualUsage === annualUsageKwh &&
+        lastCalc.batteryIds === batteryIds &&
+        lastCalc.aiMode === (aiMode && selectedBatteries.length > 0) &&
+        (planId === 'tiered' || lastCalc.distribution === distributionKey)) {
+      // Already calculated with same inputs, skip
+      return
+    }
+
     try {
+      calculatingRef.current[planId] = true
       setLoading(true)
       setError(null)
-
-      const distribution =
-        planId === 'ulo'
-          ? uloDistribution
-          : planId === 'tou'
-          ? touDistribution
-          : undefined
       
       // Get combined battery if batteries are selected
       const combinedBattery = selectedBatteries.length > 0
@@ -735,6 +924,15 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
 
       const result = await response.json()
       
+      // Track that we calculated with these inputs
+      lastCalculatedRef.current[planId] = {
+        productionKey,
+        annualUsage: annualUsageKwh,
+        batteryIds,
+        aiMode: aiMode && selectedBatteries.length > 0,
+        ...(distributionKey ? { distribution: distributionKey } : {})
+      }
+      
       if (planId === 'tou') {
         setTouResults(result.data)
       } else if (planId === 'ulo') {
@@ -746,24 +944,46 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
       console.error('Net metering calculation error:', err)
       setError(err instanceof Error ? err.message : 'Failed to calculate net metering')
     } finally {
+      calculatingRef.current[planId] = false
       setLoading(false)
     }
   }
+  
+  // Store function in ref so it's always the latest version
+  runNetMeteringForPlanRef.current = runNetMeteringForPlan
 
-  // TOU net metering – only depends on TOU inputs.
+  // Single effect to handle all three plans - only runs when inputs actually change
   useEffect(() => {
-    void runNetMeteringForPlan('tou')
-  }, [localEstimate, data.estimate, annualUsageKwh, touDistribution, isTouDistributionValid, selectedBatteries, aiMode])
-
-  // ULO net metering – only depends on ULO inputs.
-  useEffect(() => {
-    void runNetMeteringForPlan('ulo')
-  }, [localEstimate, data.estimate, annualUsageKwh, uloDistribution, isUloDistributionValid, selectedBatteries, aiMode])
-
-  // Tiered net metering – independent of TOU/ULO distributions.
-  useEffect(() => {
-    void runNetMeteringForPlan('tiered')
-  }, [localEstimate, data.estimate, annualUsageKwh])
+    // Skip if no valid production data
+    if (!productionKey || annualUsageKwh <= 0) return
+    
+    // Create comprehensive input keys for each plan
+    const touInputKey = `${productionKey}-${annualUsageKwh}-${touDistributionKey}-${batteriesKey}-${aiMode}`
+    const uloInputKey = `${productionKey}-${annualUsageKwh}-${uloDistributionKey}-${batteriesKey}-${aiMode}`
+    const tieredInputKey = `${productionKey}-${annualUsageKwh}-${batteriesKey}-${aiMode}`
+    
+    // Only calculate if inputs have changed AND validation passes
+    if (isTouDistributionValid && lastInputKeysRef.current.tou !== touInputKey) {
+      lastInputKeysRef.current.tou = touInputKey
+      if (runNetMeteringForPlanRef.current) {
+        runNetMeteringForPlanRef.current('tou')
+      }
+    }
+    
+    if (isUloDistributionValid && lastInputKeysRef.current.ulo !== uloInputKey) {
+      lastInputKeysRef.current.ulo = uloInputKey
+      if (runNetMeteringForPlanRef.current) {
+        runNetMeteringForPlanRef.current('ulo')
+      }
+    }
+    
+    if (lastInputKeysRef.current.tiered !== tieredInputKey) {
+      lastInputKeysRef.current.tiered = tieredInputKey
+      if (runNetMeteringForPlanRef.current) {
+        runNetMeteringForPlanRef.current('tiered')
+      }
+    }
+  }, [productionKey, annualUsageKwh, touDistributionKey, uloDistributionKey, batteriesKey, aiMode, isTouDistributionValid, isUloDistributionValid])
 
   const handleContinue = () => {
     if (!touResults || !uloResults || !tieredResults) {
@@ -791,13 +1011,20 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     const currentNetCost = currentSolarSystemCost + currentBatteryCost - currentSolarRebate - currentBatteryRebate
     const currentEscalation = escalatorPercent > 1 ? escalatorPercent / 100 : (escalation || 0.03)
     
-    const touAnnualSavings = touResults.annual.importCost - touResults.annual.netAnnualBill
-    const uloAnnualSavings = uloResults.annual.importCost - uloResults.annual.netAnnualBill
-    const tieredAnnualSavings = tieredResults.annual.importCost - tieredResults.annual.netAnnualBill
+    // Calculate annual savings: baseline cost - net bill + battery arbitrage savings
+    // Battery arbitrage savings are already included in the net metering calculation
+    // but we need to add them explicitly to ensure they're counted
+    const touBatterySavings = touResults.annual.batteryArbitrageSavings || 0
+    const uloBatterySavings = uloResults.annual.batteryArbitrageSavings || 0
+    const tieredBatterySavings = tieredResults.annual.batteryArbitrageSavings || 0
     
-    const touPaybackYears = currentNetCost > 0 ? calculatePayback(touAnnualSavings, currentNetCost, currentEscalation) : Infinity
-    const uloPaybackYears = currentNetCost > 0 ? calculatePayback(uloAnnualSavings, currentNetCost, currentEscalation) : Infinity
-    const tieredPaybackYears = currentNetCost > 0 ? calculatePayback(tieredAnnualSavings, currentNetCost, currentEscalation) : Infinity
+    const touAnnualSavings = (touResults.annual.importCost - touResults.annual.netAnnualBill) + touBatterySavings
+    const uloAnnualSavings = (uloResults.annual.importCost - uloResults.annual.netAnnualBill) + uloBatterySavings
+    const tieredAnnualSavings = (tieredResults.annual.importCost - tieredResults.annual.netAnnualBill) + tieredBatterySavings
+    
+    const touPaybackYears = calculatePayback(touAnnualSavings, currentNetCost, currentEscalation)
+    const uloPaybackYears = calculatePayback(uloAnnualSavings, currentNetCost, currentEscalation)
+    const tieredPaybackYears = calculatePayback(tieredAnnualSavings, currentNetCost, currentEscalation)
     
     const touProfit25 = currentNetCost > 0 
       ? calculateSimpleMultiYear({ annualSavings: touAnnualSavings } as any, currentNetCost, currentEscalation, 25).netProfit25Year
@@ -818,7 +1045,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
         tou: {
           ...touResults,
           projection: {
-            paybackYears: touPaybackYears === Infinity ? null : touPaybackYears,
+            paybackYears: touPaybackYears,
             netProfit25Year: touProfit25,
             annualSavings: touAnnualSavings,
           }
@@ -826,7 +1053,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
         ulo: {
           ...uloResults,
           projection: {
-            paybackYears: uloPaybackYears === Infinity ? null : uloPaybackYears,
+            paybackYears: uloPaybackYears,
             netProfit25Year: uloProfit25,
             annualSavings: uloAnnualSavings,
           }
@@ -834,7 +1061,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
         tiered: {
           ...tieredResults,
           projection: {
-            paybackYears: tieredPaybackYears === Infinity ? null : tieredPaybackYears,
+            paybackYears: tieredPaybackYears,
             netProfit25Year: tieredProfit25,
             annualSavings: tieredAnnualSavings,
           }
@@ -1707,7 +1934,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                           </div>
                         </div>
                         <div className="text-2xl font-bold text-blue-900">
-                          {paybackYears === Infinity ? 'N/A' : `${paybackYears.toFixed(1)} yrs`}
+                          {paybackYears.toFixed(1)} yrs
                         </div>
                         <div className="text-xs text-gray-600 mt-1">Time to recover investment</div>
                       </div>
@@ -1770,7 +1997,10 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                           </div>
                         </div>
                         <div className="text-2xl font-bold text-amber-900">
-                          {((selectedResult.annual.totalSolarProduction / selectedResult.annual.totalLoad) * 100).toFixed(1)}%
+                          {(() => {
+                            const coverage = (selectedResult.annual.totalSolarProduction / selectedResult.annual.totalLoad) * 100
+                            return coverage.toFixed(1)
+                          })()}%
                         </div>
                         <div className="text-xs text-gray-600 mt-1">Of your usage from solar</div>
                       </div>
@@ -1832,7 +2062,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
               </ul>
               <p className="mt-3 text-sm text-gray-600">
                 In this scenario, your payback period is approximately{' '}
-                {paybackYears === Infinity ? 'N/A' : `${paybackYears.toFixed(1)} years`}. A shorter payback period means
+                {paybackYears != null && isFinite(paybackYears) ? `${paybackYears.toFixed(1)} years` : 'N/A'}. A shorter payback period means
                 your investment recovers faster.
               </p>
             </Modal>
@@ -1853,8 +2083,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                   <span className="font-semibold">Net investment</span>: {formatCurrency(netCost)}
                 </li>
                 <li>
-                  <span className="font-semibold">Year‑1 savings</span> come from lower import costs plus export
-                  credits under your selected plan.
+                  <span className="font-semibold">Year 1 savings</span>: This is the amount you'll save in your first year after installing solar and battery. It comes from lower import costs (buying less from the grid) plus export credits (selling excess solar energy back to the grid) under your selected plan. This amount is shown in the "Annual Savings" section above.
                 </li>
                 <li>
                   We project these savings forward for 25 years using an annual escalation of{' '}
@@ -2185,7 +2414,10 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-sm text-gray-600">Energy Coverage</span>
                           <span className="text-sm font-bold text-gray-900">
-                            {((selectedResult.annual.totalSolarProduction / selectedResult.annual.totalLoad) * 100).toFixed(1)}%
+                            {(() => {
+                              const coverage = (selectedResult.annual.totalSolarProduction / selectedResult.annual.totalLoad) * 100
+                              return coverage.toFixed(1)
+                            })()}%
                           </span>
                         </div>
                         <div className="text-xs text-gray-500">

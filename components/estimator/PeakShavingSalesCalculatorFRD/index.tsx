@@ -3024,21 +3024,28 @@ export function PeakShavingSalesCalculatorFRD({
                 <>
                   <div className="space-y-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Step 1: Total Savings Over 25 Years</h3>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Step 1: Starting with Year 1 Savings</h3>
+                      <p className="text-gray-700">
+                        We start with your first year savings (the amount you'll save in Year 1 after installing solar and battery, shown in the "Annual Savings" section above). This is your baseline savings amount.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Step 2: Projecting Savings Over 25 Years</h3>
                       <p className="text-gray-700">
                         We project your savings for all 25 years, accounting for electricity rate increases ({(data.annualEscalator ?? 4.5)}% per year). Each year, your savings grow because you're avoiding higher grid rates.
                       </p>
                     </div>
 
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Step 2: Subtract Your Investment</h3>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Step 3: Subtract Your Investment</h3>
                       <p className="text-gray-700">
                         We take your total 25-year savings and subtract what you paid for the system (after rebates). This gives us your net profit.
                       </p>
                     </div>
 
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Step 3: Your Profit</h3>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Step 4: Your Profit</h3>
                       <p className="text-gray-700">
                         The remaining amount is your profit - the money you keep after your system has paid for itself. This is the total amount you'll be ahead after 25 years.
                       </p>

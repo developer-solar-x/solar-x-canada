@@ -63,6 +63,7 @@ export interface NetMeteringResult {
     importCost: number // dollars
     netAnnualBill: number // can be negative = annual credit
     billOffsetPercent: number // % of bill offset by credits
+    batteryArbitrageSavings?: number // Battery arbitrage savings from charging cheap/discharging expensive
   }
   monthly: MonthlyNetMeteringResult[]
   byPeriod: NetMeteringPeriodSummary[]
@@ -168,6 +169,11 @@ export function calculateNetMetering(
   let totalBatteryGridCharged = 0 // Total kWh charged from grid (for AI Mode)
   let totalBatterySolarCharged = 0 // Total kWh charged from solar excess
   
+  // Battery arbitrage tracking (for calculating battery savings)
+  let totalBatteryDischargeDuringExpensive = 0 // kWh discharged during expensive periods
+  let totalBatteryDischargeCostAvoided = 0 // $ saved by avoiding expensive rates
+  let totalBatteryGridChargeCost = 0 // $ paid for grid charging at cheap rates
+  
   // Calculate net metering for each hour
   const hourlyData: HourlyNetMeteringData[] = []
   let totalSolarProduction = 0
@@ -203,6 +209,7 @@ export function calculateNetMetering(
     // Determine if this is a cheap rate period for grid charging (AI Mode)
     const isCheapRate = period === 'ultra-low' || period === 'off-peak'
     const isExpensiveRate = period === 'on-peak' || period === 'mid-peak'
+    const isOffPeak = period === 'off-peak'
     
     // Step 1: Calculate net solar vs load (before battery)
     const netSolar = solarKwh - loadKwh
@@ -231,6 +238,25 @@ export function calculateNetMetering(
           batteryDischarge = maxDischarge
           batteryStateOfCharge -= batteryDischarge
           adjustedLoadDeficit = Math.max(0, loadDeficit - batteryDischarge)
+          
+          // Track arbitrage: calculate cost avoided when discharging
+          // Battery arbitrage = cost avoided by using stored energy instead of buying from grid
+          // This applies to ALL discharge, not just expensive periods, because:
+          // 1. Battery may be charged from solar (free) - any discharge avoids grid cost
+          // 2. Battery may be charged from grid at cheap rates - discharge avoids paying current rate
+          // For expensive periods: cost avoided = expensive rate (maximum benefit)
+          // For off-peak periods: cost avoided = off-peak rate (still savings if battery was charged cheaper/free)
+          if (batteryDischarge > 0) {
+            // Track all discharge as cost avoided (not just expensive periods)
+            // The net arbitrage benefit is calculated later by subtracting grid charge costs
+            const costAvoided = (batteryDischarge * importRate) / 100
+            totalBatteryDischargeCostAvoided += costAvoided
+            
+            // Also track expensive period discharge separately for reporting
+            if (isExpensiveRate) {
+              totalBatteryDischargeDuringExpensive += batteryDischarge
+            }
+          }
         }
       }
       
@@ -262,6 +288,9 @@ export function calculateNetMetering(
           batteryChargeFromGrid = maxChargeFromGrid
           batteryStateOfCharge += batteryChargeFromGrid
           totalBatteryGridCharged += batteryChargeFromGrid
+          // Track cost of grid charging (at cheap rate)
+          const gridChargeCost = (batteryChargeFromGrid * importRate) / 100
+          totalBatteryGridChargeCost += gridChargeCost
         }
       }
     }
@@ -329,6 +358,13 @@ export function calculateNetMetering(
   // If we have year-end credits, subtract them from what we owe
   const netAnnualBill = totalNetBillFromMonthly - yearEndCredits
 
+  // Calculate battery arbitrage savings (if battery is present)
+  // This is the net benefit from charging at cheap rates and discharging at expensive rates
+  // Battery arbitrage savings = Cost avoided at expensive rates - Cost paid at cheap rates
+  const batteryArbitrageSavings = hasBattery && totalBatteryDischargeCostAvoided > 0
+    ? totalBatteryDischargeCostAvoided - totalBatteryGridChargeCost
+    : 0
+
   // Bill offset percentage for UI (used by Savings Breakdown donut, Results, etc.).
   // This is based on the *actual* bill after rollover and credit expiry, not just
   // gross credits. If the customer ends the year with a credit balance, offset
@@ -346,7 +382,8 @@ export function calculateNetMetering(
       exportCredits: totalExportCredits,
       importCost: totalImportCost,
       netAnnualBill,
-      billOffsetPercent
+      billOffsetPercent,
+      batteryArbitrageSavings // Add battery arbitrage savings to annual results
     },
     monthly: monthlyResults,
     byPeriod: Object.values(periodSummaries),

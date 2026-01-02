@@ -4,6 +4,15 @@ import { getSupabaseAdmin } from '@/lib/supabase'
 // GET - Fetch all batteries
 export async function GET(request: NextRequest) {
   try {
+    // Check if Supabase environment variables are configured
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('Supabase environment variables not configured')
+      return NextResponse.json(
+        { error: 'Database not configured', details: 'Missing Supabase environment variables' },
+        { status: 500 }
+      )
+    }
+
     const supabase = getSupabaseAdmin()
     const { searchParams } = new URL(request.url)
     const includeInactive = searchParams.get('includeInactive') === 'true'

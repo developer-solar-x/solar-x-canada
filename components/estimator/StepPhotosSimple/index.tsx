@@ -93,23 +93,42 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
     }
   }
 
+  // In development mode, allow bypassing photo requirement
+  const isDevelopment = process.env.NEXT_PUBLIC_ENVIRONMENT === 'development' || process.env.NODE_ENV === 'development'
+
+  // Handle skip (development only)
+  const handleSkip = () => {
+    if (!isDevelopment) return
+    
+    const stepData = {
+      photos: [],
+      photoSummary: {
+        total: 0,
+        byCategory: [{ category: 'general', count: 0 }],
+      }
+    }
+
+    void saveProgressToPartialLead(stepData)
+    onComplete(stepData)
+  }
+
   const handleContinue = () => {
-    // Require at least one photo before continuing
-    if (photos.length === 0) {
+    // Require at least one photo before continuing (unless in development)
+    if (photos.length === 0 && !isDevelopment) {
       setValidationError('Please upload at least one property photo before continuing.')
       return
     }
 
-    // Block continue while any photos are still uploading
+    // Block continue while any photos are still uploading (unless in development)
     const uploadingPhotos = photos.filter(p => p.uploading)
-    if (uploadingPhotos.length > 0) {
+    if (uploadingPhotos.length > 0 && !isDevelopment) {
       setValidationError('Your photos are still uploading. Please wait a moment and try again.')
       return
     }
 
-    // Block continue if any photos failed to upload or have no Supabase URL
+    // Block continue if any photos failed to upload or have no Supabase URL (unless in development)
     const notUploaded = photos.filter(p => !p.uploadedUrl)
-    if (notUploaded.length > 0) {
+    if (notUploaded.length > 0 && !isDevelopment) {
       setValidationError('Some photos could not be saved. Please re-upload or remove any photos with an error before continuing.')
       return
     }
@@ -236,6 +255,15 @@ export function StepPhotosSimple({ data, onComplete, onBack, onUpgradeMode }: St
           >
             Continue {photos.length > 0 && `with ${photos.length} Photo${photos.length !== 1 ? 's' : ''}`}
           </button>
+          
+          {isDevelopment && (
+            <button
+              onClick={handleSkip}
+              className="btn-outline border-yellow-300 text-yellow-700 bg-yellow-50 hover:bg-yellow-100 w-full"
+            >
+              Skip (Dev Mode)
+            </button>
+          )}
           
           {onBack && (
             <button

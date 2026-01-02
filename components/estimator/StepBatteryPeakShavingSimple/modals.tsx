@@ -63,7 +63,7 @@ export function ProfitInfoModal({ open, onClose, touResults, uloResults }: Profi
         <div>
           <span className="font-semibold">What the model assumes</span>
           <div className="mt-1 text-xs text-gray-600 ml-1">
-            • Year‑1 savings start with the same capped amount shown on the annual card.
+            • Year 1 savings: This is the amount you'll save in your first year after installing solar and battery, shown in the "Annual Savings" card above. We use this as the starting point for our 25-year projection.
           </div>
           <div className="mt-1 text-xs text-gray-600 ml-1">
             • Long-term projection gently increases utility prices while trimming solar+battery performance to stay realistic.
@@ -177,7 +177,7 @@ export function PaybackInfoModal({ open, onClose, touResults, uloResults }: Payb
             • Net cost: solar + battery after incentives — the investment the system must earn back.
           </div>
           <div className="mt-1 text-xs text-gray-600 ml-1">
-            • Year‑1 savings: the capped annual savings, shown with the same solar/battery split as the summary card.
+            • Year 1 savings: This is the amount you'll save in your first year after installing solar and battery, shown in the "Annual Savings" card above. We use this as the starting point for calculating when your system pays for itself.
           </div>
           <div className="mt-1 text-xs text-gray-600 ml-1">
             • Long-term curve: savings rise gently with utility rates and taper slightly each year to reflect real-world performance.

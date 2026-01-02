@@ -28,6 +28,10 @@ export function StepAddOns({ data, onComplete, onBack }: StepAddOnsProps) {
     }
 
     try {
+      // Add timeout to the fetch request to prevent hanging
+      const controller = new AbortController()
+      const fetchTimeout = setTimeout(() => controller.abort(), 5000) // 5 second timeout for API call
+      
       const response = await fetch('/api/partial-lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -41,14 +45,29 @@ export function StepAddOns({ data, onComplete, onBack }: StepAddOnsProps) {
           // Logical step index for Add-ons in both easy and detailed flows
           currentStep: 5,
         }),
+        signal: controller.signal,
       })
+
+      clearTimeout(fetchTimeout)
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}))
-        console.error('Failed to save partial lead (Add-ons):', response.status, err)
+        // Log error but don't block navigation - partial lead save is optional
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Failed to save partial lead (Add-ons) - this is non-blocking:', response.status, err)
+        }
       }
     } catch (error) {
-      console.error('Failed to save Add-ons progress (partial lead):', error)
+      if (error instanceof Error && error.name === 'AbortError') {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Partial lead save request timed out (Add-ons) - this is non-blocking')
+        }
+      } else {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Failed to save Add-ons progress (partial lead) - this is non-blocking:', error)
+        }
+      }
+      // Continue even if partial lead save fails - don't block navigation
     }
   }
 

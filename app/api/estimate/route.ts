@@ -64,9 +64,9 @@ export async function POST(request: Request) {
     // Calculate usage-based system size recommendation
     const derivedAnnual = energyUsage?.annualKwh || annualUsageKwh || (monthlyBill ? (monthlyBill / 0.223) * 12 : 9000)
     const programType = body.programType || body.program_type
-    // Target production: ~90% for net metering (net metering credits offset costs effectively)
+    // Target production: 100% for net metering (suggested, but can be modified by user)
     // ~80% for battery systems (battery handles remaining 20% via arbitrage)
-    const targetPercentage = programType === 'net_metering' ? 0.9 : 0.8
+    const targetPercentage = programType === 'net_metering' ? 1.0 : 0.8
     const targetAnnualProduction = Math.max(0, derivedAnnual * targetPercentage)
     const usageBasedSystemSizeKw = Math.round((targetAnnualProduction / 1200) * 10) / 10
     // Maximum system size: Never exceed 100% of usage (hard cap)

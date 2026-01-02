@@ -182,56 +182,58 @@ export function StepEnergySimple({ data, onComplete, onBack, onUpgradeMode }: St
           </>
         )}
 
-        {/* Always show annual escalation rate input */}
-        <div className="mb-6">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Annual Electricity Rate Increase (%)
-            <span className="ml-2 text-xs font-normal text-gray-500">(Historical average is 3-5%)</span>
-          </label>
-          <input
-            type="number"
-            value={annualEscalatorInput}
-            onChange={(e) => {
-              const value = e.target.value
-              // Allow empty string, single decimal point, or valid numbers
-              if (value === '' || value === '.' || /^\d*\.?\d*$/.test(value)) {
-                setAnnualEscalatorInput(value)
-                // Update the number state if it's a valid number
-                const numValue = parseFloat(value)
-                if (!isNaN(numValue) && numValue >= 0 && numValue <= 20) {
-                  console.log('[StepEnergySimple] Annual escalator input changed to:', numValue)
-                  setAnnualEscalator(numValue)
-                  // Also call the handler to ensure consistency
-                  handleAnnualEscalatorChange(numValue)
+        {/* Show annual escalation rate input only when NOT using monthly bill (calculator has its own input) */}
+        {!useMonthlyBill && (
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Annual Electricity Rate Increase (%)
+              <span className="ml-2 text-xs font-normal text-gray-500">(Historical average is 3-5%)</span>
+            </label>
+            <input
+              type="number"
+              value={annualEscalatorInput}
+              onChange={(e) => {
+                const value = e.target.value
+                // Allow empty string, single decimal point, or valid numbers
+                if (value === '' || value === '.' || /^\d*\.?\d*$/.test(value)) {
+                  setAnnualEscalatorInput(value)
+                  // Update the number state if it's a valid number
+                  const numValue = parseFloat(value)
+                  if (!isNaN(numValue) && numValue >= 0 && numValue <= 20) {
+                    console.log('[StepEnergySimple] Annual escalator input changed to:', numValue)
+                    setAnnualEscalator(numValue)
+                    // Also call the handler to ensure consistency
+                    handleAnnualEscalatorChange(numValue)
+                  }
                 }
-              }
-            }}
-            onBlur={(e) => {
-              const value = parseFloat(e.target.value)
-              if (isNaN(value) || value < 0) {
-                console.log('[StepEnergySimple] Annual escalator onBlur - resetting to 4.5')
-                setAnnualEscalatorInput('4.5')
-                setAnnualEscalator(4.5)
-                handleAnnualEscalatorChange(4.5)
-              } else if (value > 20) {
-                console.log('[StepEnergySimple] Annual escalator onBlur - capping at 20')
-                setAnnualEscalatorInput('20')
-                setAnnualEscalator(20)
-                handleAnnualEscalatorChange(20)
-              } else {
-                console.log('[StepEnergySimple] Annual escalator onBlur - finalizing:', value)
-                setAnnualEscalatorInput(value.toString())
-                setAnnualEscalator(value)
-                handleAnnualEscalatorChange(value)
-              }
-            }}
-            className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none"
-            placeholder="4.5"
-            min="0"
-            max="20"
-            step="0.1"
-          />
-        </div>
+              }}
+              onBlur={(e) => {
+                const value = parseFloat(e.target.value)
+                if (isNaN(value) || value < 0) {
+                  console.log('[StepEnergySimple] Annual escalator onBlur - resetting to 4.5')
+                  setAnnualEscalatorInput('4.5')
+                  setAnnualEscalator(4.5)
+                  handleAnnualEscalatorChange(4.5)
+                } else if (value > 20) {
+                  console.log('[StepEnergySimple] Annual escalator onBlur - capping at 20')
+                  setAnnualEscalatorInput('20')
+                  setAnnualEscalator(20)
+                  handleAnnualEscalatorChange(20)
+                } else {
+                  console.log('[StepEnergySimple] Annual escalator onBlur - finalizing:', value)
+                  setAnnualEscalatorInput(value.toString())
+                  setAnnualEscalator(value)
+                  handleAnnualEscalatorChange(value)
+                }
+              }}
+              className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none"
+              placeholder="4.5"
+              min="0"
+              max="20"
+              step="0.1"
+            />
+          </div>
+        )}
 
         {/* User data accuracy disclaimer */}
         <div className="mb-6 flex items-start gap-2 text-xs text-gray-600">

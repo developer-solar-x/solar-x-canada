@@ -8,6 +8,15 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PU
 
 export async function POST(request: Request) {
   try {
+    // Check if Supabase is configured
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('Supabase environment variables not configured')
+      return NextResponse.json(
+        { error: 'Database not configured' },
+        { status: 500 }
+      )
+    }
+
     const body = await request.json()
     const { email, estimatorData, currentStep } = body
 
@@ -19,20 +28,63 @@ export async function POST(request: Request) {
       )
     }
 
-    // Initialize Supabase client
-    const supabase = createClient(supabaseUrl, supabaseKey)
+    // Initialize Supabase client with timeout configuration
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      db: {
+        schema: 'public',
+      },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+      global: {
+        headers: {
+          'x-client-info': 'solar-x-calculator',
+        },
+        fetch: (url, options = {}) => {
+          // Add timeout to Supabase requests (10 seconds)
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 10000)
+          
+          return fetch(url, {
+            ...options,
+            signal: controller.signal,
+          }).finally(() => {
+            clearTimeout(timeoutId)
+          })
+        },
+      },
+    })
 
     // Check if this email already has saved drafts.
     // We allow MULTIPLE partial leads per email (e.g. HRS + Net Metering),
     // so we look for an existing draft that matches the same flow
     // (estimatorMode + programType + leadType). If none match, we create a new row.
-    const { data: existingDrafts, error: checkError } = await supabase
-      .from('partial_leads_v3')
-      .select('id, estimator_data')
-      .eq('email', email)
+    let existingDrafts: any[] | null = null
+    let checkError: any = null
+    
+    try {
+      const result = await Promise.race([
+        supabase
+          .from('partial_leads_v3')
+          .select('id, estimator_data')
+          .eq('email', email),
+        new Promise<{ data: null; error: { message: 'Timeout' } }>((_, reject) =>
+          setTimeout(() => reject({ data: null, error: { message: 'Database query timeout' } }), 8000)
+        ),
+      ]) as { data: any[] | null; error: any }
+      
+      existingDrafts = result.data
+      checkError = result.error
+    } catch (timeoutError) {
+      console.error('Database connection timeout when checking for existing drafts:', timeoutError)
+      checkError = { message: 'Connection timeout', code: 'TIMEOUT' }
+    }
 
     if (checkError) {
       console.error('Error checking for existing drafts:', checkError)
+      // If we can't check for existing drafts, we can still try to insert
+      // but log the error for debugging
     }
 
     const flowKey = [
@@ -69,31 +121,57 @@ export async function POST(request: Request) {
         ? estimatorData.photos.map((p: any) => p.url || p.uploadedUrl || p.preview).filter(Boolean)
         : null
 
-      const { error: updateError } = await supabase
-        .from('partial_leads_v3')
-        .update({
-          estimator_data: estimatorData,
-          current_step: currentStep,
-          // denormalized for quick filters (best-effort extractions)
-          address: estimatorData?.address || '',
-          coordinates: estimatorData?.coordinates || {},
-          rate_plan: estimatorData?.peakShaving?.ratePlan || '',
-          roof_area_sqft: estimatorData?.roofAreaSqft ?? 0,
-          monthly_bill: estimatorData?.monthlyBill ?? 0,
-          annual_usage_kwh: estimatorData?.annualUsageKwh || estimatorData?.energyUsage?.annualKwh || 0,
-          selected_add_ons: estimatorData?.selectedAddOns || [],
-          photo_count: Array.isArray(estimatorData?.photos) ? estimatorData.photos.length : (estimatorData?.photoCount ?? (photoUrls ? photoUrls.length : 0)),
-          photo_urls: photoUrls || [],
-          map_snapshot_url: estimatorData?.mapSnapshot || '',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existingForFlow.id)
+      // Limit map snapshot size to prevent database errors (max 2MB base64 = ~1.5MB binary)
+      let mapSnapshotUrl = estimatorData?.mapSnapshot || ''
+      if (mapSnapshotUrl && mapSnapshotUrl.length > 2 * 1024 * 1024) {
+        console.warn('Map snapshot too large, truncating for database storage')
+        mapSnapshotUrl = mapSnapshotUrl.substring(0, 2 * 1024 * 1024)
+      }
+
+      let updateError: any = null
+      try {
+        const result = await Promise.race([
+          supabase
+            .from('partial_leads_v3')
+            .update({
+              estimator_data: estimatorData,
+              current_step: currentStep,
+              // denormalized for quick filters (best-effort extractions)
+              address: estimatorData?.address || '',
+              coordinates: estimatorData?.coordinates || {},
+              rate_plan: estimatorData?.peakShaving?.ratePlan || '',
+              roof_area_sqft: estimatorData?.roofAreaSqft ?? 0,
+              monthly_bill: estimatorData?.monthlyBill ?? 0,
+              annual_usage_kwh: estimatorData?.annualUsageKwh || estimatorData?.energyUsage?.annualKwh || 0,
+              selected_add_ons: estimatorData?.selectedAddOns || [],
+              photo_count: Array.isArray(estimatorData?.photos) ? estimatorData.photos.length : (estimatorData?.photoCount ?? (photoUrls ? photoUrls.length : 0)),
+              photo_urls: photoUrls || [],
+              map_snapshot_url: mapSnapshotUrl,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingForFlow.id),
+          new Promise<{ error: { message: string } }>((_, reject) =>
+            setTimeout(() => reject({ error: { message: 'Database update timeout' } }), 8000)
+          ),
+        ]) as { error: any }
+        
+        updateError = result.error
+      } catch (timeoutError) {
+        console.error('Database connection timeout when updating partial lead:', timeoutError)
+        updateError = { message: 'Connection timeout - Supabase may be unreachable', code: 'TIMEOUT' }
+      }
 
       if (updateError) {
         console.error('Error updating partial lead:', updateError)
+        // Return a more user-friendly error message
+        const isTimeout = updateError.code === 'TIMEOUT' || updateError.message?.includes('timeout')
         return NextResponse.json(
-          { error: 'Failed to update progress' },
-          { status: 500 }
+          { 
+            error: isTimeout ? 'Database connection timeout' : 'Failed to update progress', 
+            details: updateError.message || 'Database error',
+            retry: isTimeout // Suggest retry for timeouts
+          },
+          { status: isTimeout ? 504 : 500 } // 504 Gateway Timeout for timeouts
         )
       }
 
@@ -109,31 +187,60 @@ export async function POST(request: Request) {
         ? estimatorData.photos.map((p: any) => p.url || p.uploadedUrl || p.preview).filter(Boolean)
         : null
 
-      const { data, error: insertError } = await supabase
-        .from('partial_leads_v3')
-        .insert({
-          email,
-          estimator_data: estimatorData,
-          current_step: currentStep,
-          address: estimatorData?.address || '',
-          coordinates: estimatorData?.coordinates || {},
-          rate_plan: estimatorData?.peakShaving?.ratePlan || '',
-          roof_area_sqft: estimatorData?.roofAreaSqft ?? 0,
-          monthly_bill: estimatorData?.monthlyBill ?? 0,
-          annual_usage_kwh: estimatorData?.annualUsageKwh || estimatorData?.energyUsage?.annualKwh || 0,
-          selected_add_ons: estimatorData?.selectedAddOns || [],
-          photo_count: Array.isArray(estimatorData?.photos) ? estimatorData.photos.length : (estimatorData?.photoCount ?? (photoUrlsNew ? photoUrlsNew.length : 0)),
-          photo_urls: photoUrlsNew || [],
-          map_snapshot_url: estimatorData?.mapSnapshot || '',
-        })
-        .select()
-        .single()
+      // Limit map snapshot size to prevent database errors (max 2MB base64 = ~1.5MB binary)
+      let mapSnapshotUrlNew = estimatorData?.mapSnapshot || ''
+      if (mapSnapshotUrlNew && mapSnapshotUrlNew.length > 2 * 1024 * 1024) {
+        console.warn('Map snapshot too large, truncating for database storage')
+        mapSnapshotUrlNew = mapSnapshotUrlNew.substring(0, 2 * 1024 * 1024)
+      }
+
+      let insertData: any = null
+      let insertError: any = null
+      
+      try {
+        const result = await Promise.race([
+          supabase
+            .from('partial_leads_v3')
+            .insert({
+              email,
+              estimator_data: estimatorData,
+              current_step: currentStep,
+              address: estimatorData?.address || '',
+              coordinates: estimatorData?.coordinates || {},
+              rate_plan: estimatorData?.peakShaving?.ratePlan || '',
+              roof_area_sqft: estimatorData?.roofAreaSqft ?? 0,
+              monthly_bill: estimatorData?.monthlyBill ?? 0,
+              annual_usage_kwh: estimatorData?.annualUsageKwh || estimatorData?.energyUsage?.annualKwh || 0,
+              selected_add_ons: estimatorData?.selectedAddOns || [],
+              photo_count: Array.isArray(estimatorData?.photos) ? estimatorData.photos.length : (estimatorData?.photoCount ?? (photoUrlsNew ? photoUrlsNew.length : 0)),
+              photo_urls: photoUrlsNew || [],
+              map_snapshot_url: mapSnapshotUrlNew,
+            })
+            .select()
+            .single(),
+          new Promise<{ data: null; error: { message: string } }>((_, reject) =>
+            setTimeout(() => reject({ data: null, error: { message: 'Database insert timeout' } }), 8000)
+          ),
+        ]) as { data: any; error: any }
+        
+        insertData = result.data
+        insertError = result.error
+      } catch (timeoutError) {
+        console.error('Database connection timeout when inserting partial lead:', timeoutError)
+        insertError = { message: 'Connection timeout - Supabase may be unreachable', code: 'TIMEOUT' }
+      }
 
       if (insertError) {
         console.error('Error saving partial lead:', insertError)
+        // Return a more user-friendly error message
+        const isTimeout = insertError.code === 'TIMEOUT' || insertError.message?.includes('timeout')
         return NextResponse.json(
-          { error: 'Failed to save progress' },
-          { status: 500 }
+          { 
+            error: isTimeout ? 'Database connection timeout' : 'Failed to save progress', 
+            details: insertError.message || 'Database error',
+            retry: isTimeout // Suggest retry for timeouts
+          },
+          { status: isTimeout ? 504 : 500 } // 504 Gateway Timeout for timeouts
         )
       }
 
@@ -146,7 +253,10 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error in partial-lead API:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      },
       { status: 500 }
     )
   }
