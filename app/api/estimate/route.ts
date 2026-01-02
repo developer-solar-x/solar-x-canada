@@ -115,13 +115,14 @@ export async function POST(request: Request) {
     // IMPORTANT: do not re-round when the client has explicitly overridden the system size,
     // otherwise changing panel count in StepNetMetering will not change production.
     if (programType === 'net_metering' && systemSizeKw > 0 && !overrideSystemSizeKw) {
-      // Round maxSystemSizeKw UP to nearest multiple of 5 to allow proper sizing
-      // This ensures we don't artificially cap the system too low
-      const maxSystemSizeKwRounded = Math.ceil(maxSystemSizeKw / 5) * 5
-      // Round system size UP to nearest multiple of 5 kW for net metering
-      // This ensures adequate system size (round up instead of down)
-      // Minimum of 5 kW, but prefer rounding up to ensure good coverage
-      const roundedSystemSizeKw = Math.max(5, Math.ceil(systemSizeKw / 5) * 5)
+      // Round maxSystemSizeKw to nearest multiple of 5 (round normally, not always up)
+      const maxSystemSizeKwRounded = Math.round(maxSystemSizeKw / 5) * 5
+      // Round system size to nearest multiple of 5 kW for net metering (round normally, not always up)
+      // Only enforce minimum of 5 kW if the calculated size is very small (< 2.5 kW)
+      // Otherwise, round to nearest 5 kW to get accurate sizing
+      const roundedSystemSizeKw = systemSizeKw < 2.5 
+        ? 5 // Minimum 5 kW for very small systems
+        : Math.round(systemSizeKw / 5) * 5 // Round to nearest 5 kW for larger systems
       // Use the smaller of rounded size and capped max (which is also divisible by 5)
       systemSizeKw = Math.min(roundedSystemSizeKw, maxSystemSizeKwRounded)
       // Recalculate numPanels based on rounded system size

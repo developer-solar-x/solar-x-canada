@@ -32,12 +32,13 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
   const annual = result.annual
   const LOW_IMPORT_RATE = 0.0689 // 6.89¢/kWh
   
-  // Calculate savings
-  const originalBill = annual.importCost
+  // Calculate savings using Alberta Solar Club baseline (6.89¢/kWh for all usage)
+  // Baseline bill = what they would pay without solar at the Solar Club import rate
+  const baselineBill = annualUsageKwh * LOW_IMPORT_RATE
   const exportCredits = annual.exportCredits
   const netBill = annual.netAnnualBill
-  const annualSavings = originalBill - netBill
-  const savingsPercent = originalBill > 0 ? (annualSavings / originalBill) * 100 : 0
+  const annualSavings = baselineBill - netBill
+  const savingsPercent = baselineBill > 0 ? (annualSavings / baselineBill) * 100 : 0
   
   // High production season metrics
   const highSeason = alberta.highProductionSeason
@@ -91,9 +92,6 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
   const paybackYears = annualSavings > 0 && totalSystemCost > 0
     ? totalSystemCost / annualSavings
     : 999 // Return very high number instead of Infinity
-  const paybackProgress = paybackYears <= 25 && isFinite(paybackYears)
-    ? Math.min((1 / paybackYears) * 100, 100)
-    : 0
   
   // Prepare monthly chart data
   const monthlyChartData = useMemo(() => {
@@ -571,34 +569,13 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
               System Cost: {formatCurrency(totalSystemCost)} ÷ Annual Savings: {formatCurrency(annualSavings)}
             </div>
             
-            {/* Progress Bar */}
-            {paybackYears <= 25 && isFinite(paybackYears) && (
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs text-teal-700">
-                  <span>Break-even Progress</span>
-                  <span>{paybackProgress.toFixed(1)}%</span>
-                </div>
-                <div className="w-full bg-teal-100 rounded-full h-4 overflow-hidden">
-                  <div
-                    className="bg-gradient-to-r from-teal-500 to-emerald-500 h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2"
-                    style={{ width: `${Math.min(paybackProgress, 100)}%` }}
-                  >
-                    {paybackProgress >= 10 && (
-                      <span className="text-xs font-bold text-white">
-                        {paybackYears.toFixed(1)} yrs
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="text-xs text-gray-600">
-                  {paybackYears <= 10 
-                    ? `Great investment! Your system pays for itself in ${paybackYears.toFixed(1)} years.`
-                    : paybackYears <= 15
-                    ? `Solid investment with ${paybackYears.toFixed(1)} year payback period.`
-                    : `Long-term investment with ${paybackYears.toFixed(1)} year payback period.`}
-                </div>
-              </div>
-            )}
+            <div className="text-xs text-gray-600">
+              {paybackYears <= 10 
+                ? `Great investment! Your system pays for itself in ${paybackYears.toFixed(1)} years.`
+                : paybackYears <= 15
+                ? `Solid investment with ${paybackYears.toFixed(1)} year payback period.`
+                : `Long-term investment with ${paybackYears.toFixed(1)} year payback period.`}
+            </div>
           </div>
         </div>
       )}

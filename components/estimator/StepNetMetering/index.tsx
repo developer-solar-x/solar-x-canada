@@ -216,12 +216,16 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   const [showMonthlyBreakdown, setShowMonthlyBreakdown] = useState(false)
   const [selectedBatteries, setSelectedBatteries] = useState<string[]>([])
   // AI Optimization Mode - allows grid charging at cheap rates for both TOU and ULO
-  const [aiMode, setAiMode] = useState(true)
+  // For Alberta, batteries are storage-only (no grid arbitrage), so AI mode is disabled
+  const [aiMode, setAiMode] = useState(() => {
+    const province = data.province || data.estimate?.province || (data as any).location?.province || (data as any).address?.province || (data.address && extractProvinceFromAddress(data.address))
+    const isAlbertaProvince = province && (province.toUpperCase() === 'AB' || province.toUpperCase() === 'ALBERTA' || province.toUpperCase().includes('ALBERTA'))
+    return !isAlbertaProvince // Default to true for non-Alberta, false for Alberta
+  })
   
   // In quick estimate mode, net metering does not support battery
   const isQuickEstimate = data.estimatorMode === 'easy'
   const shouldShowBatterySelection = !isQuickEstimate
-  const [systemCostInput, setSystemCostInput] = useState<string>('')
   
   // Fetch batteries from API (with fallback to static)
   // Only fetch if battery selection is enabled (not in quick estimate mode)
@@ -419,10 +423,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
 
   // Get net cost and escalation rate
   // For net metering, include battery cost but NO rebates (net metering doesn't qualify for rebates)
-  const defaultSystemCost = estimate?.costs?.systemCost || estimate?.costs?.totalCost || (effectiveSystemSizeKw * 2500)
-  const solarSystemCost = systemCostInput && !isNaN(parseFloat(systemCostInput)) && parseFloat(systemCostInput) > 0
-    ? parseFloat(systemCostInput)
-    : defaultSystemCost
+  const solarSystemCost = estimate?.costs?.systemCost || estimate?.costs?.totalCost || (effectiveSystemSizeKw * 2500)
   const solarRebate = 0 // Net metering doesn't qualify for rebates
       const batteryCost = selectedBatteries.length > 0
         ? selectedBatteries
@@ -443,8 +444,16 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   
   // Include battery arbitrage savings when battery is selected (matches handleContinue logic)
   const batteryArbitrageSavings = selectedResult?.annual?.batteryArbitrageSavings || 0
+  
+  // Get the calculated annual usage (same as used in API calls)
+  const calculatedUsage = annualUsageKwh || data.energyUsage?.annualKwh || data.annualUsageKwh || (data.monthlyBill ? (data.monthlyBill / 0.223) * 12 : 0)
+  
+  // For Alberta Solar Club, calculate savings using the correct baseline (6.89¢/kWh for all usage)
+  // For other provinces, use importCost as baseline (which is calculated using TOU/ULO/tiered rates)
   const annualSavings = selectedResult 
-    ? (selectedResult.annual.importCost - selectedResult.annual.netAnnualBill) + batteryArbitrageSavings
+    ? isAlberta
+      ? (calculatedUsage * 0.0689) - selectedResult.annual.netAnnualBill + batteryArbitrageSavings // Baseline = annualUsageKwh × 6.89¢/kWh
+      : (selectedResult.annual.importCost - selectedResult.annual.netAnnualBill) + batteryArbitrageSavings
     : 0
   
   const paybackYears = calculatePayback(annualSavings, netCost, escalation)
@@ -741,7 +750,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             province: data.province,
             year: new Date().getFullYear(),
             ...(combinedBattery ? { battery: combinedBattery } : {}),
-            aiMode: aiMode && selectedBatteries.length > 0,
+            aiMode: isAlberta ? false : (aiMode && selectedBatteries.length > 0), // AI Mode disabled for Alberta (batteries are storage-only)
           }),
         })
 
@@ -917,7 +926,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
           // actually have a configurable distribution.
           ...(distribution ? { usageDistribution: distribution } : {}),
           ...(combinedBattery ? { battery: combinedBattery } : {}),
-          aiMode: aiMode && selectedBatteries.length > 0, // Only enable if battery is selected
+          aiMode: isAlberta ? false : (aiMode && selectedBatteries.length > 0), // AI Mode disabled for Alberta (batteries are storage-only)
         }),
       })
 
@@ -932,7 +941,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
         productionKey,
         annualUsage: annualUsageKwh,
         batteryIds,
-        aiMode: aiMode && selectedBatteries.length > 0,
+        aiMode: isAlberta ? false : (aiMode && selectedBatteries.length > 0), // AI Mode disabled for Alberta (batteries are storage-only)
         ...(distributionKey ? { distribution: distributionKey } : {})
       }
       
@@ -1021,9 +1030,21 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     const uloBatterySavings = uloResults.annual.batteryArbitrageSavings || 0
     const tieredBatterySavings = tieredResults.annual.batteryArbitrageSavings || 0
     
-    const touAnnualSavings = (touResults.annual.importCost - touResults.annual.netAnnualBill) + touBatterySavings
-    const uloAnnualSavings = (uloResults.annual.importCost - uloResults.annual.netAnnualBill) + uloBatterySavings
-    const tieredAnnualSavings = (tieredResults.annual.importCost - tieredResults.annual.netAnnualBill) + tieredBatterySavings
+    // Get the calculated annual usage (same as used in API calls)
+    const calculatedUsageForSavings = annualUsageKwh || data.energyUsage?.annualKwh || data.annualUsageKwh || (data.monthlyBill ? (data.monthlyBill / 0.223) * 12 : 0)
+    
+    // For Alberta Solar Club, use the correct baseline (6.89¢/kWh for all usage)
+    // For other provinces, use importCost as baseline (calculated using TOU/ULO/tiered rates)
+    const isAlbertaProvince = data.province && (data.province.toUpperCase() === 'AB' || data.province.toUpperCase() === 'ALBERTA' || data.province.toUpperCase().includes('ALBERTA'))
+    const touAnnualSavings = isAlbertaProvince
+      ? (calculatedUsageForSavings * 0.0689) - touResults.annual.netAnnualBill + touBatterySavings
+      : (touResults.annual.importCost - touResults.annual.netAnnualBill) + touBatterySavings
+    const uloAnnualSavings = isAlbertaProvince
+      ? (calculatedUsageForSavings * 0.0689) - uloResults.annual.netAnnualBill + uloBatterySavings
+      : (uloResults.annual.importCost - uloResults.annual.netAnnualBill) + uloBatterySavings
+    const tieredAnnualSavings = isAlbertaProvince
+      ? (calculatedUsageForSavings * 0.0689) - tieredResults.annual.netAnnualBill + tieredBatterySavings
+      : (tieredResults.annual.importCost - tieredResults.annual.netAnnualBill) + tieredBatterySavings
     
     const touPaybackYears = calculatePayback(touAnnualSavings, currentNetCost, currentEscalation)
     const uloPaybackYears = calculatePayback(uloAnnualSavings, currentNetCost, currentEscalation)
@@ -1232,32 +1253,6 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                         </div>
                         </div>
 
-                    {/* System Cost Input - For Alberta */}
-                    {isAlberta && (
-                      <div className="pt-2 border-t border-gray-200">
-                        <label className="block text-base md:text-lg font-semibold text-gray-700 mb-2">
-                          Estimated Total System Cost
-                        </label>
-                        <div className="relative">
-                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
-                          <input
-                            type="number"
-                            value={systemCostInput || (effectiveSystemSizeKw * 2500).toFixed(0)}
-                            onChange={(e) => setSystemCostInput(e.target.value)}
-                            className="w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-base md:text-lg font-semibold text-gray-700"
-                            placeholder={(effectiveSystemSizeKw * 2500).toFixed(0)}
-                            min="0"
-                            step="100"
-                          />
-                        </div>
-                        <div className="mt-2 flex items-start gap-2 p-2 bg-gray-50 border border-gray-200 rounded-lg">
-                          <Info className="text-gray-500 flex-shrink-0 mt-0.5" size={16} />
-                          <p className="text-xs text-gray-600">
-                            Default: ${(effectiveSystemSizeKw * 2500).toLocaleString()} (System Size × $2,500/kW). Adjust to match your actual quote.
-                          </p>
-                        </div>
-                      </div>
-                    )}
 
                     {/* Rate Plan Selection - Show Solar Club rates for Alberta, otherwise show TOU/ULO/Tiered */}
                     {isAlberta ? (
@@ -1459,75 +1454,77 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                               </div>
                             </div>
 
-                            {/* AI Optimization Mode Toggle */}
-                            <div className="mt-4 pt-4 border-t-2 border-gray-200">
-                              <div className="flex items-center justify-between mb-3">
-                                <label className="block text-base md:text-lg font-semibold text-gray-700 flex items-center gap-2">
-                                  <Sparkles className="text-purple-600" size={20} />
-                                  AI Optimization Mode
-                                </label>
-                                <button
-                                  type="button"
-                                  onClick={() => setAiMode(!aiMode)}
-                                  className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
-                                    aiMode ? 'bg-purple-600' : 'bg-gray-300'
-                                  }`}
-                                  role="switch"
-                                  aria-checked={aiMode}
-                                  aria-label="Toggle AI Optimization Mode"
-                                >
-                                  <span
-                                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                                      aiMode ? 'translate-x-8' : 'translate-x-1'
+                            {/* AI Optimization Mode Toggle - Hidden for Alberta (batteries are storage-only) */}
+                            {!isAlberta && (
+                              <div className="mt-4 pt-4 border-t-2 border-gray-200">
+                                <div className="flex items-center justify-between mb-3">
+                                  <label className="block text-base md:text-lg font-semibold text-gray-700 flex items-center gap-2">
+                                    <Sparkles className="text-purple-600" size={20} />
+                                    AI Optimization Mode
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => setAiMode(!aiMode)}
+                                    className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+                                      aiMode ? 'bg-purple-600' : 'bg-gray-300'
                                     }`}
-                                  />
-                                </button>
-                              </div>
-                              <div className={`p-4 rounded-lg border-2 ${
-                                aiMode 
-                                  ? 'bg-purple-50 border-purple-200' 
-                                  : 'bg-gray-50 border-gray-200'
-                              }`}>
-                                <div className="flex items-start gap-3">
-                                  <div className={`flex-shrink-0 mt-0.5 ${
-                                    aiMode ? 'text-purple-600' : 'text-gray-500'
-                                  }`}>
-                                    {aiMode ? <Zap size={18} /> : <Battery size={18} />}
-                                  </div>
-                                  <div className="flex-1">
-                                    <div className={`font-semibold mb-1 ${
-                                      aiMode ? 'text-purple-800' : 'text-gray-700'
+                                    role="switch"
+                                    aria-checked={aiMode}
+                                    aria-label="Toggle AI Optimization Mode"
+                                  >
+                                    <span
+                                      className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                                        aiMode ? 'translate-x-8' : 'translate-x-1'
+                                      }`}
+                                    />
+                                  </button>
+                                </div>
+                                <div className={`p-4 rounded-lg border-2 ${
+                                  aiMode 
+                                    ? 'bg-purple-50 border-purple-200' 
+                                    : 'bg-gray-50 border-gray-200'
+                                }`}>
+                                  <div className="flex items-start gap-3">
+                                    <div className={`flex-shrink-0 mt-0.5 ${
+                                      aiMode ? 'text-purple-600' : 'text-gray-500'
                                     }`}>
-                                      {aiMode ? 'AI Mode: ON' : 'AI Mode: OFF'}
+                                      {aiMode ? <Zap size={18} /> : <Battery size={18} />}
                                     </div>
-                                    <div className="text-sm text-gray-600 space-y-1">
-                                      {aiMode ? (
-                                        <>
-                                          <p>• Maximize Solar Capture</p>
-                                          <p>• 100% Efficient Grid Arbitrage</p>
-                                          <p>• Ensures a full cycle daily for Maximum ROI</p>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <p>• Battery only charges from solar excess (free)</p>
-                                          <p>• No grid charging - battery capacity limited to available solar excess</p>
-                                        </>
-                                      )}
+                                    <div className="flex-1">
+                                      <div className={`font-semibold mb-1 ${
+                                        aiMode ? 'text-purple-800' : 'text-gray-700'
+                                      }`}>
+                                        {aiMode ? 'AI Mode: ON' : 'AI Mode: OFF'}
+                                      </div>
+                                      <div className="text-sm text-gray-600 space-y-1">
+                                        {aiMode ? (
+                                          <>
+                                            <p>• Maximize Solar Capture</p>
+                                            <p>• 100% Efficient Grid Arbitrage</p>
+                                            <p>• Ensures a full cycle daily for Maximum ROI</p>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <p>• Battery only charges from solar excess (free)</p>
+                                            <p>• No grid charging - battery capacity limited to available solar excess</p>
+                                          </>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
+                                {aiMode && (
+                                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <div className="flex items-start gap-2">
+                                      <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
+                                      <p className="text-xs text-blue-700">
+                                        <strong>How it works:</strong> When AI Mode is ON, your battery charges from the grid during cheap rate periods ({selectedPlan === 'ulo' ? 'ultra-low' : 'off-peak'}) and discharges during expensive periods (on-peak/mid-peak). This creates energy arbitrage - buying low and using it to avoid buying high, maximizing your savings.
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                              {aiMode && (
-                                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                  <div className="flex items-start gap-2">
-                                    <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
-                                    <p className="text-xs text-blue-700">
-                                      <strong>How it works:</strong> When AI Mode is ON, your battery charges from the grid during cheap rate periods ({selectedPlan === 'ulo' ? 'ultra-low' : 'off-peak'}) and discharges during expensive periods (on-peak/mid-peak). This creates energy arbitrage - buying low and using it to avoid buying high, maximizing your savings.
-                                    </p>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
+                            )}
                           </>
                         )}
                                 </div>
