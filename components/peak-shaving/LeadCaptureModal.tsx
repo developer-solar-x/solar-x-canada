@@ -264,10 +264,7 @@ export function LeadCaptureModal({ isOpen, onVerified, onClose }: LeadCaptureMod
             </button>
 
             <p className="text-xs text-gray-500 text-center">
-              {isSolarXEmail 
-                ? 'You\'ll receive a 6-digit code via email. Solar-X employees have unlimited access after verification.'
-                : 'You\'ll receive a 6-digit code via email. Regular users get 2 free uses.'
-              }
+              You'll receive a 6-digit code via email. Regular users get 2 free uses.
             </p>
           </div>
         )}
