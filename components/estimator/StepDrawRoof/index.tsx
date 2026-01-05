@@ -307,13 +307,20 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
       }, 10000) // 10 second timeout
       
       try {
-        // Capture snapshot immediately if not already captured
+        // Always capture a fresh snapshot when Save and Continue is clicked
+        // This ensures all sections are included, not just the first one
         let finalSnapshot = mapSnapshot
-        if (!finalSnapshot && mapboxDrawingRef.current) {
+        if (mapboxDrawingRef.current) {
           try {
             finalSnapshot = await mapboxDrawingRef.current.captureSnapshot()
+            // Update state with the fresh snapshot
+            if (finalSnapshot) {
+              setMapSnapshot(finalSnapshot)
+            }
           } catch (error) {
             console.error('Failed to capture map snapshot:', error)
+            // Fall back to existing snapshot if capture fails
+            finalSnapshot = mapSnapshot
           }
         }
 

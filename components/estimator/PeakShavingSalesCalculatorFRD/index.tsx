@@ -24,6 +24,10 @@ import {
   FRDPeakShavingResult,
   computeSolarBatteryOffsetCap,
 } from '@/lib/simple-peak-shaving'
+import {
+  calculateAlbertaHRSBatterySavings,
+  calculateAlbertaHRSBatteryProjection,
+} from '@/lib/alberta-hrs-battery'
 import { calculateSystemCost } from '@/config/pricing'
 import type { StepBatteryPeakShavingSimpleProps } from '../StepBatteryPeakShavingSimple/types'
 import { clampBreakdown, type LeftoverBreakdown } from '../StepBatteryPeakShavingSimple/utils'
@@ -203,8 +207,111 @@ function EnergyFlowDiagram({
     totalEnergyOffset?: number
     costOfEnergyBoughtFromGrid?: number
     uncappedTotalOffset?: number
+    energyCoverage?: number
+    batterySelfConsumptionPercent?: number
+    totalExportCredits?: number
+    albertaSeasonalData?: any
   }
 }) {
+  // Check if this is Alberta HRS
+  const isAlbertaHRS = (() => {
+    const province = data.province || data.estimate?.province || (data as any).location?.province || (data as any).address?.province
+    if (!province) return false
+    const provinceUpper = String(province).toUpperCase().trim()
+    return (
+      (provinceUpper === 'AB' || provinceUpper === 'ALBERTA' || provinceUpper.includes('ALBERTA')) &&
+      data.programType === 'hrs_residential'
+    )
+  })()
+  
+  // For Alberta, show seasonal breakdown instead of TOU/ULO periods
+  if (isAlbertaHRS && combinedResult?.alberta) {
+    const albertaData = combinedResult.alberta.solarBattery || combinedResult.alberta.solarOnly
+    const highSeason = albertaData?.highProductionSeason
+    const lowSeason = albertaData?.lowProductionSeason
+    
+    return (
+      <div className="p-4 bg-white rounded-xl border-2 border-gray-200 shadow-lg">
+        <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mb-4 text-center">Alberta Solar Club Breakdown</h3>
+        
+        {/* Seasonal Breakdown */}
+        <div className="space-y-4">
+          {/* High Production Season */}
+          <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-bold text-green-800">High Production Season (Apr-Sep)</h4>
+              <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded">33¢/kWh Export</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <div className="text-xs text-gray-600">Exported</div>
+                <div className="font-bold text-green-700">{highSeason?.exportedKwh?.toFixed(0) || 0} kWh</div>
+                <div className="text-xs text-green-600">${highSeason?.exportCredits?.toFixed(2) || 0} credits</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-600">Imported</div>
+                <div className="font-bold text-gray-700">{highSeason?.importedKwh?.toFixed(0) || 0} kWh</div>
+                <div className="text-xs text-gray-600">${highSeason?.importCost?.toFixed(2) || 0} cost</div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Low Production Season */}
+          <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-bold text-blue-800">Low Production Season (Oct-Mar)</h4>
+              <span className="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1 rounded">6.89¢/kWh Import</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <div className="text-xs text-gray-600">Exported</div>
+                <div className="font-bold text-blue-700">{lowSeason?.exportedKwh?.toFixed(0) || 0} kWh</div>
+                <div className="text-xs text-blue-600">${lowSeason?.exportCredits?.toFixed(2) || 0} credits</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-600">Imported</div>
+                <div className="font-bold text-gray-700">{lowSeason?.importedKwh?.toFixed(0) || 0} kWh</div>
+                <div className="text-xs text-gray-600">${lowSeason?.importCost?.toFixed(2) || 0} cost</div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Annual Summary */}
+          <div className="p-4 bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-lg">
+            <h4 className="font-bold text-amber-800 mb-3">Annual Summary</h4>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <div className="text-xs text-gray-600">Total Export Credits</div>
+                <div className="font-bold text-green-700">${albertaData?.totalExportCredits?.toFixed(2) || 0}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-600">Total Import Cost</div>
+                <div className="font-bold text-gray-700">${albertaData?.totalImportCost?.toFixed(2) || 0}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-600">Net Annual Bill</div>
+                <div className={`font-bold ${(combinedResult?.postSolarBatteryAnnualBill || 0) < 0 ? 'text-green-700' : 'text-gray-700'}`}>
+                  ${(combinedResult?.postSolarBatteryAnnualBill || 0).toFixed(2)}
+                  {(combinedResult?.postSolarBatteryAnnualBill || 0) < 0 && ' (credit)'}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-600">Annual Savings</div>
+                <div className="font-bold text-green-700">${(combinedResult?.combinedAnnualSavings || 0).toFixed(2)}</div>
+              </div>
+            </div>
+            {selectedBatteryIds.length > 0 && albertaData?.batterySolarCharged && (
+              <div className="mt-3 pt-3 border-t border-amber-300">
+                <div className="text-xs text-gray-600">Battery Self-Consumption</div>
+                <div className="font-bold text-blue-700">{albertaData.batterySolarCharged.toFixed(0)} kWh</div>
+                <div className="text-xs text-blue-600">Solar energy stored and used from battery</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
   // Calculate percentages from combined result if available, otherwise use FRD result
   let solarDirectPercent = 0
   let solarChargedBatteryPercent = 0
@@ -1041,7 +1148,23 @@ export function PeakShavingSalesCalculatorFRD({
   const selectedBattery = selectedBatteryIds.length > 0 ? combineBatteries(selectedBatteryIds) : null
 
   // Calculate rebates
+  // Note: Alberta HRS doesn't have the same rebate program, so rebates are 0
   const rebates = useMemo(() => {
+    const isAlbertaHRS = isAlberta && data.programType === 'hrs_residential'
+    
+    // For Alberta HRS, no rebates apply
+    if (isAlbertaHRS) {
+      return {
+        solarRebate: 0,
+        batteryRebate: 0,
+        totalRebates: 0,
+        solarRebatePerKw: 0,
+        solarRebateMax: 0,
+        batteryRebatePerKwh: 0,
+        batteryRebateMax: 0
+      }
+    }
+    
     // Solar rebate: $1,000 per kW, max $5,000
     const solarRebatePerKw = 1000
     const solarRebateMax = 5000
@@ -1064,7 +1187,7 @@ export function PeakShavingSalesCalculatorFRD({
       batteryRebatePerKwh: BATTERY_REBATE_PER_KWH,
       batteryRebateMax: BATTERY_REBATE_MAX
     }
-  }, [effectiveSystemSizeKw, selectedBattery])
+  }, [effectiveSystemSizeKw, selectedBattery, isAlberta, data.programType])
 
   // Calculate offset cap to account for winter limits (EXACT same as manual calculator)
   const offsetCapInfo = useMemo(() => {
@@ -1094,6 +1217,97 @@ export function PeakShavingSalesCalculatorFRD({
     if (!annualUsageKwh || annualUsageKwh <= 0) return null
 
     try {
+      // Check if this is Alberta HRS detailed estimate
+      const isAlbertaHRS = isAlberta && data.programType === 'hrs_residential'
+      
+      // For Alberta HRS, use Alberta Solar Club calculation
+      if (isAlbertaHRS) {
+        // Get monthly solar production from estimate or calculate from annual
+        const estimate = data.estimate || data.overrideEstimate
+        let monthlySolarProduction: number[] = []
+        
+        if (estimate?.production?.monthlyKwh && Array.isArray(estimate.production.monthlyKwh) && estimate.production.monthlyKwh.length === 12) {
+          monthlySolarProduction = estimate.production.monthlyKwh
+        } else {
+          // Calculate monthly distribution from annual production
+          // Using Ontario seasonal distribution (will be adjusted by Alberta calculation)
+          const seasonalDistribution = [
+            0.051, 0.067, 0.087, 0.099, 0.116, 0.122,
+            0.127, 0.118, 0.103, 0.084, 0.057, 0.049
+          ]
+          monthlySolarProduction = seasonalDistribution.map(pct => solarProductionKwh * pct)
+        }
+        
+        // If no battery is selected, calculate solar-only result
+        if (!selectedBattery || selectedBatteryIds.length === 0) {
+          // Create a zero-capacity battery spec for solar-only calculation
+          const zeroBattery: BatterySpec = {
+            id: 'zero',
+            brand: 'None',
+            model: 'No Battery',
+            nominalKwh: 0,
+            usableKwh: 0,
+            usablePercent: 0,
+            roundTripEfficiency: 0,
+            inverterKw: 0,
+            price: 0,
+            warranty: { years: 0, cycles: 0 },
+            description: 'Solar only'
+          }
+          const albertaResult = calculateAlbertaHRSBatterySavings(
+            annualUsageKwh,
+            solarProductionKwh,
+            zeroBattery,
+            monthlySolarProduction,
+            undefined, // usageData
+            undefined, // usageDistribution (not used for Alberta)
+            new Date().getFullYear(),
+            0.03 // snowLossFactor
+          )
+          
+          // Convert to format expected by UI
+          return {
+            baselineAnnualBill: albertaResult.baselineAnnualBill,
+            postSolarAnnualBill: albertaResult.postSolarAnnualBill,
+            postSolarBatteryAnnualBill: albertaResult.postSolarAnnualBill, // Same as solar-only when no battery
+            solarOnlySavings: albertaResult.solarOnlySavings,
+            batteryOnTopSavings: 0,
+            combinedAnnualSavings: albertaResult.solarOnlySavings,
+            combinedMonthlySavings: albertaResult.solarOnlySavings / 12,
+            uncappedAnnualSavings: albertaResult.solarOnlySavings,
+            breakdown: albertaResult.breakdown,
+            alberta: albertaResult.alberta, // Include Alberta-specific seasonal data
+          }
+        }
+        
+        // Calculate with battery
+        const albertaResult = calculateAlbertaHRSBatterySavings(
+          annualUsageKwh,
+          solarProductionKwh,
+          selectedBattery,
+          monthlySolarProduction,
+          undefined, // usageData
+          undefined, // usageDistribution (not used for Alberta)
+          new Date().getFullYear(),
+          0.03 // snowLossFactor
+        )
+        
+        // Convert to format expected by UI
+        return {
+          baselineAnnualBill: albertaResult.baselineAnnualBill,
+          postSolarAnnualBill: albertaResult.postSolarAnnualBill,
+          postSolarBatteryAnnualBill: albertaResult.postSolarBatteryAnnualBill,
+          solarOnlySavings: albertaResult.solarOnlySavings,
+          batteryOnTopSavings: albertaResult.batteryOnTopSavings,
+          combinedAnnualSavings: albertaResult.combinedAnnualSavings,
+          combinedMonthlySavings: albertaResult.combinedMonthlySavings,
+          uncappedAnnualSavings: albertaResult.combinedAnnualSavings,
+          breakdown: albertaResult.breakdown,
+          alberta: albertaResult.alberta, // Include Alberta-specific seasonal data
+        }
+      }
+      
+      // For Ontario (TOU/ULO), use existing calculation
       const ratePlanObj: RatePlan = ratePlan === 'ULO' ? ULO_RATE_PLAN : TOU_RATE_PLAN
       // Use custom distribution if set, otherwise fall back to defaults
       const distribution: UsageDistribution = ratePlan === 'ULO' ? uloDistribution : touDistribution
@@ -1139,12 +1353,17 @@ export function PeakShavingSalesCalculatorFRD({
       console.error('Calculation error:', e)
       return null
     }
-  }, [annualUsageKwh, solarProductionKwh, selectedBattery, selectedBatteryIds.length, ratePlan, aiMode, isAlberta, offsetCapInfo.capFraction, touDistribution, uloDistribution])
+  }, [annualUsageKwh, solarProductionKwh, selectedBattery, selectedBatteryIds.length, ratePlan, aiMode, isAlberta, offsetCapInfo.capFraction, touDistribution, uloDistribution, data.programType, data.estimate])
 
   // Also calculate FRD result for offset percentages display
+  // Note: FRD result is only for TOU/ULO plans, not for Alberta
   const frdResult = useMemo<FRDPeakShavingResult | null>(() => {
     if (!annualUsageKwh || annualUsageKwh <= 0) return null
     if (!selectedBattery || selectedBatteryIds.length === 0) return null
+    
+    // Skip FRD calculation for Alberta (uses seasonal rates, not TOU/ULO)
+    const isAlbertaHRS = isAlberta && data.programType === 'hrs_residential'
+    if (isAlbertaHRS) return null
 
     try {
       const ratePlanObj: RatePlan = ratePlan === 'ULO' ? ULO_RATE_PLAN : TOU_RATE_PLAN
@@ -1164,7 +1383,7 @@ export function PeakShavingSalesCalculatorFRD({
       console.error('FRD Calculation error:', e)
       return null
     }
-  }, [annualUsageKwh, solarProductionKwh, selectedBattery, ratePlan, aiMode, isAlberta, touDistribution, uloDistribution])
+  }, [annualUsageKwh, solarProductionKwh, selectedBattery, ratePlan, aiMode, isAlberta, touDistribution, uloDistribution, data.programType])
 
   // Use FRD result for offset percentages, combined result for costs
   const result = frdResult
@@ -1208,6 +1427,56 @@ export function PeakShavingSalesCalculatorFRD({
         boughtFromGridPercent: 0,
         costOfEnergyBoughtFromGrid: 0,
         remainingGridCostTooltip: undefined,
+      }
+    }
+
+    // Special handling for Alberta HRS (uses seasonal rates, not TOU/ULO)
+    const isAlbertaHRS = isAlberta && data.programType === 'hrs_residential'
+    if (isAlbertaHRS) {
+      const baselineBill = combinedResult.baselineAnnualBill || 0
+      const solarOnlySavings = combinedResult.solarOnlySavings || 0
+      const batteryOnTopSavings = combinedResult.batteryOnTopSavings || 0
+      const combinedSavings = combinedResult.combinedAnnualSavings || 0
+      const albertaData = combinedResult.alberta
+      
+      // Calculate offsets as percentages
+      const solarOffset = baselineBill > 0 ? (solarOnlySavings / baselineBill) * 100 : 0
+      const batteryOffset = baselineBill > 0 ? (batteryOnTopSavings / baselineBill) * 100 : 0
+      const totalSavingsPercent = baselineBill > 0 ? (combinedSavings / baselineBill) * 100 : 0
+      
+      // Calculate energy coverage (how much of usage is covered by solar + battery)
+      const solarBatteryData = albertaData?.solarBattery
+      const totalSelfConsumed = solarBatteryData 
+        ? solarBatteryData.totalSolarProduction - solarBatteryData.totalExported
+        : 0
+      const energyCoverage = annualUsageKwh > 0 ? (totalSelfConsumed / annualUsageKwh) * 100 : 0
+      
+      // Calculate battery self-consumption (solar stored in battery)
+      const batterySolarCharged = solarBatteryData?.batterySolarCharged || 0
+      const batterySelfConsumptionPercent = annualUsageKwh > 0 ? (batterySolarCharged / annualUsageKwh) * 100 : 0
+      
+      // Calculate export credits value
+      const totalExportCredits = solarBatteryData?.totalExportCredits || 0
+      
+      // Calculate remaining grid usage
+      const postBatteryBill = combinedResult.postSolarBatteryAnnualBill || 0
+      const boughtFromGridPercent = baselineBill > 0 ? (postBatteryBill / baselineBill) * 100 : 0
+      const costOfEnergyBoughtFromGrid = postBatteryBill
+      
+      return {
+        solarOffset,
+        batteryOffset,
+        totalSavings: totalSavingsPercent,
+        totalEnergyOffset: energyCoverage, // Use energy coverage instead of calculated offset
+        gridChargedBatteryPercent: 0, // No grid charging in Alberta
+        boughtFromGridPercent,
+        costOfEnergyBoughtFromGrid,
+        remainingGridCostTooltip: undefined,
+        // Alberta-specific metrics
+        energyCoverage,
+        batterySelfConsumptionPercent,
+        totalExportCredits,
+        albertaSeasonalData: albertaData,
       }
     }
 
@@ -1766,6 +2035,9 @@ export function PeakShavingSalesCalculatorFRD({
     // Note: annualEscalator is already a percentage (e.g., 3 means 3%), so divide by 100
     const annualEscalationRate = (data.annualEscalator ?? 4.5) / 100
 
+    // Check if this is Alberta HRS
+    const isAlbertaHRS = isAlberta && data.programType === 'hrs_residential'
+
     // Calculate system costs
     const systemSize = effectiveSystemSizeKw || 0
     const solarSystemCost = systemSize > 0 ? calculateSystemCost(systemSize) : 0
@@ -1782,20 +2054,29 @@ export function PeakShavingSalesCalculatorFRD({
     // Calculate 25-year projection
     // Note: For payback period calculation, we don't apply degradation or offset cap
     // as these are long-term effects that shouldn't affect the initial payback period
-    const projection = calculateCombinedMultiYear(
-      firstYearSavings,
-      netCost,
-      annualEscalationRate,
-      0, // No degradation for payback calculation (only affects long-term profit)
-      25,
-      {
-        baselineAnnualBill: beforeAfterCosts.before, // Use baseline from before/after comparison
-        offsetCapFraction: undefined // Don't cap savings for payback calculation
-      }
-    )
+    const projection = isAlbertaHRS
+      ? calculateAlbertaHRSBatteryProjection(
+          firstYearSavings,
+          netCost,
+          beforeAfterCosts.before, // Use baseline from before/after comparison
+          annualEscalationRate,
+          0, // No degradation for payback calculation (only affects long-term profit)
+          25
+        )
+      : calculateCombinedMultiYear(
+          firstYearSavings,
+          netCost,
+          annualEscalationRate,
+          0, // No degradation for payback calculation (only affects long-term profit)
+          25,
+          {
+            baselineAnnualBill: beforeAfterCosts.before, // Use baseline from before/after comparison
+            offsetCapFraction: undefined // Don't cap savings for payback calculation
+          }
+        )
 
     return { ...projection, totalSystemCost, solarSystemCost, batteryCost }
-  }, [combinedResult, selectedBattery, annualUsageKwh, effectiveSystemSizeKw, rebates.totalRebates, data.annualEscalator, offsetCapInfo.capFraction, beforeAfterCosts])
+  }, [combinedResult, selectedBattery, annualUsageKwh, effectiveSystemSizeKw, rebates.totalRebates, data.annualEscalator, offsetCapInfo.capFraction, beforeAfterCosts, isAlberta, data.programType])
 
   return (
     <div className="w-full bg-gradient-to-br from-blue-50 via-white to-amber-50 py-4 md:py-6">
@@ -1810,7 +2091,7 @@ export function PeakShavingSalesCalculatorFRD({
                 {/* FRD Section 9: Headline 32-40px */}
                 <h2 className="text-3xl md:text-4xl font-bold text-gray-800">Calculator Inputs</h2>
                 
-                {/* Tab Navigation */}
+                {/* Tab Navigation - Hide distribution tab for Alberta HRS */}
                 <div className="mt-4 flex gap-2 border-b border-gray-300">
                   <button
                     onClick={() => setActiveTab('basic')}
@@ -1822,16 +2103,18 @@ export function PeakShavingSalesCalculatorFRD({
                   >
                     Basic Inputs
                   </button>
-                  <button
-                    onClick={() => setActiveTab('distribution')}
-                    className={`px-4 py-2 font-semibold text-sm transition-colors ${
-                      activeTab === 'distribution'
-                        ? 'text-blue-600 border-b-2 border-blue-600'
-                        : 'text-gray-600 hover:text-gray-800'
-                    }`}
-                  >
-                    Usage Distribution
-                  </button>
+                  {!(isAlberta && data.programType === 'hrs_residential') && (
+                    <button
+                      onClick={() => setActiveTab('distribution')}
+                      className={`px-4 py-2 font-semibold text-sm transition-colors ${
+                        activeTab === 'distribution'
+                          ? 'text-blue-600 border-b-2 border-blue-600'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      Usage Distribution
+                    </button>
+                  )}
                 </div>
               </div>
               
@@ -2074,37 +2357,61 @@ export function PeakShavingSalesCalculatorFRD({
                 )}
               </div>
 
-              {/* Rate Plan */}
-              <div>
-                {/* FRD Section 9: Body 16-18px (text-base = 16px, text-lg = 18px) */}
-                <label className="block text-base md:text-lg font-semibold text-gray-700 mb-2">
-                  Rate Plan
-                </label>
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    onClick={() => setRatePlan('TOU')}
-                    className={`p-4 rounded-lg border-2 transition-all ${
-                      ratePlan === 'TOU'
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-300 bg-white hover:border-gray-400'
-                    }`}
-                  >
-                    <div className="font-semibold text-gray-800">TOU</div>
-                    <div className="text-xs text-gray-600">Time-of-Use</div>
-                  </button>
-                  <button
-                    onClick={() => setRatePlan('ULO')}
-                    className={`p-4 rounded-lg border-2 transition-all ${
-                      ratePlan === 'ULO'
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-300 bg-white hover:border-gray-400'
-                    }`}
-                  >
-                    <div className="font-semibold text-gray-800">ULO</div>
-                    <div className="text-xs text-gray-600">Ultra-Low Overnight</div>
-                  </button>
+              {/* Rate Plan - Hidden for Alberta HRS */}
+              {!(isAlberta && data.programType === 'hrs_residential') && (
+                <div>
+                  {/* FRD Section 9: Body 16-18px (text-base = 16px, text-lg = 18px) */}
+                  <label className="block text-base md:text-lg font-semibold text-gray-700 mb-2">
+                    Rate Plan
+                  </label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      onClick={() => setRatePlan('TOU')}
+                      className={`p-4 rounded-lg border-2 transition-all ${
+                        ratePlan === 'TOU'
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-300 bg-white hover:border-gray-400'
+                      }`}
+                    >
+                      <div className="font-semibold text-gray-800">TOU</div>
+                      <div className="text-xs text-gray-600">Time-of-Use</div>
+                    </button>
+                    <button
+                      onClick={() => setRatePlan('ULO')}
+                      className={`p-4 rounded-lg border-2 transition-all ${
+                        ratePlan === 'ULO'
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-300 bg-white hover:border-gray-400'
+                      }`}
+                    >
+                      <div className="font-semibold text-gray-800">ULO</div>
+                      <div className="text-xs text-gray-600">Ultra-Low Overnight</div>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
+              
+              {/* Alberta Solar Club Info - Show for Alberta HRS */}
+              {isAlberta && data.programType === 'hrs_residential' && (
+                <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
+                    <div>
+                      <h3 className="font-bold text-blue-800 mb-2">Alberta Solar Club</h3>
+                      <p className="text-sm text-blue-700 mb-2">
+                        Battery savings in Alberta come from storing solar energy during the day for use at night, avoiding 6.89¢/kWh import costs.
+                      </p>
+                      <div className="text-xs text-blue-600 space-y-1">
+                        <div><strong>High Production Season (Apr-Sep):</strong> 33¢/kWh export rate</div>
+                        <div><strong>Low Production Season (Oct-Mar):</strong> 6.89¢/kWh import rate</div>
+                      </div>
+                      <p className="text-xs text-blue-600 mt-2 italic">
+                        Note: No peak shaving benefits apply. Battery savings are from self-consumption only.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* AI Optimization Mode Toggle - Hidden for Alberta (batteries are storage-only) */}
               {selectedBatteryIds.length > 0 && selectedBattery && !isAlberta && (
@@ -2213,8 +2520,8 @@ export function PeakShavingSalesCalculatorFRD({
                 </div>
               )}
 
-              {/* Rebates Section - Only show in step mode (not standalone) */}
-              {!manualMode && (
+              {/* Rebates Section - Only show in step mode (not standalone) and not for Alberta HRS */}
+              {!manualMode && !(isAlberta && data.programType === 'hrs_residential') && (
                 <div className="pt-4 border-t-2 border-gray-200">
                   <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
                     <Award className="text-green-600" size={20} />
@@ -2291,15 +2598,17 @@ export function PeakShavingSalesCalculatorFRD({
                       <p className="text-sm text-gray-600 mb-2">
                         Customize how your annual usage is distributed across different rate periods for the selected rate plan.
                       </p>
-                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div className="flex items-start gap-2">
-                          <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
-                          <p className="text-xs text-blue-700">
-                            Currently viewing: <span className="font-semibold">{ratePlan === 'TOU' ? 'Time-of-Use (TOU)' : 'Ultra-Low Overnight (ULO)'}</span>. 
-                            Switch rate plans above to customize the other plan's distribution.
-                          </p>
+                      {!(isAlberta && data.programType === 'hrs_residential') && (
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="flex items-start gap-2">
+                            <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
+                            <p className="text-xs text-blue-700">
+                              Currently viewing: <span className="font-semibold">{ratePlan === 'TOU' ? 'Time-of-Use (TOU)' : 'Ultra-Low Overnight (ULO)'}</span>. 
+                              Switch rate plans above to customize the other plan's distribution.
+                            </p>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                     
                     <div className="grid md:grid-cols-2 gap-4">
@@ -2482,65 +2791,119 @@ export function PeakShavingSalesCalculatorFRD({
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" suppressHydrationWarning>
-                {/* Energy Sources */}
-                <HeroMetricCard
-                  icon={Sun}
-                  label="Solar Offset"
-                  value={heroMetrics.solarOffset}
-                  caption="Powered directly by your solar panels."
-                  color="blue"
-                />
-                {selectedBatteryIds.length > 0 && (
-                <HeroMetricCard
-                  icon={Battery}
-                  label="Battery Solar Capture"
-                  value={heroMetrics.batteryOffset}
-                  caption="Powered by stored solar energy."
-                  color="green"
-                />
+                {isAlberta && data.programType === 'hrs_residential' ? (
+                  // Alberta-specific metrics
+                  <>
+                    <HeroMetricCard
+                      icon={Sun}
+                      label="Energy Coverage"
+                      value={heroMetrics.energyCoverage || heroMetrics.totalEnergyOffset || 0}
+                      caption="% of annual usage covered by solar + battery"
+                      color="blue"
+                    />
+                    {selectedBatteryIds.length > 0 && (
+                      <HeroMetricCard
+                        icon={Battery}
+                        label="Battery Self-Consumption"
+                        value={heroMetrics.batterySelfConsumptionPercent || 0}
+                        caption="Solar energy stored and used from battery"
+                        color="green"
+                      />
+                    )}
+                    <HeroMetricCard
+                      icon={TrendingUp}
+                      label="Export Credits"
+                      value={heroMetrics.totalExportCredits || 0}
+                      suffix="$"
+                      caption="Annual value of exported solar energy"
+                      color="gold"
+                    />
+                    <HeroMetricCard
+                      icon={DollarSign}
+                      label="Import Cost"
+                      value={heroMetrics.costOfEnergyBoughtFromGrid || 0}
+                      suffix="$"
+                      caption="Annual cost of imported grid energy"
+                      color="blue"
+                    />
+                    <HeroMetricCard
+                      icon={BarChart3}
+                      label="Net Annual Bill"
+                      value={combinedResult?.postSolarBatteryAnnualBill || 0}
+                      suffix="$"
+                      caption={combinedResult?.postSolarBatteryAnnualBill < 0 ? "Credit balance (negative = credit)" : "Net cost after credits"}
+                      color={combinedResult?.postSolarBatteryAnnualBill < 0 ? "green" : "blue"}
+                    />
+                    <HeroMetricCard
+                      icon={TrendingUp}
+                      label="Total Bill Savings"
+                      value={heroMetrics.totalSavings}
+                      caption="Your annual bill reduction vs baseline (6.89¢/kWh)"
+                      color="gold"
+                    />
+                  </>
+                ) : (
+                  // Ontario (TOU/ULO) metrics
+                  <>
+                    <HeroMetricCard
+                      icon={Sun}
+                      label="Solar Offset"
+                      value={heroMetrics.solarOffset}
+                      caption="Powered directly by your solar panels."
+                      color="blue"
+                    />
+                    {selectedBatteryIds.length > 0 && (
+                      <HeroMetricCard
+                        icon={Battery}
+                        label="Battery Solar Capture"
+                        value={heroMetrics.batteryOffset}
+                        caption="Powered by stored solar energy."
+                        color="green"
+                      />
+                    )}
+                    <HeroMetricCard
+                      icon={BarChart3}
+                      label={selectedBatteryIds.length > 0 ? "Total Solar & Battery Offset" : "Total Solar Offset"}
+                      value={heroMetrics.totalEnergyOffset}
+                      caption={(() => {
+                        const hasBattery = selectedBatteryIds.length > 0
+                        // Check if offset is capped
+                        const offsetCapPercent = offsetCapInfo.capFraction * 100
+                        const isCapped = (heroMetrics.uncappedTotalOffset ?? 0) > offsetCapPercent + 0.1
+                        if (isCapped) {
+                          return hasBattery 
+                            ? `Free energy from solar and stored solar battery. Capped at ${offsetCapPercent.toFixed(0)}% to reflect winter limits.`
+                            : `Free energy from solar panels. Capped at ${offsetCapPercent.toFixed(0)}% to reflect winter limits.`
+                        }
+                        return hasBattery 
+                          ? "Free energy from solar and stored solar battery."
+                          : "Free energy from solar panels."
+                      })()}
+                      color="gold"
+                    />
+                    <HeroMetricCard
+                      icon={AlertTriangle}
+                      label="Buy from Grid"
+                      value={heroMetrics.boughtFromGridPercent}
+                      caption="Annual % of leftover electricity purchased"
+                      color="blue"
+                    />
+                    <HeroMetricCard
+                      icon={DollarSign}
+                      label="Battery Load Management"
+                      value={heroMetrics.costOfEnergyBoughtFromGrid}
+                      caption="Annual cost after battery time of use optimization"
+                      color="green"
+                    />
+                    <HeroMetricCard
+                      icon={TrendingUp}
+                      label="Total Bill Savings"
+                      value={heroMetrics.totalSavings}
+                      caption="Your annual bill reduction vs today."
+                      color="gold"
+                    />
+                  </>
                 )}
-                <HeroMetricCard
-                  icon={BarChart3}
-                  label={selectedBatteryIds.length > 0 ? "Total Solar & Battery Offset" : "Total Solar Offset"}
-                  value={heroMetrics.totalEnergyOffset}
-                  caption={(() => {
-                    const hasBattery = selectedBatteryIds.length > 0
-                    // Check if offset is capped
-                    const offsetCapPercent = offsetCapInfo.capFraction * 100
-                    const isCapped = (heroMetrics.uncappedTotalOffset ?? 0) > offsetCapPercent + 0.1
-                    if (isCapped) {
-                      return hasBattery 
-                        ? `Free energy from solar and stored solar battery. Capped at ${offsetCapPercent.toFixed(0)}% to reflect winter limits.`
-                        : `Free energy from solar panels. Capped at ${offsetCapPercent.toFixed(0)}% to reflect winter limits.`
-                    }
-                    return hasBattery 
-                      ? "Free energy from solar and stored solar battery."
-                      : "Free energy from solar panels."
-                  })()}
-                  color="gold"
-                />
-                {/* Grid & Financial Metrics */}
-                <HeroMetricCard
-                  icon={AlertTriangle}
-                  label="Buy from Grid"
-                  value={heroMetrics.boughtFromGridPercent}
-                  caption="Annual % of leftover electricity purchased"
-                  color="blue"
-                />
-                <HeroMetricCard
-                  icon={DollarSign}
-                  label="Battery Load Management"
-                  value={heroMetrics.costOfEnergyBoughtFromGrid}
-                  caption="Annual cost after battery time of use optimization"
-                  color="green"
-                />
-                <HeroMetricCard
-                  icon={TrendingUp}
-                  label="Total Bill Savings"
-                  value={heroMetrics.totalSavings}
-                  caption="Your annual bill reduction vs today."
-                  color="gold"
-                />
               </div>
             )}
 
@@ -3407,11 +3770,14 @@ export function PeakShavingSalesCalculatorFRD({
                   const annualUsageKwh = parseFloat(annualUsageInput) || 0
                   const solarProductionKwh = parseFloat(solarProductionInput) || 0
                   
-                  // Calculate both TOU and ULO results for Before/After Comparison
+                  // Check if this is Alberta HRS (skip TOU/ULO calculations for Alberta)
+                  const isAlbertaHRS = isAlberta && data.programType === 'hrs_residential'
+                  
+                  // Calculate both TOU and ULO results for Before/After Comparison (skip for Alberta)
                   let touCombined = null
                   let uloCombined = null
                   
-                  if (annualUsageKwh > 0) {
+                  if (!isAlbertaHRS && annualUsageKwh > 0) {
                     try {
                       // Use selected battery or create zero-capacity battery for solar-only
                       const batteryToUse = selectedBattery && selectedBatteryIds.length > 0
@@ -3450,7 +3816,7 @@ export function PeakShavingSalesCalculatorFRD({
                         ULO_RATE_PLAN,
                         uloDistribution,
                         offsetCapInfo.capFraction,
-                        selectedBattery && selectedBatteryIds.length > 0 ? (isAlberta ? false : aiMode) : false
+                        selectedBattery && selectedBatteryIds.length > 0 ? aiMode : false
                       )
                       uloCombined = uloResult
                     } catch (e) {
@@ -3530,11 +3896,12 @@ export function PeakShavingSalesCalculatorFRD({
                     }
                   }
                   
-                  // Calculate FRD results for TOU and ULO to get offsetPercentages
+                  // Calculate FRD results for TOU and ULO to get offsetPercentages (skip for Alberta)
+                  // Note: isAlbertaHRS is already defined above in this function
                   let touFrdResult: FRDPeakShavingResult | null = null
                   let uloFrdResult: FRDPeakShavingResult | null = null
                   
-                  if (annualUsageKwh > 0 && selectedBattery && selectedBatteryIds.length > 0) {
+                  if (!isAlbertaHRS && annualUsageKwh > 0 && selectedBattery && selectedBatteryIds.length > 0) {
                     try {
                       // Calculate TOU FRD result
                       touFrdResult = calculateFRDPeakShaving(
@@ -3543,7 +3910,7 @@ export function PeakShavingSalesCalculatorFRD({
                         selectedBattery,
                         TOU_RATE_PLAN,
                         touDistribution,
-                        isAlberta ? false : aiMode,
+                        aiMode,
                         { p_day: 0.5, p_night: 0.5 }
                       )
                       
@@ -3554,7 +3921,7 @@ export function PeakShavingSalesCalculatorFRD({
                         selectedBattery,
                         ULO_RATE_PLAN,
                         uloDistribution,
-                        isAlberta ? false : aiMode,
+                        aiMode,
                         { p_day: 0.5, p_night: 0.5 }
                       )
                     } catch (e) {
@@ -3568,16 +3935,22 @@ export function PeakShavingSalesCalculatorFRD({
                       annualUsageKwh: annualUsageKwh || data.energyUsage?.annualKwh || data.annualUsageKwh || 0,
                       selectedBattery: selectedBatteryIds.join(','),
                       comparisons: peakShavingData?.comparisons || [],
-                    tou: touCombined ? { 
+                    tou: touCombined && !isAlbertaHRS ? { 
                       combined: touCombined,
                       ...(touProjection && { projection: touProjection }),
                       ...(touFrdResult && { result: touFrdResult }) // Include FRD result for offsetPercentages
                     } : undefined,
-                    ulo: uloCombined ? { 
+                    ulo: uloCombined && !isAlbertaHRS ? { 
                       combined: uloCombined,
                       ...(uloProjection && { projection: uloProjection }),
                       ...(uloFrdResult && { result: uloFrdResult }) // Include FRD result for offsetPercentages
-                    } : undefined
+                    } : undefined,
+                    // For Alberta HRS, include Alberta-specific data
+                    ...(isAlbertaHRS && combinedResult?.alberta ? {
+                      alberta: combinedResult.alberta,
+                      combined: combinedResult,
+                      projection: multiYearProjection,
+                    } : {})
                   }
                   
                   // Also add allResults structure for backward compatibility
@@ -3759,7 +4132,13 @@ export function PeakShavingSalesCalculatorFRD({
                     uloDistribution,
                     // Pass pre-calculated before/after costs for both plans
                     touBeforeAfter,
-                    uloBeforeAfter
+                    uloBeforeAfter,
+                    // Explicitly preserve location data for Alberta detection
+                    province: data.province,
+                    address: data.address,
+                    coordinates: data.coordinates,
+                    location: data.location,
+                    estimate: data.estimate,
                   })
                 }}
                 className="flex items-center gap-2 px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-colors shadow-md hover:shadow-lg flex-1 justify-center"

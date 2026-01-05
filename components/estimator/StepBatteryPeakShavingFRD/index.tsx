@@ -217,6 +217,11 @@ export function StepBatteryPeakShavingFRD({ data, onComplete, onBack, manualMode
         selectedBattery,
       },
       selectedBattery,
+      // Explicitly preserve location data for Alberta detection
+      province: data.province || calculatorData?.province,
+      address: data.address || calculatorData?.address,
+      coordinates: data.coordinates || calculatorData?.coordinates,
+      location: data.location || calculatorData?.location,
     }
 
     // Save partial lead for step 4 (Battery Savings)
