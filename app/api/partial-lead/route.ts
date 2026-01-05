@@ -87,10 +87,19 @@ export async function POST(request: Request) {
       // but log the error for debugging
     }
 
+    // For net_metering, include province in flow key to differentiate Alberta from other provinces
+    // This ensures Alberta Solar Club leads don't overwrite Ontario net metering leads
+    const province = estimatorData?.province || estimatorData?.address?.province || ''
+    const isNetMetering = estimatorData?.programType === 'net_metering'
+    const provinceForFlowKey = isNetMetering && province 
+      ? (province.toUpperCase() === 'AB' || province.toUpperCase().includes('ALBERTA') ? 'AB' : province.toUpperCase())
+      : ''
+    
     const flowKey = [
       estimatorData?.estimatorMode || '',
       estimatorData?.programType || '',
       estimatorData?.leadType || '',
+      isNetMetering ? provinceForFlowKey : '', // Only include province for net_metering
     ].join('|')
 
     let existingForFlow: { id: string } | null = null
@@ -100,17 +109,56 @@ export async function POST(request: Request) {
       existingForFlow =
         existingDrafts.find((row: any) => {
           const ed = row.estimator_data || {}
+          const edProvince = ed.province || ed.address?.province || ''
+          const edIsNetMetering = ed.programType === 'net_metering'
+          const edProvinceForFlowKey = edIsNetMetering && edProvince
+            ? (edProvince.toUpperCase() === 'AB' || edProvince.toUpperCase().includes('ALBERTA') ? 'AB' : edProvince.toUpperCase())
+            : ''
+          
           const rowKey = [
             ed.estimatorMode || '',
             ed.programType || '',
             ed.leadType || '',
+            edIsNetMetering ? edProvinceForFlowKey : '', // Only include province for net_metering
           ].join('|')
           return rowKey === flowKey
         }) || null
 
       // Backwards compatibility: if no flow metadata, fall back to first record
-      if (!existingForFlow && !estimatorData?.programType && !estimatorData?.estimatorMode && !estimatorData?.leadType) {
-        existingForFlow = existingDrafts[0] as any
+      // Also handle old partial leads that don't have province in flow key
+      if (!existingForFlow) {
+        if (!estimatorData?.programType && !estimatorData?.estimatorMode && !estimatorData?.leadType) {
+          existingForFlow = existingDrafts[0] as any
+        } else if (isNetMetering) {
+          // For net_metering, try to match without province (old format) as fallback
+          const oldFlowKey = [
+            estimatorData?.estimatorMode || '',
+            estimatorData?.programType || '',
+            estimatorData?.leadType || '',
+          ].join('|')
+          
+          const oldMatch = existingDrafts.find((row: any) => {
+            const ed = row.estimator_data || {}
+            const oldRowKey = [
+              ed.estimatorMode || '',
+              ed.programType || '',
+              ed.leadType || '',
+            ].join('|')
+            return oldRowKey === oldFlowKey
+          })
+          
+          // Only use old match if it's the same province (to avoid mixing Alberta and Ontario)
+          if (oldMatch) {
+            const ed = oldMatch.estimator_data || {}
+            const edProvince = ed.province || ed.address?.province || ''
+            const currentProvinceNormalized = province.toUpperCase() === 'AB' || province.toUpperCase().includes('ALBERTA') ? 'AB' : province.toUpperCase()
+            const edProvinceNormalized = edProvince.toUpperCase() === 'AB' || edProvince.toUpperCase().includes('ALBERTA') ? 'AB' : edProvince.toUpperCase()
+            
+            if (currentProvinceNormalized === edProvinceNormalized || (!currentProvinceNormalized && !edProvinceNormalized)) {
+              existingForFlow = oldMatch as any
+            }
+          }
+        }
       }
     }
 
@@ -128,6 +176,28 @@ export async function POST(request: Request) {
         mapSnapshotUrl = mapSnapshotUrl.substring(0, 2 * 1024 * 1024)
       }
 
+      // Extract province for Alberta Solar Club detection
+      const province = estimatorData?.province || estimatorData?.address?.province || ''
+      const isAlberta = province === 'AB' || province === 'Alberta' || province?.toUpperCase() === 'AB' || province?.toUpperCase().includes('ALBERTA')
+      const isNetMetering = estimatorData?.programType === 'net_metering'
+      const isAlbertaSolarClub = isAlberta && isNetMetering
+
+      // Extract Alberta Solar Club data if available
+      const albertaData = isAlbertaSolarClub && estimatorData?.netMetering?.tou?.alberta
+        ? {
+            highSeasonExportedKwh: estimatorData.netMetering.tou.alberta.highProductionSeason?.exportedKwh || null,
+            highSeasonExportCredits: estimatorData.netMetering.tou.alberta.highProductionSeason?.exportCredits || null,
+            highSeasonImportedKwh: estimatorData.netMetering.tou.alberta.highProductionSeason?.importedKwh || null,
+            highSeasonImportCost: estimatorData.netMetering.tou.alberta.highProductionSeason?.importCost || null,
+            lowSeasonExportedKwh: estimatorData.netMetering.tou.alberta.lowProductionSeason?.exportedKwh || null,
+            lowSeasonExportCredits: estimatorData.netMetering.tou.alberta.lowProductionSeason?.exportCredits || null,
+            lowSeasonImportedKwh: estimatorData.netMetering.tou.alberta.lowProductionSeason?.importedKwh || null,
+            lowSeasonImportCost: estimatorData.netMetering.tou.alberta.lowProductionSeason?.importCost || null,
+            cashBackAmount: estimatorData.netMetering.tou.alberta.cashBackAmount || null,
+            estimatedCarbonCredits: estimatorData.netMetering.tou.alberta.estimatedCarbonCredits || null,
+          }
+        : null
+
       let updateError: any = null
       try {
         const result = await Promise.race([
@@ -139,7 +209,7 @@ export async function POST(request: Request) {
               // denormalized for quick filters (best-effort extractions)
               address: estimatorData?.address || '',
               coordinates: estimatorData?.coordinates || {},
-              rate_plan: estimatorData?.peakShaving?.ratePlan || '',
+              rate_plan: estimatorData?.peakShaving?.ratePlan || estimatorData?.netMetering?.selectedRatePlan || '',
               roof_area_sqft: estimatorData?.roofAreaSqft ?? 0,
               monthly_bill: estimatorData?.monthlyBill ?? 0,
               annual_usage_kwh: estimatorData?.annualUsageKwh || estimatorData?.energyUsage?.annualKwh || 0,
@@ -147,6 +217,8 @@ export async function POST(request: Request) {
               photo_count: Array.isArray(estimatorData?.photos) ? estimatorData.photos.length : (estimatorData?.photoCount ?? (photoUrls ? photoUrls.length : 0)),
               photo_urls: photoUrls || [],
               map_snapshot_url: mapSnapshotUrl,
+              // Store province for filtering (if column exists)
+              ...(province ? { province: province.toUpperCase() === 'AB' || province.toUpperCase().includes('ALBERTA') ? 'AB' : province } : {}),
               updated_at: new Date().toISOString(),
             })
             .eq('id', existingForFlow.id),
@@ -194,6 +266,12 @@ export async function POST(request: Request) {
         mapSnapshotUrlNew = mapSnapshotUrlNew.substring(0, 2 * 1024 * 1024)
       }
 
+      // Extract province for Alberta Solar Club detection
+      const provinceNew = estimatorData?.province || estimatorData?.address?.province || ''
+      const isAlbertaNew = provinceNew === 'AB' || provinceNew === 'Alberta' || provinceNew?.toUpperCase() === 'AB' || provinceNew?.toUpperCase().includes('ALBERTA')
+      const isNetMeteringNew = estimatorData?.programType === 'net_metering'
+      const isAlbertaSolarClubNew = isAlbertaNew && isNetMeteringNew
+
       let insertData: any = null
       let insertError: any = null
       
@@ -207,7 +285,7 @@ export async function POST(request: Request) {
               current_step: currentStep,
               address: estimatorData?.address || '',
               coordinates: estimatorData?.coordinates || {},
-              rate_plan: estimatorData?.peakShaving?.ratePlan || '',
+              rate_plan: estimatorData?.peakShaving?.ratePlan || estimatorData?.netMetering?.selectedRatePlan || '',
               roof_area_sqft: estimatorData?.roofAreaSqft ?? 0,
               monthly_bill: estimatorData?.monthlyBill ?? 0,
               annual_usage_kwh: estimatorData?.annualUsageKwh || estimatorData?.energyUsage?.annualKwh || 0,
@@ -215,6 +293,8 @@ export async function POST(request: Request) {
               photo_count: Array.isArray(estimatorData?.photos) ? estimatorData.photos.length : (estimatorData?.photoCount ?? (photoUrlsNew ? photoUrlsNew.length : 0)),
               photo_urls: photoUrlsNew || [],
               map_snapshot_url: mapSnapshotUrlNew,
+              // Store province for filtering (if column exists)
+              ...(provinceNew ? { province: provinceNew.toUpperCase() === 'AB' || provinceNew.toUpperCase().includes('ALBERTA') ? 'AB' : provinceNew } : {}),
             })
             .select()
             .single(),

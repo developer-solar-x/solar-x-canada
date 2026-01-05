@@ -2983,31 +2983,31 @@ export function PeakShavingSalesCalculatorFRD({
                       <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                         <span className="text-blue-700 font-bold">1</span>
                       </div>
-                      <div>
+                    <div>
                         <h3 className="text-base font-semibold text-gray-800 mb-1">Start with Your First Year Savings</h3>
                         <p className="text-sm text-gray-700">
-                          We calculate how much money you'll save in the first year by using your solar + battery system instead of buying all your electricity from the grid. This is based on your {ratePlan === 'ULO' ? 'Ultra-Low Overnight (ULO)' : 'Time-of-Use (TOU)'} rate plan.
-                        </p>
-                        {selectedBatteryIds.length > 0 && (
-                          <div className={`mt-3 p-3 rounded-lg border ${
-                            aiMode ? 'bg-purple-50 border-purple-200' : 'bg-gray-50 border-gray-200'
-                          }`}>
-                            <div className="flex items-start gap-2">
-                              <Sparkles className={`flex-shrink-0 mt-0.5 ${aiMode ? 'text-purple-600' : 'text-gray-500'}`} size={16} />
-                              <div className="text-sm">
-                                <p className={`font-semibold ${aiMode ? 'text-purple-800' : 'text-gray-700'}`}>
-                                  AI Optimization Mode: {aiMode ? 'ON' : 'OFF'}
-                                </p>
-                                <p className="text-gray-600 mt-1">
-                                  {aiMode 
-                                    ? `Your battery can charge from the grid at ${ratePlan === 'TOU' ? 'off-peak (9.8¢/kWh)' : 'ultra-low (3.9¢/kWh)'} rates, maximizing savings through energy arbitrage.`
-                                    : 'Your battery only charges from solar excess, limiting capacity to available solar production.'
-                                  }
-                                </p>
-                              </div>
+                        We calculate how much money you'll save in the first year by using your solar + battery system instead of buying all your electricity from the grid. This is based on your {ratePlan === 'ULO' ? 'Ultra-Low Overnight (ULO)' : 'Time-of-Use (TOU)'} rate plan.
+                      </p>
+                      {selectedBatteryIds.length > 0 && (
+                        <div className={`mt-3 p-3 rounded-lg border ${
+                          aiMode ? 'bg-purple-50 border-purple-200' : 'bg-gray-50 border-gray-200'
+                        }`}>
+                          <div className="flex items-start gap-2">
+                            <Sparkles className={`flex-shrink-0 mt-0.5 ${aiMode ? 'text-purple-600' : 'text-gray-500'}`} size={16} />
+                            <div className="text-sm">
+                              <p className={`font-semibold ${aiMode ? 'text-purple-800' : 'text-gray-700'}`}>
+                                AI Optimization Mode: {aiMode ? 'ON' : 'OFF'}
+                              </p>
+                              <p className="text-gray-600 mt-1">
+                                {aiMode 
+                                  ? `Your battery can charge from the grid at ${ratePlan === 'TOU' ? 'off-peak (9.8¢/kWh)' : 'ultra-low (3.9¢/kWh)'} rates, maximizing savings through energy arbitrage.`
+                                  : 'Your battery only charges from solar excess, limiting capacity to available solar production.'
+                                }
+                              </p>
                             </div>
                           </div>
-                        )}
+                        </div>
+                      )}
                       </div>
                     </div>
 
@@ -3015,11 +3015,11 @@ export function PeakShavingSalesCalculatorFRD({
                       <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                         <span className="text-blue-700 font-bold">2</span>
                       </div>
-                      <div>
+                    <div>
                         <h3 className="text-base font-semibold text-gray-800 mb-1">Growing Savings Over Time</h3>
                         <p className="text-sm text-gray-700">
-                          Electricity rates typically increase each year (we use {(data.annualEscalator ?? 4.5)}% per year, which you can customize). This means your savings grow each year because you're avoiding those higher rates.
-                        </p>
+                        Electricity rates typically increase each year (we use {(data.annualEscalator ?? 4.5)}% per year, which you can customize). This means your savings grow each year because you're avoiding those higher rates.
+                      </p>
                       </div>
                     </div>
 
@@ -3027,11 +3027,11 @@ export function PeakShavingSalesCalculatorFRD({
                       <div className="flex-shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                         <span className="text-green-700 font-bold">=</span>
                       </div>
-                      <div>
+                    <div>
                         <h3 className="text-base font-semibold text-gray-800 mb-1">Finding the Payback Point</h3>
                         <p className="text-sm text-gray-700">
-                          We add up your savings year by year. The payback period is when your total accumulated savings equal what you paid for the system (after rebates). This tells you how long it takes for your investment to pay for itself.
-                        </p>
+                        We add up your savings year by year. The payback period is when your total accumulated savings equal what you paid for the system (after rebates). This tells you how long it takes for your investment to pay for itself.
+                      </p>
                       </div>
                     </div>
                   </div>
@@ -3056,11 +3056,11 @@ export function PeakShavingSalesCalculatorFRD({
                       <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                         <span className="text-blue-700 font-bold">1</span>
                       </div>
-                      <div>
+                    <div>
                         <h3 className="text-base font-semibold text-gray-800 mb-1">Start with Year 1 Savings</h3>
                         <p className="text-sm text-gray-700">
                           We use your first-year savings (shown in the "Annual Savings" section above) as the starting point. This is how much you'll save in Year 1 after installing solar and battery.
-                        </p>
+                      </p>
                       </div>
                     </div>
 
@@ -3068,11 +3068,11 @@ export function PeakShavingSalesCalculatorFRD({
                       <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                         <span className="text-blue-700 font-bold">2</span>
                       </div>
-                      <div>
+                    <div>
                         <h3 className="text-base font-semibold text-gray-800 mb-1">Project Savings Over 25 Years</h3>
                         <p className="text-sm text-gray-700">
                           We calculate how your savings grow each year as electricity rates increase by {(data.annualEscalator ?? 4.5)}% per year. Each year, you save more because you're avoiding those higher grid rates.
-                        </p>
+                      </p>
                       </div>
                     </div>
 
@@ -3080,11 +3080,11 @@ export function PeakShavingSalesCalculatorFRD({
                       <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                         <span className="text-blue-700 font-bold">3</span>
                       </div>
-                      <div>
+                    <div>
                         <h3 className="text-base font-semibold text-gray-800 mb-1">Subtract Your Investment</h3>
                         <p className="text-sm text-gray-700">
                           We take your total 25-year savings and subtract what you paid for the system (after rebates). This is your upfront investment that needs to be paid back.
-                        </p>
+                      </p>
                       </div>
                     </div>
 
@@ -3092,11 +3092,11 @@ export function PeakShavingSalesCalculatorFRD({
                       <div className="flex-shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                         <span className="text-green-700 font-bold">=</span>
                       </div>
-                      <div>
+                    <div>
                         <h3 className="text-base font-semibold text-gray-800 mb-1">Your Profit</h3>
                         <p className="text-sm text-gray-700">
-                          The remaining amount is your profit - the money you keep after your system has paid for itself. This is the total amount you'll be ahead after 25 years.
-                        </p>
+                        The remaining amount is your profit - the money you keep after your system has paid for itself. This is the total amount you'll be ahead after 25 years.
+                      </p>
                       </div>
                     </div>
                   </div>

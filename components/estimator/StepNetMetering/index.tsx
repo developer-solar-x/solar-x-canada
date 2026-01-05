@@ -1120,6 +1120,8 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             ...stepData,
             email,
             selectedBatteries, // Include battery selection
+            // Ensure province is explicitly included for Alberta Solar Club detection
+            province: data.province || data.address?.province || '',
           },
           currentStep: 4, // Net Metering Savings step (mirrors Battery step index)
         }),
@@ -1456,74 +1458,74 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
 
                             {/* AI Optimization Mode Toggle - Hidden for Alberta (batteries are storage-only) */}
                             {!isAlberta && (
-                              <div className="mt-4 pt-4 border-t-2 border-gray-200">
-                                <div className="flex items-center justify-between mb-3">
-                                  <label className="block text-base md:text-lg font-semibold text-gray-700 flex items-center gap-2">
-                                    <Sparkles className="text-purple-600" size={20} />
-                                    AI Optimization Mode
-                                  </label>
-                                  <button
-                                    type="button"
-                                    onClick={() => setAiMode(!aiMode)}
-                                    className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
-                                      aiMode ? 'bg-purple-600' : 'bg-gray-300'
+                            <div className="mt-4 pt-4 border-t-2 border-gray-200">
+                              <div className="flex items-center justify-between mb-3">
+                                <label className="block text-base md:text-lg font-semibold text-gray-700 flex items-center gap-2">
+                                  <Sparkles className="text-purple-600" size={20} />
+                                  AI Optimization Mode
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => setAiMode(!aiMode)}
+                                  className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+                                    aiMode ? 'bg-purple-600' : 'bg-gray-300'
+                                  }`}
+                                  role="switch"
+                                  aria-checked={aiMode}
+                                  aria-label="Toggle AI Optimization Mode"
+                                >
+                                  <span
+                                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                                      aiMode ? 'translate-x-8' : 'translate-x-1'
                                     }`}
-                                    role="switch"
-                                    aria-checked={aiMode}
-                                    aria-label="Toggle AI Optimization Mode"
-                                  >
-                                    <span
-                                      className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                                        aiMode ? 'translate-x-8' : 'translate-x-1'
-                                      }`}
-                                    />
-                                  </button>
-                                </div>
-                                <div className={`p-4 rounded-lg border-2 ${
-                                  aiMode 
-                                    ? 'bg-purple-50 border-purple-200' 
-                                    : 'bg-gray-50 border-gray-200'
-                                }`}>
-                                  <div className="flex items-start gap-3">
-                                    <div className={`flex-shrink-0 mt-0.5 ${
-                                      aiMode ? 'text-purple-600' : 'text-gray-500'
-                                    }`}>
-                                      {aiMode ? <Zap size={18} /> : <Battery size={18} />}
-                                    </div>
-                                    <div className="flex-1">
-                                      <div className={`font-semibold mb-1 ${
-                                        aiMode ? 'text-purple-800' : 'text-gray-700'
-                                      }`}>
-                                        {aiMode ? 'AI Mode: ON' : 'AI Mode: OFF'}
-                                      </div>
-                                      <div className="text-sm text-gray-600 space-y-1">
-                                        {aiMode ? (
-                                          <>
-                                            <p>• Maximize Solar Capture</p>
-                                            <p>• 100% Efficient Grid Arbitrage</p>
-                                            <p>• Ensures a full cycle daily for Maximum ROI</p>
-                                          </>
-                                        ) : (
-                                          <>
-                                            <p>• Battery only charges from solar excess (free)</p>
-                                            <p>• No grid charging - battery capacity limited to available solar excess</p>
-                                          </>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                                {aiMode && (
-                                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                    <div className="flex items-start gap-2">
-                                      <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
-                                      <p className="text-xs text-blue-700">
-                                        <strong>How it works:</strong> When AI Mode is ON, your battery charges from the grid during cheap rate periods ({selectedPlan === 'ulo' ? 'ultra-low' : 'off-peak'}) and discharges during expensive periods (on-peak/mid-peak). This creates energy arbitrage - buying low and using it to avoid buying high, maximizing your savings.
-                                      </p>
-                                    </div>
-                                  </div>
-                                )}
+                                  />
+                                </button>
                               </div>
+                              <div className={`p-4 rounded-lg border-2 ${
+                                aiMode 
+                                  ? 'bg-purple-50 border-purple-200' 
+                                  : 'bg-gray-50 border-gray-200'
+                              }`}>
+                                <div className="flex items-start gap-3">
+                                  <div className={`flex-shrink-0 mt-0.5 ${
+                                    aiMode ? 'text-purple-600' : 'text-gray-500'
+                                  }`}>
+                                    {aiMode ? <Zap size={18} /> : <Battery size={18} />}
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className={`font-semibold mb-1 ${
+                                      aiMode ? 'text-purple-800' : 'text-gray-700'
+                                    }`}>
+                                      {aiMode ? 'AI Mode: ON' : 'AI Mode: OFF'}
+                                    </div>
+                                    <div className="text-sm text-gray-600 space-y-1">
+                                      {aiMode ? (
+                                        <>
+                                          <p>• Maximize Solar Capture</p>
+                                          <p>• 100% Efficient Grid Arbitrage</p>
+                                          <p>• Ensures a full cycle daily for Maximum ROI</p>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <p>• Battery only charges from solar excess (free)</p>
+                                          <p>• No grid charging - battery capacity limited to available solar excess</p>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              {aiMode && (
+                                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                  <div className="flex items-start gap-2">
+                                    <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
+                                    <p className="text-xs text-blue-700">
+                                      <strong>How it works:</strong> When AI Mode is ON, your battery charges from the grid during cheap rate periods ({selectedPlan === 'ulo' ? 'ultra-low' : 'off-peak'}) and discharges during expensive periods (on-peak/mid-peak). This creates energy arbitrage - buying low and using it to avoid buying high, maximizing your savings.
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                             )}
                           </>
                         )}
@@ -2032,7 +2034,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                   <h3 className="font-semibold text-blue-900 mb-2">What Is Payback Period?</h3>
                   <p className="text-sm text-blue-800">
                     Your payback period is how long it takes for your net metering savings to equal what you paid for the system. Once you reach this point, your system has fully paid for itself, and everything after that is pure profit.
-                  </p>
+              </p>
                 </div>
 
                 <div>
@@ -2046,8 +2048,8 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                         <span className="font-semibold">Your Investment:</span> {formatCurrency(netCost)} (system cost - note: net metering doesn't qualify for rebates)
                       </div>
                     </div>
-                    {selectedResult && (
-                      <>
+                {selectedResult && (
+                  <>
                         <div className="flex items-start gap-3">
                           <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                             <span className="text-blue-700 font-bold text-sm">2</span>
@@ -2061,8 +2063,8 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                             </div>
                           </div>
                         </div>
-                      </>
-                    )}
+                  </>
+                )}
                     <div className="flex items-start gap-3">
                       <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                         <span className="text-blue-700 font-bold text-sm">3</span>
@@ -2100,7 +2102,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                     <p className="text-xs text-gray-700">
                       <strong>What this means:</strong> After {paybackYears.toFixed(1)} years, your {formatCurrency(netCost)} investment will be fully recovered through your net metering savings. A shorter payback period means your investment recovers faster and you start earning pure profit sooner.
-                    </p>
+              </p>
                   </div>
                 )}
               </div>
@@ -2119,7 +2121,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                   <h3 className="font-semibold text-green-900 mb-2">What Is 25-Year Profit?</h3>
                   <p className="text-sm text-green-800">
                     Your 25-year profit is the money you'll have left after your solar system fully pays for itself. It's your total savings over 25 years, minus what you invested upfront.
-                  </p>
+              </p>
                 </div>
 
                 <div>
@@ -2238,9 +2240,9 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                       <div className="flex justify-between items-center">
                         <span className="text-gray-700">Average Credit Rate:</span>
                         <span className="font-bold text-blue-700">
-                          {selectedResult.annual.totalExported > 0
+                      {selectedResult.annual.totalExported > 0
                             ? `${((selectedResult.annual.exportCredits / selectedResult.annual.totalExported) * 100).toFixed(1)}¢/kWh`
-                            : 'N/A'}
+                        : 'N/A'}
                         </span>
                       </div>
                       <div className="pt-2 border-t border-blue-300">
@@ -2256,7 +2258,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                   <p className="text-xs text-gray-700">
                     <strong>How Credits Work:</strong> These credits can be used to offset future electricity bills and can roll forward for up to 12 months. Higher export credits typically occur in summer months when solar production is highest, helping offset winter bills when production is lower.
-                  </p>
+              </p>
                 </div>
               </div>
             </Modal>
@@ -2345,7 +2347,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                   <p className="text-xs text-gray-700">
                     <strong>Important Note:</strong> This is an annual average. Production varies by season - higher in summer, lower in winter. Net metering allows you to use summer excess to offset winter shortfalls through credit banking.
-                  </p>
+              </p>
                 </div>
               </div>
             </Modal>

@@ -78,7 +78,7 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
     efficiency: number,
     confidence?: number,
     confidenceReason?: string
-  }>>([])
+  }>>(data.roofSections || [])
   
   // Roof orientation detection (uses largest section)
   const [detectedAzimuth, setDetectedAzimuth] = useState<number | null>(data.roofAzimuth || null)
@@ -106,6 +106,61 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   useEffect(() => {
     mapSnapshotRef.current = mapSnapshot
   }, [mapSnapshot])
+
+  // Restore roofSections from saved data or calculate from roofPolygon if missing
+  // This handles the case where data was saved but roofSections wasn't properly restored
+  useEffect(() => {
+    // Only calculate if we have roofPolygon features but roofSections is empty
+    // and we don't have saved roofSections in data
+    if (
+      roofPolygon?.features && 
+      roofPolygon.features.length > 0 && 
+      (!data.roofSections || data.roofSections.length === 0) &&
+      roofSections.length === 0
+    ) {
+      const sections = roofPolygon.features.map((feature: any, index: number) => {
+        if (feature.geometry.type === 'Polygon') {
+          // Validate polygon has valid coordinates
+          if (!feature.geometry.coordinates || !feature.geometry.coordinates[0] || 
+              !Array.isArray(feature.geometry.coordinates[0]) || 
+              feature.geometry.coordinates[0].length < 3) {
+            return null
+          }
+          
+          const areaMeters = turf.area(feature)
+          const areaSqFt = Math.round(areaMeters * 10.764)
+          
+          // Skip polygons with 0 or invalid area
+          if (areaSqFt <= 0 || !isFinite(areaSqFt)) {
+            return null
+          }
+          
+          const panels = Math.floor(areaSqFt / PANEL_AREA_SQFT)
+          
+          // Calculate orientation with confidence for this specific section
+          const orientationData = calculateRoofAzimuthWithConfidence(feature)
+          const direction = getDirectionLabel(orientationData.azimuth)
+          const efficiency = getOrientationEfficiency(orientationData.azimuth)
+          
+          return {
+            id: feature.id || `section-${index + 1}`,
+            area: areaSqFt,
+            panels: panels,
+            azimuth: orientationData.azimuth,
+            direction: direction,
+            efficiency: efficiency,
+            confidence: orientationData.confidence,
+            confidenceReason: orientationData.reason
+          }
+        }
+        return null
+      }).filter(Boolean)
+      
+      if (sections.length > 0) {
+        setRoofSections(sections as any)
+      }
+    }
+  }, []) // Only run once on mount to restore from saved data
 
   // Handle area calculation from map drawing (supports multiple polygons)
   // Memoize to prevent infinite re-renders

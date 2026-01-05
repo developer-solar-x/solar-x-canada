@@ -133,6 +133,11 @@ export default function AdminPage() {
   const [selectedBattery, setSelectedBattery] = useState<BatterySpec | null>(null)
   const [batteryModalMode, setBatteryModalMode] = useState<'add' | 'edit'>('add')
 
+  // Peak Shaving Leads state
+  const [peakShavingLeads, setPeakShavingLeads] = useState<any[]>([])
+  const [peakShavingLeadsLoading, setPeakShavingLeadsLoading] = useState(false)
+  const [peakShavingSearchTerm, setPeakShavingSearchTerm] = useState('')
+
   // Load real leads from database
   useEffect(() => {
     const fetchLeads = async () => {
@@ -496,6 +501,33 @@ export default function AdminPage() {
   }
 
   // Fetch batteries
+  // Fetch peak shaving leads
+  const fetchPeakShavingLeads = async () => {
+    setPeakShavingLeadsLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (peakShavingSearchTerm) {
+        params.append('search', peakShavingSearchTerm)
+      }
+      
+      const response = await fetch(`/api/peak-shaving/leads?${params.toString()}`)
+      const result = await response.json()
+      
+      if (!response.ok) {
+        console.error('Failed to fetch peak shaving leads:', response.status, result)
+        setPeakShavingLeads([])
+        return
+      }
+      
+      setPeakShavingLeads(result.leads || [])
+    } catch (error) {
+      console.error('Error fetching peak shaving leads:', error)
+      setPeakShavingLeads([])
+    } finally {
+      setPeakShavingLeadsLoading(false)
+    }
+  }
+
   const fetchBatteries = async () => {
     setBatteriesLoading(true)
     try {
@@ -521,6 +553,14 @@ export default function AdminPage() {
       fetchBatteries()
     }
   }, [activeSection])
+
+  // Load peak shaving leads when section is active
+  useEffect(() => {
+    if (activeSection === 'peak-shaving-leads') {
+      fetchPeakShavingLeads()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [peakShavingSearchTerm, activeSection])
 
   // Handle add battery
   const handleAddBattery = () => {
@@ -1019,6 +1059,15 @@ export default function AdminPage() {
             onEditBattery={handleEditBattery}
             onToggleBatteryStatus={handleToggleBatteryStatus}
             onDeleteBattery={handleDeleteBattery}
+          />
+        )}
+
+        {activeSection === 'peak-shaving-leads' && (
+          <PeakShavingLeadsSection
+            leads={peakShavingLeads}
+            loading={peakShavingLeadsLoading}
+            searchTerm={peakShavingSearchTerm}
+            onSearchTermChange={setPeakShavingSearchTerm}
           />
         )}
         {activeSection === 'greenbutton' && (

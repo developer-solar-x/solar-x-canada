@@ -365,104 +365,192 @@ async function generatePDF(lead: any, leadId: string) {
   // Net Metering Results (if program is net metering)
   if (isNetMetering && fullDataJson?.netMetering) {
     const netMetering = fullDataJson.netMetering
+    const province = lead.province || fullDataJson?.province || ''
+    const isAlberta = province && (province.toUpperCase() === 'AB' || province.toUpperCase() === 'ALBERTA' || province.toUpperCase().includes('ALBERTA'))
+    const albertaData = isAlberta && netMetering.tou?.alberta
     
-    // TOU Plan Net Metering Results
-    if (netMetering.tou?.annual) {
+    // Alberta Solar Club: Show summer/winter breakdown
+    if (isAlberta && albertaData && netMetering.tou?.annual) {
       const tou = netMetering.tou.annual
-      addText('TIME-OF-USE (TOU) PLAN', 14, true)
-      if (tou.totalLoad) {
-        // Calculate current bill estimate (load * average rate)
-        const avgRate = 0.12 // Approximate average TOU rate
-        const currentBill = (tou.totalLoad * avgRate).toFixed(2)
-        addText(`Current Annual Bill (Estimate): $${currentBill}`, 11)
+      const projection = netMetering.tou?.projection || {}
+      const highSeason = albertaData.highProductionSeason
+      const lowSeason = albertaData.lowProductionSeason
+      
+      addText('ALBERTA SOLAR CLUB', 14, true)
+      addText('Summer & Winter Rate Breakdown', 12)
+      yPosition += 3
+      
+      // Annual Summary
+      addText('ANNUAL SUMMARY', 12, true)
+      if (tou.exportCredits) {
+        addText(`Total Export Credits: $${parseFloat(String(tou.exportCredits)).toFixed(2)}`, 11)
+      }
+      if (tou.importCost) {
+        addText(`Total Import Cost: $${parseFloat(String(tou.importCost)).toFixed(2)}`, 11)
       }
       if (tou.netAnnualBill !== undefined) {
         const netBill = parseFloat(String(tou.netAnnualBill))
         addText(`Net Annual Bill: $${netBill.toFixed(2)}`, 11)
-        if (tou.totalLoad && tou.totalLoad > 0) {
-          const savings = (tou.totalLoad * 0.12) - netBill // Approximate savings
-          if (savings > 0) {
-            addText(`Annual Savings: $${savings.toFixed(2)}`, 11, true)
-            addText(`Monthly Savings: $${(savings / 12).toFixed(2)}`, 11)
-          }
-        }
-      }
-      if (tou.exportCredits) {
-        addText(`Export Credits: $${parseFloat(String(tou.exportCredits)).toFixed(2)}`, 11)
-      }
-      if (tou.importCost) {
-        addText(`Import Cost: $${parseFloat(String(tou.importCost)).toFixed(2)}`, 11)
       }
       if (tou.billOffsetPercent !== undefined) {
         addText(`Bill Offset: ${parseFloat(String(tou.billOffsetPercent)).toFixed(1)}%`, 11)
       }
-      yPosition += 5
-    }
-    
-    // ULO Plan Net Metering Results
-    if (netMetering.ulo?.annual) {
-      const ulo = netMetering.ulo.annual
-      addText('ULTRA-LOW OVERNIGHT (ULO) PLAN', 14, true)
-      if (ulo.totalLoad) {
-        // Calculate current bill estimate (load * average rate)
-        const avgRate = 0.10 // Approximate average ULO rate
-        const currentBill = (ulo.totalLoad * avgRate).toFixed(2)
-        addText(`Current Annual Bill (Estimate): $${currentBill}`, 11)
+      
+      // Calculate annual savings (baseline: 6.89¢/kWh for all usage)
+      const annualUsageKwh = tou.totalLoad || 0
+      const baselineBill = annualUsageKwh * 0.0689
+      const annualSavings = projection.annualSavings ?? (baselineBill - (tou.netAnnualBill || 0))
+      if (annualSavings > 0) {
+        addText(`Annual Savings: $${annualSavings.toFixed(2)}`, 11, true)
+        addText(`Monthly Savings: $${(annualSavings / 12).toFixed(2)}`, 11)
       }
-      if (ulo.netAnnualBill !== undefined) {
-        const netBill = parseFloat(String(ulo.netAnnualBill))
-        addText(`Net Annual Bill: $${netBill.toFixed(2)}`, 11)
-        if (ulo.totalLoad && ulo.totalLoad > 0) {
-          const savings = (ulo.totalLoad * 0.10) - netBill // Approximate savings
-          if (savings > 0) {
-            addText(`Annual Savings: $${savings.toFixed(2)}`, 11, true)
-            addText(`Monthly Savings: $${(savings / 12).toFixed(2)}`, 11)
+      
+      if (projection.paybackYears) {
+        addText(`Payback Period: ${parseFloat(String(projection.paybackYears)).toFixed(1)} years`, 11)
+      }
+      if (projection.netProfit25Year) {
+        addText(`25-Year Profit: $${parseFloat(String(projection.netProfit25Year)).toFixed(2)}`, 11)
+      }
+      yPosition += 5
+      
+      // High Production Season (Summer)
+      addText('HIGH PRODUCTION SEASON (April - September)', 12, true)
+      addText('Export Rate: 33¢/kWh', 11)
+      if (highSeason?.exportedKwh) {
+        addText(`Exported: ${parseFloat(String(highSeason.exportedKwh)).toFixed(0)} kWh`, 11)
+      }
+      if (highSeason?.exportCredits) {
+        addText(`Export Credits: $${parseFloat(String(highSeason.exportCredits)).toFixed(2)}`, 11)
+      }
+      if (highSeason?.importedKwh) {
+        addText(`Imported: ${parseFloat(String(highSeason.importedKwh)).toFixed(0)} kWh`, 11)
+      }
+      if (highSeason?.importCost) {
+        addText(`Import Cost: $${parseFloat(String(highSeason.importCost)).toFixed(2)}`, 11)
+      }
+      yPosition += 5
+      
+      // Low Production Season (Winter)
+      addText('LOW PRODUCTION SEASON (October - March)', 12, true)
+      addText('Import Rate: 6.89¢/kWh', 11)
+      if (lowSeason?.exportedKwh) {
+        addText(`Exported: ${parseFloat(String(lowSeason.exportedKwh)).toFixed(0)} kWh`, 11)
+      }
+      if (lowSeason?.exportCredits) {
+        addText(`Export Credits: $${parseFloat(String(lowSeason.exportCredits)).toFixed(2)}`, 11)
+      }
+      if (lowSeason?.importedKwh) {
+        addText(`Imported: ${parseFloat(String(lowSeason.importedKwh)).toFixed(0)} kWh`, 11)
+      }
+      if (lowSeason?.importCost) {
+        addText(`Import Cost: $${parseFloat(String(lowSeason.importCost)).toFixed(2)}`, 11)
+      }
+      yPosition += 5
+      
+      // Important note about rate switching
+      addText('IMPORTANT: Rate Switching Required', 11, true)
+      addText('To maximize savings, you must switch to the high export rate (33¢/kWh) during summer months (Apr-Sep) and the low import rate (6.89¢/kWh) during winter months (Oct-Mar).', 10)
+      yPosition += 5
+    } else {
+      // Non-Alberta: Show TOU/ULO/Tiered plans
+      // TOU Plan Net Metering Results
+      if (netMetering.tou?.annual) {
+        const tou = netMetering.tou.annual
+        addText('TIME-OF-USE (TOU) PLAN', 14, true)
+        if (tou.totalLoad) {
+          // Calculate current bill estimate (load * average rate)
+          const avgRate = 0.12 // Approximate average TOU rate
+          const currentBill = (tou.totalLoad * avgRate).toFixed(2)
+          addText(`Current Annual Bill (Estimate): $${currentBill}`, 11)
+        }
+        if (tou.netAnnualBill !== undefined) {
+          const netBill = parseFloat(String(tou.netAnnualBill))
+          addText(`Net Annual Bill: $${netBill.toFixed(2)}`, 11)
+          if (tou.totalLoad && tou.totalLoad > 0) {
+            const savings = (tou.totalLoad * 0.12) - netBill // Approximate savings
+            if (savings > 0) {
+              addText(`Annual Savings: $${savings.toFixed(2)}`, 11, true)
+              addText(`Monthly Savings: $${(savings / 12).toFixed(2)}`, 11)
+            }
           }
         }
+        if (tou.exportCredits) {
+          addText(`Export Credits: $${parseFloat(String(tou.exportCredits)).toFixed(2)}`, 11)
+        }
+        if (tou.importCost) {
+          addText(`Import Cost: $${parseFloat(String(tou.importCost)).toFixed(2)}`, 11)
+        }
+        if (tou.billOffsetPercent !== undefined) {
+          addText(`Bill Offset: ${parseFloat(String(tou.billOffsetPercent)).toFixed(1)}%`, 11)
+        }
+        yPosition += 5
       }
-      if (ulo.exportCredits) {
-        addText(`Export Credits: $${parseFloat(String(ulo.exportCredits)).toFixed(2)}`, 11)
-      }
-      if (ulo.importCost) {
-        addText(`Import Cost: $${parseFloat(String(ulo.importCost)).toFixed(2)}`, 11)
-      }
-      if (ulo.billOffsetPercent !== undefined) {
-        addText(`Bill Offset: ${parseFloat(String(ulo.billOffsetPercent)).toFixed(1)}%`, 11)
-      }
-      yPosition += 5
-    }
-    
-    // Tiered Plan Net Metering Results
-    if (netMetering.tiered?.annual) {
-      const tiered = netMetering.tiered.annual
-      addText('TIERED PLAN', 14, true)
-      if (tiered.totalLoad) {
-        // Calculate current bill estimate (load * average rate)
-        const avgRate = 0.11 // Approximate average tiered rate
-        const currentBill = (tiered.totalLoad * avgRate).toFixed(2)
-        addText(`Current Annual Bill (Estimate): $${currentBill}`, 11)
-      }
-      if (tiered.netAnnualBill !== undefined) {
-        const netBill = parseFloat(String(tiered.netAnnualBill))
-        addText(`Net Annual Bill: $${netBill.toFixed(2)}`, 11)
-        if (tiered.totalLoad && tiered.totalLoad > 0) {
-          const savings = (tiered.totalLoad * 0.11) - netBill // Approximate savings
-          if (savings > 0) {
-            addText(`Annual Savings: $${savings.toFixed(2)}`, 11, true)
-            addText(`Monthly Savings: $${(savings / 12).toFixed(2)}`, 11)
+      
+      // ULO Plan Net Metering Results
+      if (netMetering.ulo?.annual) {
+        const ulo = netMetering.ulo.annual
+        addText('ULTRA-LOW OVERNIGHT (ULO) PLAN', 14, true)
+        if (ulo.totalLoad) {
+          // Calculate current bill estimate (load * average rate)
+          const avgRate = 0.10 // Approximate average ULO rate
+          const currentBill = (ulo.totalLoad * avgRate).toFixed(2)
+          addText(`Current Annual Bill (Estimate): $${currentBill}`, 11)
+        }
+        if (ulo.netAnnualBill !== undefined) {
+          const netBill = parseFloat(String(ulo.netAnnualBill))
+          addText(`Net Annual Bill: $${netBill.toFixed(2)}`, 11)
+          if (ulo.totalLoad && ulo.totalLoad > 0) {
+            const savings = (ulo.totalLoad * 0.10) - netBill // Approximate savings
+            if (savings > 0) {
+              addText(`Annual Savings: $${savings.toFixed(2)}`, 11, true)
+              addText(`Monthly Savings: $${(savings / 12).toFixed(2)}`, 11)
+            }
           }
         }
+        if (ulo.exportCredits) {
+          addText(`Export Credits: $${parseFloat(String(ulo.exportCredits)).toFixed(2)}`, 11)
+        }
+        if (ulo.importCost) {
+          addText(`Import Cost: $${parseFloat(String(ulo.importCost)).toFixed(2)}`, 11)
+        }
+        if (ulo.billOffsetPercent !== undefined) {
+          addText(`Bill Offset: ${parseFloat(String(ulo.billOffsetPercent)).toFixed(1)}%`, 11)
+        }
+        yPosition += 5
       }
-      if (tiered.exportCredits) {
-        addText(`Export Credits: $${parseFloat(String(tiered.exportCredits)).toFixed(2)}`, 11)
+      
+      // Tiered Plan Net Metering Results
+      if (netMetering.tiered?.annual) {
+        const tiered = netMetering.tiered.annual
+        addText('TIERED PLAN', 14, true)
+        if (tiered.totalLoad) {
+          // Calculate current bill estimate (load * average rate)
+          const avgRate = 0.11 // Approximate average tiered rate
+          const currentBill = (tiered.totalLoad * avgRate).toFixed(2)
+          addText(`Current Annual Bill (Estimate): $${currentBill}`, 11)
+        }
+        if (tiered.netAnnualBill !== undefined) {
+          const netBill = parseFloat(String(tiered.netAnnualBill))
+          addText(`Net Annual Bill: $${netBill.toFixed(2)}`, 11)
+          if (tiered.totalLoad && tiered.totalLoad > 0) {
+            const savings = (tiered.totalLoad * 0.11) - netBill // Approximate savings
+            if (savings > 0) {
+              addText(`Annual Savings: $${savings.toFixed(2)}`, 11, true)
+              addText(`Monthly Savings: $${(savings / 12).toFixed(2)}`, 11)
+            }
+          }
+        }
+        if (tiered.exportCredits) {
+          addText(`Export Credits: $${parseFloat(String(tiered.exportCredits)).toFixed(2)}`, 11)
+        }
+        if (tiered.importCost) {
+          addText(`Import Cost: $${parseFloat(String(tiered.importCost)).toFixed(2)}`, 11)
+        }
+        if (tiered.billOffsetPercent !== undefined) {
+          addText(`Bill Offset: ${parseFloat(String(tiered.billOffsetPercent)).toFixed(1)}%`, 11)
+        }
+        yPosition += 5
       }
-      if (tiered.importCost) {
-        addText(`Import Cost: $${parseFloat(String(tiered.importCost)).toFixed(2)}`, 11)
-      }
-      if (tiered.billOffsetPercent !== undefined) {
-        addText(`Bill Offset: ${parseFloat(String(tiered.billOffsetPercent)).toFixed(1)}%`, 11)
-      }
-      yPosition += 5
     }
   } else {
     // Regular HRS Plan Savings (non-net-metering)

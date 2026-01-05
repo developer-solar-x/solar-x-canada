@@ -644,32 +644,19 @@ export function ResultsPage({
 
   if (isNetMetering && netMetering) {
     const nm: any = netMetering
-    const plans = [
-      { key: 'tou', label: 'TOU', plan: nm.tou },
-      { key: 'ulo', label: 'ULO', plan: nm.ulo },
-      { key: 'tiered', label: 'Tiered', plan: nm.tiered },
-    ].filter(p => p.plan)
-
-    if (plans.length) {
-      const selectedKey: 'tou' | 'ulo' | 'tiered' | undefined = nm.selectedRatePlan
-      let chosen = (selectedKey && plans.find(p => p.key === selectedKey)) || plans[0]
-
-      // If no selected plan, prefer the one with highest 25-year profit if available
-      if (!selectedKey && plans.length > 1) {
-        chosen = plans.reduce((best, current) => {
-          const bestProfit = best.plan?.projection?.netProfit25Year ?? 0
-          const currProfit = current.plan?.projection?.netProfit25Year ?? 0
-          return currProfit > bestProfit ? current : best
-        }, chosen)
-      }
-
-      const projection = chosen.plan.projection || {}
+    // Check if this is Alberta Solar Club
+    const isAlberta = leadData?.province && (leadData.province.toUpperCase() === 'AB' || leadData.province.toUpperCase() === 'ALBERTA' || leadData.province.toUpperCase().includes('ALBERTA'))
+    const albertaData = isAlberta && nm.tou?.alberta
+    
+    if (isAlberta && albertaData) {
+      // Alberta Solar Club: Use tou plan (which contains Alberta data)
+      const touPlan = nm.tou
+      const projection = touPlan?.projection || {}
       const annualSavings: number | null =
         typeof projection.annualSavings === 'number'
           ? projection.annualSavings
-          : chosen.plan.annual
-          ? (chosen.plan.annual.importCost || 0) -
-            (chosen.plan.annual.netAnnualBill || 0)
+          : touPlan.annual
+          ? (touPlan.annual.importCost || 0) - (touPlan.annual.netAnnualBill || 0)
           : null
 
       let profit25: number | null =
@@ -700,10 +687,74 @@ export function ResultsPage({
           : null
 
       netMeteringNarrative = {
-        planLabel: chosen.label,
+        planLabel: 'Alberta Solar Club',
         annualSavings,
         paybackYears,
         profit25,
+      }
+    } else {
+      // Non-Alberta: Use TOU/ULO/Tiered plans
+      const plans = [
+        { key: 'tou', label: 'TOU', plan: nm.tou },
+        { key: 'ulo', label: 'ULO', plan: nm.ulo },
+        { key: 'tiered', label: 'Tiered', plan: nm.tiered },
+      ].filter(p => p.plan)
+
+      if (plans.length) {
+        const selectedKey: 'tou' | 'ulo' | 'tiered' | undefined = nm.selectedRatePlan
+        let chosen = (selectedKey && plans.find(p => p.key === selectedKey)) || plans[0]
+
+        // If no selected plan, prefer the one with highest 25-year profit if available
+        if (!selectedKey && plans.length > 1) {
+          chosen = plans.reduce((best, current) => {
+            const bestProfit = best.plan?.projection?.netProfit25Year ?? 0
+            const currProfit = current.plan?.projection?.netProfit25Year ?? 0
+            return currProfit > bestProfit ? current : best
+          }, chosen)
+        }
+
+        const projection = chosen.plan.projection || {}
+        const annualSavings: number | null =
+          typeof projection.annualSavings === 'number'
+            ? projection.annualSavings
+            : chosen.plan.annual
+            ? (chosen.plan.annual.importCost || 0) -
+              (chosen.plan.annual.netAnnualBill || 0)
+            : null
+
+        let profit25: number | null =
+          typeof projection.netProfit25Year === 'number'
+            ? projection.netProfit25Year
+            : null
+
+        // If profit not provided, derive it from annualSavings and net cost
+        if (
+          (profit25 === null || profit25 === 0) &&
+          annualSavings &&
+          annualSavings > 0 &&
+          finalNetCost > 0
+        ) {
+          let cumulativeSavings = 0
+          for (let year = 1; year <= 25; year++) {
+            const yearSavings = annualSavings * Math.pow(1 + escalation, year - 1)
+            cumulativeSavings += yearSavings
+          }
+          profit25 = cumulativeSavings - finalNetCost
+        }
+
+        const paybackYears: number | null =
+          typeof projection.paybackYears === 'number' && projection.paybackYears > 0
+            ? projection.paybackYears
+            : annualSavings && annualSavings > 0 && finalNetCost > 0
+            ? finalNetCost / annualSavings
+            : null
+
+        netMeteringNarrative = {
+          planLabel: chosen.label,
+          annualSavings,
+          paybackYears,
+          profit25,
+        }
       }
     }
   }
@@ -991,6 +1042,34 @@ export function ResultsPage({
               </div>
               {isNetMetering && netMetering ? (
                 (() => {
+                  // Check if this is Alberta Solar Club
+                  const isAlberta = leadData?.province && (leadData.province.toUpperCase() === 'AB' || leadData.province.toUpperCase() === 'ALBERTA' || leadData.province.toUpperCase().includes('ALBERTA'))
+                  const albertaData = isAlberta && (netMetering as any).tou?.alberta
+                  
+                  if (isAlberta && albertaData) {
+                    // Alberta Solar Club: Show single savings percentage
+                    const touPlan = (netMetering as any).tou
+                    const projection = touPlan?.projection || {}
+                    const annualSavings = projection.annualSavings ?? (touPlan?.annual?.importCost || 0) - (touPlan?.annual?.netAnnualBill || 0)
+                    const importCost = touPlan?.annual?.importCost || 0
+                    const savingsPercent = annualSavings > 0 && importCost > 0 ? (annualSavings / importCost) * 100 : 0
+                    
+                    return (
+                      <>
+                        <div className="text-sm text-gray-700 font-semibold mb-3">
+                          Total Bill Savings (Alberta Solar Club)
+                        </div>
+                        <div className="text-4xl font-bold text-purple-700 mb-2">
+                          {savingsPercent.toFixed(1)}%
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          Summer: 33¢/kWh export • Winter: 6.89¢/kWh import
+                        </div>
+                      </>
+                    )
+                  }
+                  
+                  // Non-Alberta: Show TOU/ULO/Tiered plans
                   const plans = [
                     { id: 'TOU', data: (netMetering as any).tou },
                     { id: 'ULO', data: (netMetering as any).ulo },
@@ -1089,6 +1168,33 @@ export function ResultsPage({
               </div>
               {isNetMetering && netMetering ? (
                 (() => {
+                  // Check if this is Alberta Solar Club
+                  const isAlberta = leadData?.province && (leadData.province.toUpperCase() === 'AB' || leadData.province.toUpperCase() === 'ALBERTA' || leadData.province.toUpperCase().includes('ALBERTA'))
+                  const albertaData = isAlberta && (netMetering as any).tou?.alberta
+                  
+                  if (isAlberta && albertaData) {
+                    // Alberta Solar Club: Show single payback period
+                    const touPlan = (netMetering as any).tou
+                    const projection = touPlan?.projection || {}
+                    const paybackYears = projection.paybackYears
+                    const years = typeof paybackYears === 'number' && paybackYears > 0 ? paybackYears : null
+                    
+                    return (
+                      <>
+                        <div className="text-sm text-gray-700 font-semibold mb-3">
+                          Payback Period (Alberta Solar Club)
+                        </div>
+                        <div className="text-4xl font-bold text-maple-700 mb-2">
+                          {years == null ? 'N/A' : `${years.toFixed(1)} yrs`}
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          Based on summer/winter rates
+                        </div>
+                      </>
+                    )
+                  }
+                  
+                  // Non-Alberta: Show TOU/ULO/Tiered plans
                   const plans = [
                     { id: 'TOU', data: (netMetering as any).tou },
                     { id: 'ULO', data: (netMetering as any).ulo },
@@ -1163,6 +1269,32 @@ export function ResultsPage({
               </div>
               {isNetMetering && netMetering ? (
                 (() => {
+                  // Check if this is Alberta Solar Club
+                  const isAlberta = leadData?.province && (leadData.province.toUpperCase() === 'AB' || leadData.province.toUpperCase() === 'ALBERTA' || leadData.province.toUpperCase().includes('ALBERTA'))
+                  const albertaData = isAlberta && (netMetering as any).tou?.alberta
+                  
+                  if (isAlberta && albertaData) {
+                    // Alberta Solar Club: Show single 25-year profit
+                    const touPlan = (netMetering as any).tou
+                    const projection = touPlan?.projection || {}
+                    const profit25 = projection.netProfit25Year ?? 0
+                    
+                    return (
+                      <>
+                        <div className="text-sm text-gray-700 font-semibold mb-3">
+                          25-Year Profit (Alberta Solar Club)
+                        </div>
+                        <div className="text-3xl sm:text-4xl font-bold text-emerald-700 mb-2">
+                          {formatCurrency(Math.round(profit25))}
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          After payback period
+                        </div>
+                      </>
+                    )
+                  }
+                  
+                  // Non-Alberta: Show TOU/ULO/Tiered plans
                   const plans = [
                     { id: 'TOU', data: (netMetering as any).tou },
                     { id: 'ULO', data: (netMetering as any).ulo },
@@ -1286,20 +1418,42 @@ export function ResultsPage({
                       After rebates, your net investment is {formatCurrency(finalNetCost)}.{' '}
                       {isNetMetering && netMeteringNarrative ? (
                         <>
-                          For net metering with the{' '}
-                          <strong>{netMeteringNarrative.planLabel} rate plan</strong>, you'll save
-                          approximately{' '}
-                          {formatCurrency(Math.round(netMeteringNarrative.annualSavings || 0))} per
-                          year on electricity bills, which means your system will pay for itself in
-                          about{' '}
-                          {netMeteringNarrative.paybackYears != null && isFinite(netMeteringNarrative.paybackYears)
-                            ? netMeteringNarrative.paybackYears.toFixed(1)
-                            : 'N/A'}{' '}
-                          years.{' '}
-                          {netMeteringNarrative.profit25 !== null && (
+                          {netMeteringNarrative.planLabel === 'Alberta Solar Club' ? (
                             <>
-                              Over the system's 25-year lifespan, you could save over{' '}
-                              {formatCurrency(Math.round(netMeteringNarrative.profit25))}.
+                              With <strong>Alberta Solar Club</strong> (summer export rate: 33¢/kWh, winter import rate: 6.89¢/kWh), you'll save
+                              approximately{' '}
+                              {formatCurrency(Math.round(netMeteringNarrative.annualSavings || 0))} per
+                              year on electricity bills, which means your system will pay for itself in
+                              about{' '}
+                              {netMeteringNarrative.paybackYears != null && isFinite(netMeteringNarrative.paybackYears)
+                                ? netMeteringNarrative.paybackYears.toFixed(1)
+                                : 'N/A'}{' '}
+                              years.{' '}
+                              {netMeteringNarrative.profit25 !== null && (
+                                <>
+                                  Over the system's 25-year lifespan, you could save over{' '}
+                                  {formatCurrency(Math.round(netMeteringNarrative.profit25))}.
+                                </>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              For net metering with the{' '}
+                              <strong>{netMeteringNarrative.planLabel} rate plan</strong>, you'll save
+                              approximately{' '}
+                              {formatCurrency(Math.round(netMeteringNarrative.annualSavings || 0))} per
+                              year on electricity bills, which means your system will pay for itself in
+                              about{' '}
+                              {netMeteringNarrative.paybackYears != null && isFinite(netMeteringNarrative.paybackYears)
+                                ? netMeteringNarrative.paybackYears.toFixed(1)
+                                : 'N/A'}{' '}
+                              years.{' '}
+                              {netMeteringNarrative.profit25 !== null && (
+                                <>
+                                  Over the system's 25-year lifespan, you could save over{' '}
+                                  {formatCurrency(Math.round(netMeteringNarrative.profit25))}.
+                                </>
+                              )}
                             </>
                           )}
                         </>
@@ -1581,6 +1735,7 @@ export function ResultsPage({
                         netMeteringData={netMetering}
                         systemSizeKw={estimate?.system?.sizeKw || solarOverride?.sizeKw}
                         numPanels={estimate?.system?.numPanels || solarOverride?.numPanels}
+                        province={leadData?.province}
                       />
                     )}
 
@@ -1701,6 +1856,16 @@ export function ResultsPage({
                   />
                 )}
               </div>
+
+              {/* Solar Club Alberta - show only for Alberta province and net metering */}
+              {leadData?.province && (leadData.province.toUpperCase() === 'AB' || leadData.province.toUpperCase() === 'ALBERTA') && programType === 'net_metering' && (
+                <SolarClubAlberta
+                  city={leadData?.address?.city || (typeof leadData?.address === 'string' ? leadData.address.split(',')[1]?.trim() : null) || undefined}
+                  address={typeof leadData?.address === 'string' ? leadData.address : undefined}
+                  systemSizeKw={estimate?.system?.sizeKw || solarOverride?.sizeKw || 0}
+                  annualProductionKwh={estimate?.production?.annualKwh}
+                />
+              )}
             </div>
 
             {/* Right Column - Actions & Next Steps */}
@@ -2010,14 +2175,6 @@ export function ResultsPage({
                   </span>
                 </div>
               </div>
-
-              {/* Solar Club Alberta - show only for Alberta province */}
-              {leadData?.province && (leadData.province.toUpperCase() === 'AB' || leadData.province.toUpperCase() === 'ALBERTA') && (
-                <SolarClubAlberta
-                  systemSizeKw={estimate?.system?.sizeKw || solarOverride?.sizeKw || 0}
-                  annualProductionKwh={estimate?.production?.annualKwh}
-                />
-              )}
             </div>
           </div>
         </div>

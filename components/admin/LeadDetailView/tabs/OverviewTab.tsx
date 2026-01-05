@@ -2,11 +2,12 @@
 
 import { 
   User, Mail, Phone, MessageSquare, Clock, CreditCard, Zap, Tag,
-  MapPin, Calendar, Home, Image as ImageIcon, ExternalLink, Check, TrendingUp
+  MapPin, Calendar, Home, Image as ImageIcon, ExternalLink, Check, TrendingUp, Sparkles
 } from 'lucide-react'
 import { formatRelativeTime, formatCurrency } from '@/lib/utils'
 import { asNumber, getAddOnName, getCombinedBlock } from '../utils'
 import { getBatteryByIdSync } from '@/config/battery-specs'
+import { findCEIPProgram, extractCityFromAddress } from '@/lib/alberta-ceip-data'
 
 interface OverviewTabProps {
   lead: any
@@ -239,15 +240,127 @@ export function OverviewTab({
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-emerald-800 uppercase tracking-wide">
-                    Net Metering Offset
+                    {(() => {
+                      const isAlberta = lead.province && (lead.province.toUpperCase() === 'AB' || lead.province.toUpperCase() === 'ALBERTA' || lead.province.toUpperCase().includes('ALBERTA'))
+                      return isAlberta ? 'Alberta Solar Club' : 'Net Metering Offset'
+                    })()}
                   </div>
                   <div className="text-[11px] text-emerald-700">
-                    Bill reduction with solar credits (selected plan)
+                    {(() => {
+                      const isAlberta = lead.province && (lead.province.toUpperCase() === 'AB' || lead.province.toUpperCase() === 'ALBERTA' || lead.province.toUpperCase().includes('ALBERTA'))
+                      return isAlberta ? 'Summer & Winter Rate Breakdown' : 'Bill reduction with solar credits (selected plan)'
+                    })()}
                   </div>
                 </div>
               </div>
               {(() => {
                 const nm: any = netMeteringData
+                const isAlberta = lead.province && (lead.province.toUpperCase() === 'AB' || lead.province.toUpperCase() === 'ALBERTA' || lead.province.toUpperCase().includes('ALBERTA'))
+                const albertaData = isAlberta && nm.tou?.alberta
+                
+                // Alberta Solar Club: Show summer/winter breakdown
+                if (isAlberta && albertaData && nm.tou?.annual) {
+                  const annual = nm.tou.annual
+                  const highSeason = albertaData.highProductionSeason
+                  const lowSeason = albertaData.lowProductionSeason
+                  const projection = nm.tou?.projection || {}
+                  const importCost = annual?.importCost || 0
+                  const exportCredits = annual?.exportCredits || 0
+                  const netBill = annual?.netAnnualBill || 0
+                  const billOffset = annual?.billOffsetPercent ?? (importCost > 0 ? Math.min(100, (exportCredits / importCost) * 100) : 100)
+                  
+                  return (
+                    <div className="space-y-4">
+                      {/* Annual Summary */}
+                      <div className="bg-white/70 rounded-lg p-3 space-y-2">
+                        <div className="text-xs font-semibold text-emerald-800 mb-2">Annual Summary</div>
+                        <div className="flex items-baseline justify-between">
+                          <div className="text-xs text-gray-600">Bill Offset</div>
+                          <div className="text-xl font-bold text-emerald-700">{billOffset.toFixed(1)}%</div>
+                        </div>
+                        <div className="text-[11px] text-gray-600">
+                          {formatCurrency(importCost)} →{' '}
+                          <span className={netBill < 0 ? 'text-green-700 font-semibold' : ''}>
+                            {formatCurrency(Math.abs(netBill))}
+                            {netBill < 0 && ' (credit balance)'}
+                          </span>
+                        </div>
+                        <div className="mt-2 w-full bg-emerald-100 rounded-full h-1.5">
+                          <div
+                            className="h-1.5 rounded-full bg-emerald-500 transition-all"
+                            style={{ width: `${Math.min(100, billOffset)}%` }}
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* High Production Season (Summer) */}
+                      <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg p-3 border border-amber-200">
+                        <div className="text-xs font-semibold text-amber-800 mb-2">High Production Season (Apr-Sep)</div>
+                        <div className="text-[10px] text-amber-700 mb-2">Export Rate: 33¢/kWh</div>
+                        <div className="space-y-1 text-[11px]">
+                          {highSeason?.exportedKwh && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Exported:</span>
+                              <span className="font-semibold text-amber-700">{parseFloat(String(highSeason.exportedKwh)).toFixed(0)} kWh</span>
+                            </div>
+                          )}
+                          {highSeason?.exportCredits && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Export Credits:</span>
+                              <span className="font-semibold text-green-600">{formatCurrency(highSeason.exportCredits)}</span>
+                            </div>
+                          )}
+                          {highSeason?.importedKwh && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Imported:</span>
+                              <span className="font-semibold text-orange-600">{parseFloat(String(highSeason.importedKwh)).toFixed(0)} kWh</span>
+                            </div>
+                          )}
+                          {highSeason?.importCost && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Import Cost:</span>
+                              <span className="font-semibold text-red-600">{formatCurrency(highSeason.importCost)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Low Production Season (Winter) */}
+                      <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-3 border border-blue-200">
+                        <div className="text-xs font-semibold text-blue-800 mb-2">Low Production Season (Oct-Mar)</div>
+                        <div className="text-[10px] text-blue-700 mb-2">Import Rate: 6.89¢/kWh</div>
+                        <div className="space-y-1 text-[11px]">
+                          {lowSeason?.exportedKwh && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Exported:</span>
+                              <span className="font-semibold text-blue-700">{parseFloat(String(lowSeason.exportedKwh)).toFixed(0)} kWh</span>
+                            </div>
+                          )}
+                          {lowSeason?.exportCredits && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Export Credits:</span>
+                              <span className="font-semibold text-green-600">{formatCurrency(lowSeason.exportCredits)}</span>
+                            </div>
+                          )}
+                          {lowSeason?.importedKwh && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Imported:</span>
+                              <span className="font-semibold text-orange-600">{parseFloat(String(lowSeason.importedKwh)).toFixed(0)} kWh</span>
+                            </div>
+                          )}
+                          {lowSeason?.importCost && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Import Cost:</span>
+                              <span className="font-semibold text-red-600">{formatCurrency(lowSeason.importCost)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+                
+                // Non-Alberta: Show TOU/ULO/Tiered plans
                 const plans = [
                   { key: 'tou', label: 'TOU', plan: nm.tou },
                   { key: 'ulo', label: 'ULO', plan: nm.ulo },
@@ -517,23 +630,50 @@ export function OverviewTab({
             </div>
             <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
               <div className="text-xs text-green-600 mb-1">
-                {lead.program_type === 'net_metering' ? 'Rebates' : 'Total Rebates'}
+                {(() => {
+                  const isAlberta = lead.province && (lead.province.toUpperCase() === 'AB' || lead.province.toUpperCase() === 'ALBERTA' || lead.province.toUpperCase().includes('ALBERTA'))
+                  if (lead.program_type === 'net_metering' && isAlberta) {
+                    return 'Alberta CEIP Incentives'
+                  }
+                  return lead.program_type === 'net_metering' ? 'Rebates' : 'Total Rebates'
+                })()}
               </div>
               <div className="text-3xl font-bold text-green-600">
-                {lead.program_type === 'net_metering' ? (
-                  <span className="text-gray-500">$0</span>
-                ) : (
-                  formatCurrency(combinedTotalIncentives)
-                )}
+                {(() => {
+                  const isAlberta = lead.province && (lead.province.toUpperCase() === 'AB' || lead.province.toUpperCase() === 'ALBERTA' || lead.province.toUpperCase().includes('ALBERTA'))
+                  if (lead.program_type === 'net_metering' && isAlberta) {
+                    // For Alberta, show CEIP rebate info if available
+                    // Try to get from full_data_json or show info about CEIP
+                    const fullDataJson = typeof lead.full_data_json === 'string' 
+                      ? JSON.parse(lead.full_data_json) 
+                      : lead.full_data_json
+                    const ceipRebate = fullDataJson?.albertaCeipRebate || fullDataJson?.estimate?.albertaCeipRebate
+                    if (ceipRebate && typeof ceipRebate === 'number') {
+                      return formatCurrency(ceipRebate)
+                    }
+                    return <span className="text-sm font-normal">See CEIP Details</span>
+                  }
+                  return lead.program_type === 'net_metering' ? (
+                    <span className="text-gray-500">$0</span>
+                  ) : (
+                    formatCurrency(combinedTotalIncentives)
+                  )
+                })()}
               </div>
               <div className="text-xs text-green-600 mt-1">
-                {lead.program_type === 'net_metering' ? (
-                  <span className="text-gray-500">
-                    Net metering programs currently do not offer upfront rebates.
-                  </span>
-                ) : (
-                  'Solar + Battery rebates'
-                )}
+                {(() => {
+                  const isAlberta = lead.province && (lead.province.toUpperCase() === 'AB' || lead.province.toUpperCase() === 'ALBERTA' || lead.province.toUpperCase().includes('ALBERTA'))
+                  if (lead.program_type === 'net_metering' && isAlberta) {
+                    return <span className="text-gray-700">Alberta CEIP program available (varies by municipality)</span>
+                  }
+                  return lead.program_type === 'net_metering' ? (
+                    <span className="text-gray-500">
+                      Net metering programs currently do not offer upfront rebates.
+                    </span>
+                  ) : (
+                    'Solar + Battery rebates'
+                  )
+                })()}
               </div>
             </div>
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
@@ -618,11 +758,25 @@ export function OverviewTab({
               <div>
                 <span className="text-gray-600">Total Rebates:</span>
                 <span className="ml-2 font-semibold text-green-700">
-                  {lead.program_type === 'net_metering' ? (
-                    <span className="text-gray-500">No rebates for net metering</span>
-                  ) : (
-                    formatCurrency(combinedTotalIncentives)
-                  )}
+                  {(() => {
+                    const isAlberta = lead.province && (lead.province.toUpperCase() === 'AB' || lead.province.toUpperCase() === 'ALBERTA' || lead.province.toUpperCase().includes('ALBERTA'))
+                    if (lead.program_type === 'net_metering' && isAlberta) {
+                      // For Alberta, show CEIP rebate if available
+                      const fullDataJson = typeof lead.full_data_json === 'string' 
+                        ? JSON.parse(lead.full_data_json) 
+                        : lead.full_data_json
+                      const ceipRebate = fullDataJson?.albertaCeipRebate || fullDataJson?.estimate?.albertaCeipRebate
+                      if (ceipRebate && typeof ceipRebate === 'number') {
+                        return formatCurrency(ceipRebate)
+                      }
+                      return <span className="text-gray-700">Alberta CEIP (varies by municipality)</span>
+                    }
+                    return lead.program_type === 'net_metering' ? (
+                      <span className="text-gray-500">No rebates for net metering</span>
+                    ) : (
+                      formatCurrency(combinedTotalIncentives)
+                    )
+                  })()}
                 </span>
               </div>
               <div className="col-span-2">
@@ -637,6 +791,71 @@ export function OverviewTab({
               </div>
             </div>
           </div>
+
+          {/* Alberta CEIP Information (for Alberta Solar Club leads) */}
+          {(() => {
+            const isAlberta = lead.province && (lead.province.toUpperCase() === 'AB' || lead.province.toUpperCase() === 'ALBERTA' || lead.province.toUpperCase().includes('ALBERTA'))
+            if (lead.program_type === 'net_metering' && isAlberta) {
+              const detectedCity = city || extractCityFromAddress(lead.address)
+              const ceipPrograms = findCEIPProgram(detectedCity, 'Residential')
+              const hasCEIPProgram = ceipPrograms.length > 0
+              const primaryProgram = ceipPrograms[0]
+              
+              return (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="bg-gradient-to-br from-navy-50 to-blue-50 rounded-lg p-4 border-2 border-navy-100">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Sparkles className="text-navy-600" size={18} />
+                      <h4 className="font-semibold text-gray-800">
+                        {hasCEIPProgram && primaryProgram 
+                          ? `${primaryProgram.city} CEIP Program`
+                          : 'Alberta CEIP Program'}
+                      </h4>
+                    </div>
+                    
+                    {hasCEIPProgram && primaryProgram ? (
+                      <div className="space-y-3 text-sm">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <span className="text-gray-600">Loan Amount:</span>
+                            <span className="font-semibold text-navy-700 ml-2">{primaryProgram.loanMaxAmount}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Interest Rate:</span>
+                            <span className="font-semibold text-navy-700 ml-2">{primaryProgram.interestRate}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Amortization:</span>
+                            <span className="font-semibold text-navy-700 ml-2">{primaryProgram.amortization}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Rebate Amount:</span>
+                            <span className="font-semibold text-green-600 ml-2">{primaryProgram.rebateAmount}</span>
+                          </div>
+                          {primaryProgram.maxRebate && (
+                            <div className="col-span-2">
+                              <span className="text-gray-600">Max Rebate:</span>
+                              <span className="font-semibold text-green-600 ml-2">{primaryProgram.maxRebate}</span>
+                            </div>
+                          )}
+                        </div>
+                        {primaryProgram.limitations && (
+                          <div className="text-xs text-orange-600 bg-orange-50 rounded p-2">
+                            <strong>Note:</strong> {primaryProgram.limitations}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-600">
+                        CEIP program details vary by municipality. Check with your local municipality for specific program terms.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            }
+            return null
+          })()}
 
           {/* Energy Usage */}
           <div className="mt-4 pt-4 border-t border-gray-200">

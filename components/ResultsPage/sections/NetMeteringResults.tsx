@@ -4,26 +4,31 @@
 // Displays net metering data in a clean, organized format
 
 import { useState } from 'react'
-import { DollarSign, TrendingUp, AlertTriangle, Zap, Calendar, BarChart3 } from 'lucide-react'
+import { DollarSign, TrendingUp, AlertTriangle, Zap, Calendar, BarChart3, Sun } from 'lucide-react'
 import { formatCurrency, formatKwh, formatNumber } from '@/lib/utils'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
 import type { NetMeteringResult } from '@/lib/net-metering'
 
 interface NetMeteringResultsProps {
   netMeteringData: {
-    tou?: NetMeteringResult & { projection?: any }
+    tou?: NetMeteringResult & { projection?: any; alberta?: any }
     ulo?: NetMeteringResult & { projection?: any }
     tiered?: NetMeteringResult & { projection?: any }
     selectedRatePlan?: string
   }
   systemSizeKw?: number
   numPanels?: number
+  province?: string
 }
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels }: NetMeteringResultsProps) {
+export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels, province }: NetMeteringResultsProps) {
   const { tou, ulo, tiered } = netMeteringData
+  
+  // Detect if this is Alberta Solar Club
+  const isAlberta = province && (province.toUpperCase() === 'AB' || province.toUpperCase() === 'ALBERTA' || province.toUpperCase().includes('ALBERTA'))
+  const albertaData = isAlberta && tou?.alberta ? tou.alberta : null
 
   // Use billOffsetPercent from the result if available, otherwise calculate it
   const touBillOffset = tou?.annual?.billOffsetPercent ?? (tou?.annual?.importCost && tou.annual.importCost > 0 
@@ -94,6 +99,154 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels }:
   const isTouSelected = selectedPlanId === 'tou'
   const isUloSelected = selectedPlanId === 'ulo'
   const isTieredSelected = selectedPlanId === 'tiered'
+
+  // If Alberta, show summer/winter breakdown instead of TOU/ULO/Tiered
+  if (isAlberta && albertaData && tou) {
+    const annual = tou.annual
+    const projection = tou.projection || {}
+    const highSeason = albertaData.highProductionSeason
+    const lowSeason = albertaData.lowProductionSeason
+    
+    // Calculate Alberta-specific metrics
+    const annualSavings = projection.annualSavings ?? (annual.importCost - annual.netAnnualBill)
+    const paybackYears = projection.paybackYears ?? null
+    const profit25 = projection.netProfit25Year ?? 0
+    const billOffset = annual.billOffsetPercent ?? 0
+    
+    return (
+      <div className="space-y-6">
+        {/* Alberta Solar Club Header */}
+        <div className="bg-gradient-to-br from-navy-50 to-blue-50 rounded-xl p-6 border-2 border-navy-200 shadow-lg">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-3 bg-red-500 rounded-lg">
+              <Zap className="text-white" size={24} />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-navy-900">Alberta Solar Club Results</h2>
+              <p className="text-sm text-navy-700">Summer & Winter Rate Breakdown</p>
+            </div>
+          </div>
+          
+          {/* Key Metrics */}
+          <div className="grid sm:grid-cols-3 gap-4 mb-6">
+            <div className="bg-white rounded-lg p-4 border border-navy-200">
+              <div className="text-xs text-gray-600 mb-1">Annual Savings</div>
+              <div className="text-2xl font-bold text-navy-600">
+                {formatCurrency(Math.round(annualSavings || 0))}
+              </div>
+            </div>
+            <div className="bg-white rounded-lg p-4 border border-navy-200">
+              <div className="text-xs text-gray-600 mb-1">Payback Period</div>
+              <div className="text-2xl font-bold text-navy-600">
+                {paybackYears != null && isFinite(paybackYears)
+                  ? `${paybackYears.toFixed(1)} yrs`
+                  : 'N/A'}
+              </div>
+            </div>
+            <div className="bg-white rounded-lg p-4 border border-navy-200">
+              <div className="text-xs text-gray-600 mb-1">25-Year Profit</div>
+              <div className="text-2xl font-bold text-navy-600">
+                {formatCurrency(Math.round(profit25 || 0))}
+              </div>
+            </div>
+          </div>
+          
+          {/* Summer/Winter Breakdown */}
+          <div className="grid md:grid-cols-2 gap-4">
+            {/* High Production Season (Summer) */}
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg p-5 border-2 border-amber-300">
+              <div className="flex items-center gap-2 mb-3">
+                <Sun className="text-amber-600" size={20} />
+                <h3 className="text-lg font-bold text-amber-900">High Production Season</h3>
+              </div>
+              <p className="text-xs text-amber-700 mb-3 font-semibold">April - September (33¢/kWh export rate)</p>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">Exported:</span>
+                  <span className="font-bold text-amber-700">{formatKwh(highSeason?.exportedKwh || 0)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">Export Credits:</span>
+                  <span className="font-bold text-green-600">{formatCurrency(highSeason?.exportCredits || 0)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">Imported:</span>
+                  <span className="font-bold text-orange-600">{formatKwh(highSeason?.importedKwh || 0)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">Import Cost:</span>
+                  <span className="font-bold text-red-600">{formatCurrency(highSeason?.importCost || 0)}</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Low Production Season (Winter) */}
+            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-5 border-2 border-blue-300">
+              <div className="flex items-center gap-2 mb-3">
+                <Calendar className="text-blue-600" size={20} />
+                <h3 className="text-lg font-bold text-blue-900">Low Production Season</h3>
+              </div>
+              <p className="text-xs text-blue-700 mb-3 font-semibold">October - March (6.89¢/kWh import rate)</p>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">Exported:</span>
+                  <span className="font-bold text-blue-700">{formatKwh(lowSeason?.exportedKwh || 0)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">Export Credits:</span>
+                  <span className="font-bold text-green-600">{formatCurrency(lowSeason?.exportCredits || 0)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">Imported:</span>
+                  <span className="font-bold text-orange-600">{formatKwh(lowSeason?.importedKwh || 0)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">Import Cost:</span>
+                  <span className="font-bold text-red-600">{formatCurrency(lowSeason?.importCost || 0)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Annual Summary */}
+          <div className="mt-4 bg-white rounded-lg p-4 border border-navy-200">
+            <h3 className="text-sm font-bold text-gray-900 mb-3">Annual Summary</h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-gray-600">Total Export Credits:</span>
+                <span className="ml-2 font-bold text-green-600">{formatCurrency(annual.exportCredits || 0)}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Total Import Cost:</span>
+                <span className="ml-2 font-bold text-red-600">{formatCurrency(annual.importCost || 0)}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Net Annual Bill:</span>
+                <span className="ml-2 font-bold text-navy-900">{formatCurrency(annual.netAnnualBill || 0)}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Bill Offset:</span>
+                <span className="ml-2 font-bold text-emerald-600">{billOffset.toFixed(1)}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Alberta-specific disclaimer */}
+        <div className="flex items-start gap-2 text-xs text-gray-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <AlertTriangle className="text-amber-600 flex-shrink-0 mt-0.5" size={16} />
+          <div>
+            <p className="font-semibold text-amber-900 mb-1">Important: Rate Switching Required</p>
+            <p className="text-amber-800">
+              To maximize savings, you must switch to the high export rate (33¢/kWh) during summer months (Apr-Sep) 
+              and the low import rate (6.89¢/kWh) during winter months (Oct-Mar). Forgetting to switch could reduce 
+              your savings by $300-500/year.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

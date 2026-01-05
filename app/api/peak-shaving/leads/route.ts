@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       .from('peak_shaving_leads')
       .select(`
         *,
-        peak_shaving_access_logs (
+        peak_shaving_access_logs!fk_lead (
           id,
           accessed_at,
           ip_address,
@@ -24,15 +24,25 @@ export async function GET(request: NextRequest) {
 
     // Apply search filter if provided
     if (searchTerm) {
-      query = query.or(`email.ilike.%${searchTerm}%`)
+      query = query.ilike('email', `%${searchTerm}%`)
     }
 
     const { data: leads, error } = await query
 
     if (error) {
-      console.error('Error fetching peak shaving leads:', error)
+      console.error('Error fetching peak shaving leads:', {
+        error,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      })
       return NextResponse.json(
-        { error: 'Failed to fetch leads', details: error.message },
+        { 
+          error: 'Failed to fetch leads', 
+          details: error.message,
+          hint: error.hint || 'Check if the peak_shaving_leads table exists and RLS policies allow access'
+        },
         { status: 500 }
       )
     }

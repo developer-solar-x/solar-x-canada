@@ -754,6 +754,8 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             <SolarClubAlberta
               systemSizeKw={estimateData.system.sizeKw}
               annualProductionKwh={estimateData.production?.annualKwh}
+              city={data.city}
+              address={data.address}
             />
           )}
 

@@ -204,6 +204,23 @@ export function AdminSidebar({
             )}
           </button>
 
+          <button 
+            onClick={() => handleSectionClick('peak-shaving-leads')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all relative group ${
+              activeSection === 'peak-shaving-leads' 
+                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/30' 
+                : 'hover:bg-white/10 text-white/90 hover:text-white'
+            }`}
+          >
+            <div className={`p-1.5 rounded-lg ${activeSection === 'peak-shaving-leads' ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'}`}>
+              <Zap size={18} className="flex-shrink-0" />
+            </div>
+            <span className="flex-1 text-left">Peak Shaving Tool Leads</span>
+            {activeSection === 'peak-shaving-leads' && (
+              <div className="absolute right-2 w-1.5 h-1.5 bg-white rounded-full"></div>
+            )}
+          </button>
+
           {/* Divider */}
           <div className="my-4 border-t border-white/10"></div>
 

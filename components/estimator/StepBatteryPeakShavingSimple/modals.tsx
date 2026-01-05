@@ -92,8 +92,8 @@ export function ProfitInfoModal({ open, onClose, touResults, uloResults }: Profi
               <span className="text-green-600 font-bold mt-0.5">4.</span>
               <div>
                 <span className="font-semibold">What's left is your profit:</span> This is the money you keep after your system has fully paid for itself.
-              </div>
-            </div>
+          </div>
+          </div>
           </div>
         </div>
 
@@ -104,18 +104,18 @@ export function ProfitInfoModal({ open, onClose, touResults, uloResults }: Profi
               <div className="flex justify-between items-center">
                 <span className="text-gray-700">Your Investment:</span>
                 <span className="font-bold text-gray-900">{formatMoney(tou?.combined?.netCost ?? 0)}</span>
-              </div>
+          </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-700">Total Savings (25 years):</span>
                 <span className="font-bold text-blue-700">{formatMoney(touTotalSavings)}</span>
-              </div>
+          </div>
               <div className="pt-2 border-t border-blue-300">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-700 font-semibold">Your Profit:</span>
                   <span className="text-lg font-bold text-green-700">{formatMoney(touProfit)}</span>
-                </div>
-              </div>
-            </div>
+          </div>
+          </div>
+        </div>
             <div className="text-[11px] text-blue-700 mt-2 italic">
               Includes winter safeguard and your solar + battery combination
             </div>
@@ -138,10 +138,10 @@ export function ProfitInfoModal({ open, onClose, touResults, uloResults }: Profi
                   <span className="text-lg font-bold text-green-700">{formatMoney(uloProfit)}</span>
                 </div>
               </div>
-            </div>
+          </div>
             <div className="text-[11px] text-purple-700 mt-2 italic">
               Overnight charging advantage + winter safeguard included
-            </div>
+          </div>
           </div>
         </div>
 
@@ -227,13 +227,13 @@ export function PaybackInfoModal({ open, onClose, touResults, uloResults }: Payb
               <span className="text-blue-600 font-bold mt-0.5">1.</span>
               <div>
                 <span className="font-semibold">Start with your investment:</span> We use your total system cost (solar + battery) after rebates.
-              </div>
+          </div>
             </div>
             <div className="flex items-start gap-2">
               <span className="text-blue-600 font-bold mt-0.5">2.</span>
               <div>
                 <span className="font-semibold">Use Year 1 savings:</span> Your first-year savings (shown in "Annual Savings" above) is the starting point.
-              </div>
+          </div>
             </div>
             <div className="flex items-start gap-2">
               <span className="text-blue-600 font-bold mt-0.5">3.</span>
@@ -245,8 +245,8 @@ export function PaybackInfoModal({ open, onClose, touResults, uloResults }: Payb
               <span className="text-green-600 font-bold mt-0.5">4.</span>
               <div>
                 <span className="font-semibold">Find the payback point:</span> We add up your savings year by year until the total equals your investment. That's your payback period.
-              </div>
-            </div>
+          </div>
+          </div>
           </div>
         </div>
 
@@ -270,8 +270,8 @@ export function PaybackInfoModal({ open, onClose, touResults, uloResults }: Payb
                   <span className="text-gray-700 font-semibold">Payback Period:</span>
                   <span className="text-lg font-bold text-navy-600">{formatPayback(tou?.combined?.projection?.paybackYears)}</span>
                 </div>
-              </div>
-            </div>
+          </div>
+          </div>
             <div className="text-[11px] text-blue-700 mt-2 italic">
               Savings increase over time as rates rise
             </div>

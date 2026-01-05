@@ -40,15 +40,21 @@ export function RoofSummary({ data }: RoofSummaryProps) {
                   if (feature.geometry.type !== 'Polygon') return null
                   
                   // Use manually corrected orientation from roofSections if available
-                  // Otherwise calculate from polygon geometry
+                  // Match by feature ID first, then fall back to index
                   let direction, efficiency, areaSqFt
                   
-                  if (data.roofSections && data.roofSections[index]) {
+                  // Try to find matching section by ID or index
+                  let matchingSection = null
+                  if (data.roofSections && data.roofSections.length > 0) {
+                    const featureId = feature.id || `section-${index + 1}`
+                    matchingSection = data.roofSections.find((s: any) => s.id === featureId) || data.roofSections[index]
+                  }
+                  
+                  if (matchingSection) {
                     // Use corrected data from user edits
-                    const section = data.roofSections[index]
-                    direction = section.direction
-                    efficiency = section.efficiency
-                    areaSqFt = section.area
+                    direction = matchingSection.direction
+                    efficiency = matchingSection.efficiency
+                    areaSqFt = matchingSection.area
                   } else {
                     // Calculate from polygon (legacy or uncorrected)
                     const areaMeters = turf.area(feature)

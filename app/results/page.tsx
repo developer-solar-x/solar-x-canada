@@ -353,7 +353,12 @@ function ResultsPageContent() {
           lastName: simplifiedData.fullName?.split(' ').slice(1).join(' ') || '',
           email: simplifiedData.email || '',
           address: simplifiedData.address || '',
-          province: simplifiedData.province || 'ON',
+          // Extract province from multiple possible locations
+          province: simplifiedData.province || 
+                   simplifiedData.address?.province || 
+                   leadFields?.province || 
+                   (leadFields?.address && typeof leadFields.address === 'object' ? leadFields.address.province : null) ||
+                   'ON',
         },
         solarOverride: {
           sizeKw: systemSizeKw, // Use the same extracted systemSizeKw
@@ -899,8 +904,13 @@ function ResultsPageContent() {
               setUlo(transformedData.ulo)
               setProgramType(simplifiedData.programType || lead.program_type || undefined)
               setFinancingOption(transformedData.financingOption || simplifiedData.financingOption || lead.hrs_residential_data?.financing_option || lead.hrs_residential_data?.financing_preference)
-              // Extract net metering data if present
+              // Extract net metering data if present (includes Alberta Solar Club data)
               setNetMetering(transformedData.netMetering || simplifiedData.netMetering || undefined)
+              // Ensure province is set for Alberta detection - use lead.province if available
+              if (transformedData.leadData && (!transformedData.leadData.province || transformedData.leadData.province === 'ON')) {
+                transformedData.leadData.province = lead.province || lead.hrs_residential_data?.province || simplifiedData.province || 'ON'
+              }
+              setLeadData(transformedData.leadData || {})
               setLoading(false)
               // Clear sessionStorage after reading
               sessionStorage.removeItem('calculatorResults')

@@ -569,13 +569,13 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
               System Cost: {formatCurrency(totalSystemCost)} ÷ Annual Savings: {formatCurrency(annualSavings)}
             </div>
             
-            <div className="text-xs text-gray-600">
-              {paybackYears <= 10 
-                ? `Great investment! Your system pays for itself in ${paybackYears.toFixed(1)} years.`
-                : paybackYears <= 15
-                ? `Solid investment with ${paybackYears.toFixed(1)} year payback period.`
-                : `Long-term investment with ${paybackYears.toFixed(1)} year payback period.`}
-            </div>
+                <div className="text-xs text-gray-600">
+                  {paybackYears <= 10 
+                    ? `Great investment! Your system pays for itself in ${paybackYears.toFixed(1)} years.`
+                    : paybackYears <= 15
+                    ? `Solid investment with ${paybackYears.toFixed(1)} year payback period.`
+                    : `Long-term investment with ${paybackYears.toFixed(1)} year payback period.`}
+                </div>
           </div>
         </div>
       )}

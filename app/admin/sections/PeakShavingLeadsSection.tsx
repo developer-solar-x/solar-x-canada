@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Mail, CheckCircle, XCircle, Search, Calendar, Zap, ExternalLink, Loader2 } from 'lucide-react'
+import { Mail, CheckCircle, XCircle, Search, Calendar, Zap, ExternalLink, Loader2, Filter } from 'lucide-react'
 
 interface PeakShavingLead {
   id: string
@@ -61,9 +61,16 @@ export function PeakShavingLeadsSection({
 }: PeakShavingLeadsSectionProps) {
   const ITEMS_PER_PAGE = 20
   const [page, setPage] = useState(1)
+  const [hideSolarX, setHideSolarX] = useState(false)
 
-  // Filter leads based on search term
+  // Filter leads based on search term and Solar-X filter
   const filteredLeads = leads.filter((lead) => {
+    // Filter out Solar-X emails if filter is active
+    if (hideSolarX && lead.isSolarXEmail) {
+      return false
+    }
+    
+    // Filter by search term
     if (!searchTerm) return true
     const search = searchTerm.toLowerCase()
     return lead.email.toLowerCase().includes(search)
@@ -86,13 +93,13 @@ export function PeakShavingLeadsSection({
     }).format(date)
   }
 
-  // Calculate stats
+  // Calculate stats (use filtered leads for display, but show all leads in stats)
   const stats = {
-    total: leads.length,
-    verified: leads.filter((l) => l.emailVerified).length,
-    unverified: leads.filter((l) => !l.emailVerified).length,
-    solarX: leads.filter((l) => l.isSolarXEmail).length,
-    withAccess: leads.filter((l) => l.usageCount > 0).length,
+    total: filteredLeads.length,
+    verified: filteredLeads.filter((l) => l.emailVerified).length,
+    unverified: filteredLeads.filter((l) => !l.emailVerified).length,
+    solarX: filteredLeads.filter((l) => l.isSolarXEmail).length,
+    withAccess: filteredLeads.filter((l) => l.usageCount > 0).length,
   }
 
   return (
@@ -100,7 +107,7 @@ export function PeakShavingLeadsSection({
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-navy-500 mb-2">Peak Shaving Leads</h1>
+          <h1 className="text-3xl font-bold text-navy-500 mb-2">Peak Shaving Tool Leads</h1>
           <p className="text-gray-600">Manage email verifications and access logs</p>
         </div>
       </div>
@@ -168,20 +175,46 @@ export function PeakShavingLeadsSection({
         </div>
       </div>
 
-      {/* Search bar */}
+      {/* Search bar and filters */}
       <div className="bg-white border-2 border-gray-100 rounded-xl p-6 shadow-sm">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder="Search by email..."
-            value={searchTerm}
-            onChange={(e) => {
-              onSearchTermChange(e.target.value)
-              setPage(1) // Reset to first page on search
-            }}
-            className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-navy-500 focus:ring-2 focus:ring-navy-500/20 outline-none transition-all"
-          />
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="Search by email..."
+              value={searchTerm}
+              onChange={(e) => {
+                onSearchTermChange(e.target.value)
+                setPage(1) // Reset to first page on search
+              }}
+              className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-navy-500 focus:ring-2 focus:ring-navy-500/20 outline-none transition-all"
+            />
+          </div>
+          
+          {/* Filter toggle */}
+          <div className="flex items-center gap-3 pt-2 border-t border-gray-200">
+            <Filter className="text-gray-500" size={18} />
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hideSolarX}
+                onChange={(e) => {
+                  setHideSolarX(e.target.checked)
+                  setPage(1) // Reset to first page on filter change
+                }}
+                className="w-4 h-4 text-navy-600 border-gray-300 rounded focus:ring-navy-500 focus:ring-2"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Hide Solar-X emails
+              </span>
+            </label>
+            {hideSolarX && (
+              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                Showing {filteredLeads.length} regular leads
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

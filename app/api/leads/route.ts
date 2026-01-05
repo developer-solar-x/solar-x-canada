@@ -675,8 +675,48 @@ export async function POST(request: Request) {
       insertData.roof_area_usable_square_feet = body.roofArea?.usableSquareFeet || 0
       
       // Net Metering Data (if programType is net_metering)
-      // Net metering data will be stored in full_data_json (no separate columns exist)
-      // The netMetering field is already included in full_data_json construction below
+      // Populate dedicated columns for better querying and analysis
+      if (body.netMetering || body.net_metering) {
+        const netMetering = body.netMetering || body.net_metering
+        // Use tou results (which contains Alberta data for Alberta, or regular net metering for others)
+        const netMeteringData = netMetering.tou?.annual || netMetering.ulo?.annual || netMetering.tiered?.annual
+        const projection = netMetering.tou?.projection || netMetering.ulo?.projection || netMetering.tiered?.projection
+        
+        if (netMeteringData) {
+          insertData.net_metering_export_credits = netMeteringData.exportCredits || null
+          insertData.net_metering_import_cost = netMeteringData.importCost || null
+          insertData.net_metering_net_bill = netMeteringData.netAnnualBill || null
+          insertData.net_metering_bill_offset_percent = netMeteringData.billOffsetPercent || null
+          insertData.net_metering_total_solar_production = netMeteringData.totalSolarProduction || null
+          insertData.net_metering_total_load = netMeteringData.totalLoad || null
+          insertData.net_metering_total_exported = netMeteringData.totalExported || null
+          insertData.net_metering_total_imported = netMeteringData.totalImported || null
+          insertData.net_metering_payback_years = projection?.paybackYears || null
+          insertData.net_metering_profit_25_year = projection?.netProfit25Year || null
+          insertData.net_metering_annual_savings = projection?.annualSavings || null
+        }
+        
+        // Alberta Solar Club specific data
+        const isAlberta = province === 'AB' || province === 'Alberta'
+        if (isAlberta && netMetering.tou?.alberta) {
+          const alberta = netMetering.tou.alberta
+          insertData.alberta_solar_club = true
+          insertData.alberta_high_season_exported_kwh = alberta.highProductionSeason?.exportedKwh || null
+          insertData.alberta_high_season_export_credits = alberta.highProductionSeason?.exportCredits || null
+          insertData.alberta_high_season_imported_kwh = alberta.highProductionSeason?.importedKwh || null
+          insertData.alberta_high_season_import_cost = alberta.highProductionSeason?.importCost || null
+          insertData.alberta_low_season_exported_kwh = alberta.lowProductionSeason?.exportedKwh || null
+          insertData.alberta_low_season_export_credits = alberta.lowProductionSeason?.exportCredits || null
+          insertData.alberta_low_season_imported_kwh = alberta.lowProductionSeason?.importedKwh || null
+          insertData.alberta_low_season_import_cost = alberta.lowProductionSeason?.importCost || null
+          insertData.alberta_cash_back_amount = alberta.cashBackAmount || null
+          insertData.alberta_estimated_carbon_credits = alberta.estimatedCarbonCredits || null
+        } else {
+          insertData.alberta_solar_club = false
+        }
+      } else {
+        insertData.alberta_solar_club = false
+      }
       
       // Full data JSON (simplified format)
       // For quick estimates, use the full simplifiedData structure if available
