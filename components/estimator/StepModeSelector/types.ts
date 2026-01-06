@@ -1,4 +1,5 @@
 export interface StepModeSelectorProps {
+  data?: any
   onComplete: (data: any) => void
 }
 

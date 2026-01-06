@@ -28,7 +28,9 @@ import { StepContact } from '@/components/estimator/StepContact'
 
 // Estimator data type
 export interface EstimatorData {
-  // Step 0: Mode selection
+  // Step 0: Province selection
+  selectedProvince?: 'toronto' | 'alberta'
+  // Step 1: Mode selection
   estimatorMode?: 'easy' | 'detailed'
   // Program selection
   programType?: 'quick' | 'hrs_residential' | 'net_metering'
@@ -126,7 +128,7 @@ export interface EstimatorData {
 const easySteps = [
   { id: 0, name: 'Program', component: StepModeSelector },
   { id: 1, name: 'Location', component: StepLocation },
-  { id: 2, name: 'Roof Size', component: StepRoofSimple },
+  { id: 3, name: 'Roof Size', component: StepRoofSimple },
   { id: 3, name: 'Energy', component: StepEnergySimple }, // Moved up - capture consumption early
   { id: 4, name: 'Battery Savings', component: StepBatteryPeakShaving, optional: true },
   { id: 4, name: 'Net Metering Savings', component: StepNetMetering, optional: true }, // Same ID, filtered by programType
@@ -141,7 +143,7 @@ const easySteps = [
 const detailedSteps = [
   { id: 0, name: 'Program', component: StepModeSelector },
   { id: 1, name: 'Location', component: StepLocation },
-  { id: 2, name: 'Draw Roof', component: StepDrawRoof },
+  { id: 3, name: 'Draw Roof', component: StepDrawRoof },
   { id: 3, name: 'Details', component: StepDetails }, // Moved up - capture consumption early
   { id: 4, name: 'Battery Savings', component: StepBatteryPeakShaving, optional: true },
   { id: 4, name: 'Net Metering Savings', component: StepNetMetering, optional: true }, // Same ID, filtered by programType
@@ -369,7 +371,6 @@ export default function EstimatorPage() {
     // Special handling for mode selection (step 0)
     if (currentStep === 0 && stepData.estimatorMode) {
       // After mode selection, data will update and displaySteps will recalculate
-      // Location becomes step 0 after filtering out Program
       // We'll handle the step navigation in a useEffect that watches for mode changes
       return // Exit early, don't continue with normal navigation
     } else {
@@ -481,7 +482,7 @@ export default function EstimatorPage() {
       }
     }
     
-    return step.component || StepModeSelector as any
+    return step.component || StepProvinceSelector as any
   }
   
   const CurrentStepComponent = getCurrentStepComponent()

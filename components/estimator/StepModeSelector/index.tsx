@@ -5,26 +5,50 @@
 import { useState } from 'react'
 import { Zap, BarChart3 } from 'lucide-react'
 import { ComparisonTable } from './components/ComparisonTable'
+import { ProvinceSelectorModal } from './components/ProvinceSelectorModal'
 import { ProgramSelectionModal } from './components/ProgramSelectionModal'
 import type { StepModeSelectorProps } from './types'
 
-export function StepModeSelector({ onComplete }: StepModeSelectorProps) {
+export function StepModeSelector({ data, onComplete }: StepModeSelectorProps) {
+  const [showProvinceModal, setShowProvinceModal] = useState(false)
   const [showProgramModal, setShowProgramModal] = useState(false)
   const [selectedMode, setSelectedMode] = useState<'easy' | 'detailed' | null>(null)
+  const [selectedProvince, setSelectedProvince] = useState<'toronto' | 'alberta' | null>(null)
 
   const selectEasy = () => {
     setSelectedMode('easy')
-    setShowProgramModal(true)
+    setShowProvinceModal(true)
   }
 
   const selectDetailed = () => {
     setSelectedMode('detailed')
-    setShowProgramModal(true)
+    setShowProvinceModal(true)
+  }
+
+  const handleProvinceSelect = (province: 'toronto' | 'alberta') => {
+    setSelectedProvince(province)
+    setShowProvinceModal(false)
+    
+    // For Alberta, set default mode and proceed directly
+    if (province === 'alberta' && selectedMode) {
+      onComplete({ 
+        selectedProvince: province,
+        province: 'AB',
+        estimatorMode: selectedMode,
+        programType: 'net_metering',
+        leadType: 'residential'
+      })
+    } else {
+      // For Toronto, show program selection modal
+      setShowProgramModal(true)
+    }
   }
 
   const handleProgramSelect = (programType: 'net_metering' | 'hrs_residential' | 'quick', leadType: 'residential' | 'commercial', hasBattery?: boolean) => {
-    if (selectedMode) {
+    if (selectedMode && selectedProvince) {
       onComplete({ 
+        selectedProvince: selectedProvince,
+        province: selectedProvince === 'toronto' ? 'ON' : 'AB',
         estimatorMode: selectedMode,
         programType,
         leadType,
@@ -125,11 +149,24 @@ export function StepModeSelector({ onComplete }: StepModeSelectorProps) {
       {/* Comparison table */}
       <ComparisonTable />
 
+      {/* Province Selection Modal */}
+      <ProvinceSelectorModal
+        isOpen={showProvinceModal}
+        onSelect={handleProvinceSelect}
+        onClose={() => {
+          setShowProvinceModal(false)
+          setSelectedMode(null)
+        }}
+      />
+
       {/* Program Selection Modal */}
       <ProgramSelectionModal
         isOpen={showProgramModal}
         onSelect={handleProgramSelect}
-        onClose={() => setShowProgramModal(false)}
+        onClose={() => {
+          setShowProgramModal(false)
+          setSelectedProvince(null)
+        }}
         isQuickEstimate={selectedMode === 'easy'}
         estimatorMode={selectedMode}
       />

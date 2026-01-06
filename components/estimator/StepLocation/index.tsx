@@ -82,6 +82,23 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
       if (parts.length >= 2) city = parts[1]
     }
 
+    // First, validate that the address province matches the selected province
+    const addressProvince = province?.toUpperCase().trim()
+    const selectedProvinceCode = data.selectedProvince === 'toronto' ? 'ON' : data.selectedProvince === 'alberta' ? 'AB' : null
+    
+    if (selectedProvinceCode && addressProvince !== selectedProvinceCode && addressProvince !== (selectedProvinceCode === 'ON' ? 'ONTARIO' : 'ALBERTA')) {
+      // Address province doesn't match selected province
+      const expectedProvince = data.selectedProvince === 'toronto' ? 'Ontario' : 'Alberta'
+      setServiceAreaWarning(`The address you selected is not in ${expectedProvince}. Please select an address in ${expectedProvince}.`)
+      setPendingData({
+        address: suggestion.place_name,
+        coordinates: { lat, lng },
+        city,
+        province,
+      })
+      return
+    }
+
     // Validate service area
     const validation = validateServiceArea(
       city,
@@ -176,6 +193,24 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
       const result = await response.json()
 
       if (result.success && result.data) {
+        // First, validate that the address province matches the selected province
+        const addressProvince = result.data.province?.toUpperCase().trim()
+        const selectedProvinceCode = data.selectedProvince === 'toronto' ? 'ON' : data.selectedProvince === 'alberta' ? 'AB' : null
+        
+        if (selectedProvinceCode && addressProvince !== selectedProvinceCode && addressProvince !== (selectedProvinceCode === 'ON' ? 'ONTARIO' : 'ALBERTA')) {
+          // Address province doesn't match selected province
+          const expectedProvince = data.selectedProvince === 'toronto' ? 'Ontario' : 'Alberta'
+          setServiceAreaWarning(`The address you entered is not in ${expectedProvince}. Please enter an address in ${expectedProvince}.`)
+          setPendingData({
+            address: result.data.address,
+            coordinates: result.data.coordinates,
+            city: result.data.city,
+            province: result.data.province,
+          })
+          setLoading(false)
+          return
+        }
+
         // Validate service area (Ontario or Alberta)
         const validation = validateServiceArea(
           result.data.city,
@@ -276,6 +311,24 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
             if (result.success && result.data) {
               // Update address field
               setAddress(result.data.address)
+              
+              // First, validate that the address province matches the selected province
+              const addressProvince = result.data.province?.toUpperCase().trim()
+              const selectedProvinceCode = data.selectedProvince === 'toronto' ? 'ON' : data.selectedProvince === 'alberta' ? 'AB' : null
+              
+              if (selectedProvinceCode && addressProvince !== selectedProvinceCode && addressProvince !== (selectedProvinceCode === 'ON' ? 'ONTARIO' : 'ALBERTA')) {
+                // Address province doesn't match selected province
+                const expectedProvince = data.selectedProvince === 'toronto' ? 'Ontario' : 'Alberta'
+                setServiceAreaWarning(`Your location is not in ${expectedProvince}. Please enter an address in ${expectedProvince}.`)
+                setPendingData({
+                  address: result.data.address,
+                  coordinates: result.data.coordinates,
+                  city: result.data.city,
+                  province: result.data.province,
+                })
+                setLoadingLocation(false)
+                return
+              }
               
               // Validate service area
               const validation = validateServiceArea(
@@ -390,6 +443,24 @@ export function StepLocation({ data, onComplete }: StepLocationProps) {
       if (resp.ok) {
         const result = await resp.json()
         if (result.success && result.data) {
+          // First, validate that the address province matches the selected province
+          const addressProvince = result.data.province?.toUpperCase().trim()
+          const selectedProvinceCode = data.selectedProvince === 'toronto' ? 'ON' : data.selectedProvince === 'alberta' ? 'AB' : null
+          
+          if (selectedProvinceCode && addressProvince !== selectedProvinceCode && addressProvince !== (selectedProvinceCode === 'ON' ? 'ONTARIO' : 'ALBERTA')) {
+            // Address province doesn't match selected province
+            const expectedProvince = data.selectedProvince === 'toronto' ? 'Ontario' : 'Alberta'
+            setServiceAreaWarning(`The coordinates you entered are not in ${expectedProvince}. Please enter coordinates in ${expectedProvince}.`)
+            setPendingData({
+              address: result.data.address,
+              coordinates: { lat: parsedLat, lng: parsedLng },
+              city: result.data.city,
+              province: result.data.province,
+            })
+            setLoading(false)
+            return
+          }
+          
           // Validate IP country if province is available
           const ipValidation = await validateIPCountry(result.data.province)
           
