@@ -7,7 +7,7 @@ export async function POST(request: Request) {
   try {
     // Parse request body
     const body = await request.json()
-    const { monthlyBill } = body
+    const { monthlyBill, annualEscalator } = body
 
     // Validate input
     if (!monthlyBill || typeof monthlyBill !== 'number') {
@@ -26,7 +26,9 @@ export async function POST(request: Request) {
     }
 
     // Calculate estimate
-    const estimate = calculateQuickEstimate(monthlyBill)
+    const estimate = calculateQuickEstimate(monthlyBill, {
+      escalationPercent: typeof annualEscalator === 'number' ? annualEscalator : undefined,
+    })
 
     // Return results
     return NextResponse.json({

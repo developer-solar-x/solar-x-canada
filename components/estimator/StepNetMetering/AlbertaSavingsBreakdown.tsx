@@ -13,6 +13,7 @@ interface AlbertaSavingsBreakdownProps {
   systemSizeKw: number
   annualUsageKwh: number
   monthlyBill?: number
+  annualEscalator?: number // Percentage, e.g., 4.5
   onUpsizeSystem?: (newPanels: number) => void // Callback to update system size
   currentPanels?: number // Current number of panels
   hideInfoCallout?: boolean
@@ -21,7 +22,7 @@ interface AlbertaSavingsBreakdownProps {
   systemCost?: number // Total system cost for payback calculation
 }
 
-export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, monthlyBill, onUpsizeSystem, currentPanels, hideInfoCallout = false, hideRateSwitching = false, hideUpsizing = false, systemCost }: AlbertaSavingsBreakdownProps) {
+export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, monthlyBill, annualEscalator, onUpsizeSystem, currentPanels, hideInfoCallout = false, hideRateSwitching = false, hideUpsizing = false, systemCost }: AlbertaSavingsBreakdownProps) {
   const [expandedSection, setExpandedSection] = useState<'high' | 'low' | 'benefits' | null>('high')
   
   if (!result?.alberta) {
@@ -87,10 +88,10 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
   const estimatedAdditionalHighSeasonExports = estimatedAdditionalProduction * 0.6 * 0.5
   const estimatedAdditionalCredits = estimatedAdditionalHighSeasonExports * 0.33 // 33¢/kWh
   
-  // Calculate payback period with 4.5% annual electricity rate escalation
+  // Calculate payback period using provided annual escalator (fallback 4.5%)
   // As electricity costs rise each year, savings also increase, making payback shorter
   const totalSystemCost = systemCost || (systemSizeKw * 2500)
-  const escalationRate = 0.045 // 4.5% annual rate increase
+  const escalationRate = ((annualEscalator ?? 4.5) > 1 ? (annualEscalator ?? 4.5) / 100 : (annualEscalator ?? 0.045)) as number
   
   // Estimate solar and battery costs from total
   const estimatedSolarCost = systemSizeKw * 2500 // Rough estimate: $2500 per kW

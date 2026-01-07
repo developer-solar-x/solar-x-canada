@@ -221,9 +221,7 @@ export function InstallerIntakeForm({ onSubmit, onCancel }: InstallerIntakeFormP
     }
 
     if (section === 2) {
-      if (!formData.certifications.esa && !formData.certifications.provincial) {
-        newErrors.certifications = 'Please upload at least one certification (ESA/Provincial)'
-      }
+      // ESA / Provincial certifications are optional
       if (!formData.generalLiabilityCoverage.trim()) {
         newErrors.generalLiabilityCoverage = 'General liability coverage amount is required'
       }
@@ -586,20 +584,20 @@ export function InstallerIntakeForm({ onSubmit, onCancel }: InstallerIntakeFormP
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-3">
                   <Award size={16} className="inline mr-1" />
-                  Certifications <span className="text-maple-500">*</span>
+                  Certifications <span className="text-gray-400 text-xs">(optional)</span>
                 </label>
                 <p className="text-sm text-gray-600 mb-4">
                   Please upload copies of your certifications. Accepted formats: PDF, JPG, PNG (max 10MB per file)
                 </p>
 
                 <div className="space-y-4">
-                  {/* ESA / Provincial Electrical Certification */}
+                  {/* ESA / Provincial Electrical Certification (optional) */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      ESA / Provincial Electrical Certification <span className="text-maple-500">*</span>
+                      ESA / Provincial Electrical Certification <span className="text-gray-400 text-xs">(optional)</span>
                     </label>
                     <p className="text-xs text-gray-600 mb-2">
-                      Valid provincial electrical certification (ESA in Ontario, equivalent in other provinces)
+                      Optional: Provincial electrical certification (ESA in Ontario, or equivalent in other provinces)
                     </p>
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-forest-500 transition-colors">
                       <input
@@ -638,13 +636,13 @@ export function InstallerIntakeForm({ onSubmit, onCancel }: InstallerIntakeFormP
                     </div>
                   </div>
 
-                  {/* Other Provincial Certifications */}
+                  {/* Other Provincial Certifications (optional) */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Other Provincial Certifications
+                      Other Provincial Certifications <span className="text-gray-400 text-xs">(optional)</span>
                     </label>
                     <p className="text-xs text-gray-600 mb-2">
-                      Additional provincial or regional certifications
+                      Optional: Additional provincial or regional certifications
                     </p>
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-forest-500 transition-colors">
                       <input
@@ -792,9 +790,7 @@ export function InstallerIntakeForm({ onSubmit, onCancel }: InstallerIntakeFormP
                     </div>
                   </div>
                 </div>
-                {errors.certifications && (
-                  <p className="text-sm text-maple-500 mt-2">{errors.certifications}</p>
-                )}
+                {/* No errors for optional certifications */}
               </div>
 
               <div>

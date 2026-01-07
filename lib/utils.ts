@@ -34,7 +34,10 @@ export function formatKw(value: number): string {
 }
 
 // Calculate estimated system size based on monthly bill
-export function calculateQuickEstimate(monthlyBill: number) {
+export function calculateQuickEstimate(
+  monthlyBill: number,
+  options?: { escalationPercent?: number }
+) {
   // Ontario electricity rate average
   const avgElectricityRate = 0.134; // $/kWh
   // Solar production in Ontario
@@ -54,8 +57,11 @@ export function calculateQuickEstimate(monthlyBill: number) {
   // Calculate savings
   const annualSavings = monthlyBill * 12;
   
-  // Calculate payback period with 4.5% annual electricity rate escalation
-  const paybackYears = calculatePaybackWithEscalation(annualSavings, systemCost, 0.045);
+  // Calculate payback period with annual electricity rate escalation
+  // Use provided escalationPercent (can be percent like 4.5 or decimal like 0.045), default 4.5%
+  const escalatorPercent = typeof options?.escalationPercent === 'number' ? options.escalationPercent : 4.5
+  const escalationRate = escalatorPercent > 1 ? escalatorPercent / 100 : escalatorPercent
+  const paybackYears = calculatePaybackWithEscalation(annualSavings, systemCost, escalationRate);
   
   return {
     systemSize: Math.round(systemSize * 10) / 10,

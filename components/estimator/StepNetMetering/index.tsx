@@ -1856,6 +1856,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 result={selectedResult}
                 systemSizeKw={systemSizeKwOverride || estimate?.system?.sizeKw || 0}
                 annualUsageKwh={annualUsageKwh}
+                annualEscalator={typeof data.annualEscalator === 'number' ? data.annualEscalator : undefined}
                 monthlyBill={data.monthlyBill}
                 currentPanels={solarPanels}
                 systemCost={netCost}
