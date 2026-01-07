@@ -5,9 +5,9 @@
 // Left: Calculator inputs (usage, panels, rate plan)
 // Right: Results with donut chart
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
-import { ArrowLeft, ArrowRight, ArrowUp, Loader2, Zap, AlertTriangle, Info, Sun, Moon, BarChart3, DollarSign, TrendingUp, TrendingDown, Clock, Battery, Plus, X, ChevronDown, Sparkles, Leaf, CheckCircle, Lightbulb } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Loader2, Zap, AlertTriangle, Info, Sun, Moon, BarChart3, DollarSign, TrendingUp, TrendingDown, Clock, Battery, Plus, X, ChevronDown, Sparkles, Leaf } from 'lucide-react'
 import type { NetMeteringResult } from '@/lib/net-metering'
 import type { EstimatorData } from '@/app/estimator/page'
 import { DEFAULT_TOU_DISTRIBUTION, DEFAULT_ULO_DISTRIBUTION, type UsageDistribution, calculateSimpleMultiYear } from '@/lib/simple-peak-shaving'
@@ -47,23 +47,20 @@ function DonutChart({
       ? tieredOffset
       : touOffset
 
-  // Allow solar offset to exceed 100% to show credit (bill fully offset + credit)
-  const solarOffset = Math.max(0, rawSolarOffset)
+  // Clamp solar offset to 0–100 for rendering
+  const solarOffset = Math.max(0, Math.min(100, rawSolarOffset))
 
-  // Battery can add to the offset, even if solar already exceeds 100%
+  // Battery can only eat into the remaining headroom after solar.
   const rawBatteryPortion = Math.max(0, batterySavingsPercent)
-  // Allow battery to add beyond 100% if solar already exceeds 100%
-  const batteryPortion = rawBatteryPortion
+  const maxBatteryHeadroom = Math.max(0, 100 - solarOffset)
+  const batteryPortion = Math.min(rawBatteryPortion, maxBatteryHeadroom)
 
   const totalOffset = solarOffset + batteryPortion
-  // For visual representation, cap at 100% for the donut chart, but allow text to show actual value
+  // Cap display at 100% for visual representation, but keep actual value for text
   const displayTotalOffset = Math.min(100, totalOffset)
   const remaining = 100 - displayTotalOffset
   const circumference = 2 * Math.PI * 120
-  // Calculate battery arc length based on remaining headroom (only show if there's room in the visual)
-  const batteryArcLength = displayTotalOffset < 100 
-    ? (Math.min(batteryPortion, 100 - Math.min(100, solarOffset)) / 100) * circumference
-    : 0
+  const batteryArcLength = (batteryPortion / 100) * circumference
   
   return (
     <div className="relative w-64 h-64 mx-auto">
@@ -94,7 +91,7 @@ function DonutChart({
             strokeWidth="40"
             strokeDasharray={circumference}
             strokeDashoffset={
-              circumference - (Math.min(100, solarOffset) / 100) * circumference
+              circumference - (solarOffset / 100) * circumference
             }
             // Use a flat line cap so adjoining segments meet cleanly with no visual gap.
             strokeLinecap="butt"
@@ -102,7 +99,7 @@ function DonutChart({
           />
         )}
         {/* Battery savings circle – drawn on top of solar so it appears as a second segment */}
-        {batteryPortion > 0 && displayTotalOffset < 100 && (
+        {batteryPortion > 0 && (
           <circle
             cx="140"
             cy="140"
@@ -115,7 +112,7 @@ function DonutChart({
             // additional percentage contributed by the battery.
             strokeDasharray={`${batteryArcLength} ${circumference - batteryArcLength}`}
             strokeDashoffset={
-              circumference - (Math.min(100, solarOffset) / 100) * circumference
+              circumference - (solarOffset / 100) * circumference
             }
             strokeLinecap="butt"
             className="transition-all duration-700"
@@ -125,7 +122,7 @@ function DonutChart({
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <div className="text-center">
           <div className="text-4xl font-bold text-gray-800">
-            {totalOffset.toFixed(1)}%
+            {displayTotalOffset.toFixed(1)}%
           </div>
           <div className="text-sm text-gray-600 mt-1">
             {totalOffset >= 100 ? 'Bill Fully Offset' : 'Bill Offset'}
@@ -148,7 +145,6 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [localEstimate, setLocalEstimate] = useState<any>(null)
-  const [systemCost, setSystemCost] = useState<number | null>(null)
   
   // Check if province is Alberta - check multiple possible locations and make it reactive
   const isAlberta = useMemo(() => {
@@ -216,27 +212,10 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   const [showMonthlyBreakdown, setShowMonthlyBreakdown] = useState(false)
   const [selectedBatteries, setSelectedBatteries] = useState<string[]>([])
   // AI Optimization Mode - allows grid charging at cheap rates for both TOU and ULO
-  // For Alberta, batteries are storage-only (no grid arbitrage), so AI mode is disabled
-  const [aiMode, setAiMode] = useState(() => {
-    const province = data.province || data.estimate?.province || (data as any).location?.province || (data as any).address?.province || (data.address && extractProvinceFromAddress(data.address))
-    const isAlbertaProvince = province && (province.toUpperCase() === 'AB' || province.toUpperCase() === 'ALBERTA' || province.toUpperCase().includes('ALBERTA'))
-    return !isAlbertaProvince // Default to true for non-Alberta, false for Alberta
-  })
-  
-  // In quick estimate mode, net metering does not support battery
-  const isQuickEstimate = data.estimatorMode === 'easy'
-  const shouldShowBatterySelection = !isQuickEstimate
+  const [aiMode, setAiMode] = useState(true)
   
   // Fetch batteries from API (with fallback to static)
-  // Only fetch if battery selection is enabled (not in quick estimate mode)
   const { batteries: availableBatteries, refetch: refetchBatteries } = useBatteries(false)
-  
-  // Clear batteries if in quick estimate mode (net metering doesn't support battery in quick estimate)
-  useEffect(() => {
-    if (isQuickEstimate && selectedBatteries.length > 0) {
-      setSelectedBatteries([])
-    }
-  }, [isQuickEstimate, selectedBatteries.length])
 
   // Get production and usage data - use local estimate if available
   const estimate = localEstimate || data.estimate
@@ -245,51 +224,12 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   // Parse inputs (needed before useEffect)
   const annualUsageKwh = parseFloat(annualUsageInput) || 0
   
-  // Create a stable dependency key that only changes when roof-related data changes
-  // This prevents the dependency array from changing size between renders
-  const roofDataKey = useMemo(() => {
-    return JSON.stringify({
-      lat: data.coordinates?.lat,
-      lng: data.coordinates?.lng,
-      roofAreaSqft: data.roofAreaSqft,
-      roofType: data.roofType,
-      roofAge: data.roofAge,
-      roofPitch: data.roofPitch,
-      shadingLevel: data.shadingLevel,
-      roofAzimuth: data.roofAzimuth,
-      province: data.province,
-      programType: data.programType,
-      hasEstimate: !!data.estimate?.production?.monthlyKwh,
-      // Include roofPolygon hash (not full object to avoid large strings)
-      hasRoofPolygon: !!data.roofPolygon,
-    })
-  }, [
-    data.coordinates?.lat,
-    data.coordinates?.lng,
-    data.roofAreaSqft,
-    data.roofType,
-    data.roofAge,
-    data.roofPitch,
-    data.shadingLevel,
-    data.roofAzimuth,
-    data.province,
-    data.programType,
-    data.estimate?.production?.monthlyKwh,
-    data.roofPolygon,
-  ])
-
-  // Track if we've already fetched the initial estimate to prevent duplicate calls
-  const hasFetchedInitialEstimateRef = useRef(false)
-  const lastFetchedRoofDataRef = useRef<string | null>(null)
-  
   // Fetch estimate if missing (when component mounts or when coordinates/roof data changes)
   useEffect(() => {
     // If we already have an estimate with production data, use it
     if (data.estimate?.production?.monthlyKwh && data.estimate.production.monthlyKwh.length === 12) {
       if (!localEstimate || localEstimate !== data.estimate) {
         setLocalEstimate(data.estimate)
-        hasFetchedInitialEstimateRef.current = true
-        lastFetchedRoofDataRef.current = roofDataKey
       }
       return
     }
@@ -299,14 +239,6 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
       return
     }
 
-    // Skip if we already fetched for this roof data
-    if (lastFetchedRoofDataRef.current === roofDataKey && hasFetchedInitialEstimateRef.current) {
-      return
-    }
-
-    // Use existing system size from estimate if available, otherwise calculate from usage
-    // Note: annualUsageKwh is only used for initial sizing if no roof/system size exists
-    // Once we have a system size, it should not change when usage changes
     const calculatedUsage = annualUsageKwh || data.energyUsage?.annualKwh || data.annualUsageKwh || (data.monthlyBill ? (data.monthlyBill / BLENDED_RATE) * 12 : 0)
 
     const fetchEstimate = async () => {
@@ -331,8 +263,6 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             province: data.province || 'ON',
             roofAzimuth: data.roofAzimuth || 180,
             programType: data.programType || 'net_metering',
-            // Pass existing system size if available to prevent recalculation based on usage
-            overrideSystemSizeKw: data.estimate?.system?.sizeKw || undefined,
           }),
         })
 
@@ -345,8 +275,6 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
         
         if (result.data?.production?.monthlyKwh && result.data.production.monthlyKwh.length === 12) {
           setLocalEstimate(result.data)
-          hasFetchedInitialEstimateRef.current = true
-          lastFetchedRoofDataRef.current = roofDataKey
         } else {
           throw new Error('Invalid estimate data received - missing monthly production data')
         }
@@ -359,10 +287,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     }
 
     fetchEstimate()
-    // Remove annualUsageKwh and related usage fields from dependencies
-    // Solar production should only change when roof-related data changes, not usage
-    // Use stable roofDataKey to prevent dependency array size changes
-  }, [roofDataKey, data.estimate])
+  }, [data.coordinates, data.roofPolygon, data.roofAreaSqft, data.estimate, annualUsageKwh, data.energyUsage?.annualKwh, data.annualUsageKwh, data.monthlyBill])
 
   // Initialize solar panels from estimate when it becomes available
   useEffect(() => {
@@ -389,15 +314,9 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
 
   // Calculate payback period and 25-year profit for net metering
   const calculatePayback = (firstYearSavings: number, netCost: number, escalationRate: number): number => {
-    if (netCost <= 0) return 999 // If no cost, return very high number
-    if (firstYearSavings <= 0) {
-      // If savings are negative or zero, calculate how long it would take
-      // Use a simple linear approximation for very long payback periods
-      // If savings are negative, payback will never happen, but show a very high number
-      return 999
-    }
+    if (netCost <= 0 || firstYearSavings <= 0) return Infinity
     let cumulativeSavings = 0
-    for (let year = 1; year <= 100; year++) { // Extended to 100 years to catch very long paybacks
+    for (let year = 1; year <= 25; year++) {
       const yearSavings = firstYearSavings * Math.pow(1 + escalationRate, year - 1)
       cumulativeSavings += yearSavings
       if (cumulativeSavings >= netCost) {
@@ -408,22 +327,12 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
         return (year - 1) + fraction
       }
     }
-    // If not reached in 100 years, calculate approximate payback using geometric series
-    // For a geometric series: S = a * (r^n - 1) / (r - 1) where a = firstYearSavings, r = 1 + escalationRate
-    // Solve for n: netCost = firstYearSavings * ((1 + escalationRate)^n - 1) / escalationRate
-    if (escalationRate > 0) {
-      const r = 1 + escalationRate
-      const n = Math.log(1 + (netCost * escalationRate) / firstYearSavings) / Math.log(r)
-      return isFinite(n) && n > 0 ? n : 999
-    } else {
-      // No escalation, simple division
-      return netCost / firstYearSavings
-    }
+    return Infinity
   }
 
   // Get net cost and escalation rate
   // For net metering, include battery cost but NO rebates (net metering doesn't qualify for rebates)
-  const solarSystemCost = estimate?.costs?.systemCost || estimate?.costs?.totalCost || (effectiveSystemSizeKw * 2500)
+  const solarSystemCost = estimate?.costs?.systemCost || estimate?.costs?.totalCost || 0
   const solarRebate = 0 // Net metering doesn't qualify for rebates
       const batteryCost = selectedBatteries.length > 0
         ? selectedBatteries
@@ -441,22 +350,8 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   // Calculate metrics for selected plan
   // For Alberta, always use touResults (which contains Alberta data)
   const selectedResult = isAlberta ? touResults : (selectedPlan === 'ulo' ? uloResults : selectedPlan === 'tiered' ? tieredResults : touResults)
-  
-  // Include battery arbitrage savings when battery is selected (matches handleContinue logic)
-  const batteryArbitrageSavings = selectedResult?.annual?.batteryArbitrageSavings || 0
-  
-  // Get the calculated annual usage (same as used in API calls)
-  const calculatedUsage = annualUsageKwh || data.energyUsage?.annualKwh || data.annualUsageKwh || (data.monthlyBill ? (data.monthlyBill / 0.223) * 12 : 0)
-  
-  // For Alberta Solar Club, calculate savings using the correct baseline (6.89¢/kWh for all usage)
-  // For other provinces, use importCost as baseline (which is calculated using TOU/ULO/tiered rates)
-  const annualSavings = selectedResult 
-    ? isAlberta
-      ? (calculatedUsage * 0.0689) - selectedResult.annual.netAnnualBill + batteryArbitrageSavings // Baseline = annualUsageKwh × 6.89¢/kWh
-      : (selectedResult.annual.importCost - selectedResult.annual.netAnnualBill) + batteryArbitrageSavings
-    : 0
-  
-  const paybackYears = calculatePayback(annualSavings, netCost, escalation)
+  const annualSavings = selectedResult ? selectedResult.annual.importCost - selectedResult.annual.netAnnualBill : 0
+  const paybackYears = selectedResult && netCost > 0 ? calculatePayback(annualSavings, netCost, escalation) : Infinity
   const profit25 = selectedResult && netCost > 0 
     ? calculateSimpleMultiYear({ annualSavings } as any, netCost, escalation, 25).netProfit25Year
     : 0
@@ -608,11 +503,6 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   const isUloDistributionValid = Math.abs(uloTotalPercent - 100) <= 0.1
   const isTieredDistributionValid = Math.abs(tieredTotalPercent - 100) <= 0.1
 
-  // Track last fetched system size to prevent duplicate fetches
-  const lastFetchedSystemSizeRef = useRef<number | null>(null)
-  const isFetchingRef = useRef(false)
-  const lastFetchedEstimateKeyRef = useRef<string | null>(null)
-  
   // Fetch/regenerate estimate when panel count changes (only if user modifies it)
   useEffect(() => {
     // Skip if no coordinates or panels haven't been initialized
@@ -620,40 +510,17 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
       return
     }
     
-    // Check if we already fetched for this system size to prevent infinite loops
-    const currentSystemSize = systemSizeKwOverride || (solarPanels * 500) / 1000
-    if (lastFetchedSystemSizeRef.current === currentSystemSize || isFetchingRef.current) {
+    // Only fetch if we're overriding (different from original estimate)
+    const originalPanels = data.estimate?.system?.numPanels ?? 0
+    const isOverriding = solarPanels !== originalPanels
+    
+    if (!isOverriding) {
+      // Use existing estimate
       return
     }
     
-    // Check if current estimate already matches the desired system size
-    const currentEstimate = localEstimate || data.estimate
-    const estimatePanels = currentEstimate?.system?.numPanels || 0
-    const estimateSystemSize = currentEstimate?.system?.sizeKw || 0
-    const desiredPanels = solarPanels
-    
-    // Create a key for this estimate request to prevent duplicate calls
-    const estimateKey = `${roofDataKey}-${currentSystemSize}`
-    
-    // If we already fetched for this exact combination, skip
-    if (lastFetchedEstimateKeyRef.current === estimateKey) {
-      return
-    }
-    
-    // If estimate already matches, don't refetch
-    if (estimatePanels === desiredPanels && Math.abs(estimateSystemSize - currentSystemSize) < 0.1) {
-      lastFetchedSystemSizeRef.current = currentSystemSize
-      lastFetchedEstimateKeyRef.current = estimateKey
-      return
-    }
-    
-    // Always refetch estimate when system size changes (solarPanels or systemSizeKwOverride)
-    // This ensures annual production updates when user modifies system size
     const run = async () => {
-      if (isFetchingRef.current) return
-      
       try {
-        isFetchingRef.current = true
         setOverrideEstimateLoading(true)
         const resp = await fetch('/api/estimate', {
           method: 'POST',
@@ -671,28 +538,23 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             province: data.province || 'ON',
             roofAzimuth: data.roofAzimuth || 180,
             roofAreaSqft: data.roofAreaSqft,
-            programType: data.programType || 'net_metering',
             overrideSystemSizeKw: systemSizeKwOverride,
           }),
         })
         if (resp.ok) {
           const json = await resp.json()
           setLocalEstimate(json.data)
-          // Track that we fetched for this system size and roof data combination
-          lastFetchedSystemSizeRef.current = currentSystemSize
-          lastFetchedEstimateKeyRef.current = estimateKey
         }
       } catch (e) {
         console.warn('Override estimate failed', e)
       } finally {
-        isFetchingRef.current = false
         setOverrideEstimateLoading(false)
       }
     }
     
     const timeoutId = setTimeout(run, 500)
     return () => clearTimeout(timeoutId)
-  }, [solarPanels, systemSizeKwOverride, roofDataKey])
+  }, [solarPanels, systemSizeKwOverride, data.coordinates, data.roofPolygon, annualUsageKwh, data.estimate?.system?.numPanels])
 
   // For Alberta, run a single calculation instead of multiple plans
   useEffect(() => {
@@ -716,10 +578,11 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
         setError(null)
 
         const combinedBattery = selectedBatteries.length > 0
-          ? (selectedBatteries
+          ? selectedBatteries
               .map(id => availableBatteries.find(b => b.id === id))
-              .filter(Boolean) as BatterySpec[])
-              .reduce<BatterySpec | null>((combined, battery) => {
+              .filter((b): b is BatterySpec => b !== undefined)
+              .reduce<BatterySpec | null>((combined, battery, idx) => {
+                if (idx === 0) return battery
                 if (!combined) return battery
                 return {
                   ...combined,
@@ -728,14 +591,14 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                   model: `${combined.model}+${battery.model}`,
                   nominalKwh: combined.nominalKwh + battery.nominalKwh,
                   usableKwh: combined.usableKwh + battery.usableKwh,
+                  usablePercent: (combined.usablePercent + battery.usablePercent) / 2,
+                  roundTripEfficiency: (combined.roundTripEfficiency + battery.roundTripEfficiency) / 2,
                   inverterKw: Math.max(combined.inverterKw, battery.inverterKw),
                   price: combined.price + battery.price,
                   warranty: {
                     years: Math.min(combined.warranty.years, battery.warranty.years),
                     cycles: Math.min(combined.warranty.cycles, battery.warranty.cycles)
-                  },
-                  usablePercent: combined.usablePercent ?? battery.usablePercent ?? 0,
-                  roundTripEfficiency: combined.roundTripEfficiency ?? battery.roundTripEfficiency ?? 1
+                  }
                 }
               }, null)
           : null
@@ -750,7 +613,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             province: data.province,
             year: new Date().getFullYear(),
             ...(combinedBattery ? { battery: combinedBattery } : {}),
-            aiMode: isAlberta ? false : (aiMode && selectedBatteries.length > 0), // AI Mode disabled for Alberta (batteries are storage-only)
+            aiMode: aiMode && selectedBatteries.length > 0,
           }),
         })
 
@@ -777,57 +640,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     runAlbertaCalculation()
   }, [isAlberta, localEstimate, data.estimate, annualUsageKwh, data.energyUsage?.annualKwh, data.annualUsageKwh, selectedBatteries, aiMode, data.province])
 
-  // Create stable keys from estimate data to prevent unnecessary recalculations
-  const productionKey = useMemo(() => {
-    const currentEstimate = localEstimate || data.estimate
-    const monthlyProduction = currentEstimate?.production?.monthlyKwh || []
-    return monthlyProduction.length === 12 ? monthlyProduction.join(',') : null
-  }, [localEstimate?.production?.monthlyKwh, data.estimate?.production?.monthlyKwh])
-  
-  // Create stable keys from distribution objects to prevent unnecessary recalculations
-  const touDistributionKey = useMemo(() => {
-    return JSON.stringify(touDistribution)
-  }, [touDistribution.onPeakPercent, touDistribution.midPeakPercent, touDistribution.offPeakPercent])
-  
-  const uloDistributionKey = useMemo(() => {
-    return JSON.stringify(uloDistribution)
-  }, [uloDistribution.ultraLowPercent, uloDistribution.onPeakPercent, uloDistribution.midPeakPercent, uloDistribution.offPeakPercent])
-  
-  // Create stable key from selectedBatteries array
-  // Sort and join to create a stable string that only changes when IDs change
-  const batteriesKey = useMemo(() => {
-    if (selectedBatteries.length === 0) return ''
-    // Create a stable sorted string
-    const sorted = [...selectedBatteries].sort()
-    return sorted.join(',')
-  }, [selectedBatteries.length, selectedBatteries.toString()])
-  
-  // Track last calculated values to prevent duplicate calculations
-  const lastCalculatedRef = useRef<{
-    tou?: { productionKey: string; annualUsage: number; batteryIds: string; aiMode: boolean; distribution?: string }
-    ulo?: { productionKey: string; annualUsage: number; batteryIds: string; aiMode: boolean; distribution?: string }
-    tiered?: { productionKey: string; annualUsage: number; batteryIds: string; aiMode: boolean }
-  }>({})
-  
-  // Track if calculations are in progress to prevent concurrent calls
-  const calculatingRef = useRef<{ tou: boolean; ulo: boolean; tiered: boolean }>({
-    tou: false,
-    ulo: false,
-    tiered: false
-  })
-  
-  // Track last input keys to prevent duplicate calls
-  const lastInputKeysRef = useRef<{
-    tou?: string
-    ulo?: string
-    tiered?: string
-  }>({})
-
   // Shared helper to calculate net metering for a single plan.
-  // Store function in ref to avoid dependency issues
-  const runNetMeteringForPlanRef = useRef<((planId: 'tou' | 'ulo' | 'tiered') => Promise<void>) | null>(null)
-  
-  // Define the function and store it in ref
   const runNetMeteringForPlan = async (planId: 'tou' | 'ulo' | 'tiered') => {
     // Skip if Alberta (handled separately above)
     if (isAlberta) return
@@ -846,53 +659,24 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     if (planId === 'tou' && !isTouDistributionValid) return
     if (planId === 'ulo' && !isUloDistributionValid) return
 
-    // Prevent concurrent calculations for the same plan
-    if (calculatingRef.current[planId]) {
-      return
-    }
-
-    // Check if we already calculated with the same inputs
-    if (!productionKey) {
-      return // No valid production data
-    }
-    
-    // Get distribution for this plan (needed for both duplicate check and API call)
-      // Parse distribution from stable key
-      const distribution = planId === 'tou' 
-        ? touDistribution
-        : planId === 'ulo'
-        ? uloDistribution
-        : undefined
-    
-    const batteryIds = batteriesKey
-    const distributionKey = planId === 'tou' 
-      ? touDistributionKey
-      : planId === 'ulo'
-      ? uloDistributionKey
-      : undefined
-    const lastCalc = lastCalculatedRef.current[planId]
-    
-    if (lastCalc && 
-        lastCalc.productionKey === productionKey &&
-        lastCalc.annualUsage === annualUsageKwh &&
-        lastCalc.batteryIds === batteryIds &&
-        lastCalc.aiMode === (aiMode && selectedBatteries.length > 0) &&
-        (planId === 'tiered' || lastCalc.distribution === distributionKey)) {
-      // Already calculated with same inputs, skip
-      return
-    }
-
     try {
-      calculatingRef.current[planId] = true
       setLoading(true)
       setError(null)
+
+      const distribution =
+        planId === 'ulo'
+          ? uloDistribution
+          : planId === 'tou'
+          ? touDistribution
+          : undefined
       
       // Get combined battery if batteries are selected
       const combinedBattery = selectedBatteries.length > 0
-        ? (selectedBatteries
+        ? selectedBatteries
             .map(id => availableBatteries.find(b => b.id === id))
-            .filter(Boolean) as BatterySpec[])
-            .reduce<BatterySpec | null>((combined, battery) => {
+            .filter((b): b is BatterySpec => b !== undefined)
+            .reduce<BatterySpec | null>((combined, battery, idx) => {
+              if (idx === 0) return battery
               if (!combined) return battery
               return {
                 ...combined,
@@ -901,14 +685,14 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 model: `${combined.model}+${battery.model}`,
                 nominalKwh: combined.nominalKwh + battery.nominalKwh,
                 usableKwh: combined.usableKwh + battery.usableKwh,
+                usablePercent: (combined.usablePercent + battery.usablePercent) / 2,
+                roundTripEfficiency: (combined.roundTripEfficiency + battery.roundTripEfficiency) / 2,
                 inverterKw: Math.max(combined.inverterKw, battery.inverterKw),
                 price: combined.price + battery.price,
                 warranty: {
                   years: Math.min(combined.warranty.years, battery.warranty.years),
                   cycles: Math.min(combined.warranty.cycles, battery.warranty.cycles)
-                },
-                usablePercent: combined.usablePercent ?? battery.usablePercent ?? 0,
-                roundTripEfficiency: combined.roundTripEfficiency ?? battery.roundTripEfficiency ?? 1
+                }
               }
             }, null)
         : null
@@ -926,7 +710,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
           // actually have a configurable distribution.
           ...(distribution ? { usageDistribution: distribution } : {}),
           ...(combinedBattery ? { battery: combinedBattery } : {}),
-          aiMode: isAlberta ? false : (aiMode && selectedBatteries.length > 0), // AI Mode disabled for Alberta (batteries are storage-only)
+          aiMode: aiMode && selectedBatteries.length > 0, // Only enable if battery is selected
         }),
       })
 
@@ -935,15 +719,6 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
       }
 
       const result = await response.json()
-      
-      // Track that we calculated with these inputs
-      lastCalculatedRef.current[planId] = {
-        productionKey,
-        annualUsage: annualUsageKwh,
-        batteryIds,
-        aiMode: isAlberta ? false : (aiMode && selectedBatteries.length > 0), // AI Mode disabled for Alberta (batteries are storage-only)
-        ...(distributionKey ? { distribution: distributionKey } : {})
-      }
       
       if (planId === 'tou') {
         setTouResults(result.data)
@@ -956,46 +731,24 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
       console.error('Net metering calculation error:', err)
       setError(err instanceof Error ? err.message : 'Failed to calculate net metering')
     } finally {
-      calculatingRef.current[planId] = false
       setLoading(false)
     }
   }
-  
-  // Store function in ref so it's always the latest version
-  runNetMeteringForPlanRef.current = runNetMeteringForPlan
 
-  // Single effect to handle all three plans - only runs when inputs actually change
+  // TOU net metering – only depends on TOU inputs.
   useEffect(() => {
-    // Skip if no valid production data
-    if (!productionKey || annualUsageKwh <= 0) return
-    
-    // Create comprehensive input keys for each plan
-    const touInputKey = `${productionKey}-${annualUsageKwh}-${touDistributionKey}-${batteriesKey}-${aiMode}`
-    const uloInputKey = `${productionKey}-${annualUsageKwh}-${uloDistributionKey}-${batteriesKey}-${aiMode}`
-    const tieredInputKey = `${productionKey}-${annualUsageKwh}-${batteriesKey}-${aiMode}`
-    
-    // Only calculate if inputs have changed AND validation passes
-    if (isTouDistributionValid && lastInputKeysRef.current.tou !== touInputKey) {
-      lastInputKeysRef.current.tou = touInputKey
-      if (runNetMeteringForPlanRef.current) {
-        runNetMeteringForPlanRef.current('tou')
-      }
-    }
-    
-    if (isUloDistributionValid && lastInputKeysRef.current.ulo !== uloInputKey) {
-      lastInputKeysRef.current.ulo = uloInputKey
-      if (runNetMeteringForPlanRef.current) {
-        runNetMeteringForPlanRef.current('ulo')
-      }
-    }
-    
-    if (lastInputKeysRef.current.tiered !== tieredInputKey) {
-      lastInputKeysRef.current.tiered = tieredInputKey
-      if (runNetMeteringForPlanRef.current) {
-        runNetMeteringForPlanRef.current('tiered')
-      }
-    }
-  }, [productionKey, annualUsageKwh, touDistributionKey, uloDistributionKey, batteriesKey, aiMode, isTouDistributionValid, isUloDistributionValid])
+    void runNetMeteringForPlan('tou')
+  }, [localEstimate, data.estimate, annualUsageKwh, touDistribution, isTouDistributionValid, selectedBatteries, aiMode])
+
+  // ULO net metering – only depends on ULO inputs.
+  useEffect(() => {
+    void runNetMeteringForPlan('ulo')
+  }, [localEstimate, data.estimate, annualUsageKwh, uloDistribution, isUloDistributionValid, selectedBatteries, aiMode])
+
+  // Tiered net metering – independent of TOU/ULO distributions.
+  useEffect(() => {
+    void runNetMeteringForPlan('tiered')
+  }, [localEstimate, data.estimate, annualUsageKwh])
 
   const handleContinue = () => {
     if (!touResults || !uloResults || !tieredResults) {
@@ -1023,32 +776,13 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     const currentNetCost = currentSolarSystemCost + currentBatteryCost - currentSolarRebate - currentBatteryRebate
     const currentEscalation = escalatorPercent > 1 ? escalatorPercent / 100 : (escalation || 0.03)
     
-    // Calculate annual savings: baseline cost - net bill + battery arbitrage savings
-    // Battery arbitrage savings are already included in the net metering calculation
-    // but we need to add them explicitly to ensure they're counted
-    const touBatterySavings = touResults.annual.batteryArbitrageSavings || 0
-    const uloBatterySavings = uloResults.annual.batteryArbitrageSavings || 0
-    const tieredBatterySavings = tieredResults.annual.batteryArbitrageSavings || 0
+    const touAnnualSavings = touResults.annual.importCost - touResults.annual.netAnnualBill
+    const uloAnnualSavings = uloResults.annual.importCost - uloResults.annual.netAnnualBill
+    const tieredAnnualSavings = tieredResults.annual.importCost - tieredResults.annual.netAnnualBill
     
-    // Get the calculated annual usage (same as used in API calls)
-    const calculatedUsageForSavings = annualUsageKwh || data.energyUsage?.annualKwh || data.annualUsageKwh || (data.monthlyBill ? (data.monthlyBill / 0.223) * 12 : 0)
-    
-    // For Alberta Solar Club, use the correct baseline (6.89¢/kWh for all usage)
-    // For other provinces, use importCost as baseline (calculated using TOU/ULO/tiered rates)
-    const isAlbertaProvince = data.province && (data.province.toUpperCase() === 'AB' || data.province.toUpperCase() === 'ALBERTA' || data.province.toUpperCase().includes('ALBERTA'))
-    const touAnnualSavings = isAlbertaProvince
-      ? (calculatedUsageForSavings * 0.0689) - touResults.annual.netAnnualBill + touBatterySavings
-      : (touResults.annual.importCost - touResults.annual.netAnnualBill) + touBatterySavings
-    const uloAnnualSavings = isAlbertaProvince
-      ? (calculatedUsageForSavings * 0.0689) - uloResults.annual.netAnnualBill + uloBatterySavings
-      : (uloResults.annual.importCost - uloResults.annual.netAnnualBill) + uloBatterySavings
-    const tieredAnnualSavings = isAlbertaProvince
-      ? (calculatedUsageForSavings * 0.0689) - tieredResults.annual.netAnnualBill + tieredBatterySavings
-      : (tieredResults.annual.importCost - tieredResults.annual.netAnnualBill) + tieredBatterySavings
-    
-    const touPaybackYears = calculatePayback(touAnnualSavings, currentNetCost, currentEscalation)
-    const uloPaybackYears = calculatePayback(uloAnnualSavings, currentNetCost, currentEscalation)
-    const tieredPaybackYears = calculatePayback(tieredAnnualSavings, currentNetCost, currentEscalation)
+    const touPaybackYears = currentNetCost > 0 ? calculatePayback(touAnnualSavings, currentNetCost, currentEscalation) : Infinity
+    const uloPaybackYears = currentNetCost > 0 ? calculatePayback(uloAnnualSavings, currentNetCost, currentEscalation) : Infinity
+    const tieredPaybackYears = currentNetCost > 0 ? calculatePayback(tieredAnnualSavings, currentNetCost, currentEscalation) : Infinity
     
     const touProfit25 = currentNetCost > 0 
       ? calculateSimpleMultiYear({ annualSavings: touAnnualSavings } as any, currentNetCost, currentEscalation, 25).netProfit25Year
@@ -1069,7 +803,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
         tou: {
           ...touResults,
           projection: {
-            paybackYears: touPaybackYears,
+            paybackYears: touPaybackYears === Infinity ? null : touPaybackYears,
             netProfit25Year: touProfit25,
             annualSavings: touAnnualSavings,
           }
@@ -1077,7 +811,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
         ulo: {
           ...uloResults,
           projection: {
-            paybackYears: uloPaybackYears,
+            paybackYears: uloPaybackYears === Infinity ? null : uloPaybackYears,
             netProfit25Year: uloProfit25,
             annualSavings: uloAnnualSavings,
           }
@@ -1085,7 +819,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
         tiered: {
           ...tieredResults,
           projection: {
-            paybackYears: tieredPaybackYears,
+            paybackYears: tieredPaybackYears === Infinity ? null : tieredPaybackYears,
             netProfit25Year: tieredProfit25,
             annualSavings: tieredAnnualSavings,
           }
@@ -1120,8 +854,6 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             ...stepData,
             email,
             selectedBatteries, // Include battery selection
-            // Ensure province is explicitly included for Alberta Solar Club detection
-            province: data.province || data.address?.province || '',
           },
           currentStep: 4, // Net Metering Savings step (mirrors Battery step index)
         }),
@@ -1255,77 +987,78 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                         </div>
                         </div>
 
-
                     {/* Rate Plan Selection - Show Solar Club rates for Alberta, otherwise show TOU/ULO/Tiered */}
                     {isAlberta ? (
                       <div>
-                        <label className="block text-base md:text-lg font-semibold text-gray-700 mb-3">
+                        <label className="block text-base md:text-lg font-semibold text-gray-700 mb-2">
                           Solar Club Alberta Rates
                         </label>
-                        
-                        {/* Visual Season Timeline */}
-                        <div className="bg-white border-2 border-gray-200 rounded-lg p-4 mb-3 shadow-sm relative overflow-visible">
-                          <div className="flex items-center h-16 rounded-lg overflow-visible">
-                            {/* Low Production Season (Oct-Mar) */}
-                            <div className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 h-full flex items-center justify-center relative group overflow-visible">
-                              <div className="text-center text-white z-10">
-                                <div className="text-xs font-semibold mb-0.5">Winter Rate</div>
-                                <div className="text-lg font-bold">6.89¢/kWh</div>
-                                <div className="text-[10px] opacity-90">Buy Low</div>
+                        <div className="space-y-3">
+                          {/* Low Production Solar Rate */}
+                          <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-2 border-blue-300 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <div>
+                                <div className="font-bold text-blue-900 text-lg">LOW PRODUCTION SOLAR RATE</div>
+                                <div className="text-2xl font-bold text-blue-600 mt-1">6.89¢/kWh</div>
                               </div>
-                              <div className="absolute top-2 right-2 z-50">
-                                <InfoTooltip
-                                  content="Low Production Season (Oct-Mar): Pay a lower rate for electricity you consume or use your banked credits to offset your bill. Includes 3% Cash Back and Carbon Offset Credit Platform."
-                                  iconSize={14}
-                                />
+                              <TrendingDown className="text-blue-600" size={32} />
                             </div>
-                              </div>
-                            
-                            {/* Divider */}
-                            <div className="w-1 bg-white h-full z-10 relative"></div>
-                            
-                            {/* High Production Season (Apr-Sep) */}
-                            <div className="flex-1 bg-gradient-to-r from-amber-500 to-orange-500 h-full flex items-center justify-center relative group overflow-visible">
-                              <div className="text-center text-white z-10">
-                                <div className="text-xs font-semibold mb-0.5">Summer Rate</div>
-                                <div className="text-lg font-bold">33.00¢/kWh</div>
-                                <div className="text-[10px] opacity-90">Sell High</div>
-                              </div>
-                              <div className="absolute top-2 right-2 z-50">
-                                <InfoTooltip
-                                  content="High Production Season (Apr-Sep): Earn and bank credits on electricity you export to use against future bills. Includes 3% Cash Back and Carbon Offset Credit Platform."
-                                  iconSize={14}
-                                />
-                            </div>
-                          </div>
-                              </div>
-                          
-                          {/* Month labels */}
-                          <div className="flex justify-between mt-2 text-xs text-gray-600">
+                            <p className="text-sm text-blue-800 mb-3">
+                              Designed for low production seasons when you consume more electricity than your array produces.
+                            </p>
+                            <p className="text-xs text-blue-700">
+                              Pay a lower rate for the electricity you consume or use your banked credits to offset your bill.
+                            </p>
+                            <div className="mt-3 pt-3 border-t border-blue-300 flex items-center gap-4 text-xs text-blue-700">
                               <div className="flex items-center gap-1">
-                              <div className="w-3 h-3 bg-blue-500 rounded"></div>
-                              <span>Oct-Mar</span>
+                                <DollarSign size={14} />
+                                <span>3% Cash Back</span>
                               </div>
                               <div className="flex items-center gap-1">
-                              <div className="w-3 h-3 bg-amber-500 rounded"></div>
-                              <span>Apr-Sep</span>
+                                <Leaf size={14} />
+                                <span>Carbon Offset Credit Platform</span>
                               </div>
                             </div>
                           </div>
 
-                        {/* How it works - Collapsible */}
-                        <details className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                          <summary className="text-xs font-semibold text-blue-900 cursor-pointer flex items-center gap-2">
-                            <Info size={14} />
-                            How it works
-                          </summary>
-                          <p className="text-xs text-blue-800 mt-2 pl-5">
-                            You can switch between these rates with 10 days notice. Use the high rate (33¢/kWh) during 
-                            spring/summer when production is high, and switch to the low rate (6.89¢/kWh) during 
-                            fall/winter when you consume more than you produce. Both rates include 3% Cash Back and 
-                            Carbon Offset Credit Platform benefits.
-                          </p>
-                        </details>
+                          {/* High Production Solar Rate */}
+                          <div className="bg-gradient-to-r from-amber-50 to-orange-100 border-2 border-amber-300 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <div>
+                                <div className="font-bold text-amber-900 text-lg">HIGH PRODUCTION SOLAR RATE</div>
+                                <div className="text-2xl font-bold text-amber-600 mt-1">33.00¢/kWh</div>
+                              </div>
+                              <TrendingUp className="text-amber-600" size={32} />
+                            </div>
+                            <p className="text-sm text-amber-800 mb-3">
+                              Designed for high production seasons when your array produces more electricity than you consume.
+                            </p>
+                            <p className="text-xs text-amber-700">
+                              Allows you to earn and bank credits on the electricity you export to use against future bills.
+                            </p>
+                            <div className="mt-3 pt-3 border-t border-amber-300 flex items-center gap-4 text-xs text-amber-700">
+                              <div className="flex items-center gap-1">
+                                <DollarSign size={14} />
+                                <span>3% Cash Back</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Leaf size={14} />
+                                <span>Carbon Offset Credit Platform</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+                            <div className="flex items-start gap-2">
+                              <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
+                              <p className="text-xs text-blue-800">
+                                <strong>How it works:</strong> You can switch between these rates with 10 days notice. 
+                                Use the high rate (33¢/kWh) during spring/summer when production is high, and switch to 
+                                the low rate (6.89¢/kWh) during fall/winter when you consume more than you produce.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     ) : (
                       <div>
@@ -1371,8 +1104,6 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                     )}
 
                     {/* Battery Selection (Optional - No Rebates) */}
-                    {/* Hide battery selection in quick estimate mode - net metering doesn't support battery in quick estimate */}
-                    {shouldShowBatterySelection && (
                     <div className="pt-4 border-t border-gray-200">
                       <h3 className="text-base font-bold text-gray-800 mb-3 flex items-center gap-2">
                         <Battery className="text-emerald-600" size={18} />
@@ -1456,8 +1187,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                               </div>
                             </div>
 
-                            {/* AI Optimization Mode Toggle - Hidden for Alberta (batteries are storage-only) */}
-                            {!isAlberta && (
+                            {/* AI Optimization Mode Toggle */}
                             <div className="mt-4 pt-4 border-t-2 border-gray-200">
                               <div className="flex items-center justify-between mb-3">
                                 <label className="block text-base md:text-lg font-semibold text-gray-700 flex items-center gap-2">
@@ -1526,12 +1256,10 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                                 </div>
                               )}
                             </div>
-                            )}
                           </>
                         )}
                                 </div>
-                    </div>
-                    )}
+                                </div>
               </>
             )}
 
@@ -1781,233 +1509,96 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             </div>
             </div>
 
-            {/* Alberta-Specific Informational Cards - Left Column */}
-            {!hasErrors && selectedResult && isAlberta && (selectedResult as any)?.alberta && (() => {
-              const annual = selectedResult.annual
-              
-              // Calculate upsizing suggestion data
-              const energyCoverage = annual.totalLoad > 0 ? (annual.totalSolarProduction / annual.totalLoad) * 100 : 0
-              const currentSystemSizeKw = systemSizeKwOverride || estimate?.system?.sizeKw || 0
-              const currentPanelsCount = solarPanels || estimate?.system?.numPanels || Math.round((currentSystemSizeKw * 1000) / 500)
-              const isUndersized = energyCoverage < 100 && annual.totalSolarProduction < annualUsageKwh
-              const suggestedUpsizePanels = isUndersized ? Math.ceil(currentPanelsCount * 1.2) : null
-              const suggestedUpsizeKw = suggestedUpsizePanels ? (suggestedUpsizePanels * 500) / 1000 : null
-              const estimatedAdditionalProduction = suggestedUpsizeKw && currentSystemSizeKw > 0
-                ? (suggestedUpsizeKw - currentSystemSizeKw) * (annual.totalSolarProduction / currentSystemSizeKw)
-                : 0
-              const estimatedAdditionalHighSeasonExports = estimatedAdditionalProduction * 0.6 * 0.5
-              const estimatedAdditionalCredits = estimatedAdditionalHighSeasonExports * 0.33
-              
-              return (
-                <>
-                  {/* Alberta-Optimized Calculator Callout */}
-                  <div className="bg-gradient-to-r from-blue-50 to-sky-50 border-2 border-blue-300 rounded-xl p-4 shadow-md">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 bg-blue-500 rounded-lg flex-shrink-0">
-                        <Info className="text-white" size={20} />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-blue-900 mb-1">Alberta-Optimized Calculator</h4>
-                        <p className="text-sm text-blue-800">
-                          Unlike generic calculators, this model includes Alberta Solar Club seasonal rates (33¢/kWh export, 6.89¢/kWh import), 
-                          credit banking, month-to-month rollover, and local weather patterns.
-                        </p>
-                      </div>
-                    </div>
-                      </div>
-
-                  {/* Rate Switching Reminder */}
-                  <div className="bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-300 rounded-xl p-5 shadow-md">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 bg-orange-500 rounded-lg flex-shrink-0">
-                        <AlertTriangle className="text-white" size={20} />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-bold text-orange-900 mb-2">Important: Rate Switching Required</h4>
-                        <p className="text-sm text-orange-800 mb-3">
-                          <strong>These savings assume you switch to the high export rate in April and low import rate in October.</strong> 
-                          Solar Club Alberta requires manual rate changes to maximize your benefits.
-                        </p>
-                        <div className="bg-white rounded-lg p-3 border border-orange-200">
-                          <div className="text-xs text-orange-900 space-y-1">
-                            <div className="flex justify-between items-center">
-                              <span><strong>High Production Season (Apr-Sep):</strong></span>
-                              <span className="text-emerald-600 font-semibold">Switch to 33¢/kWh export rate</span>
-                    </div>
-                            <div className="flex justify-between items-center">
-                              <span><strong>Low Production Season (Oct-Mar):</strong></span>
-                              <span className="text-blue-600 font-semibold">Switch to 6.89¢/kWh import rate</span>
-                      </div>
-                            <div className="mt-2 pt-2 border-t border-orange-200 text-red-600 font-semibold">
-                              ⚠️ Forgetting to switch could reduce your savings by $300-500/year
-                      </div>
-                    </div>
-                      </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Upsizing Suggestion */}
-                  {isUndersized && suggestedUpsizePanels && (
-                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl p-6 shadow-lg">
-                      <div className="flex items-start gap-3 mb-4">
-                        <div className="p-2 bg-blue-500 rounded-lg flex-shrink-0">
-                          <Lightbulb className="text-white" size={24} />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="text-lg font-bold text-blue-900 mb-1">Consider Sizing Up Your System</h4>
-                          <p className="text-sm text-blue-700 mb-3">
-                            Your system covers {energyCoverage.toFixed(1)}% of your usage. With Alberta Solar Club's premium export rate (33¢/kWh), 
-                            a larger system could generate more export credits during high production months.
-                          </p>
-                          
-                          <div className="bg-white rounded-lg p-4 border border-blue-200 mb-4">
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <div className="text-xs text-blue-700 mb-1">Current System</div>
-                                <div className="text-lg font-bold text-gray-800">{currentSystemSizeKw.toFixed(1)} kW</div>
-                                <div className="text-xs text-gray-600">{currentPanelsCount} panels</div>
-                              </div>
-                              <div>
-                                <div className="text-xs text-blue-700 mb-1">Suggested Size</div>
-                                <div className="text-lg font-bold text-blue-600">{suggestedUpsizeKw?.toFixed(1)} kW</div>
-                                <div className="text-xs text-gray-600">{suggestedUpsizePanels} panels (+{suggestedUpsizePanels - currentPanelsCount})</div>
-                              </div>
-                            </div>
-                            
-                            {estimatedAdditionalCredits > 0 && (
-                              <div className="mt-3 pt-3 border-t border-blue-200">
-                                <div className="text-xs text-blue-700 mb-1">Estimated Additional Annual Credits</div>
-                                <div className="text-xl font-bold text-emerald-600">
-                                  +{formatCurrency(estimatedAdditionalCredits)}
-                                </div>
-                                <div className="text-xs text-gray-600 mt-1">
-                                  From extra exports at 33¢/kWh during high production months
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                          
-                          <button
-                            onClick={() => {
-                              setSolarPanels(suggestedUpsizePanels)
-                            }}
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                          >
-                            <ArrowUp size={18} />
-                            Try {suggestedUpsizePanels} Panels ({suggestedUpsizeKw?.toFixed(1)} kW)
-                          </button>
-                          
-                          <div className="mt-3 flex items-start gap-2 text-xs text-blue-700 bg-blue-50 rounded-lg p-3 border border-blue-200">
-                            <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
-                            <span>
-                              Upsizing helps maximize export credits at the premium 33¢/kWh rate. The extra cost is offset by 
-                              increased credits during spring/summer months, which can be banked for winter.
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )
-            })()}
-
             {/* Key Financial Metrics - Under Calculator Inputs */}
-            {!hasErrors && selectedResult && !isAlberta && (
+            {!hasErrors && selectedResult && netCost > 0 && (
               <div className="bg-white rounded-xl shadow-md border-2 border-gray-200 p-6">
                 <h2 className="text-2xl font-bold text-gray-800 mb-4">Key Financial Metrics</h2>
                 
-                {netCost > 0 && (
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Payback Period */}
-                      <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Clock className="text-blue-600" size={20} />
-                          <div className="text-xs text-blue-700 font-semibold flex items-center gap-1">
-                            Payback Period
-                            <button
-                              onClick={() => setOpenModal('payback')}
-                              className="text-blue-600 hover:text-blue-800 transition-colors"
-                              aria-label="Learn more about payback period"
-                            >
-                              <Info size={14} />
-                            </button>
-                          </div>
-                        </div>
-                        <div className="text-2xl font-bold text-blue-900">
-                          {paybackYears.toFixed(1)} yrs
-                        </div>
-                        <div className="text-xs text-gray-600 mt-1">Time to recover investment</div>
-                      </div>
-
-                      {/* 25-Year Profit */}
-                      <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <TrendingUp className="text-green-600" size={20} />
-                          <div className="text-xs text-green-700 font-semibold flex items-center gap-1">
-                            25-Year Profit
-                            <button
-                              onClick={() => setOpenModal('profit')}
-                              className="text-green-600 hover:text-green-800 transition-colors"
-                              aria-label="Learn more about 25-year profit"
-                            >
-                              <Info size={14} />
-                            </button>
-                          </div>
-                        </div>
-                        <div className={`text-2xl font-bold ${profit25 >= 0 ? 'text-green-900' : 'text-gray-700'}`}>
-                          {profit25 >= 0 ? '+' : ''}{formatCurrency(Math.round(profit25))}
-                        </div>
-                        <div className="text-xs text-gray-600 mt-1">Total profit after payback</div>
-                      </div>
-
-                      {/* Annual Credits */}
-                      <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <DollarSign className="text-emerald-600" size={20} />
-                          <div className="text-xs text-emerald-700 font-semibold flex items-center gap-1">
-                            Annual Credits
-                            <button
-                              onClick={() => setOpenModal('credits')}
-                              className="text-emerald-600 hover:text-emerald-800 transition-colors"
-                              aria-label="Learn more about annual credits"
-                            >
-                              <Info size={14} />
-                            </button>
-                          </div>
-                        </div>
-                        <div className="text-2xl font-bold text-emerald-900">
-                          ${selectedResult.annual.exportCredits.toFixed(0)}
-                        </div>
-                        <div className="text-xs text-gray-600 mt-1">From exported solar</div>
-                      </div>
-
-                      {/* Energy Coverage */}
-                      <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Zap className="text-amber-600" size={20} />
-                          <div className="text-xs text-amber-700 font-semibold flex items-center gap-1">
-                            Energy Coverage
-                            <button
-                              onClick={() => setOpenModal('coverage')}
-                              className="text-amber-600 hover:text-amber-800 transition-colors"
-                              aria-label="Learn more about energy coverage"
-                            >
-                              <Info size={14} />
-                            </button>
-                          </div>
-                        </div>
-                        <div className="text-2xl font-bold text-amber-900">
-                          {(() => {
-                            const coverage = (selectedResult.annual.totalSolarProduction / selectedResult.annual.totalLoad) * 100
-                            return coverage.toFixed(1)
-                          })()}%
-                        </div>
-                        <div className="text-xs text-gray-600 mt-1">Of your usage from solar</div>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Payback Period */}
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="text-blue-600" size={20} />
+                      <div className="text-xs text-blue-700 font-semibold flex items-center gap-1">
+                        Payback Period
+                        <button
+                          onClick={() => setOpenModal('payback')}
+                          className="text-blue-600 hover:text-blue-800 transition-colors"
+                          aria-label="Learn more about payback period"
+                        >
+                          <Info size={14} />
+                        </button>
                       </div>
                     </div>
-                )}
+                    <div className="text-2xl font-bold text-blue-900">
+                      {paybackYears === Infinity ? 'N/A' : `${paybackYears.toFixed(1)} yrs`}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Time to recover investment</div>
+                  </div>
+
+                  {/* 25-Year Profit */}
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingUp className="text-green-600" size={20} />
+                      <div className="text-xs text-green-700 font-semibold flex items-center gap-1">
+                        25-Year Profit
+                        <button
+                          onClick={() => setOpenModal('profit')}
+                          className="text-green-600 hover:text-green-800 transition-colors"
+                          aria-label="Learn more about 25-year profit"
+                        >
+                          <Info size={14} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className={`text-2xl font-bold ${profit25 >= 0 ? 'text-green-900' : 'text-gray-700'}`}>
+                      {profit25 >= 0 ? '+' : ''}{formatCurrency(Math.round(profit25))}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Total profit after payback</div>
+                  </div>
+
+                  {/* Annual Credits */}
+                  <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <DollarSign className="text-emerald-600" size={20} />
+                      <div className="text-xs text-emerald-700 font-semibold flex items-center gap-1">
+                        Annual Credits
+                        <button
+                          onClick={() => setOpenModal('credits')}
+                          className="text-emerald-600 hover:text-emerald-800 transition-colors"
+                          aria-label="Learn more about annual credits"
+                        >
+                          <Info size={14} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="text-2xl font-bold text-emerald-900">
+                      ${selectedResult.annual.exportCredits.toFixed(0)}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">From exported solar</div>
+                  </div>
+
+                  {/* Energy Coverage */}
+                  <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Zap className="text-amber-600" size={20} />
+                      <div className="text-xs text-amber-700 font-semibold flex items-center gap-1">
+                        Energy Coverage
+                        <button
+                          onClick={() => setOpenModal('coverage')}
+                          className="text-amber-600 hover:text-amber-800 transition-colors"
+                          aria-label="Learn more about energy coverage"
+                        >
+                          <Info size={14} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="text-2xl font-bold text-amber-900">
+                      {((selectedResult.annual.totalSolarProduction / selectedResult.annual.totalLoad) * 100).toFixed(1)}%
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Of your usage from solar</div>
+                  </div>
+                </div>
 
                 {/* Electricity rate & savings disclaimer */}
                 <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -2024,332 +1615,166 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             <Modal
               isOpen={openModal === 'payback'}
               onClose={() => setOpenModal(null)}
-              title="Understanding Your Payback Period"
-              message="See how long it takes for your solar system to pay for itself through net metering savings."
+              title="Payback Period"
+              message="The payback period is the time it takes for your solar system savings to equal the initial investment cost."
               variant="info"
               cancelText="Close"
             >
-              <div className="space-y-4">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <h3 className="font-semibold text-blue-900 mb-2">What Is Payback Period?</h3>
-                  <p className="text-sm text-blue-800">
-                    Your payback period is how long it takes for your net metering savings to equal what you paid for the system. Once you reach this point, your system has fully paid for itself, and everything after that is pure profit.
+              <p className="mb-3">
+                This calculation accounts for:
               </p>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">How We Calculate It</h3>
-                  <div className="space-y-3 text-sm text-gray-700">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-blue-700 font-bold text-sm">1</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold">Your Investment:</span> {formatCurrency(netCost)} (system cost - note: net metering doesn't qualify for rebates)
-                      </div>
-                    </div>
+              <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 ml-2">
+                <li>
+                  <span className="font-semibold">Net investment</span> (system cost with no rebates for net metering):{' '}
+                  {formatCurrency(netCost)}
+                </li>
                 {selectedResult && (
                   <>
-                        <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                            <span className="text-blue-700 font-bold text-sm">2</span>
-                          </div>
-                          <div>
-                            <span className="font-semibold">Year 1 Savings Breakdown:</span>
-                            <div className="mt-1 text-xs text-gray-600 space-y-1 ml-4">
-                              <div>• Export Credits: ${selectedResult.annual.exportCredits.toFixed(2)} (selling excess solar)</div>
-                              <div>• Import Cost: ${selectedResult.annual.importCost.toFixed(2)} (buying from grid)</div>
-                              <div>• Net Annual Bill: ${selectedResult.annual.netAnnualBill.toFixed(2)}</div>
-                            </div>
-                          </div>
-                        </div>
+                    <li>
+                      <span className="font-semibold">Annual export credits</span> (Year 1):{' '}
+                      {`$${selectedResult.annual.exportCredits.toFixed(2)}`}
+                    </li>
+                    <li>
+                      <span className="font-semibold">Annual import cost after solar</span> (Year 1):{' '}
+                      {`$${selectedResult.annual.importCost.toFixed(2)}`}
+                    </li>
+                    <li>
+                      <span className="font-semibold">Net annual bill</span> = Import Cost − Export Credits ={' '}
+                      {`$${selectedResult.annual.netAnnualBill.toFixed(2)}`}
+                    </li>
                   </>
                 )}
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-blue-700 font-bold text-sm">3</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold">Project Savings Forward:</span> We calculate how your savings grow each year as electricity rates increase by {escalatorPercent.toFixed(1)}% annually.
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                        <span className="text-green-700 font-bold text-sm">=</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold">Your Payback Period:</span> We add up your savings year by year until the total equals your investment.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold text-gray-700">Your Payback Period:</span>
-                    <span className="text-2xl font-bold text-navy-600">
-                      {paybackYears != null && isFinite(paybackYears) ? `${paybackYears.toFixed(1)} years` : 'N/A'}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-600 mt-2">
-                    {paybackYears != null && isFinite(paybackYears) 
-                      ? `Your system will pay for itself in ${paybackYears.toFixed(1)} years. After that, all savings are pure profit!`
-                      : 'Your savings may not exceed your investment within 25 years under these assumptions.'}
-                  </p>
-                </div>
-
-                {paybackYears != null && isFinite(paybackYears) && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                    <p className="text-xs text-gray-700">
-                      <strong>What this means:</strong> After {paybackYears.toFixed(1)} years, your {formatCurrency(netCost)} investment will be fully recovered through your net metering savings. A shorter payback period means your investment recovers faster and you start earning pure profit sooner.
+                <li>
+                  We estimate your <span className="font-semibold">first‑year savings</span> from net metering and then
+                  apply an annual escalation to electricity rates (typically {escalatorPercent.toFixed(1)}% per year).
+                </li>
+                <li>
+                  We add those savings year by year until the total equals your net investment. That year (including
+                  fraction) is the <span className="font-semibold">payback period</span>.
+                </li>
+              </ul>
+              <p className="mt-3 text-sm text-gray-600">
+                In this scenario, your payback period is approximately{' '}
+                {paybackYears === Infinity ? 'N/A' : `${paybackYears.toFixed(1)} years`}. A shorter payback period means
+                your investment recovers faster.
               </p>
-                  </div>
-                )}
-              </div>
             </Modal>
 
             <Modal
               isOpen={openModal === 'profit'}
               onClose={() => setOpenModal(null)}
-              title="Understanding Your 25-Year Profit"
-              message="See how much money you'll keep after your solar system pays for itself over 25 years."
+              title="25-Year Profit"
+              message="The 25-year profit represents your total financial gain over the typical lifespan of a solar panel system (25 years)."
               variant="success"
               cancelText="Close"
             >
-              <div className="space-y-4">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <h3 className="font-semibold text-green-900 mb-2">What Is 25-Year Profit?</h3>
-                  <p className="text-sm text-green-800">
-                    Your 25-year profit is the money you'll have left after your solar system fully pays for itself. It's your total savings over 25 years, minus what you invested upfront.
+              <p className="mb-3">
+                This calculation includes:
               </p>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">How We Calculate It</h3>
-                  <div className="space-y-3 text-sm text-gray-700">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-blue-700 font-bold text-sm">1</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold">Your Investment:</span> {formatCurrency(netCost)} (system cost after rebates)
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-blue-700 font-bold text-sm">2</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold">Year 1 Savings:</span> Your first-year savings from lower grid costs and export credits (shown in "Annual Savings" above)
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-blue-700 font-bold text-sm">3</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold">25-Year Projection:</span> We calculate how your savings grow each year as electricity rates increase by {escalatorPercent.toFixed(1)}% annually
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                        <span className="text-green-700 font-bold text-sm">=</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold">Your Profit:</span> Total 25-year savings minus your investment
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold text-gray-700">Your 25-Year Profit:</span>
-                    <span className={`text-2xl font-bold ${profit25 >= 0 ? 'text-green-700' : 'text-gray-600'}`}>
-                      {profit25 >= 0 ? formatCurrency(Math.round(profit25)) : 'N/A'}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-600 mt-2">
-                    This is the money you'll keep after your system has fully paid for itself. The higher the number, the better your long-term return on investment.
-                  </p>
-                </div>
-
-                {profit25 >= 0 && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                    <p className="text-xs text-gray-700">
-                      <strong>What this means:</strong> Over 25 years, you'll save money on electricity, and after paying back your {formatCurrency(netCost)} investment, you'll have {formatCurrency(Math.round(profit25))} left as profit. That's money in your pocket!
-                    </p>
-                  </div>
-                )}
-              </div>
+              <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 ml-2">
+                <li>
+                  <span className="font-semibold">Net investment</span>: {formatCurrency(netCost)}
+                </li>
+                <li>
+                  <span className="font-semibold">Year‑1 savings</span> come from lower import costs plus export
+                  credits under your selected plan.
+                </li>
+                <li>
+                  We project these savings forward for 25 years using an annual escalation of{' '}
+                  {escalatorPercent.toFixed(1)}% (higher rates → higher savings).
+                </li>
+                <li>
+                  <span className="font-semibold">25‑Year Profit</span> = (Sum of 25 years of projected savings) − Net
+                  Investment.
+                </li>
+              </ul>
+              <p className="mt-3 text-sm text-gray-600">
+                For this scenario, your estimated 25‑year profit is{' '}
+                {profit25 >= 0 ? formatCurrency(Math.round(profit25)) : 'N/A'}. This shows the long‑term value of your
+                solar investment after the system has already paid for itself.
+              </p>
             </Modal>
 
             <Modal
               isOpen={openModal === 'credits'}
               onClose={() => setOpenModal(null)}
-              title="Understanding Annual Export Credits"
-              message="See how much money you earn by sending excess solar energy back to the grid."
+              title="Annual Export Credits"
+              message="Annual export credits represent the total dollar value of excess solar energy you send back to the grid over a full year."
               variant="info"
               cancelText="Close"
             >
-              <div className="space-y-4">
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-                  <h3 className="font-semibold text-emerald-900 mb-2">What Are Export Credits?</h3>
-                  <p className="text-sm text-emerald-800">
-                    When your solar panels produce more electricity than you're using, the excess energy goes back to the grid. Your utility pays you for this energy in the form of credits that can offset your future electricity bills.
-                  </p>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">How We Calculate It</h3>
-                  <div className="space-y-3 text-sm text-gray-700">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
-                        <span className="text-emerald-700 font-bold text-sm">1</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold">Excess Production:</span> When your solar panels produce more than you're using, the extra energy is exported to the grid.
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
-                        <span className="text-emerald-700 font-bold text-sm">2</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold">Credit Calculation:</span> For each hour, we calculate credits based on your export rate (typically your consumption rate + 2¢ per kWh).
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
-                        <span className="text-emerald-700 font-bold text-sm">3</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold">Annual Total:</span> We add up all hourly credits throughout the year to get your total annual export credits.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {selectedResult && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-700">Total Energy Exported:</span>
-                        <span className="font-bold text-gray-900">{Math.round(selectedResult.annual.totalExported).toLocaleString()} kWh</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-700">Average Credit Rate:</span>
-                        <span className="font-bold text-blue-700">
-                      {selectedResult.annual.totalExported > 0
-                            ? `${((selectedResult.annual.exportCredits / selectedResult.annual.totalExported) * 100).toFixed(1)}¢/kWh`
-                        : 'N/A'}
-                        </span>
-                      </div>
-                      <div className="pt-2 border-t border-blue-300">
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-700 font-semibold">Your Annual Credits:</span>
-                          <span className="text-xl font-bold text-emerald-700">${selectedResult.annual.exportCredits.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                  <p className="text-xs text-gray-700">
-                    <strong>How Credits Work:</strong> These credits can be used to offset future electricity bills and can roll forward for up to 12 months. Higher export credits typically occur in summer months when solar production is highest, helping offset winter bills when production is lower.
+              <p className="mb-3">
+                How it works:
               </p>
-                </div>
-              </div>
+              <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 ml-2">
+                <li>When your solar panels produce more energy than you're using, the excess is exported to the grid.</li>
+                <li>
+                  For each hour, we calculate{' '}
+                  <span className="font-semibold">Export Credits</span> = Surplus kWh × (Consumption Rate + 2¢) ÷ 100.
+                </li>
+                <li>
+                  We add up all hourly credits over the year to get your{' '}
+                  <span className="font-semibold">Annual Export Credits</span>.
+                </li>
+                {selectedResult && (
+                  <>
+                    <li>
+                      In this scenario, total exported energy is approximately{' '}
+                      {Math.round(selectedResult.annual.totalExported).toLocaleString()} kWh, which generates about{' '}
+                      {`$${selectedResult.annual.exportCredits.toFixed(2)}`} in credits.
+                    </li>
+                    <li>
+                      The average export credit rate is roughly{' '}
+                      {selectedResult.annual.totalExported > 0
+                        ? `${((selectedResult.annual.exportCredits / selectedResult.annual.totalExported) * 100).toFixed(
+                            1,
+                          )}¢/kWh`
+                        : 'N/A'}
+                      .
+                    </li>
+                  </>
+                )}
+                <li>These credits can be used to offset future electricity bills and can roll forward for up to 12 months.</li>
+              </ul>
+              <p className="mt-3 text-sm text-gray-600">
+                Higher export credits typically occur in summer months when solar production is highest. These credits help offset winter bills when production is lower.
+              </p>
             </Modal>
 
             <Modal
               isOpen={openModal === 'coverage'}
               onClose={() => setOpenModal(null)}
-              title="Understanding Energy Coverage"
-              message="See what percentage of your annual electricity needs are met by your solar system."
+              title="Energy Coverage"
+              message="Energy coverage shows what percentage of your annual electricity usage is met by your solar production."
               variant="info"
               cancelText="Close"
             >
-              <div className="space-y-4">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <h3 className="font-semibold text-blue-900 mb-2">What Is Energy Coverage?</h3>
-                  <p className="text-sm text-blue-800">
-                    Energy coverage shows what percentage of your annual electricity usage is produced by your solar system. It helps you understand if your system is appropriately sized for your energy needs.
-                  </p>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">How We Calculate It</h3>
-                  <div className="space-y-2 text-sm text-gray-700">
-                    <div className="flex items-start gap-2">
-                      <span className="text-blue-600 font-bold mt-0.5">=</span>
-                      <div>
-                        <span className="font-semibold">Energy Coverage %</span> = (Annual Solar Production ÷ Annual Usage) × 100%
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {selectedResult && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-700">Solar Production:</span>
-                        <span className="font-bold text-gray-900">{Math.round(selectedResult.annual.totalSolarProduction).toLocaleString()} kWh</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-700">Your Usage:</span>
-                        <span className="font-bold text-gray-900">{Math.round(selectedResult.annual.totalLoad).toLocaleString()} kWh</span>
-                      </div>
-                      <div className="pt-2 border-t border-green-300">
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-700 font-semibold">Energy Coverage:</span>
-                          <span className="text-2xl font-bold text-green-700">
-                            {((selectedResult.annual.totalSolarProduction / selectedResult.annual.totalLoad) * 100).toFixed(1)}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-gray-800 mb-2">What the Numbers Mean</h3>
-                  <div className="space-y-2 text-sm text-gray-700">
-                    <div className="flex items-start gap-2">
-                      <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mt-0.5">
-                        <span className="text-green-700 font-bold text-xs">100%</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold">Exactly 100%:</span> Your solar system produces exactly what you use over a full year - perfect sizing!
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <div className="flex-shrink-0 w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center mt-0.5">
-                        <span className="text-emerald-700 font-bold text-xs">+</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold">Over 100%:</span> You're producing more than you use! The excess is exported as credits that can offset future bills.
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <div className="flex-shrink-0 w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center mt-0.5">
-                        <span className="text-amber-700 font-bold text-xs">-</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold">Under 100%:</span> You still need to purchase some electricity from the grid, but your solar system significantly reduces your bills.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                  <p className="text-xs text-gray-700">
-                    <strong>Important Note:</strong> This is an annual average. Production varies by season - higher in summer, lower in winter. Net metering allows you to use summer excess to offset winter shortfalls through credit banking.
+              <p className="mb-3">
+                Calculation:
               </p>
-                </div>
-              </div>
+              <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 ml-2">
+                <li>
+                  <span className="font-semibold">Energy Coverage %</span> = Annual Solar Production ÷ Annual Usage ×
+                  100%.
+                </li>
+                {selectedResult && (
+                  <>
+                    <li>
+                      In this scenario:{' '}
+                      {Math.round(selectedResult.annual.totalSolarProduction).toLocaleString()} kWh produced ÷{' '}
+                      {Math.round(selectedResult.annual.totalLoad).toLocaleString()} kWh used ≈{' '}
+                      {((selectedResult.annual.totalSolarProduction / selectedResult.annual.totalLoad) * 100).toFixed(1)}
+                      %.
+                    </li>
+                  </>
+                )}
+                <li>100% means your solar system produces exactly what you use over a full year.</li>
+                <li>Over 100% means you're producing more than you use (excess is exported as credits).</li>
+                <li>Under 100% means you still need to purchase some electricity from the grid.</li>
+              </ul>
+              <p className="mt-3 text-sm text-gray-600">
+                Note: This is an annual average. Production varies by season - higher in summer, lower in winter. Net metering allows you to use summer excess to offset winter shortfalls.
+              </p>
             </Modal>
 
             <Modal
@@ -2424,21 +1849,11 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             )}
 
             {/* Alberta Solar Club Savings Breakdown */}
-            {!hasErrors && selectedResult && isAlberta && (selectedResult as any)?.alberta && (
+            {!hasErrors && selectedResult && isAlberta && (
               <AlbertaSavingsBreakdown
-                result={selectedResult as any}
+                result={selectedResult}
                 systemSizeKw={systemSizeKwOverride || estimate?.system?.sizeKw || 0}
                 annualUsageKwh={annualUsageKwh}
-                monthlyBill={data.monthlyBill}
-                currentPanels={solarPanels || estimate?.system?.numPanels || 0}
-                onUpsizeSystem={(newPanels) => {
-                  setSolarPanels(newPanels)
-                  // Trigger recalculation by updating panels
-                }}
-                hideInfoCallout={true}
-                hideRateSwitching={true}
-                hideUpsizing={true}
-                systemCost={netCost}
               />
             )}
 
@@ -2470,10 +1885,8 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 <div className="mt-6 text-center text-sm text-gray-600">
                   {(() => {
                     const totalOffset = selectedResult.annual.billOffsetPercent + batterySavingsPercent
-                    return totalOffset > 100 
+                    return totalOffset >= 100 
                       ? `Bill Fully Offset + ${(totalOffset - 100).toFixed(1)}% Credit`
-                      : totalOffset === 100
-                      ? 'Bill Fully Offset'
                       : `Bill Offset: ${totalOffset.toFixed(1)}%`
                   })()}
                 </div>
@@ -2506,7 +1919,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
               </div>
             )}
 
-            {/* Detailed Breakdown - Separate Container (Hidden for Alberta, shown in AlbertaSavingsBreakdown) */}
+            {/* Detailed Breakdown - Separate Container (for non-Alberta only) */}
             {!hasErrors && selectedResult && !isAlberta && (
               <div className="bg-white rounded-xl shadow-md border-2 border-gray-200 p-6">
                 <h2 className="text-2xl font-bold text-gray-800 mb-4">Detailed Breakdown</h2>
@@ -2549,8 +1962,8 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                           <YAxis />
                           <Tooltip />
                           <Legend />
-                          <Bar dataKey="production" name="Production (kWh)" fill="#f59e0b" radius={[4,4,0,0]} />
-                          <Bar dataKey="usage" name="Usage (kWh)" fill="#6b7280" radius={[4,4,0,0]} />
+                          <Bar dataKey="production" name="Production (kWh)" fill="#1B4E7C" radius={[4,4,0,0]} />
+                          <Bar dataKey="usage" name="Usage (kWh)" fill="#DC143C" radius={[4,4,0,0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -2585,10 +1998,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-sm text-gray-600">Energy Coverage</span>
                           <span className="text-sm font-bold text-gray-900">
-                            {(() => {
-                              const coverage = (selectedResult.annual.totalSolarProduction / selectedResult.annual.totalLoad) * 100
-                              return coverage.toFixed(1)
-                            })()}%
+                            {((selectedResult.annual.totalSolarProduction / selectedResult.annual.totalLoad) * 100).toFixed(1)}%
                           </span>
                         </div>
                         <div className="text-xs text-gray-500">

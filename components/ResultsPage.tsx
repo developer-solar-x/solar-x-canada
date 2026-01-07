@@ -683,7 +683,20 @@ export function ResultsPage({
         typeof projection.paybackYears === 'number' && projection.paybackYears > 0
           ? projection.paybackYears
           : annualSavings && annualSavings > 0 && finalNetCost > 0
-          ? finalNetCost / annualSavings
+          ? (() => {
+              // Calculate payback with 4.5% annual escalation
+              const esc = 0.045
+              let cumulative = 0
+              for (let year = 1; year <= 25; year++) {
+                const yearSavings = annualSavings * Math.pow(1 + esc, year - 1)
+                cumulative += yearSavings
+                if (cumulative >= finalNetCost) {
+                  const prev = cumulative - yearSavings
+                  return (year - 1) + ((finalNetCost - prev) / yearSavings)
+                }
+              }
+              return null
+            })()
           : null
 
       netMeteringNarrative = {
@@ -746,7 +759,20 @@ export function ResultsPage({
           typeof projection.paybackYears === 'number' && projection.paybackYears > 0
             ? projection.paybackYears
             : annualSavings && annualSavings > 0 && finalNetCost > 0
-            ? finalNetCost / annualSavings
+            ? (() => {
+                // Calculate payback with 4.5% annual escalation
+                const escalation = 0.045
+                let cumulative = 0
+                for (let year = 1; year <= 25; year++) {
+                  const yearSavings = annualSavings * Math.pow(1 + escalation, year - 1)
+                  cumulative += yearSavings
+                  if (cumulative >= finalNetCost) {
+                    const prev = cumulative - yearSavings
+                    return (year - 1) + ((finalNetCost - prev) / yearSavings)
+                  }
+                }
+                return null
+              })()
             : null
 
         netMeteringNarrative = {

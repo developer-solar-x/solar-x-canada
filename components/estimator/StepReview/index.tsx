@@ -6,7 +6,6 @@ import { useState, useEffect, useMemo } from 'react'
 import { Loader2, Battery, Sun, Moon } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { BATTERY_SPECS } from '@/config/battery-specs'
-import { useBatteries } from '@/hooks/useBatteries'
 import { ImageModal } from '@/components/ui/ImageModal'
 import { PropertySummary } from './sections/PropertySummary'
 import { MapSnapshot } from './sections/MapSnapshot'
@@ -263,9 +262,6 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
   // Mobile awareness state – used to make charts roomier on phones
   const [isMobile, setIsMobile] = useState(false) // track if we are on a small screen
   
-  // Fetch batteries from database (includes batteries not in static BATTERY_SPECS)
-  const { batteries: allBatteries } = useBatteries(false)
-  
   // State for image modal
   const [imageModalOpen, setImageModalOpen] = useState(false)
   const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string; title: string } | null>(null)
@@ -336,55 +332,16 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
   }
 
   const hasBatteryDetails = !!(data.batteryDetails && (data.peakShaving?.tou || data.peakShaving?.ulo))
-  // For net metering, check multiple locations where batteries might be stored
-  const isNetMetering = data.programType === 'net_metering'
-  
-  // Collect all possible battery sources for net metering
-  const netMeteringBatteries = isNetMetering
-    ? (Array.isArray(data.selectedBatteries) && data.selectedBatteries.length > 0
-        ? data.selectedBatteries
-        : Array.isArray(data.peakShaving?.selectedBatteries) && data.peakShaving.selectedBatteries.length > 0
-        ? data.peakShaving.selectedBatteries
-        : (data.selectedBattery && typeof data.selectedBattery === 'string' && data.selectedBattery !== 'none'
-          ? (data.selectedBattery.includes(',') ? data.selectedBattery.split(',') : [data.selectedBattery])
-          : []))
-    : []
-  
   const selectedBatteryIds: string[] = Array.isArray(data.selectedBatteryIds) && data.selectedBatteryIds.length > 0
     ? data.selectedBatteryIds
     : Array.isArray(data.selectedBatteries) && data.selectedBatteries.length > 0
     ? data.selectedBatteries
-    : Array.isArray(netMeteringBatteries) && netMeteringBatteries.length > 0
-    ? netMeteringBatteries
-    : (data.selectedBattery && data.selectedBattery !== 'none' ? (typeof data.selectedBattery === 'string' && data.selectedBattery.includes(',') 
+    : (data.selectedBattery ? (typeof data.selectedBattery === 'string' && data.selectedBattery.includes(',') 
         ? data.selectedBattery.split(',') 
         : [data.selectedBattery]) : [])
-  // Use allBatteries (from database + static) instead of just BATTERY_SPECS
-  // This ensures batteries from the database are found
   const selectedBatterySpecs = selectedBatteryIds
-    .map((id: string) => {
-      // First check allBatteries (includes database batteries)
-      const fromAll = allBatteries.find(b => b.id === id)
-      if (fromAll) return fromAll
-      // Fallback to static BATTERY_SPECS
-      return BATTERY_SPECS.find(b => b.id === id)
-    })
+    .map((id: string) => BATTERY_SPECS.find(b => b.id === id))
     .filter(Boolean) as any[]
-  
-  // Debug logging for net metering batteries (development only)
-  if (isNetMetering && process.env.NODE_ENV === 'development') {
-    console.log('[StepReview] Net Metering Battery Debug:', {
-      'data.selectedBatteries': data.selectedBatteries,
-      'data.peakShaving?.selectedBatteries': data.peakShaving?.selectedBatteries,
-      'netMeteringBatteries': netMeteringBatteries,
-      'selectedBatteryIds': selectedBatteryIds,
-      'allBatteries.length': allBatteries.length,
-      'selectedBatterySpecs.length': selectedBatterySpecs.length,
-      'selectedBatterySpecs': selectedBatterySpecs.map(b => ({ id: b.id, brand: b.brand, model: b.model })),
-      'aggregatedBattery': selectedBatterySpecs.length > 0 ? 'will be created' : 'empty'
-    })
-  }
-  
   const includeBattery = selectedBatterySpecs.length > 0 || hasBatteryDetails
   const tou = (data.peakShaving as any)?.tou
   const ulo = (data.peakShaving as any)?.ulo
@@ -523,7 +480,7 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
 
   const solarTotalCost = estimate.costs?.totalCost || 0
   // For net metering, no rebates apply - net cost equals total cost
-  // (isNetMetering already defined above)
+  const isNetMetering = data.programType === 'net_metering'
   const solarNetCost = isNetMetering 
     ? solarTotalCost // No rebates for net metering
     : (estimate.costs?.netCost || 0)
@@ -754,8 +711,6 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             <SolarClubAlberta
               systemSizeKw={estimateData.system.sizeKw}
               annualProductionKwh={estimateData.production?.annualKwh}
-              city={data.city}
-              address={data.address}
             />
           )}
 
@@ -769,11 +724,58 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
           )}
 
           {/* Show battery details for HRS (with batteryDetails) or net metering (with selectedBatteries) */}
-          {data.selectedBattery && data.batteryDetails ? (
-            <BatteryDetails
-              batteryDetails={data.batteryDetails}
-              peakShaving={data.peakShaving}
-            />
+          {(data.selectedBattery && data.batteryDetails) || (isNetMetering && includeBattery && aggregatedBattery) ? (
+            data.batteryDetails ? (
+              <BatteryDetails
+                batteryDetails={data.batteryDetails}
+                peakShaving={data.peakShaving}
+              />
+            ) : isNetMetering && aggregatedBattery ? (
+              <div className="card p-6 bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 bg-emerald-500 rounded-lg">
+                      <Battery className="text-white" size={22} />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-navy-500 mb-0.5 flex items-center gap-2">
+                        Battery Energy Storage
+                      </h3>
+                      <p className="text-xs text-gray-600">
+                        {aggregatedBattery.labels?.join(' + ') || 'Selected Battery'} • {aggregatedBattery.nominalKwh?.toFixed(1) || 0} kWh
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="bg-white border border-gray-200 rounded-lg p-3">
+                    <div className="text-xs text-gray-600 mb-1">Battery Cost</div>
+                    <div className="text-lg font-bold text-navy-500">
+                      {formatCurrency(batteryPrice)}
+                    </div>
+                  </div>
+                  <div className="bg-white border border-gray-200 rounded-lg p-3">
+                    <div className="text-xs text-gray-600 mb-1">Rebate</div>
+                    <div className="text-lg font-bold text-gray-500">
+                      $0
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">No rebates for net metering</div>
+                  </div>
+                  <div className="bg-white border border-gray-200 rounded-lg p-3">
+                    <div className="text-xs text-gray-600 mb-1">Net Cost</div>
+                    <div className="text-lg font-bold text-navy-500">
+                      {formatCurrency(batteryPrice)}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <p className="text-sm text-gray-700">
+                    <span className="font-semibold text-navy-500">Note:</span> Net metering systems do not qualify for rebates. 
+                    Battery cost is included in your total investment.
+                  </p>
+                </div>
+              </div>
+            ) : null
           ) : null}
 
 
@@ -829,7 +831,6 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                 annualEscalator={data.annualEscalator}
                 touBeforeAfter={data.touBeforeAfter}
                 uloBeforeAfter={data.uloBeforeAfter}
-                province={data.province}
               />
             )}
 

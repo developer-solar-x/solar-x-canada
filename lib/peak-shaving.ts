@@ -306,7 +306,26 @@ export function analyzeZeroExportSystem(
   
   const netCost = systemCost - incentives.totalIncentive
   const annualSavings = peakShaving.savings.annual
-  const paybackYears = netCost / annualSavings
+  
+  // Calculate payback with 4.5% annual electricity rate escalation
+  const escalationRate = 0.045
+  let paybackYears = Infinity
+  if (netCost > 0 && annualSavings > 0) {
+    let cumulativeSavings = 0
+    for (let year = 1; year <= 25; year++) {
+      const yearSavings = annualSavings * Math.pow(1 + escalationRate, year - 1)
+      cumulativeSavings += yearSavings
+      if (cumulativeSavings >= netCost) {
+        const prevCumulative = cumulativeSavings - yearSavings
+        const remaining = netCost - prevCumulative
+        paybackYears = (year - 1) + (remaining / yearSavings)
+        break
+      }
+    }
+  } else if (netCost <= 0) {
+    paybackYears = 0
+  }
+  
   const lifetimeSavings = (annualSavings * 25) - netCost
   const roi25Year = (lifetimeSavings / netCost) * 100
   

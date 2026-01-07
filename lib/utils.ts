@@ -54,13 +54,13 @@ export function calculateQuickEstimate(monthlyBill: number) {
   // Calculate savings
   const annualSavings = monthlyBill * 12;
   
-  // Calculate payback period
-  const paybackYears = systemCost / annualSavings;
+  // Calculate payback period with 4.5% annual electricity rate escalation
+  const paybackYears = calculatePaybackWithEscalation(annualSavings, systemCost, 0.045);
   
   return {
     systemSize: Math.round(systemSize * 10) / 10,
     annualSavings: Math.round(annualSavings),
-    paybackYears: Math.round(paybackYears * 10) / 10,
+    paybackYears: paybackYears === Infinity ? 999 : Math.round(paybackYears * 10) / 10,
     estimatedCost: Math.round(systemCost)
   };
 }
@@ -118,5 +118,41 @@ export function formatPhone(phone: string): string {
     return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
   }
   return phone;
+}
+
+/**
+ * Calculate payback period accounting for electricity rate escalation.
+ * As electricity costs rise each year, savings also increase, resulting in a shorter payback.
+ * 
+ * @param firstYearSavings - Annual savings in the first year ($)
+ * @param netCost - Total system cost after rebates ($)
+ * @param escalationRate - Annual electricity rate increase (e.g., 0.045 for 4.5%)
+ * @param maxYears - Maximum years to calculate (default 25)
+ * @returns Payback period in years, or Infinity if not achieved within maxYears
+ */
+export function calculatePaybackWithEscalation(
+  firstYearSavings: number,
+  netCost: number,
+  escalationRate: number = 0.045,
+  maxYears: number = 25
+): number {
+  if (netCost <= 0) return 0
+  if (firstYearSavings <= 0) return Infinity
+  
+  let cumulativeSavings = 0
+  for (let year = 1; year <= maxYears; year++) {
+    // Savings grow each year with electricity rate increases
+    const yearSavings = firstYearSavings * Math.pow(1 + escalationRate, year - 1)
+    cumulativeSavings += yearSavings
+    
+    if (cumulativeSavings >= netCost) {
+      // Calculate fractional year for more precise payback
+      const prevCumulative = cumulativeSavings - yearSavings
+      const remaining = netCost - prevCumulative
+      const fraction = remaining / yearSavings
+      return (year - 1) + fraction
+    }
+  }
+  return Infinity
 }
 

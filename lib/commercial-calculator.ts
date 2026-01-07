@@ -298,9 +298,25 @@ export function calculateCommercialResults(
   const roiYear1 = netInstalledCost > 0 
     ? (annualSavings / netInstalledCost) * 100 
     : 0;
-  const paybackYears = annualSavings > 0 
-    ? netInstalledCost / annualSavings 
-    : Infinity;
+  
+  // Calculate payback with escalation (savings grow each year as electricity rates increase)
+  const escalationRate = inputs.annualEscalator / 100; // Convert from percentage
+  let paybackYears = Infinity;
+  if (annualSavings > 0 && netInstalledCost > 0) {
+    let cumulativeSavings = 0;
+    for (let year = 1; year <= 25; year++) {
+      const yearSavings = annualSavings * Math.pow(1 + escalationRate, year - 1);
+      cumulativeSavings += yearSavings;
+      if (cumulativeSavings >= netInstalledCost) {
+        const prevCumulative = cumulativeSavings - yearSavings;
+        const remaining = netInstalledCost - prevCumulative;
+        paybackYears = (year - 1) + (remaining / yearSavings);
+        break;
+      }
+    }
+  } else if (netInstalledCost <= 0) {
+    paybackYears = 0;
+  }
 
   // Calculate multi-year savings
   const multiYearSavings = calculateMultiYearSavings(

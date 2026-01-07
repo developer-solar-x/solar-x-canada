@@ -198,7 +198,11 @@ export default function EstimatorPage() {
     return true
   }).map((step, index) => {
     // Reassign IDs sequentially after filtering
-    return { ...step, id: index }
+    // For Alberta net_metering, show "Alberta Solar Club" instead of "Net Metering Savings"
+    const displayName = step.name === 'Net Metering Savings' && data.selectedProvince === 'alberta'
+      ? 'Alberta Solar Club'
+      : step.name
+    return { ...step, id: index, name: displayName }
   })
 
   // Load saved progress on mount
@@ -474,7 +478,7 @@ export default function EstimatorPage() {
     if (!step) return StepModeSelector as any
     
     // If it's the savings step (step 4), choose component based on programType
-    if (step.name === 'Battery Savings' || step.name === 'Net Metering Savings') {
+    if (step.name === 'Battery Savings' || step.name === 'Net Metering Savings' || step.name === 'Alberta Solar Club') {
       if (data.programType === 'net_metering') {
         return StepNetMetering
       } else {
@@ -637,8 +641,8 @@ export default function EstimatorPage() {
       )}
 
       {/* Main content */}
-      {/* Check if current step is Battery Savings or Net Metering Savings - use full width without container */}
-      {displaySteps[currentStep]?.name === 'Battery Savings' || displaySteps[currentStep]?.name === 'Net Metering Savings' ? (
+      {/* Check if current step is Battery Savings, Net Metering Savings, or Alberta Solar Club - use full width without container */}
+      {displaySteps[currentStep]?.name === 'Battery Savings' || displaySteps[currentStep]?.name === 'Net Metering Savings' || displaySteps[currentStep]?.name === 'Alberta Solar Club' ? (
         <main className="w-full px-0 py-0">
           <CurrentStepComponent
             data={data}

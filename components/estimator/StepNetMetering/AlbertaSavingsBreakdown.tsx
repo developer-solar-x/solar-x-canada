@@ -87,11 +87,26 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
   const estimatedAdditionalHighSeasonExports = estimatedAdditionalProduction * 0.6 * 0.5
   const estimatedAdditionalCredits = estimatedAdditionalHighSeasonExports * 0.33 // 33¢/kWh
   
-  // Calculate payback period
+  // Calculate payback period with 4.5% annual electricity rate escalation
+  // As electricity costs rise each year, savings also increase, making payback shorter
   const totalSystemCost = systemCost || (systemSizeKw * 2500)
-  const paybackYears = annualSavings > 0 && totalSystemCost > 0
-    ? totalSystemCost / annualSavings
-    : 999 // Return very high number instead of Infinity
+  const escalationRate = 0.045 // 4.5% annual rate increase
+  const paybackYears = useMemo(() => {
+    if (annualSavings <= 0 || totalSystemCost <= 0) return 999
+    
+    let cumulativeSavings = 0
+    for (let year = 1; year <= 25; year++) {
+      const yearSavings = annualSavings * Math.pow(1 + escalationRate, year - 1)
+      cumulativeSavings += yearSavings
+      if (cumulativeSavings >= totalSystemCost) {
+        const prevCumulative = cumulativeSavings - yearSavings
+        const remaining = totalSystemCost - prevCumulative
+        const fraction = remaining / yearSavings
+        return (year - 1) + fraction
+      }
+    }
+    return 999
+  }, [annualSavings, totalSystemCost])
   
   // Prepare monthly chart data
   const monthlyChartData = useMemo(() => {
@@ -550,74 +565,6 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
             </div>
           </div>
         )}
-      </div>
-
-      {/* Payback Period Card */}
-      {totalSystemCost > 0 && annualSavings > 0 && (
-        <div className="bg-gradient-to-br from-teal-50 to-emerald-50 border-2 border-teal-300 rounded-xl p-6 shadow-lg">
-          <h3 className="text-xl font-bold text-teal-900 mb-4">Estimated Payback Period</h3>
-          <div className="mb-4">
-            <div className="flex items-baseline gap-2 mb-2">
-              <div className="text-4xl font-bold text-teal-600">
-                {paybackYears != null && isFinite(paybackYears) ? `${paybackYears.toFixed(1)}` : 'N/A'}
-              </div>
-              {paybackYears != null && isFinite(paybackYears) && (
-                <div className="text-xl font-semibold text-teal-700">years</div>
-              )}
-            </div>
-            <div className="text-sm text-teal-700 mb-4">
-              System Cost: {formatCurrency(totalSystemCost)} ÷ Annual Savings: {formatCurrency(annualSavings)}
-            </div>
-            
-                <div className="text-xs text-gray-600">
-                  {paybackYears <= 10 
-                    ? `Great investment! Your system pays for itself in ${paybackYears.toFixed(1)} years.`
-                    : paybackYears <= 15
-                    ? `Solid investment with ${paybackYears.toFixed(1)} year payback period.`
-                    : `Long-term investment with ${paybackYears.toFixed(1)} year payback period.`}
-                </div>
-          </div>
-        </div>
-      )}
-
-      {/* Key Metrics Summary */}
-      <div className="bg-gray-50 rounded-xl border border-gray-200 p-5">
-        <h5 className="font-semibold text-gray-800 mb-3">Key Financial Metrics</h5>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <div className="text-xs text-gray-600 mb-1">Bill Offset</div>
-            <div className="text-lg font-bold text-gray-800">
-              {annual.billOffsetPercent.toFixed(1)}%
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-gray-600 mb-1">Energy Coverage</div>
-            <div className="text-lg font-bold text-gray-800">
-              {annual.totalLoad > 0 ? ((annual.totalSolarProduction / annual.totalLoad) * 100).toFixed(1) : 0}%
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-gray-600 mb-1">Total Export Credits</div>
-            <div className="text-lg font-bold text-emerald-600">
-              {formatCurrency(exportCredits)}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-gray-600 mb-1">Year-End Credits</div>
-            <div className="text-lg font-bold text-emerald-600">
-              {formatCurrency(result.monthly?.[result.monthly.length - 1]?.creditRollover || 0)}
-            </div>
-          </div>
-        </div>
-        <div className="mt-4 p-3 rounded-lg bg-white border border-gray-200 text-xs text-gray-700 space-y-1">
-          <div className="font-semibold text-gray-800">How we got these numbers</div>
-          {preSolarAnnualBill !== undefined && (
-            <div>Pre-solar bill: {formatCurrency(preSolarAnnualBill)} (from your input or usage)</div>
-          )}
-          <div>We simulate solar vs. your usage hourly.</div>
-          <div>Imports at 6.89¢/kWh (low season), exports at 33¢/kWh (high season), plus 3% cash back on imports.</div>
-          <div>Net annual bill = import cost – export credits – cash back.</div>
-        </div>
       </div>
 
       {/* Upsizing Suggestion for Alberta Solar Club */}
