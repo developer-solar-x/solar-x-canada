@@ -730,51 +730,6 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
                 batteryDetails={data.batteryDetails}
                 peakShaving={data.peakShaving}
               />
-            ) : isNetMetering && aggregatedBattery ? (
-              <div className="card p-6 bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2.5 bg-emerald-500 rounded-lg">
-                      <Battery className="text-white" size={22} />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-navy-500 mb-0.5 flex items-center gap-2">
-                        Battery Energy Storage
-                      </h3>
-                      <p className="text-xs text-gray-600">
-                        {aggregatedBattery.labels?.join(' + ') || 'Selected Battery'} • {aggregatedBattery.nominalKwh?.toFixed(1) || 0} kWh
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  <div className="bg-white border border-gray-200 rounded-lg p-3">
-                    <div className="text-xs text-gray-600 mb-1">Battery Cost</div>
-                    <div className="text-lg font-bold text-navy-500">
-                      {formatCurrency(batteryPrice)}
-                    </div>
-                  </div>
-                  <div className="bg-white border border-gray-200 rounded-lg p-3">
-                    <div className="text-xs text-gray-600 mb-1">Rebate</div>
-                    <div className="text-lg font-bold text-gray-500">
-                      $0
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">No rebates for net metering</div>
-                  </div>
-                  <div className="bg-white border border-gray-200 rounded-lg p-3">
-                    <div className="text-xs text-gray-600 mb-1">Net Cost</div>
-                    <div className="text-lg font-bold text-navy-500">
-                      {formatCurrency(batteryPrice)}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <p className="text-sm text-gray-700">
-                    <span className="font-semibold text-navy-500">Note:</span> Net metering systems do not qualify for rebates. 
-                    Battery cost is included in your total investment.
-                  </p>
-                </div>
-              </div>
             ) : null
           ) : null}
 

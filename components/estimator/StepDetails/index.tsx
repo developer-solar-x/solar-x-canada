@@ -29,7 +29,7 @@ export function StepDetails({ data, onComplete, onBack }: StepDetailsProps) {
     shadingLevel: data.shadingLevel || 'minimal',
     monthlyBill: data.monthlyBill || '',
     roofAzimuth: data.roofAzimuth || 180, // Default to south if not detected
-    annualEscalator: data.annualEscalator, // Preserve existing annualEscalator
+    annualEscalator: data.annualEscalator ?? 4.5, // Preserve existing annualEscalator, default to 4.5%
     snowLossFactor: data.snowLossFactor || (isAlberta ? 0.03 : 0), // Alberta default: 3% snow loss
   })
 

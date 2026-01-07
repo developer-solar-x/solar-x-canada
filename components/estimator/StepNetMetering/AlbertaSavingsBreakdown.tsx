@@ -3,7 +3,7 @@
 // Interactive Alberta Solar Club Savings Breakdown Component
 
 import { useState, useMemo } from 'react'
-import { TrendingUp, TrendingDown, DollarSign, Zap, Leaf, Info, ChevronDown, ChevronUp, ArrowUp, Lightbulb, AlertTriangle, Clock } from 'lucide-react'
+import { TrendingUp, TrendingDown, DollarSign, Zap, Leaf, Info, ChevronDown, ChevronUp, ArrowUp, Lightbulb, AlertTriangle, Clock, Battery } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts'
@@ -91,6 +91,12 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
   // As electricity costs rise each year, savings also increase, making payback shorter
   const totalSystemCost = systemCost || (systemSizeKw * 2500)
   const escalationRate = 0.045 // 4.5% annual rate increase
+  
+  // Estimate solar and battery costs from total
+  const estimatedSolarCost = systemSizeKw * 2500 // Rough estimate: $2500 per kW
+  const batteryCost = systemCost && systemCost > estimatedSolarCost ? systemCost - estimatedSolarCost : 0
+  const solarSystemCost = estimatedSolarCost
+  
   const paybackYears = useMemo(() => {
     if (annualSavings <= 0 || totalSystemCost <= 0) return 999
     
@@ -214,6 +220,44 @@ export function AlbertaSavingsBreakdown({ result, systemSizeKw, annualUsageKwh, 
           </div>
         </div>
       </div>
+
+      {/* System Cost Breakdown Card */}
+      {systemCost && systemCost > 0 && (
+      <div className="bg-gradient-to-br from-slate-50 to-gray-50 border-2 border-gray-300 rounded-xl p-6 shadow-md">
+        <h3 className="text-xl font-bold text-gray-800 mb-4">System Investment</h3>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between py-3 border-b border-gray-200">
+            <div className="flex items-center gap-2">
+              <Zap className="text-blue-600" size={18} />
+              <span className="text-sm font-semibold text-gray-700">Solar System</span>
+            </div>
+            <span className="text-sm font-bold text-gray-900">{formatCurrency(solarSystemCost || (systemCost - batteryCost))}</span>
+          </div>
+          {batteryCost && batteryCost > 0 && (
+            <>
+              <div className="flex items-center justify-between py-3 border-b border-gray-200">
+                <div className="flex items-center gap-2">
+                  <Battery className="text-green-600" size={18} />
+                  <span className="text-sm font-semibold text-gray-700">Battery Storage</span>
+                </div>
+                <span className="text-sm font-bold text-gray-900">{formatCurrency(batteryCost)}</span>
+              </div>
+              <div className="flex items-center justify-between py-3 border-t-2 border-gray-300 bg-gray-50 rounded p-3">
+                <span className="text-sm font-bold text-gray-800">Total Investment</span>
+                <span className="text-lg font-bold text-gray-900">{formatCurrency(systemCost)}</span>
+              </div>
+            </>
+          )}
+          {paybackYears && paybackYears < 999 && (
+            <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <div className="text-xs text-emerald-900">
+                <strong>Payback Period:</strong> Approximately {paybackYears.toFixed(1)} years
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      )}
 
       {/* Monthly Production vs Usage Chart */}
       {monthlyChartData.length === 12 && (

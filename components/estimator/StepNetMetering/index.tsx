@@ -613,7 +613,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
             province: data.province,
             year: new Date().getFullYear(),
             ...(combinedBattery ? { battery: combinedBattery } : {}),
-            aiMode: aiMode && selectedBatteries.length > 0,
+            aiMode: false, // AI Mode not available for Alberta Solar Club
           }),
         })
 
@@ -1187,7 +1187,8 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                               </div>
                             </div>
 
-                            {/* AI Optimization Mode Toggle */}
+                            {/* AI Optimization Mode Toggle - Not available for Alberta Solar Club */}
+                            {!isAlberta && (
                             <div className="mt-4 pt-4 border-t-2 border-gray-200">
                               <div className="flex items-center justify-between mb-3">
                                 <label className="block text-base md:text-lg font-semibold text-gray-700 flex items-center gap-2">
@@ -1256,6 +1257,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                                 </div>
                               )}
                             </div>
+                            )}
                           </>
                         )}
                                 </div>
@@ -1854,6 +1856,9 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 result={selectedResult}
                 systemSizeKw={systemSizeKwOverride || estimate?.system?.sizeKw || 0}
                 annualUsageKwh={annualUsageKwh}
+                monthlyBill={data.monthlyBill}
+                currentPanels={solarPanels}
+                systemCost={netCost}
               />
             )}
 
@@ -1962,8 +1967,8 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                           <YAxis />
                           <Tooltip />
                           <Legend />
-                          <Bar dataKey="production" name="Production (kWh)" fill="#1B4E7C" radius={[4,4,0,0]} />
-                          <Bar dataKey="usage" name="Usage (kWh)" fill="#DC143C" radius={[4,4,0,0]} />
+                          <Bar dataKey="production" name="Production (kWh)" fill="#10b981" radius={[4,4,0,0]} />
+                          <Bar dataKey="usage" name="Usage (kWh)" fill="#f59e0b" radius={[4,4,0,0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
