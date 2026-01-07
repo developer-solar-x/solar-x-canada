@@ -494,11 +494,11 @@ export default function EstimatorPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header - Simple logo and exit */}
-      <header className="bg-white shadow-sm sticky top-0 z-40">
+      <header className="bg-white shadow-sm sticky top-0 z-[60]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             {/* Logo */}
-            <Link href="/">
+            <Link href="/" aria-label="Go to homepage" className="inline-flex items-center">
               <Logo size="md" showTagline={false} />
             </Link>
 
