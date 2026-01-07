@@ -23,7 +23,7 @@ export function Hero() {
   // Province availability
   const provinces = [
     { name: 'Ontario', status: 'active', description: 'Fully functional' },
-    { name: 'Alberta', status: 'coming-soon', description: 'Coming soon' },
+    { name: 'Alberta', status: 'active', description: 'Fully functional' },
   ]
 
   // Floating statistic cards data
@@ -123,24 +123,40 @@ export function Hero() {
             <div className="pt-8 border-t border-white/10 relative z-20">
               <p className="text-sm text-white/90 mb-3 font-semibold">Available in:</p>
               <div className="flex flex-wrap gap-3">
-                {provinces.map((province, index) => (
-                  <div
-                    key={index}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold backdrop-blur-sm ${
-                      province.status === 'active'
-                        ? 'bg-maple-500/30 text-white border-2 border-maple-300/50 shadow-lg shadow-maple-500/20'
-                        : 'bg-white/15 text-white/90 border-2 border-white/30'
-                    }`}
-                  >
-                    <span>{province.name}</span>
-                    {province.status === 'active' && (
-                      <span className="w-2.5 h-2.5 bg-maple-300 rounded-full animate-pulse shadow-sm shadow-maple-300/50" />
-                    )}
-                    {province.status === 'coming-soon' && (
-                      <span className="text-xs opacity-80 font-normal">({province.description})</span>
-                    )}
-                  </div>
-                ))}
+                {provinces.map((province, index) => {
+                  const baseClasses =
+                    'flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold backdrop-blur-sm';
+                  const activeClasses =
+                    'bg-maple-500/30 text-white border-2 border-maple-300/50 shadow-lg shadow-maple-500/20 hover:opacity-95 transition-opacity cursor-pointer';
+                  const inactiveClasses = 'bg-white/15 text-white/90 border-2 border-white/30';
+
+                  const content = (
+                    <>
+                      <span>{province.name}</span>
+                      {province.status === 'active' && (
+                        <span className="w-2.5 h-2.5 bg-maple-300 rounded-full animate-pulse shadow-sm shadow-maple-300/50" />
+                      )}
+                      {province.status === 'coming-soon' && (
+                        <span className="text-xs opacity-80 font-normal">({province.description})</span>
+                      )}
+                    </>
+                  )
+
+                  return province.status === 'active' ? (
+                    <Link
+                      key={index}
+                      href="/estimator"
+                      aria-label={`Start estimator for ${province.name}`}
+                      className={`${baseClasses} ${activeClasses}`}
+                    >
+                      {content}
+                    </Link>
+                  ) : (
+                    <div key={index} className={`${baseClasses} ${inactiveClasses}`}>
+                      {content}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </div>
