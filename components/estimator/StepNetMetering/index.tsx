@@ -226,10 +226,30 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   
   // Fetch estimate if missing (when component mounts or when coordinates/roof data changes)
   useEffect(() => {
+    // Check if we have saved production from persisted data
+    const savedProduction = (data as any)?.production
+    const hasSavedProduction = savedProduction?.monthlyKwh && savedProduction.monthlyKwh.length === 12
+    
     // If we already have an estimate with production data, use it
     if (data.estimate?.production?.monthlyKwh && data.estimate.production.monthlyKwh.length === 12) {
       if (!localEstimate || localEstimate !== data.estimate) {
         setLocalEstimate(data.estimate)
+      }
+      return
+    }
+    
+    // If we have saved production data, skip fetching
+    if (hasSavedProduction) {
+      // For Alberta, create a minimal estimate object so the calculation can proceed
+      if (isAlberta && !localEstimate) {
+        const syntheticEstimate = {
+          production: savedProduction,
+          system: {
+            sizeKw: (data as any)?.systemSizeKw || ((data as any)?.numPanels * 0.5) || 10,
+            numPanels: (data as any)?.numPanels || 20
+          }
+        }
+        setLocalEstimate(syntheticEstimate as any)
       }
       return
     }
@@ -292,13 +312,16 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   // Initialize solar panels from estimate when it becomes available
   useEffect(() => {
     const currentEstimate = localEstimate || data.estimate
-    if (!currentEstimate) return
     
-    const initialPanels = (data as any).solarOverride?.numPanels ?? currentEstimate?.system?.numPanels ?? 0
+    const initialPanels =
+      (data as any).solarOverride?.numPanels ??
+      (data as any)?.numPanels ??
+      currentEstimate?.system?.numPanels ?? 0
+    
     if (initialPanels > 0 && solarPanels === 0) {
       setSolarPanels(initialPanels)
     }
-  }, [localEstimate, data.estimate])
+  }, [localEstimate, data.estimate, (data as any)?.numPanels])
 
   // Initialize usage separately to avoid dependency issues
   useEffect(() => {
@@ -382,8 +405,9 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   // This is a simplified model, but it now responds to the customer's usage
   // distribution so that shifting more usage into peak periods increases the
   // relative value of battery storage.
+  // NOTE: In Alberta, batteries are storage-only (no grid arbitrage), so battery savings are 0
   const calculateBatterySavingsPercent = (): number => {
-    if (selectedBatteries.length === 0 || !selectedResult) return 0
+    if (isAlberta || selectedBatteries.length === 0 || !selectedResult) return 0
     
     // Get total battery capacity
     const totalBatteryKwh = selectedBatteries
@@ -560,16 +584,64 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
   useEffect(() => {
     if (!isAlberta) return
     
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Alberta effect triggered:', {
+        isAlberta,
+        hasLocalEstimate: !!localEstimate,
+        hasDataEstimate: !!data.estimate,
+        solarPanels,
+        annualUsageInput,
+        'data.annualUsageKwh': data.annualUsageKwh,
+        'data.monthlyBill': data.monthlyBill
+      })
+    }
+    
     const currentEstimate = localEstimate || data.estimate
-    const monthlyProduction = currentEstimate?.production?.monthlyKwh || []
-    const calculatedUsage = annualUsageKwh || data.energyUsage?.annualKwh || data.annualUsageKwh || 0
+    // Fallback to persisted production (from review) or evenly distribute annual production
+    const persistedProduction = (data as any)?.production
+    
+    // Try multiple sources for monthly production
+    let monthlyProduction: number[] = []
+    if (currentEstimate?.production?.monthlyKwh?.length === 12) {
+      monthlyProduction = currentEstimate.production.monthlyKwh
+    } else if (persistedProduction?.monthlyKwh?.length === 12) {
+      monthlyProduction = persistedProduction.monthlyKwh
+    } else if (persistedProduction?.annualKwh && persistedProduction.annualKwh > 0) {
+      // Evenly distribute annual production
+      monthlyProduction = Array(12).fill(persistedProduction.annualKwh / 12)
+    } else if (currentEstimate?.system?.sizeKw || solarPanels > 0) {
+      // Fallback: estimate production from system size (1200 kWh/kW/year for Alberta)
+      const systemKw = currentEstimate?.system?.sizeKw || (solarPanels * panelWattage / 1000)
+      const estimatedAnnual = systemKw * 1200
+      // Alberta seasonal distribution (more production in summer)
+      const seasonalDistribution = [0.051, 0.067, 0.087, 0.099, 0.116, 0.122, 0.127, 0.118, 0.103, 0.084, 0.057, 0.049]
+      monthlyProduction = seasonalDistribution.map(pct => estimatedAnnual * pct)
+    }
+    
+    // Use annualUsageInput if available, otherwise fall back to data properties
+    const inputUsage = parseFloat(annualUsageInput) || 0
+    const calculatedUsage = inputUsage > 0 
+      ? inputUsage 
+      : (data.energyUsage?.annualKwh || data.annualUsageKwh || (data.monthlyBill ? (data.monthlyBill / BLENDED_RATE) * 12 : 0))
 
-    if (
-      !currentEstimate?.production?.monthlyKwh ||
-      monthlyProduction.length !== 12 ||
-      calculatedUsage <= 0
-    ) {
+    if (monthlyProduction.length !== 12 || calculatedUsage <= 0) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Alberta calculation skipped:', { 
+          monthlyProductionLength: monthlyProduction.length, 
+          calculatedUsage,
+          hasProduction: monthlyProduction.length === 12,
+          hasUsage: calculatedUsage > 0
+        })
+      }
       return
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Running Alberta calculation with:', { 
+        monthlyProduction: monthlyProduction.slice(0, 3), 
+        calculatedUsage,
+        selectedBatteries: selectedBatteries.length
+      })
     }
 
     const runAlbertaCalculation = async () => {
@@ -638,7 +710,7 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     }
 
     runAlbertaCalculation()
-  }, [isAlberta, localEstimate, data.estimate, annualUsageKwh, data.energyUsage?.annualKwh, data.annualUsageKwh, selectedBatteries, aiMode, data.province])
+  }, [isAlberta, localEstimate, data.estimate, annualUsageInput, data.energyUsage?.annualKwh, data.annualUsageKwh, data.monthlyBill, solarPanels, panelWattage, selectedBatteries, availableBatteries, aiMode, data.province])
 
   // Shared helper to calculate net metering for a single plan.
   const runNetMeteringForPlan = async (planId: 'tou' | 'ulo' | 'tiered') => {
@@ -865,7 +937,9 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     onComplete(stepData)
   }
 
-  const hasErrors = annualUsageKwh <= 0
+  // Check for errors - use actual data sources, not just parsed input
+  const actualUsage = annualUsageKwh || data.energyUsage?.annualKwh || data.annualUsageKwh || (data.monthlyBill ? (data.monthlyBill / BLENDED_RATE) * 12 : 0)
+  const hasErrors = actualUsage <= 0
 
   return (
     <div className="w-full bg-gradient-to-br from-emerald-50 via-white to-blue-50 py-4 md:py-6">

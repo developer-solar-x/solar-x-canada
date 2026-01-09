@@ -181,10 +181,42 @@ export default function EstimatorPage() {
     ? detailedSteps 
     : [easySteps[0]]
   
+  // Helper function to check if province is Alberta
+  const isAlberta = () => {
+    // Check province from multiple sources
+    const province = data.province || data.selectedProvince || data.estimate?.province || (data as any).location?.province
+    
+    if (province) {
+      const provinceUpper = String(province).toUpperCase().trim()
+      if (
+        provinceUpper === 'AB' || 
+        provinceUpper === 'ALBERTA' ||
+        provinceUpper.includes('ALBERTA') ||
+        data.selectedProvince === 'alberta'
+      ) {
+        return true
+      }
+    }
+    
+    // Also check the address string for Alberta
+    if (data.address && typeof data.address === 'string') {
+      const addressUpper = data.address.toUpperCase()
+      if (addressUpper.includes('ALBERTA') || addressUpper.includes(', AB ') || addressUpper.includes(' AB T')) {
+        return true
+      }
+    }
+    
+    return false
+  }
+
   // Filter steps based on mode and conditions
   const displaySteps = steps.filter(step => {
     // Show Battery Savings step only for HRS program or battery system
     if (step.name === 'Battery Savings') {
+      // Hide for Alberta net_metering (batteries are storage-only, no arbitrage savings)
+      if (data.programType === 'net_metering' && isAlberta()) {
+        return false
+      }
       return data.programType === 'hrs_residential' || data.systemType === 'battery_system'
     }
     // Show Net Metering Savings step only for net_metering program
@@ -199,7 +231,7 @@ export default function EstimatorPage() {
   }).map((step, index) => {
     // Reassign IDs sequentially after filtering
     // For Alberta net_metering, show "Alberta Solar Club" instead of "Net Metering Savings"
-    const displayName = step.name === 'Net Metering Savings' && data.selectedProvince === 'alberta'
+    const displayName = step.name === 'Net Metering Savings' && isAlberta()
       ? 'Alberta Solar Club'
       : step.name
     return { ...step, id: index, name: displayName }
@@ -486,7 +518,8 @@ export default function EstimatorPage() {
       }
     }
     
-    return step.component || StepProvinceSelector as any
+    // Fallback to mode selector if a component is missing
+    return step.component || StepModeSelector as any
   }
   
   const CurrentStepComponent = getCurrentStepComponent()

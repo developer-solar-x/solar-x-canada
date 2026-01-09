@@ -100,6 +100,14 @@ export async function callPVWatts(params: PVWattsParams): Promise<PVWattsRespons
         const response = await fetch(url)
         
         if (!response.ok) {
+          const errorText = await response.text().catch(() => response.statusText)
+          console.error('PVWatts API error details:', {
+            status: response.status,
+            statusText: response.statusText,
+            errorBody: errorText,
+            params: cacheParams,
+            url: url.replace(apiKey, 'REDACTED')
+          })
           throw new Error(`PVWatts API error: ${response.statusText}`)
         }
 

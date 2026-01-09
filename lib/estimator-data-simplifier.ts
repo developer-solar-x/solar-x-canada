@@ -168,6 +168,17 @@ export function extractSimplifiedData(data: EstimatorData): SimplifiedEstimatorD
   if (data.systemType) simplified.systemType = data.systemType
   if (data.hasBattery !== undefined) simplified.hasBattery = data.hasBattery
   if (data.annualEscalator !== undefined) simplified.annualEscalator = data.annualEscalator
+
+  // Persist production from estimate (so Net Metering can resume without recompute)
+  if (data.estimate?.production?.annualKwh || data.estimate?.production?.monthlyKwh) {
+    simplified.production = {
+      annualKwh: data.estimate?.production?.annualKwh ?? data.production?.annualKwh,
+      monthlyKwh: data.estimate?.production?.monthlyKwh ?? data.production?.monthlyKwh,
+      dailyAverageKwh: data.production?.dailyAverageKwh,
+    }
+  } else if (data.production) {
+    simplified.production = data.production
+  }
   
   // Step 4: Battery Savings - extract from peakShaving data
   // Only save selectedBatteryIds array, not the single selectedBattery string

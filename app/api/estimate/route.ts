@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // Calculate area if polygon provided; otherwise leave 0 (easy mode may not send polygon)
+    // Calculate area if polygon provided; otherwise use roofAreaSqft if provided
     let areaSquareMeters = 0
     let areaSquareFeet = 0
     if (roofPolygon) {
@@ -54,6 +54,10 @@ export async function POST(request: Request) {
         }
       }
       areaSquareFeet = areaSquareMeters * 10.764
+    } else if (roofAreaSqft && roofAreaSqft > 0) {
+      // Use provided roof area when no polygon (e.g., from quick estimate or resume)
+      areaSquareFeet = roofAreaSqft
+      areaSquareMeters = roofAreaSqft / 10.764
     }
 
     // Calculate recommended system size
@@ -135,6 +139,7 @@ export async function POST(request: Request) {
     let productionData
     if (coordinates && typeof coordinates.lat === 'number' && typeof coordinates.lng === 'number') {
       try {
+        console.log('Calling PVWatts with:', { lat: coordinates.lat, lng: coordinates.lng, systemSizeKw, province })
         productionData = await calculateSolarEstimate(
           coordinates.lat,
           coordinates.lng,
@@ -143,11 +148,17 @@ export async function POST(request: Request) {
           province,
           roofAzimuth // Use actual roof orientation
         )
+        console.log('PVWatts success:', { annualKwh: productionData.annualProductionKwh })
       } catch (error) {
-        console.warn('PVWatts API failed, using estimation:', error)
+        console.warn('PVWatts API failed, using fallback estimation:', {
+          error: error instanceof Error ? error.message : String(error),
+          systemSizeKw,
+          coordinates
+        })
       }
     }
     if (!productionData) {
+      console.log('Using fallback production estimation with systemSizeKw:', systemSizeKw)
       const seasonalDistribution = [
         0.051, 0.067, 0.087, 0.099, 0.116, 0.122,
         0.127, 0.118, 0.103, 0.084, 0.057, 0.049
@@ -161,6 +172,7 @@ export async function POST(request: Request) {
         solarRadiation: 1250,
         pvWattsData: null
       }
+      console.log('Fallback production data:', { annualKwh: annualProduction, monthlyKwh: monthlyProductionKwh[0] })
     }
 
     // Calculate costs - exclude rebates for net metering

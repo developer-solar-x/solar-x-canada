@@ -8,6 +8,23 @@ const STORAGE_KEY = 'solarx_estimator_draft'
 const TIMESTAMP_KEY = 'solarx_estimator_timestamp'
 const PHOTO_IDS_KEY = 'solarx_estimator_photo_ids'
 
+// Legacy peak-shaving keys left in localStorage from quick/battery flows
+const LEGACY_PEAK_SHAVING_KEYS = [
+  'peak_shaving_annual_usage_kwh',
+  'peak_shaving_solar_production_kwh',
+  'peak_shaving_rate_plan',
+  'peak_shaving_battery_id',
+  'peak_shaving_battery_ids',
+]
+
+function clearLegacyPeakShavingKeys() {
+  try {
+    LEGACY_PEAK_SHAVING_KEYS.forEach((key) => localStorage.removeItem(key))
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * Save estimator progress to localStorage
  * Photos are stored separately in IndexedDB (handled by photo components)
@@ -71,6 +88,9 @@ export function loadEstimatorProgress(): {
   timestamp: string
 } | null {
   try {
+    // Clean up old peak-shaving keys that can confuse localStorage inspection
+    clearLegacyPeakShavingKeys()
+
     const savedData = localStorage.getItem(STORAGE_KEY)
     
     if (!savedData) {
@@ -113,6 +133,7 @@ export async function clearEstimatorProgress(): Promise<void> {
     localStorage.removeItem(STORAGE_KEY)
     localStorage.removeItem(TIMESTAMP_KEY)
     localStorage.removeItem(PHOTO_IDS_KEY)
+    clearLegacyPeakShavingKeys()
     
     // Clear photos from IndexedDB
     await clearAllPhotos()
