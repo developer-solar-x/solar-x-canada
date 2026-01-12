@@ -1,4 +1,5 @@
 import { MetadataRoute } from 'next'
+import { blogPosts } from '@/lib/blog-data'
 
 // Generate sitemap for search engines to discover all pages
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -6,6 +7,22 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
                  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 
                  'https://www.solarcalculatorcanada.org')
+  
+  // Blog pages
+  const blogPages = [
+    {
+      url: `${baseUrl}/blog`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+    },
+    ...blogPosts.map((post) => ({
+      url: `${baseUrl}/blog/${post.slug}`,
+      lastModified: new Date(post.updatedAt || post.publishedAt),
+      changeFrequency: 'monthly' as const,
+      priority: 0.7,
+    })),
+  ]
   
   return [
     // Homepage - Highest priority
@@ -78,6 +95,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'monthly',
       priority: 0.5,
     },
+    // Blog pages
+    ...blogPages,
   ]
 }
 
