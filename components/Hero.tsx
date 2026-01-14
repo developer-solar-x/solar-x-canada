@@ -24,6 +24,7 @@ export function Hero() {
   const provinces = [
     { name: 'Ontario', status: 'active', description: 'Fully functional' },
     { name: 'Alberta', status: 'active', description: 'Fully functional' },
+    { name: 'Other provinces', status: 'coming-soon', description: 'Coming soon' },
   ]
 
   // Floating statistic cards data
@@ -128,7 +129,7 @@ export function Hero() {
                     'flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold backdrop-blur-sm';
                   const activeClasses =
                     'bg-maple-500/30 text-white border-2 border-maple-300/50 shadow-lg shadow-maple-500/20 hover:opacity-95 transition-opacity cursor-pointer';
-                  const inactiveClasses = 'bg-white/15 text-white/90 border-2 border-white/30';
+                  const inactiveClasses = 'bg-white/15 text-white/90 border-2 border-white/30 opacity-75';
 
                   const content = (
                     <>
@@ -137,7 +138,7 @@ export function Hero() {
                         <span className="w-2.5 h-2.5 bg-maple-300 rounded-full animate-pulse shadow-sm shadow-maple-300/50" />
                       )}
                       {province.status === 'coming-soon' && (
-                        <span className="text-xs opacity-80 font-normal">({province.description})</span>
+                        <span className="text-xs opacity-80 font-normal">(Coming soon)</span>
                       )}
                     </>
                   )
@@ -152,7 +153,7 @@ export function Hero() {
                       {content}
                     </Link>
                   ) : (
-                    <div key={index} className={`${baseClasses} ${inactiveClasses}`}>
+                    <div key={index} className={`${baseClasses} ${inactiveClasses} cursor-not-allowed`}>
                       {content}
                     </div>
                   )

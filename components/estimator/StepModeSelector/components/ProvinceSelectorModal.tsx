@@ -3,9 +3,10 @@
 // Province Selection Modal with Dropdown
 
 import { useState } from 'react'
-import { X, ChevronDown, MapPin } from 'lucide-react'
+import { X, ChevronDown, MapPin, Clock } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useEffect, useRef } from 'react'
+import { getAllProvinces } from '@/config/provinces'
 
 interface ProvinceSelectorModalProps {
   isOpen: boolean
@@ -18,6 +19,10 @@ export function ProvinceSelectorModal({ isOpen, onSelect, onClose }: ProvinceSel
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const [mounted, setMounted] = useState(false)
+  
+  const allProvinces = getAllProvinces()
+  const enabledProvinces = allProvinces.filter(p => p.enabled)
+  const comingSoonProvinces = allProvinces.filter(p => !p.enabled)
 
   useEffect(() => {
     setMounted(true)
@@ -69,8 +74,16 @@ export function ProvinceSelectorModal({ isOpen, onSelect, onClose }: ProvinceSel
     }
   }, [isOpen, onClose])
 
-  const handleProvinceSelect = (province: 'toronto' | 'alberta') => {
-    setSelectedProvince(province)
+  const handleProvinceSelect = (provinceCode: string) => {
+    const province = allProvinces.find(p => p.code === provinceCode)
+    if (!province || !province.enabled) return
+    
+    // Map province codes to the expected format
+    if (province.code === 'ON') {
+      setSelectedProvince('toronto')
+    } else if (province.code === 'AB') {
+      setSelectedProvince('alberta')
+    }
     setIsDropdownOpen(false)
   }
 
@@ -80,12 +93,17 @@ export function ProvinceSelectorModal({ isOpen, onSelect, onClose }: ProvinceSel
     }
   }
 
-  const provinces = [
-    { value: 'toronto' as const, label: 'Ontario', description: 'Personalized recommendations and detailed solar analysis' },
-    { value: 'alberta' as const, label: 'Alberta', description: 'Alberta Solar Club program available' },
-  ]
+  const provinceOptions = enabledProvinces.map(province => ({
+    value: province.code,
+    label: province.code === 'ON' ? 'Ontario' : province.name,
+    description: province.code === 'ON' 
+      ? 'Personalized recommendations and detailed solar analysis'
+      : 'Alberta Solar Club program available'
+  }))
 
-  const selectedProvinceData = provinces.find(p => p.value === selectedProvince)
+  const selectedProvinceData = selectedProvince 
+    ? provinceOptions.find(p => (p.value === 'ON' && selectedProvince === 'toronto') || (p.value === 'AB' && selectedProvince === 'alberta'))
+    : null
 
   if (!mounted || !isOpen) return null
 
@@ -138,25 +156,60 @@ export function ProvinceSelectorModal({ isOpen, onSelect, onClose }: ProvinceSel
 
             {/* Dropdown Menu */}
             {isDropdownOpen && (
-              <div className="absolute z-10 w-full mt-2 bg-white border-2 border-gray-200 rounded-lg shadow-lg overflow-hidden">
-                {provinces.map((province) => (
-                  <button
-                    key={province.value}
-                    type="button"
-                    onClick={() => handleProvinceSelect(province.value)}
-                    className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${
-                      selectedProvince === province.value ? 'bg-navy-50 border-l-4 border-navy-500' : ''
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <MapPin className="text-navy-500" size={20} />
-                      <div>
-                        <div className="font-medium text-gray-900">{province.label}</div>
-                        <div className="text-xs text-gray-500">{province.description}</div>
-                      </div>
+              <div className="absolute z-10 w-full mt-2 bg-white border-2 border-gray-200 rounded-lg shadow-lg overflow-hidden max-h-96 overflow-y-auto">
+                {/* Available Provinces */}
+                {enabledProvinces.length > 0 && (
+                  <>
+                    {provinceOptions.map((province) => {
+                      const isSelected = (province.value === 'ON' && selectedProvince === 'toronto') ||
+                                        (province.value === 'AB' && selectedProvince === 'alberta')
+                      return (
+                        <button
+                          key={province.value}
+                          type="button"
+                          onClick={() => handleProvinceSelect(province.value)}
+                          className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${
+                            isSelected ? 'bg-navy-50 border-l-4 border-navy-500' : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <MapPin className="text-navy-500" size={20} />
+                            <div>
+                              <div className="font-medium text-gray-900">{province.label}</div>
+                              <div className="text-xs text-gray-500">{province.description}</div>
+                            </div>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </>
+                )}
+                
+                {/* Coming Soon Provinces */}
+                {comingSoonProvinces.length > 0 && (
+                  <>
+                    <div className="px-4 py-2 bg-gray-100 border-t border-gray-200">
+                      <div className="text-xs font-semibold text-gray-500 uppercase">Coming Soon</div>
                     </div>
-                  </button>
-                ))}
+                    {comingSoonProvinces.map((province) => (
+                      <div
+                        key={province.code}
+                        className="w-full text-left px-4 py-3 opacity-60 cursor-not-allowed"
+                      >
+                        <div className="flex items-center gap-3">
+                          <MapPin className="text-gray-400" size={20} />
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-500">{province.name}</div>
+                            <div className="text-xs text-gray-400 flex items-center gap-1">
+                              <Clock size={12} />
+                              <span>Coming Soon</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             )}
           </div>

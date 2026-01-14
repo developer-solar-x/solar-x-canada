@@ -14,9 +14,9 @@ export function Logo({
   framed = true,
 }: LogoProps) {
   const dimensions: Record<NonNullable<LogoProps['size']>, { height: number; paddingX: string }> = {
-    sm: { height: 32, paddingX: 'px-3' },
-    md: { height: 40, paddingX: 'px-4' },
-    lg: { height: 48, paddingX: 'px-5' },
+    sm: { height: 56, paddingX: 'px-3' },
+    md: { height: 100, paddingX: 'px-4' },
+    lg: { height: 120, paddingX: 'px-5' },
   }
 
   const taglineSizes = {
@@ -37,11 +37,12 @@ export function Logo({
   return (
     <div className="flex flex-col items-start">
       <div
-        className={`inline-flex items-center justify-center h-12 md:h-16 ${
+        className={`inline-flex items-center justify-center overflow-hidden ${
           isFramed
-            ? `rounded-lg bg-white ${containerBorder} ${paddingX}`
-            : ''
+            ? `rounded-lg bg-white ${containerBorder} ${paddingX} h-12 md:h-16`
+            : 'bg-transparent'
         }`}
+        style={!isFramed ? { height: `${height}px` } : {}}
       >
         <Image
           src="/logo.png"
@@ -49,6 +50,8 @@ export function Logo({
           height={height}
           width={height * 5}
           priority={size === 'lg'}
+          className={`object-contain ${isFramed ? 'h-full w-auto' : 'w-auto'}`}
+          style={!isFramed ? { height: `${height}px`, width: 'auto' } : {}}
         />
       </div>
       {showTagline && (

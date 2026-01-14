@@ -109,8 +109,214 @@ export const PROVINCE_CONFIG: Record<string, ProvinceConfig> = {
     
     // Ontario HST rate
     hst: 13
+  },
+  AB: {
+    code: 'AB',
+    name: 'Alberta',
+    enabled: true,
+    avgElectricityRate: 0.165,
+    rateStructure: 'time-of-use',
+    avgSolarIrradiance: 1350,
+    avgCapacityFactor: 0.16,
+    avgSystemCostPerKw: 2500,
+    avgInstallationCost: 3000,
+    incentives: [],
+    netMeteringAvailable: true,
+    permitRequired: true,
+    interconnectionProcess: 'Utility approval required. Typically 4-8 weeks for residential systems.',
+    hst: 5
+  },
+  BC: {
+    code: 'BC',
+    name: 'British Columbia',
+    enabled: false,
+    avgElectricityRate: 0.125,
+    rateStructure: 'tiered',
+    avgSolarIrradiance: 1200,
+    avgCapacityFactor: 0.13,
+    avgSystemCostPerKw: 2500,
+    avgInstallationCost: 3000,
+    incentives: [],
+    netMeteringAvailable: true,
+    permitRequired: true,
+    interconnectionProcess: 'Coming soon',
+    hst: 12
+  },
+  MB: {
+    code: 'MB',
+    name: 'Manitoba',
+    enabled: false,
+    avgElectricityRate: 0.095,
+    rateStructure: 'flat',
+    avgSolarIrradiance: 1300,
+    avgCapacityFactor: 0.15,
+    avgSystemCostPerKw: 2500,
+    avgInstallationCost: 3000,
+    incentives: [],
+    netMeteringAvailable: true,
+    permitRequired: true,
+    interconnectionProcess: 'Coming soon',
+    hst: 12
+  },
+  NB: {
+    code: 'NB',
+    name: 'New Brunswick',
+    enabled: false,
+    avgElectricityRate: 0.125,
+    rateStructure: 'tiered',
+    avgSolarIrradiance: 1250,
+    avgCapacityFactor: 0.14,
+    avgSystemCostPerKw: 2500,
+    avgInstallationCost: 3000,
+    incentives: [],
+    netMeteringAvailable: true,
+    permitRequired: true,
+    interconnectionProcess: 'Coming soon',
+    hst: 15
+  },
+  NL: {
+    code: 'NL',
+    name: 'Newfoundland and Labrador',
+    enabled: false,
+    avgElectricityRate: 0.135,
+    rateStructure: 'tiered',
+    avgSolarIrradiance: 1100,
+    avgCapacityFactor: 0.12,
+    avgSystemCostPerKw: 2500,
+    avgInstallationCost: 3000,
+    incentives: [],
+    netMeteringAvailable: true,
+    permitRequired: true,
+    interconnectionProcess: 'Coming soon',
+    hst: 15
+  },
+  NS: {
+    code: 'NS',
+    name: 'Nova Scotia',
+    enabled: false,
+    avgElectricityRate: 0.155,
+    rateStructure: 'tiered',
+    avgSolarIrradiance: 1250,
+    avgCapacityFactor: 0.14,
+    avgSystemCostPerKw: 2500,
+    avgInstallationCost: 3000,
+    incentives: [],
+    netMeteringAvailable: true,
+    permitRequired: true,
+    interconnectionProcess: 'Coming soon',
+    hst: 15
+  },
+  NT: {
+    code: 'NT',
+    name: 'Northwest Territories',
+    enabled: false,
+    avgElectricityRate: 0.380,
+    rateStructure: 'flat',
+    avgSolarIrradiance: 1000,
+    avgCapacityFactor: 0.11,
+    avgSystemCostPerKw: 3000,
+    avgInstallationCost: 4000,
+    incentives: [],
+    netMeteringAvailable: false,
+    permitRequired: true,
+    interconnectionProcess: 'Coming soon',
+    hst: 5
+  },
+  NU: {
+    code: 'NU',
+    name: 'Nunavut',
+    enabled: false,
+    avgElectricityRate: 0.420,
+    rateStructure: 'flat',
+    avgSolarIrradiance: 900,
+    avgCapacityFactor: 0.10,
+    avgSystemCostPerKw: 3500,
+    avgInstallationCost: 5000,
+    incentives: [],
+    netMeteringAvailable: false,
+    permitRequired: true,
+    interconnectionProcess: 'Coming soon',
+    hst: 5
+  },
+  PE: {
+    code: 'PE',
+    name: 'Prince Edward Island',
+    enabled: false,
+    avgElectricityRate: 0.165,
+    rateStructure: 'tiered',
+    avgSolarIrradiance: 1250,
+    avgCapacityFactor: 0.14,
+    avgSystemCostPerKw: 2500,
+    avgInstallationCost: 3000,
+    incentives: [],
+    netMeteringAvailable: true,
+    permitRequired: true,
+    interconnectionProcess: 'Coming soon',
+    hst: 15
+  },
+  QC: {
+    code: 'QC',
+    name: 'Quebec',
+    enabled: false,
+    avgElectricityRate: 0.073,
+    rateStructure: 'tiered',
+    avgSolarIrradiance: 1200,
+    avgCapacityFactor: 0.13,
+    avgSystemCostPerKw: 2500,
+    avgInstallationCost: 3000,
+    incentives: [],
+    netMeteringAvailable: true,
+    permitRequired: true,
+    interconnectionProcess: 'Coming soon',
+    hst: 14.975
+  },
+  SK: {
+    code: 'SK',
+    name: 'Saskatchewan',
+    enabled: false,
+    avgElectricityRate: 0.145,
+    rateStructure: 'tiered',
+    avgSolarIrradiance: 1350,
+    avgCapacityFactor: 0.16,
+    avgSystemCostPerKw: 2500,
+    avgInstallationCost: 3000,
+    incentives: [],
+    netMeteringAvailable: true,
+    permitRequired: true,
+    interconnectionProcess: 'Coming soon',
+    hst: 11
+  },
+  YT: {
+    code: 'YT',
+    name: 'Yukon',
+    enabled: false,
+    avgElectricityRate: 0.120,
+    rateStructure: 'tiered',
+    avgSolarIrradiance: 1000,
+    avgCapacityFactor: 0.11,
+    avgSystemCostPerKw: 3000,
+    avgInstallationCost: 4000,
+    incentives: [],
+    netMeteringAvailable: true,
+    permitRequired: true,
+    interconnectionProcess: 'Coming soon',
+    hst: 5
   }
 };
+
+// Get all provinces with their enabled status
+export function getAllProvinces() {
+  return Object.values(PROVINCE_CONFIG).map(province => ({
+    code: province.code,
+    name: province.name,
+    enabled: province.enabled
+  }))
+}
+
+// Get province by code
+export function getProvinceByCode(code: string): ProvinceConfig | undefined {
+  return PROVINCE_CONFIG[code.toUpperCase()]
+}
 
 // Calculate total system cost with taxes and zero-export incentives
 // programType: 'hrs_residential' | 'net_metering' | 'quick' | undefined

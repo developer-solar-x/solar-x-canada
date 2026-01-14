@@ -59,18 +59,20 @@ export function Header() {
     <>
       {/* Main navigation header */}
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 overflow-hidden ${
           isEstimatorRoute ? 'bg-forest-500 shadow-md' : 'bg-white shadow-md'
         }`}
+        style={{ height: '96px' }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20">
+          <div className="flex items-center justify-between h-24 overflow-hidden">
             {/* Logo on the left */}
-            <Link href="/" className="flex-shrink-0">
+            <Link href="/" className="flex-shrink-0 flex items-center h-full overflow-hidden">
               <Logo 
                 variant={isEstimatorRoute ? 'white' : 'default'}
                 size="md"
                 showTagline={false}
+                framed={isEstimatorRoute}
               />
             </Link>
 
