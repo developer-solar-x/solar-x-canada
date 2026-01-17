@@ -77,7 +77,7 @@ export function Header() {
             </Link>
 
             {/* Desktop navigation in the center */}
-            <nav className="hidden md:flex items-center space-x-4">
+            <nav className="hidden md:flex items-center space-x-4 overflow-visible">
               {navLinks.map((link) => (
                 <Link
                   key={link.href}
@@ -93,7 +93,7 @@ export function Header() {
               ))}
               
               {/* Tools Dropdown */}
-              <div className="relative tools-dropdown-container z-50">
+              <div className="relative tools-dropdown-container">
                 <button
                   onClick={() => setToolsDropdownOpen(!toolsDropdownOpen)}
                   className={`text-sm font-medium inline-flex items-center gap-1 transition-colors ${
@@ -116,7 +116,7 @@ export function Header() {
                       className="fixed inset-0 z-[49]"
                       onClick={() => setToolsDropdownOpen(false)}
                     />
-                    <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-[60] overflow-hidden">
+                    <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-[100] overflow-hidden">
                       <Link
                         href="/peak-shaving-sales-calculator"
                         onClick={() => setToolsDropdownOpen(false)}
