@@ -3,6 +3,7 @@
 // Step 0: Mode Selection - Easy vs Detailed
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Zap, BarChart3 } from 'lucide-react'
 import { ComparisonTable } from './components/ComparisonTable'
 import { ProvinceSelectorModal } from './components/ProvinceSelectorModal'
@@ -10,12 +11,14 @@ import { ProgramSelectionModal } from './components/ProgramSelectionModal'
 import type { StepModeSelectorProps } from './types'
 
 export function StepModeSelector({ data, onComplete }: StepModeSelectorProps) {
+  const router = useRouter()
   const [showProvinceModal, setShowProvinceModal] = useState(false)
   const [showProgramModal, setShowProgramModal] = useState(false)
   const [selectedMode, setSelectedMode] = useState<'easy' | 'detailed' | null>(null)
   const [selectedProvince, setSelectedProvince] = useState<'toronto' | 'alberta' | null>(null)
 
   const selectEasy = () => {
+    // Show province selection modal first, then program selection with questions
     setSelectedMode('easy')
     setShowProvinceModal(true)
   }
@@ -46,6 +49,20 @@ export function StepModeSelector({ data, onComplete }: StepModeSelectorProps) {
 
   const handleProgramSelect = (programType: 'net_metering' | 'hrs_residential' | 'quick', leadType: 'residential' | 'commercial', hasBattery?: boolean) => {
     if (selectedMode && selectedProvince) {
+      // If in quick estimate mode or program type is 'quick', redirect to /quick-estimate instead of continuing with detailed flow
+      if (selectedMode === 'easy' || programType === 'quick') {
+        // Redirect to quick-estimate with program selection data
+        const params = new URLSearchParams({
+          province: selectedProvince === 'toronto' ? 'ON' : 'AB',
+          programType,
+          leadType,
+          ...(hasBattery !== undefined && { hasBattery: hasBattery.toString() })
+        })
+        router.push(`/quick-estimate?${params.toString()}`)
+        return
+      }
+      
+      // For detailed mode, continue with normal flow
       onComplete({ 
         selectedProvince: selectedProvince,
         province: selectedProvince === 'toronto' ? 'ON' : 'AB',

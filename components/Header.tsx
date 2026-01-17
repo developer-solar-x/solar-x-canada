@@ -59,25 +59,25 @@ export function Header() {
     <>
       {/* Main navigation header */}
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 overflow-hidden ${
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
           isEstimatorRoute ? 'bg-forest-500 shadow-md' : 'bg-white shadow-md'
         }`}
-        style={{ height: '96px' }}
+        style={{ height: '64px' }}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-24 overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
+          <div className="flex items-center justify-between h-16">
             {/* Logo on the left */}
             <Link href="/" className="flex-shrink-0 flex items-center h-full overflow-hidden">
               <Logo 
                 variant={isEstimatorRoute ? 'white' : 'default'}
-                size="md"
+                size="sm"
                 showTagline={false}
                 framed={isEstimatorRoute}
               />
             </Link>
 
             {/* Desktop navigation in the center */}
-            <nav className="hidden md:flex items-center space-x-6">
+            <nav className="hidden md:flex items-center space-x-4">
               {navLinks.map((link) => (
                 <Link
                   key={link.href}
@@ -93,7 +93,7 @@ export function Header() {
               ))}
               
               {/* Tools Dropdown */}
-              <div className="relative tools-dropdown-container">
+              <div className="relative tools-dropdown-container z-50">
                 <button
                   onClick={() => setToolsDropdownOpen(!toolsDropdownOpen)}
                   className={`text-sm font-medium inline-flex items-center gap-1 transition-colors ${
@@ -113,10 +113,10 @@ export function Header() {
                 {toolsDropdownOpen && (
                   <>
                     <div
-                      className="fixed inset-0 z-10"
+                      className="fixed inset-0 z-[49]"
                       onClick={() => setToolsDropdownOpen(false)}
                     />
-                    <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-20 overflow-hidden">
+                    <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-[60] overflow-hidden">
                       <Link
                         href="/peak-shaving-sales-calculator"
                         onClick={() => setToolsDropdownOpen(false)}

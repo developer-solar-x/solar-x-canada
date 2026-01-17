@@ -14,7 +14,7 @@ export function Logo({
   framed = true,
 }: LogoProps) {
   const dimensions: Record<NonNullable<LogoProps['size']>, { height: number; paddingX: string }> = {
-    sm: { height: 56, paddingX: 'px-3' },
+    sm: { height: 60, paddingX: 'px-3' },
     md: { height: 100, paddingX: 'px-4' },
     lg: { height: 120, paddingX: 'px-5' },
   }

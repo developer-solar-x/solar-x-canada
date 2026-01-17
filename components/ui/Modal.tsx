@@ -3,7 +3,7 @@
 // Reusable modal component
 
 import { X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 interface ModalProps {
@@ -11,7 +11,7 @@ interface ModalProps {
   onClose: () => void
   onConfirm?: () => void
   title: string
-  message: string
+  message: string | React.ReactNode
   confirmText?: string
   cancelText?: string
   variant?: 'info' | 'warning' | 'danger' | 'success'
@@ -112,10 +112,10 @@ export function Modal({
 
   // Variant-specific cancel button styling (brand palette)
   const cancelBtnByVariant: Record<string, string> = {
-    info: 'text-navy-600 bg-white border border-navy-200 hover:bg-navy-50',
-    warning: 'text-yellow-700 bg-white border border-yellow-300 hover:bg-yellow-50',
-    danger: 'text-navy-600 bg-white border border-red-300 hover:bg-red-50',
-    success: 'text-green-700 bg-white border border-green-300 hover:bg-green-50',
+    info: 'text-navy-600 bg-white border-2 border-blue-300 hover:bg-blue-50 hover:border-blue-400',
+    warning: 'text-yellow-700 bg-white border-2 border-yellow-300 hover:bg-yellow-50 hover:border-yellow-400',
+    danger: 'text-navy-600 bg-white border-2 border-red-300 hover:bg-red-50 hover:border-red-400',
+    success: 'text-green-700 bg-white border-2 border-green-300 hover:bg-green-50 hover:border-green-400',
   }
 
   // This wrapper keeps the modal tethered to the viewer's current spot instead of the global center
@@ -137,13 +137,13 @@ export function Modal({
         style={{ marginTop: `${modalMarginTop}px` }}
       >
         {/* Modal - keeps the familiar card look while respecting tighter positioning */}
-        <div className="relative bg-white rounded-lg shadow-2xl w-full max-w-lg sm:max-w-xl md:max-w-2xl lg:max-w-3xl animate-in fade-in zoom-in duration-200 max-h-[90vh] sm:max-h-[85vh] flex flex-col">
+        <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md sm:max-w-lg md:max-w-xl animate-in fade-in zoom-in duration-200 max-h-[90vh] sm:max-h-[85vh] flex flex-col">
         {/* Header - responsive padding for different screen sizes */}
-        <div className={`flex items-center justify-between p-3 sm:p-4 border-b ${styles.border} ${styles.bg}`}>
-          <h3 className="text-base sm:text-lg font-bold text-navy-500 pr-2">{title}</h3>
+        <div className={`flex items-center justify-between p-4 sm:p-6 border-b ${styles.border} ${styles.bg}`}>
+          <h3 className="text-lg sm:text-xl font-bold text-navy-500 pr-2">{title}</h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+            className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 p-1 hover:bg-gray-100 rounded"
             aria-label="Close modal"
           >
             <X size={20} />
@@ -152,9 +152,15 @@ export function Modal({
 
         {/* Body - scrollable content area with smooth scrolling and responsive padding */}
         <div className="p-4 sm:p-6 overflow-y-auto flex-1 scroll-smooth">
-          <p className="text-gray-700 leading-relaxed text-sm sm:text-base">
-            {message}
-          </p>
+          {typeof message === 'string' ? (
+            <p className="text-gray-700 leading-relaxed text-sm sm:text-base whitespace-pre-line">
+              {message}
+            </p>
+          ) : (
+            <div className="text-gray-700 leading-relaxed text-sm sm:text-base">
+              {message}
+            </div>
+          )}
           {children && (
             <div className="mt-3 sm:mt-4 space-y-3 sm:space-y-4">
               {children}
@@ -163,10 +169,10 @@ export function Modal({
         </div>
 
         {/* Footer - responsive padding and button sizing */}
-        <div className="flex items-center justify-end gap-2 sm:gap-3 p-3 sm:p-4 bg-gray-50 rounded-b-lg flex-shrink-0">
+        <div className="flex items-center justify-end gap-2 sm:gap-3 p-4 sm:p-6 bg-gray-50 rounded-b-lg flex-shrink-0 border-t border-gray-200">
           <button
             onClick={onClose}
-            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors ${cancelBtnByVariant[variant]}`}
+            className={`px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-semibold rounded-lg transition-all hover:shadow-sm ${cancelBtnByVariant[variant]}`}
           >
             {cancelText}
           </button>
@@ -176,7 +182,7 @@ export function Modal({
                 onConfirm()
                 onClose()
               }}
-              className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white rounded-lg transition-colors ${styles.button}`}
+              className={`px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-semibold text-white rounded-lg transition-all hover:shadow-md ${styles.button}`}
             >
               {confirmText}
             </button>
