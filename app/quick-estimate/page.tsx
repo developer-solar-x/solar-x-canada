@@ -6,7 +6,7 @@
 // Step 3: Results Preview
 // Step 4: Get Full Quote (Contact)
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Logo } from '@/components/Logo'
 import Link from 'next/link'
@@ -127,7 +127,7 @@ function getTimeSinceLastSave(): string {
   return 'just now'
 }
 
-export default function QuickEstimatePage() {
+function QuickEstimateContent() {
   const searchParams = useSearchParams()
   const [currentStep, setCurrentStep] = useState(0)
   const [data, setData] = useState<QuickEstimateData>({})
@@ -398,5 +398,20 @@ export default function QuickEstimatePage() {
         variant="danger"
       />
     </div>
+  )
+}
+
+export default function QuickEstimatePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <QuickEstimateContent />
+    </Suspense>
   )
 }
