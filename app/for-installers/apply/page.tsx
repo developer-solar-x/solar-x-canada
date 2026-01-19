@@ -9,6 +9,9 @@ import { Footer } from '@/components/Footer'
 import { InstallerIntakeForm, InstallerFormData } from '@/components/InstallerIntakeForm'
 import { Loader2 } from 'lucide-react'
 
+// Force dynamic rendering to avoid static generation issues with PostHogProvider
+export const dynamic = 'force-dynamic'
+
 export default function InstallerApplyPage() {
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)

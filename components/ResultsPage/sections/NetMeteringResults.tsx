@@ -40,7 +40,6 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels, p
   const tieredBillOffset = tiered?.annual?.billOffsetPercent ?? (tiered?.annual?.importCost && tiered.annual.importCost > 0
     ? Math.min(100, ((tiered.annual.exportCredits || 0) / tiered.annual.importCost) * 100)
     : 100)
-  const bestPlan = touBillOffset >= uloBillOffset ? 'TOU' : 'ULO'
 
   // Calculate energy offset (what % of usage is covered by production)
   const touEnergyOffset = tou?.annual?.totalLoad && tou.annual.totalLoad > 0
@@ -334,7 +333,7 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels, p
         <span>Net metering credits and eligibility depend on your utility’s specific rules and approvals.</span>
       </div>
 
-          {/* Offset Summary - Prominent Display (selected plan only) */}
+          {/* Offset Summary - Display all plans */}
           {(tou || ulo || tiered) && (
         <div className="bg-gradient-to-br from-emerald-50 via-green-50 to-emerald-100 rounded-xl p-6 border-2 border-emerald-200 shadow-lg">
           <div className="flex items-center gap-3 mb-4">
@@ -346,8 +345,8 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels, p
               <p className="text-sm text-emerald-700">Your bill reduction with solar credits</p>
             </div>
           </div>
-              <div className="grid grid-cols-1 gap-4">
-                {isTouSelected && tou && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {tou && (
               <div className="bg-white rounded-lg p-4 border border-emerald-200">
                 <p className="text-xs text-gray-600 mb-1">TOU Plan Offset</p>
                 <p className="text-3xl font-bold text-emerald-600 mb-1">{touBillOffset.toFixed(1)}%</p>
@@ -363,7 +362,7 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels, p
                 </div>
               </div>
             )}
-                {isUloSelected && ulo && (
+                {ulo && (
               <div className="bg-white rounded-lg p-4 border border-emerald-200">
                 <p className="text-xs text-gray-600 mb-1">ULO Plan Offset</p>
                 <p className="text-3xl font-bold text-emerald-600 mb-1">{uloBillOffset.toFixed(1)}%</p>
@@ -379,7 +378,7 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels, p
                 </div>
               </div>
             )}
-                {isTieredSelected && tiered && (
+                {tiered && (
                   <div className="bg-white rounded-lg p-4 border border-emerald-200">
                     <p className="text-xs text-gray-600 mb-1">Tiered Plan Offset</p>
                     <p className="text-3xl font-bold text-emerald-600 mb-1">{tieredBillOffset.toFixed(1)}%</p>
@@ -399,18 +398,13 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels, p
         </div>
       )}
 
-      {/* Detailed Plan View (selected plan only) - full width cards */}
+      {/* Detailed Plan View (all plans) - full width cards */}
       <div className="space-y-6">
         {/* TOU Results */}
-        {isTouSelected && tou && (
+        {tou && (
           <div className="bg-white rounded-lg border-2 border-gray-200 p-6 space-y-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-navy-900">Time-of-Use (TOU)</h3>
-              {bestPlan === 'TOU' && (
-                <span className="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full">
-                  Best Value
-                </span>
-              )}
             </div>
 
             {/* Annual Summary */}
@@ -542,15 +536,10 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels, p
         )}
 
         {/* ULO Results */}
-        {isUloSelected && ulo && (
+        {ulo && (
           <div className="bg-white rounded-lg border-2 border-gray-200 p-6 space-y-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-navy-900">Ultra-Low Overnight (ULO)</h3>
-              {bestPlan === 'ULO' && (
-                <span className="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full">
-                  Best Value
-                </span>
-              )}
             </div>
 
             {/* Annual Summary */}
@@ -682,7 +671,7 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels, p
         )}
 
         {/* Tiered Results (simplified view) */}
-        {isTieredSelected && tiered && (
+        {tiered && (
           <div className="bg-white rounded-lg border-2 border-gray-200 p-6 space-y-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-navy-900">Tiered (Flat Rate)</h3>
@@ -767,19 +756,19 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels, p
               <thead>
                 <tr className="border-b border-gray-200">
                   <th className="text-left py-2 px-3 font-semibold text-gray-700">Month</th>
-                  {isTouSelected && tou && (
+                  {tou && (
                     <>
                       <th className="text-right py-2 px-3 font-semibold text-gray-700">TOU Net Bill</th>
                       <th className="text-right py-2 px-3 font-semibold text-gray-700">TOU Credits</th>
                     </>
                   )}
-                  {isUloSelected && ulo && (
+                  {ulo && (
                     <>
                       <th className="text-right py-2 px-3 font-semibold text-gray-700">ULO Net Bill</th>
                       <th className="text-right py-2 px-3 font-semibold text-gray-700">ULO Credits</th>
                     </>
                   )}
-                  {isTieredSelected && tiered && (
+                  {tiered && (
                     <>
                       <th className="text-right py-2 px-3 font-semibold text-gray-700">Tiered Net Bill</th>
                       <th className="text-right py-2 px-3 font-semibold text-gray-700">Tiered Credits</th>
@@ -796,7 +785,7 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels, p
                   return (
                     <tr key={month} className="border-b border-gray-100">
                       <td className="py-2 px-3 font-medium text-gray-700">{MONTH_NAMES[month - 1]}</td>
-                      {isTouSelected && tou && (
+                      {tou && (
                         <>
                         <td className="text-right py-2 px-3 text-gray-900">
                           {touMonth ? formatCurrency(touMonth.netBill) : '-'}
@@ -806,7 +795,7 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels, p
                           </td>
                         </>
                       )}
-                      {isUloSelected && ulo && (
+                      {ulo && (
                         <>
                         <td className="text-right py-2 px-3 text-gray-900">
                           {uloMonth ? formatCurrency(uloMonth.netBill) : '-'}
@@ -816,7 +805,7 @@ export function NetMeteringResults({ netMeteringData, systemSizeKw, numPanels, p
                         </td>
                         </>
                       )}
-                      {isTieredSelected && tiered && (
+                      {tiered && (
                         <>
                           <td className="text-right py-2 px-3 text-gray-900">
                             {tieredMonth ? formatCurrency(tieredMonth.netBill) : '-'}

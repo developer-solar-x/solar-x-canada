@@ -360,7 +360,9 @@ export async function POST(request: Request) {
       production_monthly_kwh: estimateData?.production?.monthlyKwh || [],
       
       // Additional metadata
-      estimator_mode: body.estimatorMode || body.estimator_mode || '',
+      // Default to 'easy' for quick estimates and net metering if estimatorMode is not provided
+      // The database constraint requires estimator_mode to be 'easy' or 'detailed', not empty string
+      estimator_mode: body.estimatorMode || body.estimator_mode || 'easy',
       program_type: body.programType || body.program_type || '',
       // Use map_snapshot for hrs_residential_leads, map_snapshot_url for leads_v3
       map_snapshot: mapSnapshotUrl || body.mapSnapshot || body.mapSnapshotUrl || null,

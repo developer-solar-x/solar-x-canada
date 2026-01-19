@@ -1,6 +1,6 @@
 'use client'
 
-// FRD-Compliant Peak Shaving Sales Calculator
+// FRD-Compliant Peak Shaving Calculator
 // Version 2.0 - "Simple, User-Friendly & Offset-Focused UI"
 // Implements all 6 required sections from the FRD
 
@@ -1437,7 +1437,7 @@ export function PeakShavingSalesCalculatorFRD({
       const solarOnlySavings = combinedResult.solarOnlySavings || 0
       const batteryOnTopSavings = combinedResult.batteryOnTopSavings || 0
       const combinedSavings = combinedResult.combinedAnnualSavings || 0
-      const albertaData = combinedResult.alberta
+      const albertaData = (combinedResult as any).alberta
       
       // Calculate offsets as percentages
       const solarOffset = baselineBill > 0 ? (solarOnlySavings / baselineBill) * 100 : 0
@@ -2829,10 +2829,10 @@ export function PeakShavingSalesCalculatorFRD({
                     <HeroMetricCard
                       icon={BarChart3}
                       label="Net Annual Bill"
-                      value={combinedResult?.postSolarBatteryAnnualBill || 0}
+                      value={combinedResult?.postSolarBatteryAnnualBill ?? 0}
                       suffix="$"
-                      caption={combinedResult?.postSolarBatteryAnnualBill < 0 ? "Credit balance (negative = credit)" : "Net cost after credits"}
-                      color={combinedResult?.postSolarBatteryAnnualBill < 0 ? "green" : "blue"}
+                      caption={(combinedResult?.postSolarBatteryAnnualBill ?? 0) < 0 ? "Credit balance (negative = credit)" : "Net cost after credits"}
+                      color={(combinedResult?.postSolarBatteryAnnualBill ?? 0) < 0 ? "green" : "blue"}
                     />
                     <HeroMetricCard
                       icon={TrendingUp}
@@ -3946,8 +3946,8 @@ export function PeakShavingSalesCalculatorFRD({
                       ...(uloFrdResult && { result: uloFrdResult }) // Include FRD result for offsetPercentages
                     } : undefined,
                     // For Alberta HRS, include Alberta-specific data
-                    ...(isAlbertaHRS && combinedResult?.alberta ? {
-                      alberta: combinedResult.alberta,
+                    ...(isAlbertaHRS && combinedResult ? {
+                      alberta: (combinedResult as any).alberta,
                       combined: combinedResult,
                       projection: multiYearProjection,
                     } : {})

@@ -94,7 +94,8 @@ export function SavingsTab({
   
   // Net Metering-only savings view (TOU, ULO, Tiered)
   // For Alberta, they use Alberta Solar Club, not TOU/ULO/Tiered, so don't show this section
-  if (programType === 'net_metering' && netMetering && !isAlberta && !hasAlbertaData) {
+  // Also show for 'quick' program type if net metering data exists (quick estimate can include net metering step)
+  if ((programType === 'net_metering' || programType === 'quick') && netMetering && !isAlberta && !hasAlbertaData) {
     const escalation = (annualEscalator ?? 4.5) / 100
     const years = 25
     const netCost = combinedNetCost || 0
@@ -109,13 +110,8 @@ export function SavingsTab({
       const planData = (netMetering as any)[plan.id]
       if (!planData) {
         console.warn(`[SavingsTab] Missing plan data for ${plan.id}:`, netMetering)
-        return {
-          id: plan.id,
-          label: plan.label,
-          annualSavings: 0,
-          paybackYears: null,
-          profit25: 0,
-        }
+        // Return null for missing plans so they can be filtered out
+        return null
       }
       const projection = planData?.projection
       const annualSavings =
@@ -137,7 +133,7 @@ export function SavingsTab({
         paybackYears: projection?.paybackYears as number | null | undefined,
         profit25,
       }
-    })
+    }).filter((plan): plan is NonNullable<typeof plan> => plan !== null)
 
     // Build multi-year profit series for the chart
     const savingsSeries = Array.from({ length: years }, (_, idx) => {
@@ -155,18 +151,20 @@ export function SavingsTab({
 
       const tou = accumulate(planMetrics.find(p => p.id === 'tou')?.annualSavings)
       const ulo = accumulate(planMetrics.find(p => p.id === 'ulo')?.annualSavings)
-      const tiered = accumulate(planMetrics.find(p => p.id === 'tiered')?.annualSavings)
+      const tieredPlan = planMetrics.find(p => p.id === 'tiered')
+      const tiered = tieredPlan ? accumulate(tieredPlan.annualSavings) : null
 
       return {
         year,
         touProfit: tou.profit,
         uloProfit: ulo.profit,
-        tieredProfit: tiered.profit,
+        tieredProfit: tiered?.profit ?? null, // Use null instead of -netCost when tiered data doesn't exist
       }
     })
 
     // Y-axis domain for profit view (0 = break-even). Include 0 and -netCost explicitly so the full range is visible.
-    const allValues = savingsSeries.flatMap(d => [d.touProfit, d.uloProfit, d.tieredProfit, 0, -netCost])
+    // Filter out null values for tieredProfit
+    const allValues = savingsSeries.flatMap(d => [d.touProfit, d.uloProfit, d.tieredProfit, 0, -netCost]).filter(v => v !== null) as number[]
     const maxValue = Math.max(...allValues)
     const minValue = Math.min(...allValues)
     const padding = Math.max(Math.abs(maxValue), Math.abs(minValue)) * 0.15
@@ -273,15 +271,17 @@ export function SavingsTab({
                   activeDot={{ r: isMobile ? 7 : 8, fill: '#DC143C', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
                   name="25-Year Profit (ULO)"
                 />
-                <Line
-                  type="monotone"
-                  dataKey="tieredProfit"
-                  stroke="#f59e0b"
-                  strokeWidth={isMobile ? 3 : 3.5}
-                  dot={{ r: isMobile ? 4 : 5, fill: '#f59e0b', strokeWidth: 2, stroke: 'white' }}
-                  activeDot={{ r: isMobile ? 7 : 8, fill: '#f59e0b', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
-                  name="25-Year Profit (Tiered)"
-                />
+                {planMetrics.find(p => p.id === 'tiered') && (
+                  <Line
+                    type="monotone"
+                    dataKey="tieredProfit"
+                    stroke="#f59e0b"
+                    strokeWidth={isMobile ? 3 : 3.5}
+                    dot={{ r: isMobile ? 4 : 5, fill: '#f59e0b', strokeWidth: 2, stroke: 'white' }}
+                    activeDot={{ r: isMobile ? 7 : 8, fill: '#f59e0b', strokeWidth: 2, stroke: 'white', cursor: 'pointer' }}
+                    name="25-Year Profit (Tiered)"
+                  />
+                )}
                 {/* 0 on the profit axis is the break-even point (system has repaid net investment) */}
                 <ReferenceLine
                   y={0}

@@ -40,8 +40,8 @@ export function ProductionTab({ annualKwh, productionChartData, isMobile }: Prod
             <YAxis />
             <Tooltip />
             <Legend wrapperStyle={{ fontSize: isMobile ? 11 : 12 }} />
-            <Bar dataKey="production" name="Production (kWh)" fill="#1B4E7C" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="usage" name="Usage (kWh)" fill="#DC143C" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="production" name="Production (kWh)" fill="#22c55e" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="usage" name="Usage (kWh)" fill="#64748b" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

@@ -1,6 +1,6 @@
 'use client'
 
-// Peak-Shaving Sales Calculator Page - Bento Grid Format
+// Peak Shaving Calculator Page - Bento Grid Format
 // This page provides a compact bento grid layout version of the peak-shaving calculator
 
 import { useEffect, useMemo, useState, useCallback } from 'react'

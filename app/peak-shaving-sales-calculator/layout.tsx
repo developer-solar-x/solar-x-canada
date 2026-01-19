@@ -2,10 +2,10 @@ import type { Metadata } from 'next'
 
 // Page-specific metadata for SEO
 export const metadata: Metadata = {
-  title: 'Peak Shaving Sales Calculator | Solar Battery ROI Calculator Canada',
+  title: 'Peak Shaving Calculator | Solar Battery ROI Calculator Canada',
   description: 'Professional peak shaving calculator for solar sales. Calculate TOU vs ULO savings, battery ROI, and payback period. Free tool for solar sales professionals in Canada.',
   keywords: [
-    'peak shaving sales calculator',
+    'peak shaving calculator',
     'solar sales calculator',
     'battery roi calculator',
     'tou ulo comparison tool',
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     canonical: 'https://www.solarcalculatorcanada.org/peak-shaving-sales-calculator',
   },
   openGraph: {
-    title: 'Peak Shaving Sales Calculator | Solar Battery ROI Calculator Canada',
+    title: 'Peak Shaving Calculator | Solar Battery ROI Calculator Canada',
     description: 'Professional peak shaving calculator for solar sales. Calculate TOU vs ULO savings and battery ROI.',
     url: 'https://www.solarcalculatorcanada.org/peak-shaving-sales-calculator',
   },

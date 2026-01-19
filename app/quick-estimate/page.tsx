@@ -11,7 +11,7 @@
 // Step 8: Review
 // Step 9: Submit
 
-import { useState, useEffect, Suspense, useRef } from 'react'
+import { useState, useEffect, Suspense, useRef, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Logo } from '@/components/Logo'
 import Link from 'next/link'
@@ -114,15 +114,127 @@ const steps = [
 // Local storage key for progress
 const STORAGE_KEY = 'quick-estimate-progress'
 
+// Sanitize data for localStorage - exclude large fields that can exceed quota
+// Similar to estimator-storage.ts approach - only save essential fields
+function sanitizeDataForStorage(data: QuickEstimateData): QuickEstimateData {
+  // Create a new object with only essential fields (don't copy everything)
+  const sanitized: QuickEstimateData = {}
+  
+  // Program selection
+  if (data.programType) sanitized.programType = data.programType
+  if (data.leadType) sanitized.leadType = data.leadType
+  if (data.hasBattery !== undefined) sanitized.hasBattery = data.hasBattery
+  if (data.systemType) sanitized.systemType = data.systemType
+  
+  // Location
+  if (data.address) sanitized.address = data.address
+  if (data.coordinates) sanitized.coordinates = data.coordinates
+  if (data.city) sanitized.city = data.city
+  if (data.province) sanitized.province = data.province
+  if (data.email) sanitized.email = data.email
+  
+  // Roof
+  if (data.roofAreaSqft !== undefined) sanitized.roofAreaSqft = data.roofAreaSqft
+  if (data.roofSizePreset) sanitized.roofSizePreset = data.roofSizePreset
+  if (data.roofEntryMethod) sanitized.roofEntryMethod = data.roofEntryMethod
+  
+  // Energy
+  if (data.energyEntryMethod) sanitized.energyEntryMethod = data.energyEntryMethod
+  if (data.energyUsage) sanitized.energyUsage = data.energyUsage
+  if (data.annualUsageKwh !== undefined) sanitized.annualUsageKwh = data.annualUsageKwh
+  if (data.monthlyBill !== undefined) sanitized.monthlyBill = data.monthlyBill
+  if (data.homeSize) sanitized.homeSize = data.homeSize
+  if (data.specialAppliances) sanitized.specialAppliances = data.specialAppliances
+  
+  // Battery (only selected ID, not full details)
+  if (data.selectedBattery) sanitized.selectedBattery = data.selectedBattery
+  // Exclude batteryDetails and peakShaving.comparisons (too large)
+  
+  // Add-ons
+  if (data.selectedAddOns) sanitized.selectedAddOns = data.selectedAddOns
+  
+  // Details
+  if (data.roofType) sanitized.roofType = data.roofType
+  if (data.roofAge) sanitized.roofAge = data.roofAge
+  if (data.roofPitch) sanitized.roofPitch = data.roofPitch
+  if (data.shadingLevel) sanitized.shadingLevel = data.shadingLevel
+  if (data.roofAzimuth !== undefined) sanitized.roofAzimuth = data.roofAzimuth
+  
+  // Financing
+  if (data.financingOption) sanitized.financingOption = data.financingOption
+  
+  // Explicitly exclude large fields:
+  // - photos (base64 images are very large)
+  // - photoSummary
+  // - estimate (large calculation results)
+  // - batteryDetails (full battery specs)
+  // - peakShaving (large comparison arrays)
+  
+  return sanitized
+}
+
 function saveProgress(data: QuickEstimateData, step: number) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      data,
+    // Sanitize data to exclude large fields before saving
+    const sanitizedData = sanitizeDataForStorage(data)
+    
+    const progressData = {
+      data: sanitizedData,
       currentStep: step,
       savedAt: new Date().toISOString(),
-    }))
+    }
+    
+    const serialized = JSON.stringify(progressData)
+    
+    // Check size before saving (localStorage typically has 5-10MB limit)
+    // Warn if approaching limit (4MB threshold)
+    if (serialized.length > 4 * 1024 * 1024) {
+      console.warn('Progress data is large, some fields may be excluded:', serialized.length, 'bytes')
+    }
+    
+    localStorage.setItem(STORAGE_KEY, serialized)
   } catch (e) {
-    console.error('Failed to save progress:', e)
+    if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+      // If still too large, try saving even less data
+      console.warn('Storage quota exceeded, saving minimal data only')
+      try {
+        const minimalData: QuickEstimateData = {
+          province: data.province,
+          programType: data.programType,
+          leadType: data.leadType,
+          hasBattery: data.hasBattery,
+          systemType: data.systemType,
+          address: data.address,
+          coordinates: data.coordinates,
+          city: data.city,
+          email: data.email,
+          roofAreaSqft: data.roofAreaSqft,
+          roofSizePreset: data.roofSizePreset,
+          roofEntryMethod: data.roofEntryMethod,
+          energyEntryMethod: data.energyEntryMethod,
+          annualUsageKwh: data.annualUsageKwh,
+          monthlyBill: data.monthlyBill,
+          homeSize: data.homeSize,
+          selectedBattery: data.selectedBattery,
+          selectedAddOns: data.selectedAddOns,
+          roofType: data.roofType,
+          roofAge: data.roofAge,
+          roofPitch: data.roofPitch,
+          shadingLevel: data.shadingLevel,
+          roofAzimuth: data.roofAzimuth,
+          financingOption: data.financingOption,
+        }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          data: minimalData,
+          currentStep: step,
+          savedAt: new Date().toISOString(),
+        }))
+      } catch (e2) {
+        console.error('Failed to save even minimal progress:', e2)
+      }
+    } else {
+      console.error('Failed to save progress:', e)
+    }
   }
 }
 
@@ -181,6 +293,25 @@ function QuickEstimateContent() {
   // Track estimate start time for analytics
   const estimateStartTime = useRef<number>(Date.now())
   const hasTrackedStart = useRef<boolean>(false)
+
+  // Filter steps based on programType (similar to estimator)
+  // This needs to be recalculated when data changes, so we'll compute it in the component
+  const getDisplaySteps = (currentData: QuickEstimateData) => {
+    return steps.filter(step => {
+      // Show Battery Savings step only for HRS program or battery system
+      if (step.name === 'Battery Savings') {
+        return currentData.programType === 'hrs_residential' || currentData.systemType === 'battery_system'
+      }
+      // Show Net Metering Savings step only for net_metering program
+      if (step.name === 'Net Metering Savings') {
+        return currentData.programType === 'net_metering'
+      }
+      return true
+    }).map((step, index) => ({ ...step, id: index }))
+  }
+  
+  // Memoize displaySteps to avoid recalculating on every render
+  const displaySteps = useMemo(() => getDisplaySteps(data), [data])
 
   // Load query parameters and pre-populate data
   useEffect(() => {
@@ -383,24 +514,6 @@ function QuickEstimateContent() {
     setLastSaved(null)
     setShowClearModal(false)
   }
-
-  // Filter steps based on programType (similar to estimator)
-  // This needs to be recalculated when data changes, so we'll compute it in the component
-  const getDisplaySteps = (currentData: QuickEstimateData) => {
-    return steps.filter(step => {
-      // Show Battery Savings step only for HRS program or battery system
-      if (step.name === 'Battery Savings') {
-        return currentData.programType === 'hrs_residential' || currentData.systemType === 'battery_system'
-      }
-      // Show Net Metering Savings step only for net_metering program
-      if (step.name === 'Net Metering Savings') {
-        return currentData.programType === 'net_metering'
-      }
-      return true
-    }).map((step, index) => ({ ...step, id: index }))
-  }
-  
-  const displaySteps = getDisplaySteps(data)
 
   // Get current step component - handle Battery Savings vs Net Metering Savings
   const getCurrentStepComponent = () => {

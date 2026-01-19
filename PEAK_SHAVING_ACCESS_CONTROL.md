@@ -1,7 +1,7 @@
 # Peak Shaving Calculator - Access Control & localStorage Management
 
 ## Overview
-The Peak Shaving Sales Calculator implements a 2-use limit per email address (unlimited for @solar-x.ca emails). This document explains when localStorage is cleared to ensure limits are properly enforced.
+The Peak Shaving Calculator implements a 2-use limit per email address (unlimited for @solar-x.ca emails). This document explains when localStorage is cleared to ensure limits are properly enforced.
 
 ## localStorage Key
 - **Key**: `peak_shaving_verified_email`

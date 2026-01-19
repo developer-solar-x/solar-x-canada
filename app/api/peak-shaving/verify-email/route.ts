@@ -96,14 +96,14 @@ export async function POST(request: NextRequest) {
           await resend.emails.send({
             from: 'Solar Calculator Canada <info@solarcalculatorcanada.org>',
             to: normalizedEmail,
-            subject: 'Verify your Solar-X email for Peak Shaving Sales Calculator',
+            subject: 'Verify your Solar-X email for Peak Shaving Calculator',
             html: `
               <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
                 <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 12px; color: #0f172a;">
                   Verify your Solar-X email address
                 </h1>
                 <p style="font-size: 15px; color: #334155; line-height: 1.6; margin-bottom: 16px;">
-                  Please use the verification code below to access the Peak Shaving Sales Calculator. Solar-X employees have unlimited access.
+                  Please use the verification code below to access the Peak Shaving Calculator. Solar-X employees have unlimited access.
                 </p>
                 <div style="background: linear-gradient(135deg, #2D5F3F 0%, #244C32 100%); border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
                   <div style="font-size: 32px; font-weight: 700; color: #ffffff; letter-spacing: 8px; font-family: 'Courier New', monospace;">
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
                 </p>
               </div>
             `,
-            text: `Verify your Solar-X email address\n\nPlease use the verification code below to access the Peak Shaving Sales Calculator. Solar-X employees have unlimited access.\n\n${verificationCode}\n\nThis code will expire in 15 minutes.\n\nIf you didn't request this code, you can safely ignore this email.\n\n— Solar Calculator Canada\n${appUrl}`,
+            text: `Verify your Solar-X email address\n\nPlease use the verification code below to access the Peak Shaving Calculator. Solar-X employees have unlimited access.\n\n${verificationCode}\n\nThis code will expire in 15 minutes.\n\nIf you didn't request this code, you can safely ignore this email.\n\n— Solar Calculator Canada\n${appUrl}`,
           })
         } catch (emailError) {
           console.error('Error sending verification email:', emailError)
@@ -143,14 +143,14 @@ export async function POST(request: NextRequest) {
           await resend.emails.send({
             from: 'Solar Calculator Canada <info@solarcalculatorcanada.org>',
             to: normalizedEmail,
-            subject: 'Verify your email for Peak Shaving Sales Calculator',
+            subject: 'Verify your email for Peak Shaving Calculator',
             html: `
               <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
                 <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 12px; color: #0f172a;">
                   Verify your email address
                 </h1>
                 <p style="font-size: 15px; color: #334155; line-height: 1.6; margin-bottom: 16px;">
-                  Thanks for your interest in the Peak Shaving Sales Calculator. Please use the verification code below to access the calculator:
+                  Thanks for your interest in the Peak Shaving Calculator. Please use the verification code below to access the calculator:
                 </p>
                 <div style="background: linear-gradient(135deg, #2D5F3F 0%, #244C32 100%); border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
                   <div style="font-size: 32px; font-weight: 700; color: #ffffff; letter-spacing: 8px; font-family: 'Courier New', monospace;">
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
                 </p>
               </div>
             `,
-            text: `Verify your email address\n\nThanks for your interest in the Peak Shaving Sales Calculator. Please use the verification code below to access the calculator:\n\n${verificationCode}\n\nThis code will expire in 15 minutes.\n\nIf you didn't request this code, you can safely ignore this email.\n\n— Solar Calculator Canada\n${appUrl}`,
+            text: `Verify your email address\n\nThanks for your interest in the Peak Shaving Calculator. Please use the verification code below to access the calculator:\n\n${verificationCode}\n\nThis code will expire in 15 minutes.\n\nIf you didn't request this code, you can safely ignore this email.\n\n— Solar Calculator Canada\n${appUrl}`,
           })
         } catch (emailError) {
           console.error('Error sending verification email:', emailError)

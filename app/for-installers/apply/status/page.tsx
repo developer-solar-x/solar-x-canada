@@ -9,6 +9,9 @@ import { Logo } from '@/components/Logo'
 import { CheckCircle, XCircle, Clock, AlertCircle, FileText, Mail, Phone, Building2, MapPin, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 
+// Force dynamic rendering since we use useSearchParams
+export const dynamic = 'force-dynamic'
+
 type ApplicationStatus = 'pending_review' | 'approved' | 'rejected' | 'need_more_info'
 
 interface ApplicationData {

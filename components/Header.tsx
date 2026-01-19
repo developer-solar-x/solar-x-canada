@@ -124,7 +124,7 @@ export function Header() {
                       >
                         <Calculator size={18} className="text-maple-500" />
                         <div>
-                          <div className="font-semibold text-sm">Peak Shaving Sales Calculator</div>
+                          <div className="font-semibold text-sm">Peak Shaving Calculator</div>
                           <div className="text-xs text-gray-500">Professional sales tool</div>
                         </div>
                       </Link>
@@ -216,7 +216,7 @@ export function Header() {
                     onClick={handleCloseMenu}
                   >
                     <Calculator size={18} />
-                    Peak Shaving Sales Calculator
+                    Peak Shaving Calculator
                   </Link>
                   <Link
                     href="/for-installers/apply/track"

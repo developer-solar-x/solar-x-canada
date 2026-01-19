@@ -169,12 +169,47 @@ Aggregation: Average
 
 Create a funnel with all steps, then view the drop-off percentage between each step.
 
+## Session Replay
+
+PostHog automatically records user sessions and provides session replay functionality. This allows you to:
+
+- **Watch user sessions**: See exactly what users did on your site
+- **Debug issues**: Watch replays when users encounter errors
+- **Understand behavior**: See how users interact with your estimate flows
+- **Identify drop-offs**: Watch sessions where users abandon the estimate
+
+### How to View Session Replays
+
+1. Go to PostHog Dashboard → **Session Replay** (or **Recordings**)
+2. Filter by:
+   - Event (e.g., `estimate_abandoned`)
+   - URL (e.g., `/estimator` or `/quick-estimate`)
+   - Time range
+   - User properties
+3. Click on any session to watch the replay
+
+### Session Replay Features
+
+- **Automatic recording**: All user sessions are recorded by default
+- **Privacy controls**: Sensitive data (passwords, credit cards) is automatically masked
+- **Performance**: Minimal impact on page load times
+- **Search**: Search sessions by events, URLs, or user properties
+
+### Disabling Session Replay
+
+If you want to disable session replay (to reduce data usage or for privacy reasons), you can:
+
+1. **Disable globally**: Set `disable_session_recording: true` in the PostHog init config
+2. **Disable for specific routes**: Use PostHog's feature flags or conditional logic
+3. **Disable in PostHog settings**: Go to Project Settings → Session Replay → Disable
+
 ## Privacy & Compliance
 
 PostHog is configured to:
 - Only track on the client side
 - Respect user privacy settings
 - Not capture sensitive information (emails, addresses are not included in events by default)
+- Automatically mask sensitive form fields in session replays
 
 To disable tracking in development, simply don't set the `NEXT_PUBLIC_POSTHOG_KEY` environment variable.
 

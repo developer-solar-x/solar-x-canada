@@ -9,6 +9,9 @@ import { Footer } from '@/components/Footer'
 import { CheckCircle, Mail, Clock, ArrowRight, FileText } from 'lucide-react'
 import Link from 'next/link'
 
+// Force dynamic rendering since we use useSearchParams
+export const dynamic = 'force-dynamic'
+
 function InstallerApplicationSuccessContent() {
   const searchParams = useSearchParams()
   const router = useRouter()

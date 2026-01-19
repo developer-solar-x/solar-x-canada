@@ -97,21 +97,68 @@ export async function callPVWatts(params: PVWattsParams): Promise<PVWattsRespons
       const url = `https://developer.nrel.gov/api/pvwatts/v8.json?${queryParams}`
 
       try {
+        // Log request parameters for debugging (without API key)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('PVWatts API request:', {
+            lat: params.lat,
+            lon: params.lon,
+            system_capacity: params.system_capacity,
+            tilt: params.tilt,
+            azimuth: params.azimuth,
+            module_type: params.module_type,
+            losses: params.losses,
+            array_type: params.array_type,
+            dc_ac_ratio: params.dc_ac_ratio,
+            inv_eff: params.inv_eff,
+            albedo: params.albedo,
+            soiling: params.soiling,
+          })
+        }
+        
         const response = await fetch(url)
         
         if (!response.ok) {
-          const errorText = await response.text().catch(() => response.statusText)
+          let errorMessage = response.statusText
+          let errorDetails: any = null
+          
+          // Try to parse JSON error response
+          try {
+            const errorData = await response.json()
+            if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+              errorMessage = errorData.errors.map((e: any) => e.message || e).join(', ')
+              errorDetails = errorData.errors
+            } else if (errorData.message) {
+              errorMessage = errorData.message
+            }
+          } catch {
+            // If JSON parsing fails, try text
+            const errorText = await response.text().catch(() => response.statusText)
+            errorMessage = errorText || response.statusText
+          }
+          
           console.error('PVWatts API error details:', {
             status: response.status,
             statusText: response.statusText,
-            errorBody: errorText,
+            errorMessage,
+            errorDetails,
             params: cacheParams,
             url: url.replace(apiKey, 'REDACTED')
           })
-          throw new Error(`PVWatts API error: ${response.statusText}`)
+          throw new Error(`PVWatts API error: ${errorMessage}`)
         }
 
         const data = await response.json()
+        
+        // Check if the response has errors even with 200 status
+        if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
+          const errorMessage = data.errors.map((e: any) => e.message || e).join(', ')
+          console.error('PVWatts API returned errors in response:', {
+            errors: data.errors,
+            params: cacheParams
+          })
+          throw new Error(`PVWatts API error: ${errorMessage}`)
+        }
+        
         return data
 
       } catch (error) {
@@ -132,21 +179,70 @@ export async function calculateSolarEstimate(
   province: string = 'ON',
   azimuth: number = 180 // Roof orientation (default south-facing)
 ) {
+  // Validate system size
+  if (!systemSizeKw || systemSizeKw <= 0 || isNaN(systemSizeKw)) {
+    throw new Error(`Invalid system size: ${systemSizeKw}. System size must be greater than 0.`)
+  }
+  
+  // PVWatts API typically requires minimum system size of 0.1 kW
+  if (systemSizeKw < 0.1) {
+    throw new Error(`System size too small: ${systemSizeKw} kW. Minimum is 0.1 kW.`)
+  }
+  
+  // Validate coordinates
+  if (typeof lat !== 'number' || typeof lon !== 'number' || isNaN(lat) || isNaN(lon)) {
+    throw new Error(`Invalid coordinates: lat=${lat}, lon=${lon}`)
+  }
+  
+  // Validate latitude/longitude ranges
+  if (lat < -90 || lat > 90) {
+    throw new Error(`Invalid latitude: ${lat}. Must be between -90 and 90.`)
+  }
+  if (lon < -180 || lon > 180) {
+    throw new Error(`Invalid longitude: ${lon}. Must be between -180 and 180.`)
+  }
+  
   // Convert roof pitch to tilt angle
   const tilt = roofPitchToDegrees(roofPitch)
+  
+  // Validate tilt (0-90 degrees)
+  if (tilt < 0 || tilt > 90) {
+    throw new Error(`Invalid tilt angle: ${tilt}. Must be between 0 and 90 degrees.`)
+  }
+  
+  // Validate azimuth (0-360 degrees)
+  if (azimuth < 0 || azimuth > 360) {
+    throw new Error(`Invalid azimuth: ${azimuth}. Must be between 0 and 360 degrees.`)
+  }
 
   // Determine region-specific parameters
   // Canada has more snow in winter, affecting albedo and soiling
   const isCanada = ['ON', 'BC', 'AB', 'QC', 'MB', 'SK', 'NS', 'NB', 'PE', 'NL', 'YT', 'NT', 'NU'].includes(province)
   
   // Monthly soiling losses for Canada (higher in winter due to snow)
-  // Values are % losses per month (Jan-Dec)
+  // Values are % losses per month (Jan-Dec) - must be between 0-100
   const canadaSoiling = [12, 10, 8, 4, 2, 1, 1, 2, 3, 5, 8, 10]
   const defaultSoiling = [2, 2, 3, 3, 4, 4, 5, 5, 4, 3, 2, 2]
   
+  // Validate soiling values
+  const soiling = isCanada ? canadaSoiling : defaultSoiling
+  if (soiling.some(val => val < 0 || val > 100)) {
+    throw new Error(`Invalid soiling values. All values must be between 0 and 100.`)
+  }
+  
   // Albedo (ground reflectance) - higher in winter due to snow in Canada
   // Using average value, could be made dynamic by month
+  // Must be between 0 and 1
   const albedo = isCanada ? 0.35 : 0.2  // 0.35 accounts for seasonal snow
+  if (albedo < 0 || albedo > 1) {
+    throw new Error(`Invalid albedo: ${albedo}. Must be between 0 and 1.`)
+  }
+  
+  // Validate inverter efficiency (0-100)
+  const invEff = 96
+  if (invEff < 0 || invEff > 100) {
+    throw new Error(`Invalid inverter efficiency: ${invEff}. Must be between 0 and 100.`)
+  }
 
   // Call PVWatts API with optimized parameters
   // Using Premium module type for N-type bifacial panels (22.5% efficiency)
@@ -160,9 +256,9 @@ export async function calculateSolarEstimate(
     losses: 14, // Default system losses (industry standard)
     array_type: 1, // Fixed roof mount
     dc_ac_ratio: 1.2, // Modern inverter sizing (20% DC oversizing)
-    inv_eff: 96, // Modern inverter efficiency (96%)
+    inv_eff: invEff, // Modern inverter efficiency (96%)
     albedo: albedo, // Region-specific ground reflectance (also benefits bifacial rear side)
-    soiling: isCanada ? canadaSoiling : defaultSoiling, // Monthly soiling losses
+    soiling: soiling, // Monthly soiling losses
   })
 
   // Extract production data

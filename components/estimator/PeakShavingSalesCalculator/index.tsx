@@ -1,6 +1,6 @@
 'use client'
 
-// Peak-Shaving Sales Calculator - FRD-Compliant Version 2.0
+// Peak Shaving Calculator - FRD-Compliant Version 2.0
 // Implements the "Simple, User-Friendly & Offset-Focused UI" requirements
 // Uses the new FRD-compliant component with 6 required sections
 

@@ -1,4 +1,4 @@
--- Peak Shaving Sales Calculator Lead Capture Schema
+-- Peak Shaving Calculator Lead Capture Schema
 -- Run this SQL in your Supabase SQL Editor to create the lead capture system
 
 -- Table to store lead email addresses and verification status
@@ -185,8 +185,8 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Comments for documentation
-COMMENT ON TABLE peak_shaving_leads IS 'Stores lead email addresses and tracks verification status and usage limits for Peak Shaving Sales Calculator';
-COMMENT ON TABLE peak_shaving_access_logs IS 'Logs each access to the Peak Shaving Sales Calculator for analytics and security';
+COMMENT ON TABLE peak_shaving_leads IS 'Stores lead email addresses and tracks verification status and usage limits for Peak Shaving Calculator';
+COMMENT ON TABLE peak_shaving_access_logs IS 'Logs each access to the Peak Shaving Calculator for analytics and security';
 COMMENT ON COLUMN peak_shaving_leads.usage_count IS 'Number of times the user has accessed the calculator (max 2 for regular users, unlimited for @solar-x.ca)';
 COMMENT ON COLUMN peak_shaving_leads.is_solar_x_email IS 'TRUE if email ends with @solar-x.ca - grants unlimited access';
 COMMENT ON FUNCTION can_access_calculator IS 'Checks if an email can access the calculator based on verification status and usage limits';

@@ -1,26 +1,10 @@
 'use client'
 
 import posthog from 'posthog-js'
-import { useEffect } from 'react'
+import { useEffect, Suspense } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 
-export function PostHogProvider({ children }: { children: React.ReactNode }) {
-  useEffect(() => {
-    // Only initialize PostHog on client side
-    if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
-      posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
-        api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
-        loaded: (posthog) => {
-          if (process.env.NODE_ENV === 'development') {
-            console.log('PostHog loaded')
-          }
-        },
-        capture_pageview: false, // We'll handle pageviews manually
-        capture_pageleave: true,
-      })
-    }
-  }, [])
-
+function PostHogPageViewTracker() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
@@ -37,7 +21,45 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     }
   }, [pathname, searchParams])
 
-  return <>{children}</>
+  return null
+}
+
+export function PostHogProvider({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    // Only initialize PostHog on client side
+    if (typeof window !== 'undefined') {
+      const hasApiKey = !!process.env.NEXT_PUBLIC_POSTHOG_KEY
+      const apiHost = process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com'
+      
+      if (hasApiKey) {
+        const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY
+        if (!apiKey) {
+          return
+        }
+        
+        posthog.init(apiKey, {
+          api_host: apiHost,
+          loaded: () => {
+            // PostHog loaded successfully
+          },
+          capture_pageview: false, // We'll handle pageviews manually
+          capture_pageleave: true,
+          // Session replay is enabled by default in PostHog
+          // Set disable_session_recording: true to disable it
+          // disable_session_recording: false, // Explicitly enable (default behavior)
+        })
+      }
+    }
+  }, [])
+
+  return (
+    <>
+      <Suspense fallback={null}>
+        <PostHogPageViewTracker />
+      </Suspense>
+      {children}
+    </>
+  )
 }
 
 // Helper function to track estimate events
