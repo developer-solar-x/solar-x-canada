@@ -6,7 +6,7 @@ import { useState, FormEvent, ChangeEvent } from 'react'
 import { Building2, User, Mail, Phone, Globe, Calendar, Award, Shield, FileText, Upload, CheckCircle, AlertCircle, X } from 'lucide-react'
 
 interface InstallerIntakeFormProps {
-  onSubmit: (data: InstallerFormData) => void
+  onSubmit: (data: InstallerFormData & { applicationId?: string; apiResult?: any }) => void
   onCancel?: () => void
 }
 
@@ -78,7 +78,56 @@ export function InstallerIntakeForm({ onSubmit, onCancel }: InstallerIntakeFormP
 
   const [errors, setErrors] = useState<Partial<Record<keyof InstallerFormData | 'submit', string>>>({})
   const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<string>('')
   const [currentSection, setCurrentSection] = useState(1)
+
+  // File size limit: 5MB
+  const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB in bytes
+
+  // Helper function to validate file size
+  const validateFileSize = (file: File, fieldName: string): string | null => {
+    if (file.size > MAX_FILE_SIZE) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2)
+      return `${fieldName} file is too large (${fileSizeMB}MB). Maximum size is 5MB.`
+    }
+    return null
+  }
+
+  // Helper function to upload file via API route (bypasses RLS)
+  const uploadFileToSupabase = async (
+    file: File,
+    folder: string,
+    fileName?: string
+  ): Promise<string> => {
+    // Validate file size before upload
+    const sizeError = validateFileSize(file, 'File')
+    if (sizeError) {
+      throw new Error(sizeError)
+    }
+
+    const uploadFormData = new FormData()
+    uploadFormData.append('file', file)
+    uploadFormData.append('folder', folder)
+
+    const response = await fetch('/api/installers/upload', {
+      method: 'POST',
+      body: uploadFormData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Upload failed' }))
+      throw new Error(errorData.error || `Upload failed with status ${response.status}`)
+    }
+
+    const result = await response.json()
+
+    if (!result.success || !result.data?.url) {
+      throw new Error(result.error || 'Upload failed: No URL returned')
+    }
+
+    return result.data.url
+  }
 
   const provinces = [
     'Ontario',
@@ -143,26 +192,49 @@ export function InstallerIntakeForm({ onSubmit, onCancel }: InstallerIntakeFormP
     const files = e.target.files
     if (!files || files.length === 0) return
 
+    const file = files[0]
+    const sizeError = validateFileSize(file, certType === 'esa' ? 'ESA certification' : certType === 'provincial' ? 'Provincial certification' : 'Other certification')
+    
+    if (sizeError) {
+      setErrors({ ...errors, [certType === 'esa' ? 'certifications.esa' : certType === 'provincial' ? 'certifications.provincial' : 'certifications.other']: sizeError })
+      e.target.value = '' // Clear the input
+      return
+    }
+
     setFormData({
       ...formData,
       certifications: {
         ...formData.certifications,
-        [certType]: files[0],
+        [certType]: file,
       },
     })
+    // Clear error
+    const errorKey = certType === 'esa' ? 'certifications.esa' : certType === 'provincial' ? 'certifications.provincial' : 'certifications.other'
+    if (errors[errorKey as keyof typeof errors]) {
+      setErrors({ ...errors, [errorKey]: undefined })
+    }
   }
 
   const handleManufacturerCertUpload = (e: ChangeEvent<HTMLInputElement>, manufacturer: string) => {
     const files = e.target.files
     if (!files || files.length === 0) return
 
+    const file = files[0]
+    const sizeError = validateFileSize(file, `Manufacturer certification (${manufacturer})`)
+    
+    if (sizeError) {
+      setErrors({ ...errors, submit: sizeError })
+      e.target.value = '' // Clear the input
+      return
+    }
+
     const existingIndex = formData.certifications.manufacturer.findIndex(m => m.name === manufacturer)
     const updatedManufacturer = [...formData.certifications.manufacturer]
 
     if (existingIndex >= 0) {
-      updatedManufacturer[existingIndex] = { name: manufacturer, file: files[0] }
+      updatedManufacturer[existingIndex] = { name: manufacturer, file: file }
     } else {
-      updatedManufacturer.push({ name: manufacturer, file: files[0] })
+      updatedManufacturer.push({ name: manufacturer, file: file })
     }
 
     setFormData({
@@ -172,6 +244,10 @@ export function InstallerIntakeForm({ onSubmit, onCancel }: InstallerIntakeFormP
         manufacturer: updatedManufacturer,
       },
     })
+    // Clear error
+    if (errors.submit) {
+      setErrors({ ...errors, submit: undefined })
+    }
   }
 
   const removeManufacturerCert = (manufacturer: string) => {
@@ -189,9 +265,41 @@ export function InstallerIntakeForm({ onSubmit, onCancel }: InstallerIntakeFormP
     if (!files) return
 
     if (field === 'insuranceProof') {
-      setFormData({ ...formData, insuranceProof: files[0] })
+      const file = files[0]
+      const sizeError = validateFileSize(file, 'Insurance proof')
+      if (sizeError) {
+        setErrors({ ...errors, insuranceProof: sizeError })
+        e.target.value = '' // Clear the input
+        return
+      }
+      setFormData({ ...formData, insuranceProof: file })
+      if (errors.insuranceProof) {
+        setErrors({ ...errors, insuranceProof: undefined })
+      }
     } else {
-      setFormData({ ...formData, projectPhotos: Array.from(files) })
+      // Validate all project photos
+      const invalidFiles: string[] = []
+      const validFiles: File[] = []
+      
+      Array.from(files).forEach((file) => {
+        const sizeError = validateFileSize(file, 'Project photo')
+        if (sizeError) {
+          invalidFiles.push(`${file.name}: ${sizeError}`)
+        } else {
+          validFiles.push(file)
+        }
+      })
+
+      if (invalidFiles.length > 0) {
+        setErrors({ ...errors, projectPhotos: invalidFiles.join('; ') })
+        e.target.value = '' // Clear the input
+        return
+      }
+
+      setFormData({ ...formData, projectPhotos: validFiles })
+      if (errors.projectPhotos) {
+        setErrors({ ...errors, projectPhotos: undefined })
+      }
     }
   }
 
@@ -271,69 +379,179 @@ export function InstallerIntakeForm({ onSubmit, onCancel }: InstallerIntakeFormP
     }
 
     setLoading(true)
+    setUploading(true)
+    setUploadProgress('Uploading files...')
     
     try {
-      // Create FormData for API submission
-      const submitFormData = new FormData()
-      
-      // Add text fields
-      submitFormData.append('companyName', formData.companyName)
-      submitFormData.append('contactPersonName', formData.contactPersonName)
-      submitFormData.append('contactEmail', formData.contactEmail)
-      submitFormData.append('contactPhone', formData.contactPhone)
-      submitFormData.append('websiteUrl', formData.websiteUrl || '')
-      submitFormData.append('yearsInBusiness', formData.yearsInBusiness || '')
-      submitFormData.append('primaryServiceProvinces', JSON.stringify(formData.primaryServiceProvinces))
-      submitFormData.append('serviceAreaDescription', formData.serviceAreaDescription || '')
-      submitFormData.append('generalLiabilityCoverage', formData.generalLiabilityCoverage || '')
-      submitFormData.append('numberOfInstalls', formData.numberOfInstalls || '')
-      submitFormData.append('typicalSystemSizeRange', formData.typicalSystemSizeRange || '')
-      submitFormData.append('workmanshipWarrantyYears', formData.workmanshipWarrantyYears || '')
-      submitFormData.append('productWarrantySupport', formData.productWarrantySupport || '')
-      submitFormData.append('certificationOtherDescription', formData.certifications.otherDescription || '')
-      submitFormData.append('agreeToVetting', String(formData.agreeToVetting))
-      submitFormData.append('agreeToDoubleWarranty', String(formData.agreeToDoubleWarranty))
-      
-      // Add certification files
+      // Upload all files to Supabase Storage first
+      const uploadedUrls: {
+        certificationEsaUrl?: string
+        certificationProvincialUrl?: string
+        certificationOtherUrl?: string
+        manufacturerCertifications?: Array<{ name: string; url: string }>
+        insuranceProofUrl?: string
+        projectPhotosUrls: string[]
+      } = {
+        projectPhotosUrls: [],
+      }
+
+      // Upload ESA certification
       if (formData.certifications.esa) {
-        submitFormData.append('certificationEsa', formData.certifications.esa)
+        setUploadProgress('Uploading ESA certification...')
+        uploadedUrls.certificationEsaUrl = await uploadFileToSupabase(
+          formData.certifications.esa,
+          'installers/certifications',
+          `esa-${formData.companyName.replace(/[^a-zA-Z0-9]/g, '_')}`
+        )
       }
+
+      // Upload Provincial certification
       if (formData.certifications.provincial) {
-        submitFormData.append('certificationProvincial', formData.certifications.provincial)
+        setUploadProgress('Uploading provincial certification...')
+        uploadedUrls.certificationProvincialUrl = await uploadFileToSupabase(
+          formData.certifications.provincial,
+          'installers/certifications',
+          `provincial-${formData.companyName.replace(/[^a-zA-Z0-9]/g, '_')}`
+        )
       }
+
+      // Upload Other certification
       if (formData.certifications.other) {
-        submitFormData.append('certificationOther', formData.certifications.other)
+        setUploadProgress('Uploading other certification...')
+        uploadedUrls.certificationOtherUrl = await uploadFileToSupabase(
+          formData.certifications.other,
+          'installers/certifications',
+          `other-${formData.companyName.replace(/[^a-zA-Z0-9]/g, '_')}`
+        )
       }
-      
-      // Add manufacturer certifications
-      const manufacturerNames = formData.certifications.manufacturer.map(m => m.name)
-      submitFormData.append('manufacturerNames', JSON.stringify(manufacturerNames))
-      formData.certifications.manufacturer.forEach((cert) => {
-        if (cert.file) {
-          submitFormData.append(`manufacturerCert_${cert.name}`, cert.file)
+
+      // Upload Manufacturer certifications
+      if (formData.certifications.manufacturer.length > 0) {
+        setUploadProgress('Uploading manufacturer certifications...')
+        uploadedUrls.manufacturerCertifications = []
+        for (const cert of formData.certifications.manufacturer) {
+          if (cert.file) {
+            const url = await uploadFileToSupabase(
+              cert.file,
+              'installers/certifications/manufacturer',
+              `${cert.name}-${formData.companyName.replace(/[^a-zA-Z0-9]/g, '_')}`
+            )
+            uploadedUrls.manufacturerCertifications.push({ name: cert.name, url })
+          }
         }
-      })
-      
-      // Add insurance proof
-      if (formData.insuranceProof) {
-        submitFormData.append('insuranceProof', formData.insuranceProof)
       }
-      
-      // Add project photos
-      formData.projectPhotos.forEach((photo) => {
-        submitFormData.append('projectPhotos', photo)
-      })
+
+      // Upload Insurance proof
+      if (formData.insuranceProof) {
+        setUploadProgress('Uploading insurance proof...')
+        uploadedUrls.insuranceProofUrl = await uploadFileToSupabase(
+          formData.insuranceProof,
+          'installers/insurance',
+          `insurance-${formData.companyName.replace(/[^a-zA-Z0-9]/g, '_')}`
+        )
+      }
+
+      // Upload Project Photos
+      if (formData.projectPhotos.length > 0) {
+        setUploadProgress(`Uploading ${formData.projectPhotos.length} project photo(s)...`)
+        for (const photo of formData.projectPhotos) {
+          const url = await uploadFileToSupabase(
+            photo,
+            'installers/project-photos',
+            `photo-${formData.companyName.replace(/[^a-zA-Z0-9]/g, '_')}`
+          )
+          uploadedUrls.projectPhotosUrls.push(url)
+        }
+      }
+
+      setUploadProgress('Submitting application...')
+      setUploading(false)
+
+      // Create JSON payload for API submission (no FormData needed since files are already uploaded)
+      const payload = {
+        companyName: formData.companyName,
+        contactPersonName: formData.contactPersonName,
+        contactEmail: formData.contactEmail,
+        contactPhone: formData.contactPhone,
+        websiteUrl: formData.websiteUrl || '',
+        yearsInBusiness: formData.yearsInBusiness || '',
+        primaryServiceProvinces: formData.primaryServiceProvinces,
+        serviceAreaDescription: formData.serviceAreaDescription || '',
+        generalLiabilityCoverage: formData.generalLiabilityCoverage || '',
+        numberOfInstalls: formData.numberOfInstalls || '',
+        typicalSystemSizeRange: formData.typicalSystemSizeRange || '',
+        workmanshipWarrantyYears: formData.workmanshipWarrantyYears || '',
+        productWarrantySupport: formData.productWarrantySupport || '',
+        certificationOtherDescription: formData.certifications.otherDescription || '',
+        agreeToVetting: formData.agreeToVetting,
+        agreeToDoubleWarranty: formData.agreeToDoubleWarranty,
+        // File URLs instead of files
+        certificationEsaUrl: uploadedUrls.certificationEsaUrl || null,
+        certificationProvincialUrl: uploadedUrls.certificationProvincialUrl || null,
+        certificationOtherUrl: uploadedUrls.certificationOtherUrl || null,
+        manufacturerCertifications: uploadedUrls.manufacturerCertifications || [],
+        insuranceProofUrl: uploadedUrls.insuranceProofUrl || null,
+        projectPhotosUrls: uploadedUrls.projectPhotosUrls,
+      }
       
       // Submit to API
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/b0934b8b-2dac-4a1b-9a2e-4d6c5b32b657',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InstallerIntakeForm.tsx:400',message:'Before fetch - submitting form with URLs',data:{hasEsaUrl:!!uploadedUrls.certificationEsaUrl,hasProvincialUrl:!!uploadedUrls.certificationProvincialUrl,projectPhotosCount:uploadedUrls.projectPhotosUrls.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       const response = await fetch('/api/installers', {
         method: 'POST',
-        body: submitFormData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
       })
       
-      const result = await response.json()
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/b0934b8b-2dac-4a1b-9a2e-4d6c5b32b657',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InstallerIntakeForm.tsx:332',message:'After fetch - response received',data:{status:response.status,statusText:response.statusText,ok:response.ok,contentType:response.headers.get('content-type')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       
+      // Get response text first to handle both JSON and non-JSON responses
+      const responseText = await response.text()
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/b0934b8b-2dac-4a1b-9a2e-4d6c5b32b657',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InstallerIntakeForm.tsx:338',message:'Response body text',data:{textPreview:responseText.substring(0,200),isJson:responseText.trim().startsWith('{')||responseText.trim().startsWith('['),status:response.status,ok:response.ok},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
+      // Check if response is OK before parsing
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to submit application')
+        // Try to parse as JSON for error details, but handle non-JSON gracefully
+        let errorMessage = `Server error (${response.status}): ${response.statusText}`
+        try {
+          const errorData = JSON.parse(responseText)
+          errorMessage = errorData.error || errorData.details || errorMessage
+        } catch {
+          // Not JSON - use the raw text or status
+          if (responseText) {
+            errorMessage = responseText.length > 200 
+              ? `${responseText.substring(0, 200)}...` 
+              : responseText
+          }
+        }
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/b0934b8b-2dac-4a1b-9a2e-4d6c5b32b657',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InstallerIntakeForm.tsx:352',message:'Response not OK',data:{status:response.status,errorMessage},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        
+        throw new Error(errorMessage)
+      }
+      
+      // Parse JSON only if response is OK
+      let result
+      try {
+        result = JSON.parse(responseText)
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/b0934b8b-2dac-4a1b-9a2e-4d6c5b32b657',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InstallerIntakeForm.tsx:365',message:'JSON parsed successfully',data:{hasError:!!result.error,hasApplicationId:!!result.applicationId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+      } catch (parseError: any) {
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/b0934b8b-2dac-4a1b-9a2e-4d6c5b32b657',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InstallerIntakeForm.tsx:369',message:'JSON parse failed on OK response',data:{error:parseError.message,responseText:responseText.substring(0,200),status:response.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+        throw new Error(`Server returned invalid JSON response: ${parseError.message}`)
       }
       
       // Call the onSubmit callback with the API result (including applicationId)
@@ -343,11 +561,13 @@ export function InstallerIntakeForm({ onSubmit, onCancel }: InstallerIntakeFormP
         ...formData,
         applicationId: result.applicationId,
         apiResult: result,
-      })
+      } as InstallerFormData & { applicationId?: string; apiResult?: any })
     } catch (error: any) {
       console.error('Error submitting installer application:', error)
       setErrors({ submit: error.message || 'Failed to submit application. Please try again.' })
       setLoading(false) // Only reset loading on error
+      setUploading(false)
+      setUploadProgress('')
     }
   }
 
@@ -587,7 +807,7 @@ export function InstallerIntakeForm({ onSubmit, onCancel }: InstallerIntakeFormP
                   Certifications <span className="text-gray-400 text-xs">(optional)</span>
                 </label>
                 <p className="text-sm text-gray-600 mb-4">
-                  Please upload copies of your certifications. Accepted formats: PDF, JPG, PNG (max 10MB per file)
+                  Please upload copies of your certifications. Accepted formats: PDF, JPG, PNG (max 5MB per file)
                 </p>
 
                 <div className="space-y-4">
@@ -836,7 +1056,7 @@ export function InstallerIntakeForm({ onSubmit, onCancel }: InstallerIntakeFormP
                         ? formData.insuranceProof.name
                         : 'Click to upload or drag and drop'}
                     </p>
-                    <p className="text-xs text-gray-500 mt-1">PDF, JPG, or PNG (max 10MB)</p>
+                    <p className="text-xs text-gray-500 mt-1">PDF, JPG, or PNG (max 5MB)</p>
                   </label>
                 </div>
                 {errors.insuranceProof && (
@@ -1043,10 +1263,13 @@ export function InstallerIntakeForm({ onSubmit, onCancel }: InstallerIntakeFormP
                 disabled={loading}
                 className="btn-primary ml-auto"
               >
-                {loading ? 'Submitting...' : 'Submit Application'}
+                {loading ? (uploading ? uploadProgress : 'Submitting...') : 'Submit Application'}
               </button>
             )}
           </div>
+          {uploading && uploadProgress && currentSection === 4 && (
+            <p className="text-sm text-gray-600 mt-2 text-center">{uploadProgress}</p>
+          )}
 
           {onCancel && currentSection === 1 && (
             <button
