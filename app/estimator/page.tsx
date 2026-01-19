@@ -2,7 +2,7 @@
 
 // Multi-step solar estimator page
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Logo } from '@/components/Logo'
 import Link from 'next/link'
 import { X, Check, Save, Trash2 } from 'lucide-react'
@@ -10,6 +10,14 @@ import { convertEasyToDetailed } from '@/lib/mode-converter'
 import { saveEstimatorProgress, loadEstimatorProgress, clearEstimatorProgress, getTimeSinceLastSave } from '@/lib/estimator-storage'
 import { isValidEmail } from '@/lib/utils'
 import { Modal } from '@/components/ui/Modal'
+import {
+  trackEstimateStarted,
+  trackEstimateStep,
+  trackEstimateStepComplete,
+  trackEstimateStepBack,
+  trackEstimateAbandoned,
+  trackEstimateCompleted,
+} from '@/lib/posthog'
 import { StepModeSelector } from '@/components/estimator/StepModeSelector'
 import { StepLocation } from '@/components/estimator/StepLocation'
 import { StepDrawRoof } from '@/components/estimator/StepDrawRoof'
@@ -173,6 +181,10 @@ export default function EstimatorPage() {
   // Loading indicator when moving from Step 3 -> Step 4 (estimate prefetch)
   const [isLoadingNextStep, setIsLoadingNextStep] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState('Preparing...')
+  
+  // Track estimate start time for analytics
+  const estimateStartTime = useRef<number>(Date.now())
+  const hasTrackedStart = useRef<boolean>(false)
 
   // Get active step array based on mode
   const steps = data.estimatorMode === 'easy' 
@@ -245,8 +257,80 @@ export default function EstimatorPage() {
       // Show modal to ask user if they want to resume
       setSavedProgressData(saved)
       setShowResumeModal(true)
+    } else {
+      // Track estimate start if no saved progress
+      if (!hasTrackedStart.current && data.estimatorMode) {
+        trackEstimateStarted('estimator', {
+          mode: data.estimatorMode,
+          program_type: data.programType,
+          lead_type: data.leadType,
+        })
+        hasTrackedStart.current = true
+        estimateStartTime.current = Date.now()
+      }
     }
   }, [])
+  
+  // Track estimate start when mode is selected
+  useEffect(() => {
+    if (data.estimatorMode && !hasTrackedStart.current) {
+      trackEstimateStarted('estimator', {
+        mode: data.estimatorMode,
+        program_type: data.programType,
+        lead_type: data.leadType,
+      })
+      hasTrackedStart.current = true
+      estimateStartTime.current = Date.now()
+    }
+  }, [data.estimatorMode, data.programType, data.leadType])
+  
+  // Track step views
+  useEffect(() => {
+    if (displaySteps.length > 0 && currentStep < displaySteps.length) {
+      const step = displaySteps[currentStep]
+      if (step) {
+        trackEstimateStep(
+          step.name,
+          currentStep + 1,
+          displaySteps.length,
+          'estimator',
+          {
+            mode: data.estimatorMode,
+            program_type: data.programType,
+            lead_type: data.leadType,
+            province: data.province,
+          }
+        )
+      }
+    }
+  }, [currentStep, displaySteps.length])
+  
+  // Track abandonment on page unload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (displaySteps.length > 0 && currentStep < displaySteps.length - 1) {
+        const step = displaySteps[currentStep]
+        if (step) {
+          const timeSpent = Math.floor((Date.now() - estimateStartTime.current) / 1000)
+          trackEstimateAbandoned(
+            step.name,
+            currentStep + 1,
+            displaySteps.length,
+            'estimator',
+            timeSpent,
+            {
+              mode: data.estimatorMode,
+              program_type: data.programType,
+              lead_type: data.leadType,
+            }
+          )
+        }
+      }
+    }
+    
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [currentStep, displaySteps.length, data.estimatorMode, data.programType, data.leadType])
 
   // Handle resume confirmation
   const handleResumeProgress = () => {
@@ -378,6 +462,22 @@ export default function EstimatorPage() {
     
     setData(updatedData)
     
+    // Track step completion
+    const currentStepInfo = displaySteps[currentStep]
+    if (currentStepInfo) {
+      trackEstimateStepComplete(
+        currentStepInfo.name,
+        currentStep + 1,
+        displaySteps.length,
+        'estimator',
+        {
+          mode: updatedData.estimatorMode,
+          program_type: updatedData.programType,
+          lead_type: updatedData.leadType,
+        }
+      )
+    }
+    
     // Partial leads feature disabled
     // If map snapshot is included in stepData (e.g., from roof drawing step), save it to partial leads
     // This ensures map snapshots are saved when they're created, but not on every step
@@ -442,6 +542,21 @@ export default function EstimatorPage() {
         if (updatedData.email && isValidEmail(updatedData.email)) {
           setEmailCaptured(true)
         }
+      } else {
+        // Last step completed - track estimate completion
+        const timeSpent = Math.floor((Date.now() - estimateStartTime.current) / 1000)
+        trackEstimateCompleted(
+          'estimator',
+          updatedDisplaySteps.length,
+          timeSpent,
+          {
+            mode: updatedData.estimatorMode,
+            program_type: updatedData.programType,
+            lead_type: updatedData.leadType,
+            province: updatedData.province,
+            has_estimate: !!updatedData.estimate,
+          }
+        )
       }
     }
   }
@@ -450,6 +565,11 @@ export default function EstimatorPage() {
   // Go back to previous step
   const handleBack = () => {
     if (currentStep > 0) {
+      // Track step back
+      const step = displaySteps[currentStep]
+      if (step) {
+        trackEstimateStepBack(step.name, currentStep + 1, 'estimator')
+      }
       // Back navigation should follow the same filtered step list that the
       // user sees in the progress bar. Since `displaySteps` is already
       // derived from `data`, we just move to the previous index.

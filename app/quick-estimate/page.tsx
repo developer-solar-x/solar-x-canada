@@ -11,12 +11,20 @@
 // Step 8: Review
 // Step 9: Submit
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Logo } from '@/components/Logo'
 import Link from 'next/link'
 import { X, Check, Save, Trash2 } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
+import {
+  trackEstimateStarted,
+  trackEstimateStep,
+  trackEstimateStepComplete,
+  trackEstimateStepBack,
+  trackEstimateAbandoned,
+  trackEstimateCompleted,
+} from '@/lib/posthog'
 import { StepLocation } from '@/components/estimator/StepLocation'
 import { StepRoofSimple } from '@/components/estimator/StepRoofSimple'
 import { StepEnergySimple } from '@/components/estimator/StepEnergySimple'
@@ -169,6 +177,10 @@ function QuickEstimateContent() {
   const [showResumeModal, setShowResumeModal] = useState(false)
   const [savedProgressData, setSavedProgressData] = useState<any>(null)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  
+  // Track estimate start time for analytics
+  const estimateStartTime = useRef<number>(Date.now())
+  const hasTrackedStart = useRef<boolean>(false)
 
   // Load query parameters and pre-populate data
   useEffect(() => {
@@ -196,8 +208,80 @@ function QuickEstimateContent() {
     if (saved && saved.data && Object.keys(saved.data).length > 0) {
       setSavedProgressData(saved)
       setShowResumeModal(true)
+    } else {
+      // Track estimate start if no saved progress
+      if (!hasTrackedStart.current) {
+        trackEstimateStarted('quick-estimate', {
+          program_type: data.programType,
+          lead_type: data.leadType,
+          province: data.province,
+        })
+        hasTrackedStart.current = true
+        estimateStartTime.current = Date.now()
+      }
     }
   }, [])
+  
+  // Track estimate start when data is populated from query params
+  useEffect(() => {
+    if ((data.province || data.programType) && !hasTrackedStart.current) {
+      trackEstimateStarted('quick-estimate', {
+        program_type: data.programType,
+        lead_type: data.leadType,
+        province: data.province,
+      })
+      hasTrackedStart.current = true
+      estimateStartTime.current = Date.now()
+    }
+  }, [data.province, data.programType, data.leadType])
+  
+  // Track step views
+  useEffect(() => {
+    if (displaySteps.length > 0 && currentStep < displaySteps.length) {
+      const step = displaySteps[currentStep]
+      if (step) {
+        trackEstimateStep(
+          step.name,
+          currentStep + 1,
+          displaySteps.length,
+          'quick-estimate',
+          {
+            program_type: data.programType,
+            lead_type: data.leadType,
+            province: data.province,
+          }
+        )
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep, displaySteps.length])
+  
+  // Track abandonment on page unload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (displaySteps.length > 0 && currentStep < displaySteps.length - 1 && !isSubmitted) {
+        const step = displaySteps[currentStep]
+        if (step) {
+          const timeSpent = Math.floor((Date.now() - estimateStartTime.current) / 1000)
+          trackEstimateAbandoned(
+            step.name,
+            currentStep + 1,
+            displaySteps.length,
+            'quick-estimate',
+            timeSpent,
+            {
+              program_type: data.programType,
+              lead_type: data.leadType,
+              province: data.province,
+            }
+          )
+        }
+      }
+    }
+    
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [currentStep, displaySteps.length, isSubmitted, data.programType, data.leadType, data.province])
 
   // Auto-save progress
   useEffect(() => {
@@ -216,6 +300,22 @@ function QuickEstimateContent() {
     const updatedData = { ...data, ...stepData }
     setData(updatedData)
 
+    // Track step completion
+    const currentStepInfo = displaySteps[currentStep]
+    if (currentStepInfo) {
+      trackEstimateStepComplete(
+        currentStepInfo.name,
+        currentStep + 1,
+        displaySteps.length,
+        'quick-estimate',
+        {
+          program_type: updatedData.programType,
+          lead_type: updatedData.leadType,
+          province: updatedData.province,
+        }
+      )
+    }
+
     // Recompute displaySteps with updated data
     const updatedDisplaySteps = getDisplaySteps(updatedData)
 
@@ -227,6 +327,11 @@ function QuickEstimateContent() {
   // Handle going back
   const handleBack = () => {
     if (currentStep > 0) {
+      // Track step back
+      const step = displaySteps[currentStep]
+      if (step) {
+        trackEstimateStepBack(step.name, currentStep + 1, 'quick-estimate')
+      }
       setCurrentStep(currentStep - 1)
     }
   }
@@ -234,6 +339,18 @@ function QuickEstimateContent() {
   // Handle final submission
   const handleSubmit = () => {
     setIsSubmitted(true)
+    const timeSpent = Math.floor((Date.now() - estimateStartTime.current) / 1000)
+    trackEstimateCompleted(
+      'quick-estimate',
+      displaySteps.length,
+      timeSpent,
+      {
+        program_type: data.programType,
+        lead_type: data.leadType,
+        province: data.province,
+        has_estimate: !!data.estimate,
+      }
+    )
     clearProgress()
   }
 

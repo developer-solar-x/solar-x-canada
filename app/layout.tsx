@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, Montserrat } from 'next/font/google'
 import './globals.css'
 import { PreconnectLinks } from '@/components/PreconnectLinks'
+import { PostHogProvider } from '@/lib/posthog'
 
 // Load Google Fonts using Next.js font optimization
 const inter = Inter({
@@ -227,7 +228,9 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serviceSchema }}
         />
-        {children}
+        <PostHogProvider>
+          {children}
+        </PostHogProvider>
       </body>
     </html>
   )
