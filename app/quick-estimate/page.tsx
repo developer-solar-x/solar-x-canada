@@ -1,10 +1,15 @@
 'use client'
 
-// 4-Step Quick Estimate Flow
-// Step 1: Location & Energy
-// Step 2: Property Info
-// Step 3: Results Preview
-// Step 4: Get Full Quote (Contact)
+// 8-Step Quick Estimate Flow (based on estimator easy mode)
+// Step 1: Location
+// Step 2: Roof Size
+// Step 3: Energy
+// Step 4: Battery Savings (optional)
+// Step 5: Add-ons
+// Step 6: Photos
+// Step 7: Details
+// Step 8: Review
+// Step 9: Submit
 
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -12,63 +17,90 @@ import { Logo } from '@/components/Logo'
 import Link from 'next/link'
 import { X, Check, Save, Trash2 } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
-import { StepLocationEnergy } from '@/components/quick-estimate/StepLocationEnergy'
-import { StepPropertyInfo } from '@/components/quick-estimate/StepPropertyInfo'
-import { StepResultsPreview } from '@/components/quick-estimate/StepResultsPreview'
-import { StepGetQuote } from '@/components/quick-estimate/StepGetQuote'
+import { StepLocation } from '@/components/estimator/StepLocation'
+import { StepRoofSimple } from '@/components/estimator/StepRoofSimple'
+import { StepEnergySimple } from '@/components/estimator/StepEnergySimple'
+import { StepBatteryPeakShavingFRD as StepBatteryPeakShaving } from '@/components/estimator/StepBatteryPeakShavingFRD'
+import { StepNetMetering } from '@/components/estimator/StepNetMetering'
+import { StepAddOns } from '@/components/estimator/StepAddOns'
+import { StepPhotosSimple } from '@/components/estimator/StepPhotosSimple'
+import { StepDetailsSimple } from '@/components/estimator/StepDetailsSimple'
+import { StepReview } from '@/components/estimator/StepReview'
+import { StepContact } from '@/components/estimator/StepContact'
 
-// Quick Estimate data type
+// Quick Estimate data type (based on EstimatorData)
 export interface QuickEstimateData {
   // Program selection (from query params)
   programType?: 'net_metering' | 'hrs_residential' | 'quick'
   leadType?: 'residential' | 'commercial'
   hasBattery?: boolean
-
-  // Step 1: Location & Energy
+  systemType?: 'battery_system' | 'grid_tied'
+  
+  // Step 1: Location
   address?: string
   coordinates?: { lat: number; lng: number }
   city?: string
   province?: string
   email?: string
-  monthlyBill?: number
-  annualUsageKwh?: number
-  energyEntryMethod?: 'bill' | 'usage'
-
-  // Step 2: Property Info
-  roofSizePreset?: string
+  
+  // Step 2: Roof
   roofAreaSqft?: number
-  shadingLevel?: 'none' | 'light' | 'moderate' | 'heavy'
-  roofOrientation?: 'south' | 'east' | 'west' | 'north' | 'flat'
-  roofAzimuth?: number
-
-  // Step 3: Estimate Results
-  estimate?: {
-    systemSizeKw: number
-    numPanels: number
-    annualProductionKwh: number
-    monthlyProductionKwh: number[]
-    estimatedCost: number
-    netCost: number
-    annualSavings: number
-    monthlySavings: number
-    paybackYears: number
-    co2OffsetTons: number
+  roofSizePreset?: string
+  roofEntryMethod?: 'preset' | 'manual' | 'drawn'
+  
+  // Step 3: Energy
+  energyEntryMethod?: 'simple' | 'detailed'
+  energyUsage?: {
+    dailyKwh: number
+    monthlyKwh: number
+    annualKwh: number
   }
-
-  // Step 4: Contact Info
-  fullName?: string
-  phone?: string
-  comments?: string
-  consent?: boolean
+  annualUsageKwh?: number
+  monthlyBill?: number
+  homeSize?: string
+  specialAppliances?: string[]
+  
+  // Step 4: Battery Savings (optional)
+  selectedBattery?: string
+  batteryDetails?: any
+  peakShaving?: {
+    ratePlan: string
+    annualUsageKwh: number
+    selectedBattery: string
+    comparisons: any[]
+  }
+  
+  // Step 5: Add-ons
+  selectedAddOns?: string[]
+  
+  // Step 6: Photos
   photos?: any[]
+  photoSummary?: any
+  
+  // Step 7: Details
+  roofType?: string
+  roofAge?: string
+  roofPitch?: string
+  shadingLevel?: string
+  roofAzimuth?: number
+  
+  // Step 8: Review & Estimate
+  estimate?: any
+  financingOption?: string
 }
 
-// Step definitions
+// Step definitions (8 steps matching estimator easy mode)
 const steps = [
-  { id: 0, name: 'Location', component: StepLocationEnergy },
-  { id: 1, name: 'Property', component: StepPropertyInfo },
-  { id: 2, name: 'Results', component: StepResultsPreview },
-  { id: 3, name: 'Quote', component: StepGetQuote },
+  { id: 0, name: 'Location', component: StepLocation },
+  { id: 1, name: 'Roof Size', component: StepRoofSimple },
+  { id: 2, name: 'Energy', component: StepEnergySimple },
+  { id: 3, name: 'Battery Savings', component: StepBatteryPeakShaving, optional: true },
+  { id: 3, name: 'Net Metering Savings', component: StepNetMetering, optional: true },
+  { id: 4, name: 'Add-ons', component: StepAddOns },
+  { id: 5, name: 'Photos', component: StepPhotosSimple },
+  { id: 6, name: 'Details', component: StepDetailsSimple },
+  { id: 7, name: 'Review', component: StepReview },
+  { id: 8, name: 'Submit', component: StepContact },
 ]
 
 // Local storage key for progress
@@ -184,7 +216,10 @@ function QuickEstimateContent() {
     const updatedData = { ...data, ...stepData }
     setData(updatedData)
 
-    if (currentStep < steps.length - 1) {
+    // Recompute displaySteps with updated data
+    const updatedDisplaySteps = getDisplaySteps(updatedData)
+
+    if (currentStep < updatedDisplaySteps.length - 1) {
       setCurrentStep(currentStep + 1)
     }
   }
@@ -232,8 +267,42 @@ function QuickEstimateContent() {
     setShowClearModal(false)
   }
 
-  // Get current step component
-  const CurrentStepComponent = steps[currentStep].component
+  // Filter steps based on programType (similar to estimator)
+  // This needs to be recalculated when data changes, so we'll compute it in the component
+  const getDisplaySteps = (currentData: QuickEstimateData) => {
+    return steps.filter(step => {
+      // Show Battery Savings step only for HRS program or battery system
+      if (step.name === 'Battery Savings') {
+        return currentData.programType === 'hrs_residential' || currentData.systemType === 'battery_system'
+      }
+      // Show Net Metering Savings step only for net_metering program
+      if (step.name === 'Net Metering Savings') {
+        return currentData.programType === 'net_metering'
+      }
+      return true
+    }).map((step, index) => ({ ...step, id: index }))
+  }
+  
+  const displaySteps = getDisplaySteps(data)
+
+  // Get current step component - handle Battery Savings vs Net Metering Savings
+  const getCurrentStepComponent = () => {
+    const step = displaySteps.find((s, idx) => idx === currentStep)
+    if (!step) return StepLocation as any
+    
+    // If it's the savings step, choose component based on programType
+    if (step.name === 'Battery Savings' || step.name === 'Net Metering Savings') {
+      if (data.programType === 'net_metering') {
+        return StepNetMetering
+      } else {
+        return StepBatteryPeakShaving
+      }
+    }
+    
+    return step.component || StepLocation as any
+  }
+  
+  const CurrentStepComponent = getCurrentStepComponent()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -301,7 +370,7 @@ function QuickEstimateContent() {
 
             {/* Progress stepper - desktop */}
             <div className="hidden md:flex items-center justify-center gap-2">
-              {steps.map((step, index) => (
+              {displaySteps.map((step, index) => (
                 <div key={step.id} className="flex items-center">
                   <div
                     className={`flex items-center justify-center w-10 h-10 rounded-full font-semibold text-sm transition-colors ${
@@ -338,16 +407,16 @@ function QuickEstimateContent() {
             <div className="md:hidden">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-semibold text-navy-500">
-                  Step {currentStep + 1} of {steps.length}
+                  Step {currentStep + 1} of {displaySteps.length}
                 </span>
                 <span className="text-sm text-gray-600">
-                  {steps[currentStep]?.name}
+                  {displaySteps[currentStep]?.name}
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className="bg-red-500 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
+                  style={{ width: `${((currentStep + 1) / displaySteps.length) * 100}%` }}
                 />
               </div>
             </div>
@@ -361,7 +430,7 @@ function QuickEstimateContent() {
           data={data}
           onComplete={handleStepComplete}
           onBack={currentStep > 0 ? handleBack : undefined}
-          onSubmit={currentStep === steps.length - 1 ? handleSubmit : undefined}
+          onSubmit={currentStep === displaySteps.length - 1 ? handleSubmit : undefined}
         />
       </main>
 
