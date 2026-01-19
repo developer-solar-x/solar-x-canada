@@ -125,7 +125,7 @@ export function Header() {
                         <Calculator size={18} className="text-maple-500" />
                         <div>
                           <div className="font-semibold text-sm">Peak Shaving Calculator</div>
-                          <div className="text-xs text-gray-500">Professional sales tool</div>
+                          <div className="text-xs text-gray-500">Professional tool</div>
                         </div>
                       </Link>
                       <Link
