@@ -220,7 +220,7 @@ export default function SolarEnergyMapsPage() {
             <h3 className="text-xl font-bold text-gray-900 mb-4">Annual South-facing Latitude Tilt</h3>
             <div className="relative w-full bg-gray-200 rounded-lg overflow-hidden" style={{ minHeight: '400px' }}>
               <Image
-                src="/images/annual-south-facing-latitude-tilt.webp"
+                src="/Annual South-facing Latitude Tilt (1).webp"
                 alt="Annual South-facing Latitude Tilt Map of Canada"
                 fill
                 className="object-contain"
