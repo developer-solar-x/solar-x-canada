@@ -218,13 +218,14 @@ export default function SolarEnergyMapsPage() {
           {/* Annual South-facing Map Image */}
           <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-200 mb-8">
             <h3 className="text-xl font-bold text-gray-900 mb-4">Annual South-facing Latitude Tilt</h3>
-            <div className="relative w-full bg-gray-200 rounded-lg overflow-hidden" style={{ minHeight: '400px' }}>
+            <div className="relative w-full rounded-lg overflow-hidden flex items-center justify-center bg-gray-100" style={{ aspectRatio: '16 / 10', minHeight: '300px' }}>
               <Image
                 src="/Annual South-facing Latitude Tilt (1).webp"
                 alt="Annual South-facing Latitude Tilt Map of Canada"
                 fill
-                className="object-contain"
+                className="object-contain p-4"
                 priority
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 90vw, 85vw"
               />
             </div>
             <p className="text-sm text-gray-600 mt-3">
