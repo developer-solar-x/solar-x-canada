@@ -5,8 +5,85 @@ import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import { DollarSign, MapPin, CheckCircle, Info, TrendingUp, Zap } from 'lucide-react'
 import Link from 'next/link'
+import Head from 'next/head'
+import Script from 'next/script'
 
 export default function SolarRebatesPage() {
+  // Local SEO structured data
+  const localBusinessSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'LocalBusiness',
+    name: 'SOLAR X Canada',
+    description: 'Solar rebates and incentives guide for Canada',
+    url: 'https://solarcalculatorcanada.org/solar-rebates',
+    areaServed: [
+      { '@type': 'State', name: 'Ontario' },
+      { '@type': 'State', name: 'Alberta' },
+      { '@type': 'State', name: 'Saskatchewan' },
+      { '@type': 'State', name: 'Nova Scotia' },
+      { '@type': 'State', name: 'New Brunswick' },
+      { '@type': 'State', name: 'British Columbia' },
+      { '@type': 'State', name: 'Manitoba' },
+      { '@type': 'State', name: 'Quebec' },
+    ],
+    image: 'https://solarcalculatorcanada.org/logo.png',
+    priceRange: '$$',
+  }
+
+  const faqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: [
+      {
+        '@type': 'Question',
+        name: 'What solar rebates are available in Ontario?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Ontario offers the Home Renovation Savings (HRS) program with up to $10,000 back ($5,000 solar + $5,000 battery) for load displacement systems. The ULO rate structure also allows peak-hour arbitrage with rates reaching 39.1¢/kWh.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'What is the Alberta Solar Club?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'The Solar Club™ allows members to switch between a high-export rate (30¢/kWh) in summer to sell surplus energy and a low-import rate (~8¢/kWh) in winter, maximizing savings throughout the year.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'How much can I save with CEIP financing in Alberta?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'CEIP (Clean Energy Improvement Program) financing varies by municipality. Interest rates range from 1.62% to 6%, with rebates between $350 and $2,100 per project. Financing is attached to your property tax bill, not personal credit.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'What federal tax credits apply to solar in Canada?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'The federal 30% Clean Technology Investment Tax Credit (ITC) applies to most residential and commercial solar systems. Combined with accelerated depreciation, businesses can achieve up to 55% first-year write-offs.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Are there solar rebates in Nova Scotia?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Yes. Efficiency Nova Scotia offers business rebates up to $30,000 (~25¢ per kWh of yearly production). Residential options include PACE and CEIP loans for no-money-down solar installations.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Which provinces offer the best solar rebates?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Alberta offers the most comprehensive rebate ecosystem with municipal CEIP programs in 27+ cities, favorable net metering through the Solar Club, and business tax credits. Nova Scotia and New Brunswick also offer strong incentives. Use our calculator to compare your province.',
+        },
+      },
+    ],
+  }
   const provinces = [
     {
       name: 'Ontario',
@@ -137,6 +214,16 @@ export default function SolarRebatesPage() {
 
   return (
     <main className="min-h-screen bg-white">
+      <Script
+        id="local-business-schema"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema) }}
+      />
+      <Script
+        id="faq-schema"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
       <Header />
 
       {/* Hero Section */}
@@ -329,6 +416,130 @@ export default function SolarRebatesPage() {
           <div className="mt-6 bg-amber-50 border-2 border-amber-200 rounded-xl p-6">
             <p className="text-gray-700 text-sm">
               <strong>CEIP Advantage:</strong> Financing is attached to your property tax bill, making it portable across property changes and leveraging your equity rather than personal credit.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Local Service Areas Section */}
+      <section className="py-20 bg-white">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="heading-lg mb-4">Solar Rebates by Region</h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              We serve solar customers across Canada with localized rebate information
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Ontario regions */}
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border border-blue-200">
+              <div className="flex items-center gap-3 mb-4">
+                <MapPin className="text-blue-600" size={24} />
+                <h3 className="text-xl font-bold text-blue-900">Ontario Solar</h3>
+              </div>
+              <p className="text-gray-700 mb-4 text-sm">ULO rates + Home Renovation Savings</p>
+              <ul className="text-sm text-gray-700 space-y-2">
+                <li>• Toronto</li>
+                <li>• Ottawa</li>
+                <li>• Hamilton</li>
+                <li>• Greater Toronto Area</li>
+              </ul>
+              <Link href="/estimator?province=ON" className="inline-block mt-4 text-blue-600 font-semibold hover:underline text-sm">
+                Check Ontario rates →
+              </Link>
+            </div>
+
+            {/* Alberta regions */}
+            <div className="bg-gradient-to-br from-red-50 to-orange-100 rounded-lg p-6 border border-red-200">
+              <div className="flex items-center gap-3 mb-4">
+                <MapPin className="text-red-600" size={24} />
+                <h3 className="text-xl font-bold text-red-900">Alberta Solar</h3>
+              </div>
+              <p className="text-gray-700 mb-4 text-sm">Solar Club + 27 city CEIP programs</p>
+              <ul className="text-sm text-gray-700 space-y-2">
+                <li>• Calgary</li>
+                <li>• Edmonton</li>
+                <li>• Red Deer</li>
+                <li>• Lethbridge</li>
+              </ul>
+              <Link href="/estimator?province=AB" className="inline-block mt-4 text-red-600 font-semibold hover:underline text-sm">
+                Check Alberta rates →
+              </Link>
+            </div>
+
+            {/* Atlantic Canada regions */}
+            <div className="bg-gradient-to-br from-teal-50 to-cyan-100 rounded-lg p-6 border border-teal-200">
+              <div className="flex items-center gap-3 mb-4">
+                <MapPin className="text-teal-600" size={24} />
+                <h3 className="text-xl font-bold text-teal-900">Atlantic Canada</h3>
+              </div>
+              <p className="text-gray-700 mb-4 text-sm">Energy security + commercial incentives</p>
+              <ul className="text-sm text-gray-700 space-y-2">
+                <li>• Nova Scotia</li>
+                <li>• New Brunswick</li>
+                <li>• Prince Edward Island</li>
+              </ul>
+              <Link href="/estimator?province=NS" className="inline-block mt-4 text-teal-600 font-semibold hover:underline text-sm">
+                Check Atlantic rates →
+              </Link>
+            </div>
+
+            {/* Saskatchewan */}
+            <div className="bg-gradient-to-br from-green-50 to-emerald-100 rounded-lg p-6 border border-green-200">
+              <div className="flex items-center gap-3 mb-4">
+                <MapPin className="text-green-600" size={24} />
+                <h3 className="text-xl font-bold text-green-900">Saskatchewan Solar</h3>
+              </div>
+              <p className="text-gray-700 mb-4 text-sm">Self-consumption + battery rebates</p>
+              <ul className="text-sm text-gray-700 space-y-2">
+                <li>• Regina</li>
+                <li>• Saskatoon</li>
+                <li>• Prince Albert</li>
+              </ul>
+              <Link href="/estimator?province=SK" className="inline-block mt-4 text-green-600 font-semibold hover:underline text-sm">
+                Check Saskatchewan rates →
+              </Link>
+            </div>
+
+            {/* British Columbia */}
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-6 border border-purple-200">
+              <div className="flex items-center gap-3 mb-4">
+                <MapPin className="text-purple-600" size={24} />
+                <h3 className="text-xl font-bold text-purple-900">British Columbia</h3>
+              </div>
+              <p className="text-gray-700 mb-4 text-sm">Provincial + federal rebates</p>
+              <ul className="text-sm text-gray-700 space-y-2">
+                <li>• Vancouver</li>
+                <li>• Victoria</li>
+                <li>• Surrey</li>
+              </ul>
+              <Link href="/estimator?province=BC" className="inline-block mt-4 text-purple-600 font-semibold hover:underline text-sm">
+                Check BC rates →
+              </Link>
+            </div>
+
+            {/* Manitoba */}
+            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-lg p-6 border border-indigo-200">
+              <div className="flex items-center gap-3 mb-4">
+                <MapPin className="text-indigo-600" size={24} />
+                <h3 className="text-xl font-bold text-indigo-900">Manitoba Solar</h3>
+              </div>
+              <p className="text-gray-700 mb-4 text-sm">Federal ITC + provincial programs</p>
+              <ul className="text-sm text-gray-700 space-y-2">
+                <li>• Winnipeg</li>
+                <li>• Brandon</li>
+                <li>• Portable programs</li>
+              </ul>
+              <Link href="/estimator?province=MB" className="inline-block mt-4 text-indigo-600 font-semibold hover:underline text-sm">
+                Check Manitoba rates →
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-12 bg-forest-50 border-l-4 border-forest-500 rounded-lg p-6">
+            <p className="text-gray-700 text-sm leading-relaxed">
+              <strong>Serving Solar Customers Across Canada:</strong> Each province and municipality has unique rebate structures, utility rates, and incentive programs. Our calculator is optimized for location-specific recommendations. Enter your address or province to see rebates available in your area.
             </p>
           </div>
         </div>
