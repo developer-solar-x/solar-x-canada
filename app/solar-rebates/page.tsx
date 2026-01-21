@@ -7,8 +7,10 @@ import { DollarSign, MapPin, CheckCircle, Info, TrendingUp, Zap } from 'lucide-r
 import Link from 'next/link'
 import Head from 'next/head'
 import Script from 'next/script'
+import { useState } from 'react'
 
 export default function SolarRebatesPage() {
+  const [activeProvince, setActiveProvince] = useState(0)
   // Local SEO structured data
   const localBusinessSchema = {
     '@context': 'https://schema.org',
@@ -303,48 +305,72 @@ export default function SolarRebatesPage() {
       {/* Provincial Rebates Section */}
       <section className="py-20 bg-gray-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
+          <div className="text-center mb-12">
             <h2 className="heading-lg mb-4">Provincial Rebate Programs</h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Current rebate information by province with detailed incentive structures
             </p>
           </div>
 
-          <div className="space-y-12">
-            {provinces.map((province, index) => (
-              <div key={index} className="bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-                {/* Province Header */}
-                <div className="bg-gradient-to-r from-forest-500 to-sky-500 p-8 text-white">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="text-3xl font-bold">{province.name}</h3>
-                      <p className="text-white/90">{province.code}</p>
-                    </div>
-                    <Zap className="w-8 h-8 text-white/80" />
-                  </div>
-                  <h4 className="text-xl font-semibold mt-4">{province.description}</h4>
-                </div>
+          {/* Province Tabs */}
+          <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+            {/* Tab Navigation */}
+            <div className="flex flex-wrap border-b border-gray-200 bg-gray-50">
+              {provinces.map((province, index) => (
+                <button
+                  key={index}
+                  onClick={() => setActiveProvince(index)}
+                  className={`flex-1 min-w-[120px] px-6 py-4 text-center font-semibold transition-colors ${
+                    activeProvince === index
+                      ? 'bg-white text-forest-600 border-b-2 border-forest-500'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  {province.name}
+                </button>
+              ))}
+            </div>
 
-                {/* Province Description */}
-                <div className="p-8">
-                  <p className="text-gray-700 text-lg mb-8 leading-relaxed">{province.content}</p>
-
-                  {/* Highlights Grid */}
-                  <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {province.highlights.map((highlight, highlightIndex) => (
-                      <div
-                        key={highlightIndex}
-                        className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-6 border border-gray-200"
-                      >
-                        <p className="text-sm font-semibold text-forest-600 mb-2">{highlight.title}</p>
-                        <p className="text-2xl font-bold text-forest-500 mb-2">{highlight.value}</p>
-                        <p className="text-xs text-gray-600 leading-relaxed">{highlight.detail}</p>
+            {/* Tab Content */}
+            <div className="min-h-[500px]">
+              {provinces.map((province, index) => (
+                <div
+                  key={index}
+                  className={`${activeProvince === index ? 'block' : 'hidden'}`}
+                >
+                  {/* Province Header */}
+                  <div className="bg-gradient-to-r from-forest-500 to-sky-500 p-8 text-white">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h3 className="text-3xl font-bold">{province.name}</h3>
+                        <p className="text-white/90">{province.code}</p>
                       </div>
-                    ))}
+                      <Zap className="w-8 h-8 text-white/80" />
+                    </div>
+                    <h4 className="text-xl font-semibold mt-4">{province.description}</h4>
+                  </div>
+
+                  {/* Province Description */}
+                  <div className="p-8">
+                    <p className="text-gray-700 text-lg mb-8 leading-relaxed">{province.content}</p>
+
+                    {/* Highlights Grid */}
+                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {province.highlights.map((highlight, highlightIndex) => (
+                        <div
+                          key={highlightIndex}
+                          className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-6 border border-gray-200"
+                        >
+                          <p className="text-sm font-semibold text-forest-600 mb-2">{highlight.title}</p>
+                          <p className="text-2xl font-bold text-forest-500 mb-2">{highlight.value}</p>
+                          <p className="text-xs text-gray-600 leading-relaxed">{highlight.detail}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </section>
