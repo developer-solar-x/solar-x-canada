@@ -4,6 +4,7 @@ import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import { blogPosts } from '@/lib/blog-data'
 import { Calendar, Clock, ArrowRight } from 'lucide-react'
+import { useMemo, useState } from 'react'
 
 export const metadata: Metadata = {
   title: 'Solar Energy Blog | Expert Guides, Tips & News | Solar Calculator Canada',
@@ -39,6 +40,13 @@ const categories = [
 ] as const
 
 export default function BlogPage() {
+  const [activeCategory, setActiveCategory] = useState<(typeof categories)[number]['id']>('all')
+
+  const filteredPosts = useMemo(
+    () => (activeCategory === 'all' ? blogPosts : blogPosts.filter((post) => post.category === activeCategory)),
+    [activeCategory]
+  )
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -71,7 +79,12 @@ export default function BlogPage() {
               {categories.map((category) => (
                 <button
                   key={category.id}
-                  className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-forest-50 hover:border-forest-500 hover:text-forest-700 transition-colors font-medium"
+                  onClick={() => setActiveCategory(category.id)}
+                  className={`px-4 py-2 rounded-lg border transition-colors font-medium ${
+                    activeCategory === category.id
+                      ? 'bg-forest-600 text-white border-forest-600 shadow-sm'
+                      : 'border-gray-300 bg-white text-gray-700 hover:bg-forest-50 hover:border-forest-500 hover:text-forest-700'
+                  }`}
                 >
                   {category.label} ({category.count})
                 </button>
@@ -81,7 +94,7 @@ export default function BlogPage() {
 
           {/* Posts Grid */}
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {blogPosts.map((post) => (
+            {filteredPosts.map((post) => (
               <article
                 key={post.slug}
                 className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow"
@@ -126,6 +139,11 @@ export default function BlogPage() {
                 </Link>
               </article>
             ))}
+            {filteredPosts.length === 0 && (
+              <div className="col-span-full text-center text-gray-600 py-12 border border-dashed border-gray-200 rounded-xl">
+                No posts yet in this category. Check back soon.
+              </div>
+            )}
           </div>
         </div>
       </section>
