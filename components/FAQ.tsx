@@ -1,102 +1,155 @@
 'use client'
 
-// FAQ accordion section
+// FAQ accordion section - SEO/AEO optimized for Canadian solar searches
 
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
+import Script from 'next/script'
 
 export function FAQ() {
   // Track which FAQ item is open (only one at a time)
   // Initialize to null to prevent hydration mismatch
   const [openIndex, setOpenIndex] = useState<number | null>(null)
 
-  // FAQ questions and answers - Updated for independent platform messaging
+  // FAQ questions and answers - Optimized for Canadian solar search intent
   const faqs = [
     {
-      question: 'How does this platform work?',
-      answer: 'We\'re an independent platform that connects Canadian homeowners with vetted solar installers. You use our free, unbiased calculator to estimate your solar savings. After seeing your results, you can choose to be matched with carefully vetted local installers. We don\'t sell solar systems—we simply facilitate connections between homeowners and quality installers.',
+      question: 'How much does solar cost in Canada?',
+      answer: 'In Canada, solar panel installation costs average $2.40 to $3.30 per watt for monocrystalline panels. A typical 5 kW residential system costs $12,000 to $17,500, while a 10 kW system ranges from $24,000 to $35,000. Costs vary by province: Ontario averages $2.42–$3.05/W, Alberta $2.40–$3.02/W, and other provinces $2.60–$3.27/W. These prices typically include installation, permits, and equipment. Available federal and provincial rebates (like Ontario\'s HRS program) can reduce your net cost by thousands.',
     },
     {
-      question: 'How are installers vetted?',
-      answer: 'Every installer in our network undergoes a thorough vetting process. We verify certifications (ESA or provincial equivalents), insurance coverage, years of experience, and number of installations completed. We also review past projects and customer references. Only installers who meet our quality standards are approved to join the network.',
+      question: 'What is Canada\'s federal solar tax credit?',
+      answer: 'Canada offers a federal Clean Technology Investment Tax Credit (ITC) of 30% for residential and commercial solar systems. This credit applies to eligible solar panel installations and can significantly reduce your upfront cost. For example, on a $15,000 system, you could claim a $4,500 federal credit. Businesses can also combine this with accelerated depreciation to achieve up to 55% first-year write-off. Verify your system\'s eligibility with the Canada Revenue Agency (CRA) before installation.',
     },
     {
-      question: 'What is the double warranty?',
-      answer: 'The double warranty provides two layers of protection. First, you receive the installer\'s standard warranty covering workmanship and equipment. Second, our platform provides an additional guarantee. If issues arise and the installer doesn\'t resolve them, we step in to help find a solution. This gives you extra peace of mind for your solar investment.',
+      question: 'Are solar panels worth it in Canada?',
+      answer: 'Yes, solar is increasingly valuable in Canada. Most homeowners achieve payback in 6–10 years, then enjoy 15–30 years of free electricity (panels last 25+ years). Canada receives 1,000–1,600 sun hours annually—comparable to Germany, a global solar leader. Panels perform better in cooler climates, making Canada ideal. ROI improves with rising electricity rates; Ontario rates have increased 12.8% since 2016. Combined with rebates, net metering, and tax credits, solar delivers strong financial returns.',
     },
     {
-      question: 'How accurate is the calculator?',
-      answer: 'Our calculator uses transparent, verifiable data including satellite imagery, local weather patterns, and current equipment pricing. Estimates are typically within 5-10% of final installation costs. However, a final quote from a vetted installer will account for specific factors like roof condition and electrical panel requirements. All calculations are transparent—you can see how we arrive at your estimates.',
+      question: 'How does Ontario solar net metering work?',
+      answer: 'Ontario offers net metering for grid-connected solar systems, allowing you to send excess energy back to the grid and receive credits. The Ultra-Low Overnight (ULO) rate structure (39.1¢/kWh peak, 3¢/kWh off-peak) creates peak-shaving opportunities: charge a battery during cheap overnight hours, discharge during expensive peak hours. This arbitrage maximizes savings. All generated power reduces your grid consumption, and credits offset future consumption. The Home Renovation Savings (HRS) program provides up to $10,000 back ($5k solar + $5k battery).',
     },
     {
-      question: 'Is this calculator really unbiased?',
-      answer: 'Yes. We\'re an independent platform with no ties to any solar company. We don\'t make money from installations, so we have no incentive to inflate estimates or push specific products. Our only goal is to provide you with honest, transparent information to help you make an informed decision. The calculator uses objective data and standard industry calculations.',
+      question: 'What is Alberta\'s Solar Club?',
+      answer: 'Alberta\'s Solar Club™ allows members to switch between high export rates (30¢/kWh) in summer to sell surplus energy and low import rates (~8¢/kWh) in winter. This dynamic rate structure maximizes year-round solar savings. Alberta also offers municipal Clean Energy Improvement Program (CEIP) financing in 27+ cities with rates as low as 1.62–3% and rebates up to $2,100. Alberta\'s 2,300–2,600 annual sun hours and deregulated energy market make it Canada\'s solar powerhouse.',
     },
     {
-      question: 'Which provinces are supported?',
-      answer: 'Currently, our calculator is fully functional for Ontario, with complete support for HRS rebates and net metering. Alberta is coming soon—we\'re building our installer network there. For other provinces, we show "coming soon" placeholders. You can still use the calculator, but installer matching may be limited until we expand to your province.',
+      question: 'What is CEIP solar financing?',
+      answer: 'CEIP (Clean Energy Improvement Program) is property-tax-attached financing available in Alberta municipalities. Unlike personal loans, financing attaches to your property tax bill, not your credit. Benefits: low interest rates (1.62–6%), rebates ($350–$2,100), and portability across property changes. Available in 27+ Alberta cities including Calgary, Edmonton, Lethbridge. Some municipalities offer 0% financing on the first 73% of costs (Leduc) or 100% financing (Strathcona at 2%). Compare municipal programs via our calculator.',
     },
     {
-      question: 'What happens after I get my estimate?',
-      answer: 'After you see your results, you can choose to be matched with vetted installers in your area. We\'ll share your information (with your permission) with qualified installers who can provide detailed quotes. You can then compare quotes and choose the installer that best fits your needs. There\'s no obligation—you\'re in control of the process.',
+      question: 'Do solar panels work in Canada\'s winter?',
+      answer: 'Yes. While winter days are shorter, solar panels generate electricity year-round as long as there\'s daylight and clear conditions. Cold temperatures actually improve panel efficiency (~15–20% more efficient than in heat). Snow typically slides off angled panels within days, or you can gently clear it. Canada\'s winter production is 20–30% of annual total. Modern systems are designed for Canadian snow loads, wind, and temperature swings. Your installer ensures proper structural design.',
     },
     {
-      question: 'Do I have to work with installers from your network?',
-      answer: 'No, there\'s no obligation. You can use our calculator to get an estimate, and then choose whether or not to be matched with installers. If you do choose to be matched, you can still get quotes from other installers outside our network. We simply provide you with vetted options—the decision is always yours.',
+      question: 'What are the best provinces for solar in Canada?',
+      answer: 'Top solar provinces: (1) Alberta – highest sun hours (1,400–1,600/year), Solar Club rates, CEIP programs. (2) Saskatchewan – excellent sun hours (1,400–1,600/year), growing market. (3) Ontario – strong incentives (HRS rebate), net metering, ULO rates, competitive pricing. (4) Nova Scotia – SolarHomes Program, business rebates up to $30K. (5) British Columbia – moderate-high potential, rebates, net metering. Northern regions (Nunavut, NWT) cost $4+/W due to logistics; best suited to remote off-grid applications.',
     },
     {
-      question: 'What incentives are available in Ontario?',
-      answer: 'Ontario offers specific incentives for zero-export solar systems: $100 per kW of solar capacity (up to $5,000 maximum) and $300 per kWh of battery storage (up to $5,000 maximum). Zero-export systems keep all generated power on-site, reducing your grid consumption without sending excess energy back to the utility. Our calculator accounts for these incentives in your estimate.',
+      question: 'How long do solar panels last?',
+      answer: 'Modern solar panels last 25–30 years or longer. Most manufacturers warrant 80–90% output after 25 years, with annual degradation of ~0.6%. In Canada, panels degrade more slowly due to cooler temperatures. A well-maintained system will produce electricity for 40+ years. Balance-of-system components (inverters, wiring) may need replacement after 10–15 years. Total lifetime savings easily exceed 15–20x the initial investment, making long lifespan one of solar\'s greatest advantages.',
     },
     {
-      question: 'How long does installation typically take?',
-      answer: 'From contract signing to system activation, most installations take 2-4 months. This includes permitting (4-8 weeks), installation (1-3 days), and utility approval (2-6 weeks). Your matched installer will keep you informed throughout every stage. The timeline can vary based on your location and local utility processing times.',
+      question: 'What are solar panel installation costs broken down?',
+      answer: 'Typical installation cost breakdown: (1) Solar panels 50–60%, (2) Labor 20–30%, (3) Inverter & balance-of-system 10–15%, (4) Permits & interconnection 5–10%. Material costs include panels, mounting hardware, wiring, and safety disconnects. Labor includes roof work, electrical connections, and integration with your grid or battery. Permits (building, ESA, utility) vary by municipality; Toronto requires REA approval ($1,000 fee) for Class 3 systems. Our calculator provides a localized breakdown.',
     },
     {
-      question: 'Is solar worth it in Ontario\'s climate?',
-      answer: 'Absolutely! While Ontario experiences cold winters, solar panels actually perform better in cooler temperatures. We receive ample sunlight throughout the year, and snow typically slides off angled panels. Ontario\'s solar production is comparable to major solar markets like Germany. With zero-export systems, all your generated power directly reduces your electricity bill.',
+      question: 'How do I get solar quotes in Canada?',
+      answer: 'Use our free solar calculator to get an unbiased estimate based on your address, roof, and usage. Then (optionally) be matched with vetted local installers who provide detailed quotes accounting for your roof condition, electrical panel, shading, and local permitting. Obtain 2–3 quotes to compare pricing, warranties, and financing options. Ask installers about certifications (ESA or provincial), insurance, warranty terms, and experience in your province. Compare bottom-line cost after rebates and financing.',
     },
     {
-      question: 'What\'s the typical payback period?',
-      answer: 'Most Ontario homeowners see a return on investment in 6-10 years, depending on system size, electricity usage, and available incentives. After that, you\'ll enjoy decades of virtually free electricity. With rising utility rates, solar becomes more valuable every year. Our calculator shows your personalized payback period based on your specific situation.',
+      question: 'What is the HRS rebate in Ontario?',
+      answer: 'Ontario\'s Home Renovation Savings (HRS) program provides up to $10,000 rebate: $5,000 for solar (zero-export systems) and $5,000 for battery storage. Eligibility requires a zero-export system that keeps all generated power on-site. Zero-export systems use smart controls to prevent exporting to the grid, maximizing self-consumption. Businesses can stack HRS with federal ITC for larger rebates, up to $860,000 for load displacement systems. Verify eligibility before installation.',
+    },
+    {
+      question: 'What is the best solar panel type?',
+      answer: 'Monocrystalline panels ($2.40–$3.50/W) are best for most Canadian homes: highest efficiency (18–23%), durability, and sleek appearance. Polycrystalline ($2.00–$2.80/W) offer moderate efficiency (15–17%) at lower cost. Thin-film ($1.70–$2.40/W) are cheapest but less efficient (10–15%) and shorter-lived. Building-integrated PV (BIPV, $3–$4.50/W) integrates into facades and windows for aesthetic appeal. Solar shingles ($4–$7/W) are premium but expensive. For Canadian climate, monocrystalline outperforms over 25+ year lifespan.',
+    },
+    {
+      question: 'How much can I save with solar in Canada?',
+      answer: 'Lifetime savings depend on system size and location. A typical 5 kW system saves $50,000–$100,000+ over 25 years in Ontario (with rising rates). Alberta systems save similarly with Solar Club rates. Savings increase annually as utility rates rise (Ontario up 12.8% since 2016). Net metering and time-of-use rates amplify savings. Federal 30% ITC, provincial rebates, and battery storage (peak shaving) further improve returns. Our calculator shows personalized savings based on your address, roof, and usage.',
+    },
+    {
+      question: 'What is the solar permit process in Canada?',
+      answer: 'Provincial and municipal permits vary. Typical requirements: (1) Building permit – structural/electrical review. (2) ESA (Electrical Safety Authority) permit – Ontario and select provinces. (3) Utility approval – interconnection agreement. (4) Zoning review – especially for ground mounts. (5) REA (Renewable Energy Approval) – Ontario, $1,000 fee for Class 3 systems (<500 kW). Timeline: 4–8 weeks. Your installer handles most paperwork. Toronto adds specific requirements (zoning bylaw, utility compliance). Budget 2–6 weeks for total permitting.',
+    },
+    {
+      question: 'Can I get solar financing in Canada?',
+      answer: 'Yes, multiple options: (1) Personal loans – unsecured, quick approval. (2) Home equity line of credit (HELOC) – lower rates, higher amounts. (3) CEIP property-tax financing (Alberta) – 0–6%, attaches to tax bill. (4) Installer financing – some offer in-house or partner programs. (5) Canada Greener Homes Loan – federal program (up to $40K, 0% for first 3 years). (6) Rebates reduce financed amount (Ontario HRS: up to $10K back). Compare all options before choosing; lower rates significantly improve ROI.',
+    },
+    {
+      question: 'What is the solar installation timeline in Canada?',
+      answer: 'Typical timeline: (1) Estimate & permitting – 4–8 weeks (largest variable). (2) Equipment ordering – 2–4 weeks. (3) Installation – 1–3 days (weather dependent). (4) Inspection & utility approval – 2–6 weeks. Total: 2–4 months from contract to system activation. Permitting takes longest due to municipal review and utility interconnection. Winter weather may delay installations. Your installer will provide a realistic timeline based on your location and local authority processing times.',
+    },
+    {
+      question: 'How does battery storage improve solar ROI?',
+      answer: 'Batteries ($700–$2,000/kWh installed) enable peak shaving and backup power. In time-of-use markets (Ontario ULO), charge during cheap hours (3¢/kWh), discharge during peak (39.1¢/kWh)—arbitrage gains. A 10 kWh lithium-ion battery costs $7K–$20K but can add $5K–$10K annual value through peak shaving alone. Plus, backup power prevents outages, valuable insurance. Federal 30% ITC and Ontario HRS ($5K rebate) improve payback. Battery-plus-solar systems typically pay back in 8–12 years, then provide free energy + resilience.',
+    },
+    {
+      question: 'What solar companies are available in Canada?',
+      answer: 'Canada has 1000s of installers ranging from large national firms to local specialists. Our platform vets installers by certifications (ESA/provincial), insurance, experience, and customer reviews. We partner with quality installers in Ontario and growing network in Alberta. Other reputable national/regional installers include Canadian Solar, Sunrun Canada, Solarmax, and regional specialists. Always verify credentials, warranties, and reviews. Avoid lowest-bidder approach; focus on reliability, warranty, and long-term support.',
+    },
+    {
+      question: 'Is solar DIY possible in Canada?',
+      answer: 'Full DIY is rare and discouraged in Canada due to code complexity. Challenges: (1) Safety – 600V DC systems; electrical code compliance mandatory. (2) Permitting – ESA, building permits required; jurisdictions won\'t approve unlicensed work. (3) Warranty – most manufacturers void warranty if not installed by certified electricians. (4) Grid interconnection – utilities require licensed electrician sign-off. A licensed electrician must sign-off final work even if you help. Cost savings rarely justify complexity and liability. Professional installation recommended.',
     },
   ]
 
-  return (
-    <section id="faq" className="py-20 bg-white">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Title block */}
-        <div className="text-center mb-16">
-          <h2 className="heading-lg mb-4">Your Questions, Answered</h2>
-          <p className="text-lg text-gray-600">
-            Everything you need to know about going solar
-          </p>
-        </div>
+  // FAQ schema for search engines
+  const faqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map((faq) => ({
+      '@type': 'Question',
+      name: faq.question,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: faq.answer,
+      },
+    })),
+  }
 
-        {/* Accordion items */}
-        <div className="space-y-4">
-          {faqs.map((faq, index) => (
-            <div
-              key={index}
-              className={`border rounded-xl transition-all ${
-                openIndex === index
-                  ? 'border-l-4 border-l-maple-500 bg-sky-50'
-                  : 'border-gray-200 bg-white'
-              }`}
-            >
-              {/* Question row - clickable */}
-              <button
-                className="w-full px-6 py-5 flex items-center justify-between text-left hover:bg-gray-50 transition-colors rounded-xl"
-                onClick={() => setOpenIndex(openIndex === index ? null : index)}
-                suppressHydrationWarning
+  return (
+    <>
+      <Script
+        id="faq-schema"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
+      <section id="faq" className="py-20 bg-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Title block */}
+          <div className="text-center mb-16">
+            <h2 className="heading-lg mb-4">Your Questions, Answered</h2>
+            <p className="text-lg text-gray-600">
+              Everything you need to know about going solar in Canada
+            </p>
+          </div>
+
+          {/* Accordion items */}
+          <div className="space-y-4">
+            {faqs.map((faq, index) => (
+              <div
+                key={index}
+                className={`border rounded-xl transition-all ${
+                  openIndex === index
+                    ? 'border-l-4 border-l-maple-500 bg-sky-50'
+                    : 'border-gray-200 bg-white'
+                }`}
               >
-                <span
-                  className={`text-lg font-semibold pr-8 ${
-                    openIndex === index ? 'text-forest-500' : 'text-gray-800'
-                  }`}
+                {/* Question row - clickable */}
+                <button
+                  className="w-full px-6 py-5 flex items-center justify-between text-left hover:bg-gray-50 transition-colors rounded-xl"
+                  onClick={() => setOpenIndex(openIndex === index ? null : index)}
+                  suppressHydrationWarning
                 >
-                  {faq.question}
-                </span>
+                  <span
+                    className={`text-lg font-semibold pr-8 ${
+                      openIndex === index ? 'text-forest-500' : 'text-gray-800'
+                    }`}
+                  >
+                    {faq.question}
+                  </span>
                 
                 <ChevronDown
                   className={`flex-shrink-0 transition-transform ${
@@ -109,7 +162,7 @@ export function FAQ() {
               {/* Answer panel - expandable */}
               {openIndex === index && (
                 <div className="px-6 pb-5 animate-fade-in">
-                  <p className="text-gray-700 leading-relaxed">
+                  <p className="text-gray-700 leading-relaxed text-base">
                     {faq.answer}
                   </p>
                 </div>
@@ -119,6 +172,7 @@ export function FAQ() {
         </div>
       </div>
     </section>
+    </>
   )
 }
 
