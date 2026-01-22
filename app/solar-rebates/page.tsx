@@ -1,6 +1,4 @@
 'use client'
-
-import type { Metadata } from 'next'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import { DollarSign, MapPin, CheckCircle, Info, TrendingUp, Zap } from 'lucide-react'
@@ -8,43 +6,6 @@ import Link from 'next/link'
 import Head from 'next/head'
 import Script from 'next/script'
 import { useState } from 'react'
-
-// SEO Metadata Export
-export const metadata: Metadata = {
-  title: 'Solar Rebates & Incentives Canada 2026 | Solar Calculator by Province',
-  description: 'Compare solar rebates, tax credits, and incentives across Canada. Get province-specific solar calculator data, CEIP financing in Alberta, Home Renovation Savings in Ontario, and energy efficiency programs.',
-  keywords: [
-    'solar rebates Canada',
-    'solar incentives Canada',
-    'solar tax credit Canada',
-    'solar calculator Canada',
-    'Ontario solar rebates',
-    'Alberta solar rebates',
-    'BC solar rebates',
-    'solar energy incentives',
-    'renewable energy rebates',
-    'home solar rebates',
-    'solar panel rebates',
-    'federal solar tax credit',
-    'provincial solar incentives',
-    'CEIP financing',
-    'Alberta CEIP',
-    'Home Renovation Savings',
-    'HRS program',
-    'solar power cost calculator',
-    'best solar rebates',
-    'solar savings calculator',
-  ],
-  openGraph: {
-    title: 'Solar Rebates & Incentives Across Canada | Compare by Province',
-    description: 'Find solar rebates, incentives, and financing options in your province. Comprehensive solar calculator for Canada.',
-    type: 'website',
-    url: 'https://solarcalculatorcanada.org/solar-rebates',
-  },
-  alternates: {
-    canonical: 'https://solarcalculatorcanada.org/solar-rebates',
-  },
-}
 
 export default function SolarRebatesPage() {
   const [activeProvince, setActiveProvince] = useState(0)
@@ -188,60 +149,6 @@ export default function SolarRebatesPage() {
     availableLanguage: ['en', 'fr']
   }
 
-  const faqSchema = {
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: [
-      {
-        '@type': 'Question',
-        name: 'What solar rebates are available in Ontario?',
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: 'Ontario offers the Home Renovation Savings (HRS) program with up to $10,000 back ($5,000 solar + $5,000 battery) for load displacement systems. The ULO rate structure also allows peak-hour arbitrage with rates reaching 39.1¢/kWh.',
-        },
-      },
-      {
-        '@type': 'Question',
-        name: 'What is the Alberta Solar Club?',
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: 'The Solar Club™ allows members to switch between a high-export rate (30¢/kWh) in summer to sell surplus energy and a low-import rate (~8¢/kWh) in winter, maximizing savings throughout the year.',
-        },
-      },
-      {
-        '@type': 'Question',
-        name: 'How much can I save with CEIP financing in Alberta?',
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: 'CEIP (Clean Energy Improvement Program) financing varies by municipality. Interest rates range from 1.62% to 6%, with rebates between $350 and $2,100 per project. Financing is attached to your property tax bill, not personal credit.',
-        },
-      },
-      {
-        '@type': 'Question',
-        name: 'What federal tax credits apply to solar in Canada?',
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: 'The federal 30% Clean Technology Investment Tax Credit (ITC) applies to most residential and commercial solar systems. Combined with accelerated depreciation, businesses can achieve up to 55% first-year write-offs.',
-        },
-      },
-      {
-        '@type': 'Question',
-        name: 'Are there solar rebates in Nova Scotia?',
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: 'Yes. Efficiency Nova Scotia offers business rebates up to $30,000 (~25¢ per kWh of yearly production). Residential options include PACE and CEIP loans for no-money-down solar installations.',
-        },
-      },
-      {
-        '@type': 'Question',
-        name: 'Which provinces offer the best solar rebates?',
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: 'Alberta offers the most comprehensive rebate ecosystem with municipal CEIP programs in 27+ cities, favorable net metering through the Solar Club, and business tax credits. Nova Scotia and New Brunswick also offer strong incentives. Use our calculator to compare your province.',
-        },
-      },
-    ],
-  }
   const provinces = [
     {
       name: 'Ontario',
