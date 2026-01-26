@@ -153,8 +153,8 @@ export default function SolarRebatesPage() {
     {
       name: 'Ontario',
       code: 'ON',
-      description: 'The ULO Opportunity',
-      content: `Ontario's pricing has shifted toward rewarding smart storage. The Ultra-Low Overnight (ULO) rate structure offers exceptional savings potential with peak rates reaching 39.1¢/kWh—more than double the 2016 baseline.`,
+      description: 'The ULO Opportunity & Home Renovations',
+      content: `Ontario's pricing has shifted toward rewarding smart storage. The Ultra-Low Overnight (ULO) rate structure offers exceptional savings potential with peak rates reaching 39.1¢/kWh—more than double the 2016 baseline. Ontario also offers comprehensive energy upgrade incentives through the Home Renovation Savings Program and substantial heat pump rebates. Municipal loan programs like Toronto's HELP provide up to $125,000 in financing for multi-upgrade energy improvements.`,
       highlights: [
         {
           title: 'Rate Advantage',
@@ -165,6 +165,16 @@ export default function SolarRebatesPage() {
           title: 'Home Renovation Savings (HRS)',
           value: 'Up to $10,000',
           detail: '$5,000 solar + $5,000 battery for load displacement systems'
+        },
+        {
+          title: 'Heat Pump Rebates',
+          value: 'Up to $12,000',
+          detail: 'Ground-source systems in 2026; air-source ~$7,500'
+        },
+        {
+          title: 'Municipal HELP Program',
+          value: 'Up to $125,000',
+          detail: 'Multi-upgrade financing attached to property tax'
         },
         {
           title: 'Business Tax Credit',
@@ -272,34 +282,6 @@ export default function SolarRebatesPage() {
           title: 'Business Write-off',
           value: '55% First-Year',
           detail: '30% ITC + accelerated depreciation'
-        }
-      ],
-    },
-    {
-      name: 'Ontario',
-      code: 'ON',
-      description: 'Home Renovations & Heat Pumps',
-      content: `Ontario offers comprehensive energy upgrade incentives through the Home Renovation Savings Program and substantial heat pump rebates. Municipal loan programs like Toronto's HELP provide up to $125,000 in financing for multi-upgrade energy improvements.`,
-      highlights: [
-        {
-          title: 'Home Renovation Savings',
-          value: 'Up to $10,000',
-          detail: 'Including solar panels, heat pumps, windows, insulation'
-        },
-        {
-          title: 'Heat Pump Rebates',
-          value: 'Up to $12,000',
-          detail: 'Ground-source systems in 2026; air-source ~$7,500'
-        },
-        {
-          title: 'Municipal HELP Program',
-          value: 'Up to $125,000',
-          detail: 'Multi-upgrade financing attached to property tax'
-        },
-        {
-          title: 'ENERGY STAR Appliances',
-          value: 'Utility Rebates',
-          detail: 'Heat pump dryers, washers, dishwashers eligible'
         }
       ],
     },
