@@ -1,3 +1,10 @@
+export interface RoofSection {
+  id: string
+  azimuth: number
+  area: number
+  panels: number
+}
+
 export interface MapboxDrawingProps {
   coordinates: { lat: number; lng: number }
   address: string
@@ -5,4 +12,3 @@ export interface MapboxDrawingProps {
   initialData?: any // Optional: preload existing polygons
   selectedSectionIndex?: number | null // Optional: highlight a specific section on the map
 }
-

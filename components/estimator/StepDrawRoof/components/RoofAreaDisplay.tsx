@@ -1,6 +1,7 @@
 'use client'
 
 import { Ruler } from 'lucide-react'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 import type { RoofAreaDisplayProps } from '../types'
 
 export function RoofAreaDisplay({ roofArea, estimatedPanels, roofPolygon }: RoofAreaDisplayProps) {
@@ -17,8 +18,13 @@ export function RoofAreaDisplay({ roofArea, estimatedPanels, roofPolygon }: Roof
       </div>
 
       <div className="bg-gradient-to-br from-blue-50 to-white p-4 rounded-lg border border-blue-200">
-        <div className="text-sm font-medium text-gray-600 mb-2">
-          Estimated Panel Capacity
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-sm font-medium text-gray-600">
+            Estimated Panel Capacity
+          </span>
+          <InfoTooltip
+            content="Based on actual panel layout calculation that accounts for panel spacing, edge setbacks, and roof shape constraints. Enable panel visualization to see the detailed layout."
+          />
         </div>
         <div className="text-2xl font-bold text-blue-500">
           ~{estimatedPanels} panels

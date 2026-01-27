@@ -1,4 +1,5 @@
 import { Battery, DollarSign, Lightbulb, Sun, Zap } from 'lucide-react'
+import { formatProductionRange } from '@/lib/production-range'
 
 interface HeaderSectionProps {
   title?: string
@@ -93,9 +94,12 @@ export function SolarSystemCard({
               <span className="text-sm font-semibold text-green-700">kWh</span>
             </div>
           ) : (
-            <p className="text-xl font-bold text-green-600">
-              {Math.round(annualProductionEstimate ?? system.production.annualKwh).toLocaleString()} kWh
-            </p>
+            <div>
+              <p className="text-xl font-bold text-green-600">
+                {formatProductionRange(annualProductionEstimate ?? system.production.annualKwh)}
+              </p>
+              <p className="text-[10px] text-gray-500 mt-0.5">Estimate only; actual production may vary.</p>
+            </div>
           )}
         </div>
         <div>

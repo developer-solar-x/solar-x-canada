@@ -4,18 +4,26 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { MapboxDrawing, type MapboxDrawingRef } from '../MapboxDrawing'
-import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Star } from 'lucide-react'
 import { calculateRoofAzimuth, calculateRoofAzimuthWithConfidence, getDirectionLabel, getOrientationEfficiency, ROOF_ORIENTATIONS } from '@/lib/roof-calculations'
 import * as turf from '@turf/turf'
 import { DrawingTips } from './components/DrawingTips'
 import { RoofAreaDisplay } from './components/RoofAreaDisplay'
 import { SectionBreakdown } from './sections/SectionBreakdown'
+import { PANEL_SPECS } from '@/config/panel-specs'
 import { useRoofAreaCalculation } from './hooks/useRoofAreaCalculation'
 import type { StepDrawRoofProps } from './types'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
 import { isValidEmail } from '@/lib/utils'
+import { PANEL_DIMENSIONS, PANEL_SPACING } from '@/lib/panel-layout'
 
-const PANEL_AREA_SQFT = 23.9 // TS-BGT54(500)-G11: 1961 x 1134 mm
+// Calculate effective area per panel including spacing
+// Panel dimensions: 1.961m (height) x 1.134m (width)
+// Spacing: 0.025m horizontal + 0.025m vertical
+// Effective area = (height + spacing) × (width + spacing)
+const PANEL_AREA_SQFT = PANEL_SPECS.dimensions.areaSqFt // Base panel area: 23.9 sq ft
+const PANEL_EFFECTIVE_AREA_SQFT = ((PANEL_DIMENSIONS.height + PANEL_SPACING.vertical) * 
+  (PANEL_DIMENSIONS.width + PANEL_SPACING.horizontal)) * 10.764 // Convert m² to sq ft
 
 export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   const [roofArea, setRoofArea] = useState<number | null>(data.roofAreaSqft || null)
@@ -25,6 +33,8 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   const mapboxDrawingRef = useRef<MapboxDrawingRef>(null)
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
+  const [rating, setRating] = useState<number | null>(null)
+  const [showRating, setShowRating] = useState(false)
   
   // Cleanup effect to reset loading state if component unmounts while submitting
   useEffect(() => {
@@ -65,7 +75,7 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
     }
   }, [])
   const [estimatedPanels, setEstimatedPanels] = useState<number | null>(
-    data.roofAreaSqft ? Math.floor(data.roofAreaSqft / PANEL_AREA_SQFT) : null
+    data.roofAreaSqft ? Math.floor(data.roofAreaSqft / PANEL_EFFECTIVE_AREA_SQFT) : null
   )
   
   // Individual roof sections breakdown (includes orientation per section)
@@ -135,7 +145,8 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
             return null
           }
           
-          const panels = Math.floor(areaSqFt / PANEL_AREA_SQFT)
+          // Account for panel spacing in the calculation
+          const panels = Math.floor(areaSqFt / PANEL_EFFECTIVE_AREA_SQFT)
           
           // Calculate orientation with confidence for this specific section
           const orientationData = calculateRoofAzimuthWithConfidence(feature)
@@ -196,17 +207,18 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
     
     if (areaChanged) {
       setRoofArea(areaSqFt)
-      setEstimatedPanels(Math.floor(areaSqFt / PANEL_AREA_SQFT))
+      // Account for panel spacing in the calculation
+      setEstimatedPanels(Math.floor(areaSqFt / PANEL_EFFECTIVE_AREA_SQFT))
     }
     
     if (polygonChanged) {
       setRoofPolygon(polygonData)
     }
-    
+
     if (snapshotChanged && snapshot) {
       setMapSnapshot(snapshot)
     }
-    
+
     // Calculate individual section areas and orientations only if polygon changed
     if (polygonChanged && polygonData.features && polygonData.features.length > 0) {
       let largestPolygon = polygonData.features[0]
@@ -230,7 +242,8 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
             return null
           }
           
-          const panels = Math.floor(areaSqFt / PANEL_AREA_SQFT)
+          // Account for panel spacing in the calculation
+          const panels = Math.floor(areaSqFt / PANEL_EFFECTIVE_AREA_SQFT)
           
           // Calculate orientation with confidence for this specific section
           const orientationData = calculateRoofAzimuthWithConfidence(feature)
@@ -478,6 +491,58 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
               />
             )}
 
+            {/* Rating Component */}
+            {roofArea && (
+              <div className="space-y-2 pt-4 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700">Rate this estimate</label>
+                  {rating && (
+                    <button
+                      onClick={() => {
+                        setRating(null)
+                        setShowRating(false)
+                      }}
+                      className="text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => {
+                        setRating(star)
+                        setShowRating(true)
+                      }}
+                      className="focus:outline-none transition-transform hover:scale-110"
+                      aria-label={`Rate ${star} star${star !== 1 ? 's' : ''}`}
+                    >
+                      <Star
+                        size={24}
+                        className={
+                          rating && star <= rating
+                            ? 'text-yellow-500 fill-yellow-500'
+                            : 'text-gray-300 hover:text-yellow-400'
+                        }
+                      />
+                    </button>
+                  ))}
+                </div>
+                {rating && (
+                  <p className="text-xs text-gray-600 mt-1">
+                    {rating === 5 && 'Excellent! Thank you for your feedback.'}
+                    {rating === 4 && 'Great! We appreciate your feedback.'}
+                    {rating === 3 && 'Good! Thanks for rating.'}
+                    {rating === 2 && 'Fair. We value your input.'}
+                    {rating === 1 && 'Poor. We\'d love to hear how we can improve.'}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Validation message */}
             {roofArea >= 200 && (
               <div className="text-sm text-green-600 bg-green-50 p-3 rounded-lg border border-green-200">
@@ -522,20 +587,21 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
       {/* Right side - Mapbox drawing interface */}
       <div className="bg-white rounded-xl shadow-lg overflow-hidden relative lg:order-2 order-1" style={{ height: 'calc(60vh)', minHeight: '360px' }}>
         {data.coordinates ? (
-          <MapboxDrawing
-            ref={mapboxDrawingRef}
-            coordinates={data.coordinates}
-            address={data.address || 'Your location'}
-            onAreaCalculated={handleAreaCalculated}
-            initialData={roofPolygon}
-            selectedSectionIndex={selectedSectionIndex}
-          />
+            <MapboxDrawing
+              ref={mapboxDrawingRef}
+              coordinates={data.coordinates}
+              address={data.address || 'Your location'}
+              onAreaCalculated={handleAreaCalculated}
+              initialData={roofPolygon}
+              selectedSectionIndex={selectedSectionIndex}
+            />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
             <p className="text-gray-500">No coordinates available</p>
           </div>
         )}
       </div>
+
     </div>
   )
 }

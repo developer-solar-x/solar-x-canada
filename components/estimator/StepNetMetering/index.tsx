@@ -15,6 +15,7 @@ import { BLENDED_RATE } from '../StepEnergySimple/constants'
 import { InfoTooltip } from '@/components/ui/InfoTooltip'
 import { Modal } from '@/components/ui/Modal'
 import { formatCurrency, isValidEmail } from '@/lib/utils'
+import { formatProductionRange } from '@/lib/production-range'
 import { AlbertaSavingsBreakdown } from './AlbertaSavingsBreakdown'
 import { BATTERY_SPECS, type BatterySpec } from '@/config/battery-specs'
 import { useBatteries } from '@/hooks/useBatteries'
@@ -1051,12 +1052,12 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                         Annual Solar Production (kWh)
                       </label>
                       <div className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg bg-gray-50 text-base md:text-lg font-semibold text-gray-700">
-                        {Math.round(solarProductionKwh).toLocaleString()} kWh
+                        {formatProductionRange(solarProductionKwh)}
                       </div>
                       <div className="mt-2 flex items-start gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
                         <Info className="text-blue-500 flex-shrink-0 mt-0.5" size={16} />
                         <p className="text-xs text-blue-700">
-                          Adjust the number of solar panels above to change production.
+                          Adjust the number of solar panels above to change production. The range accounts for weather variability and system performance. Disclaimer: This range is an estimate only; actual production may vary due to weather, shading, and system conditions and is not a guarantee.
                           </p>
                         </div>
                         </div>

@@ -41,6 +41,7 @@ import {
   SolarSystemCard,
 } from './sections'
 import { clampBreakdown, formatUsageShare, formatKwh, formatPercent, calculateUsageFromBill, type LeftoverBreakdown } from './utils'
+import { formatProductionRange } from '@/lib/production-range'
 import { getCustomTouRatePlan, getCustomUloRatePlan, DEFAULT_CUSTOM_RATES, type CustomRates } from './rate-plans'
 import { BatterySelection } from './BatterySelection'
 
@@ -2548,8 +2549,11 @@ export function StepBatteryPeakShavingSimple({ data, onComplete, onBack, manualM
                            </div>
                            <div className="bg-white rounded-xl p-3 sm:p-4 border-2 border-gray-200">
                              <div className="text-xs font-semibold text-gray-600 mb-1">Solar Production</div>
-                             <div className="text-xl sm:text-2xl font-bold text-green-600">{(solarProductionKwh ?? effectiveSolarProductionKwh ?? 0).toLocaleString()}</div>
+                             <div className="text-xl sm:text-2xl font-bold text-green-600">
+                               {formatProductionRange(solarProductionKwh ?? effectiveSolarProductionKwh ?? 0, { includeUnit: false })}
+                             </div>
                              <div className="text-xs text-gray-500">kWh/year</div>
+                             <p className="text-[10px] text-gray-400 mt-0.5">Estimate only; actual production may vary.</p>
                            </div>
                          </div>
                          

@@ -123,7 +123,7 @@ export function Modal({
   const modalContent = (
     <div
       ref={scrollContainerRef}
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto"
+      className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto"
     >
       {/* Backdrop - gently dims everything behind the dialog */}
       <div 

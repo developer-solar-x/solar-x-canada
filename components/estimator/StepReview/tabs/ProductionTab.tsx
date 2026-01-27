@@ -2,6 +2,7 @@
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { formatNumber } from '@/lib/utils'
+import { formatProductionRange } from '@/lib/production-range'
 
 interface ProductionTabProps {
   annualKwh: number
@@ -11,7 +12,7 @@ interface ProductionTabProps {
 }
 
 export function ProductionTab({ annualKwh, productionChartData, isMobile }: ProductionTabProps) {
-  // Build daily average from annual
+  // Build daily average from annual (use base for chart context)
   const dailyAvg = Math.round(annualKwh / 365)
 
   return (
@@ -20,7 +21,7 @@ export function ProductionTab({ annualKwh, productionChartData, isMobile }: Prod
         <div>
           <div className="text-sm text-gray-600 mb-1">Annual Production</div>
           <div className="text-xl font-bold text-navy-500">
-            {formatNumber(annualKwh)} kWh
+            {formatProductionRange(annualKwh)}
           </div>
         </div>
         <div>
@@ -40,8 +41,8 @@ export function ProductionTab({ annualKwh, productionChartData, isMobile }: Prod
             <YAxis />
             <Tooltip />
             <Legend wrapperStyle={{ fontSize: isMobile ? 11 : 12 }} />
-            <Bar dataKey="production" name="Production (kWh)" fill="#22c55e" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="usage" name="Usage (kWh)" fill="#64748b" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="production" name="Production (kWh)" fill="#10b981" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="usage" name="Usage (kWh)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

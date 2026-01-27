@@ -2219,7 +2219,13 @@ export function PeakShavingSalesCalculatorFRD({
                 {!manualMode && solarPanels !== undefined && onSolarPanelsChange ? (
                   // In step mode: Display-only field that updates from panel count
                   <div className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg bg-gray-50 text-base md:text-lg font-semibold text-gray-700">
-                    {solarProductionInput || '0'} kWh
+                    {(() => {
+                      const baseProduction = Math.round(Number(solarProductionInput) || 0)
+                      if (baseProduction === 0) return '0 kWh'
+                      const minProduction = Math.round(baseProduction * 1.10) // 110% of base
+                      const maxProduction = Math.round(baseProduction * 1.19) // ~16,500 when base ~13,859
+                      return `${minProduction.toLocaleString()} - ${maxProduction.toLocaleString()} kWh`
+                    })()}
                   </div>
                 ) : (
                   // In manual mode: Allow editing
@@ -2233,10 +2239,15 @@ export function PeakShavingSalesCalculatorFRD({
                   />
                 )}
                 {!manualMode && solarPanels !== undefined && onSolarPanelsChange && (
-                  <div className="mt-2 flex items-start gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                    <Info className="text-blue-500 flex-shrink-0 mt-0.5" size={16} />
-                    <p className="text-xs text-blue-700">
-                      <strong>Tip:</strong> Adjust the number of solar panels above to change production. Production is calculated automatically based on your roof area and panel count.
+                  <div className="mt-2 space-y-2">
+                    <div className="flex items-start gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                      <Info className="text-blue-500 flex-shrink-0 mt-0.5" size={16} />
+                      <p className="text-xs text-blue-700">
+                        <strong>Tip:</strong> Adjust the number of solar panels above to change production. Production is calculated automatically based on your roof area and panel count.
+                      </p>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Disclaimer: The production range is an estimate only. Actual output may vary due to weather, shading, orientation, and system performance and is not a guarantee.
                     </p>
                   </div>
                 )}

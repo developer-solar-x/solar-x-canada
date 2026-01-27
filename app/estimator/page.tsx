@@ -702,9 +702,9 @@ export default function EstimatorPage() {
       {/* Progress Steps Container - Only show after mode selection */}
       {data.estimatorMode && (
         <div className="bg-white border-b border-gray-200 sticky top-[73px] z-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="max-w-7xl mx-auto px-1 sm:px-1 md:px-1 lg:px-8 py-3 md:py-4 lg:py-6 w-full">
             {/* Mode Badge */}
-            <div className="text-center mb-4">
+            <div className="text-center mb-3 md:mb-4">
               <span className={`inline-block px-4 py-1 rounded-full text-xs font-bold ${
                 data.programType === 'hrs_residential'
                   ? 'bg-navy-100 text-navy-600'
@@ -734,36 +734,40 @@ export default function EstimatorPage() {
             </div>
 
             {/* Progress stepper - desktop */}
-            <div className="hidden md:flex items-center justify-center gap-2">
+            <div className="hidden md:flex items-center justify-center w-full px-2 md:px-2 lg:px-4">
               {displaySteps.map((step, index) => (
-                <div key={step.id} className="flex items-center">
+                <div key={step.id} className="flex items-center flex-shrink-0">
                   {/* Step circle */}
                   <div
-                    className={`flex items-center justify-center w-10 h-10 rounded-full font-semibold text-sm transition-colors ${
+                    className={`flex items-center justify-center w-8 h-8 md:w-8 md:h-8 lg:w-10 lg:h-10 rounded-full font-semibold text-xs md:text-xs lg:text-sm transition-colors cursor-default ${
                       currentStep > index
                         ? 'bg-navy-500 text-white'
                         : currentStep === index
                         ? 'bg-red-500 text-white'
                         : 'bg-gray-200 text-gray-500'
                     }`}
+                    title={step.name}
                   >
                     {currentStep > index ? (
-                      <Check size={20} />
+                      <Check size={14} className="md:w-3.5 md:h-3.5 lg:w-5 lg:h-5" />
                     ) : (
                       index + 1
                     )}
                   </div>
                   
-                  {/* Step name */}
-                  <span className={`ml-2 text-sm font-medium whitespace-nowrap ${
+                  {/* Step name - abbreviated on md, full on lg+ */}
+                  <span className={`ml-1 md:ml-1.5 lg:ml-2 text-[10px] md:text-xs lg:text-sm font-medium whitespace-nowrap ${
                     currentStep >= step.id ? 'text-navy-500' : 'text-gray-400'
                   }`}>
-                    {step.name}
+                    <span className="hidden lg:inline">{step.name}</span>
+                    <span className="lg:hidden">
+                      {step.name.length > 6 ? step.name.substring(0, 5) + '...' : step.name}
+                    </span>
                   </span>
 
                   {/* Connecting line */}
                   {index < displaySteps.length - 1 && (
-                    <div className={`w-8 h-0.5 mx-3 ${
+                    <div className={`w-2 md:w-2.5 lg:w-6 h-0.5 mx-1 md:mx-1 lg:mx-2 ${
                       currentStep > index ? 'bg-navy-500' : 'bg-gray-200'
                     }`} />
                   )}
@@ -775,17 +779,17 @@ export default function EstimatorPage() {
             <div className="md:hidden">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-semibold text-navy-500">
-                  Step {currentStep} of {displaySteps.length - 1}
+                  Step {currentStep + 1} of {displaySteps.length}
                 </span>
                 <span className="text-sm text-gray-600">
-                  {steps[currentStep]?.name}
+                  {displaySteps[currentStep]?.name || 'Loading...'}
                 </span>
               </div>
               {/* Progress bar - mobile */}
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
                   className="bg-red-500 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${(currentStep / (displaySteps.length - 1)) * 100}%` }}
+                  style={{ width: `${((currentStep + 1) / displaySteps.length) * 100}%` }}
                 />
               </div>
             </div>

@@ -12,6 +12,7 @@ interface UseMapboxDrawingProps {
   initialData?: any
   mapContainer: React.RefObject<HTMLDivElement>
   selectedSectionIndex?: number | null
+  editMode?: boolean // When true, disable dragging of roof polygons
 }
 
 export function useMapboxDrawing({
@@ -21,6 +22,7 @@ export function useMapboxDrawing({
   initialData,
   mapContainer,
   selectedSectionIndex,
+  editMode = false,
 }: UseMapboxDrawingProps) {
   const map = useRef<mapboxgl.Map | null>(null)
   const draw = useRef<MapboxDraw | null>(null)
@@ -28,6 +30,7 @@ export function useMapboxDrawing({
   const onAreaCalculatedRef = useRef(onAreaCalculated)
   const snapshotTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [currentArea, setCurrentArea] = useState<number | null>(null)
+  const [mapReady, setMapReady] = useState<mapboxgl.Map | null>(null) // Track map instance for external use
   
   // History tracking for undo/redo
   const historyRef = useRef<any[]>([])
@@ -265,6 +268,7 @@ export function useMapboxDrawing({
     let mapStyleLoaded = false
     map.current.once('load', () => {
       mapStyleLoaded = true
+      setMapReady(map.current) // Expose map instance when ready
     })
     
     // Also check if already loaded
@@ -928,6 +932,7 @@ export function useMapboxDrawing({
     map.current.on('draw.create', updateArea)
     map.current.on('draw.update', updateArea)
     map.current.on('draw.delete', updateArea)
+    
     map.current.on('draw.modechange', (e: any) => {
       // Only trigger updateArea for mode changes that actually affect geometry
       // Don't update when just selecting/deselecting (simple_select <-> direct_select)
@@ -1123,7 +1128,34 @@ export function useMapboxDrawing({
         map.current = null
       }
     }
-  }, [coordinates.lat, coordinates.lng, address, initialData, mapContainer])
+  }, [coordinates.lat, coordinates.lng, address, initialData, mapContainer, editMode])
+  
+  // Lock/unlock roof polygons based on editMode
+  useEffect(() => {
+    if (!draw.current || !map.current) return
+    
+    const currentData = draw.current.getAll()
+    if (currentData.features.length === 0) return
+    
+    if (editMode) {
+      // Lock polygons - switch to simple_select mode
+      // Note: Mapbox Draw doesn't have a 'static' mode, so we use 'simple_select'
+      // which allows selection but limits editing compared to direct_select
+      const currentMode = draw.current.getMode()
+      // Only change mode if we're in a drawing or editing mode
+      if (currentMode === 'direct_select' || currentMode === 'draw_polygon') {
+        draw.current.changeMode('simple_select')
+      }
+    } else {
+      // Unlock polygons - allow normal editing
+      // Keep current mode unless it's invalid, then default to simple_select
+      const currentMode = draw.current.getMode()
+      const validModes = ['simple_select', 'direct_select', 'draw_polygon']
+      if (!validModes.includes(currentMode)) {
+        draw.current.changeMode('simple_select')
+      }
+    }
+  }, [editMode])
 
   // Update selected section highlight when selectedSectionIndex changes
   useEffect(() => {
@@ -1261,6 +1293,7 @@ export function useMapboxDrawing({
     redo,
     canUndo: checkCanUndo,
     canRedo: checkCanRedo,
+    mapInstance: mapReady,
   }
 }
 

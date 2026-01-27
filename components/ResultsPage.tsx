@@ -23,6 +23,7 @@ import {
   Sun
 } from 'lucide-react'
 import { formatCurrency, formatKw, formatKwh } from '@/lib/utils'
+import { formatProductionRange } from '@/lib/production-range'
 import { computeSolarBatteryOffsetCap } from '@/lib/peak-shaving/offset-cap'
 import Link from 'next/link'
 import { MapSnapshot } from '@/components/estimator/StepReview/sections/MapSnapshot'
@@ -2055,11 +2056,11 @@ export function ResultsPage({
                       <span className="font-semibold">{batteryKwh} kWh</span>
                     </div>
                   )}
-                  {estimate?.production?.annualKwh && (
+                  {estimate?.production?.annualKwh != null && (
                     <div className="flex justify-between items-center">
                       <span className="font-medium">Annual Production</span>
                       <span className="font-semibold">
-                        {formatKwh(estimate.production.annualKwh)}
+                        {formatProductionRange(estimate.production.annualKwh)}
                       </span>
                     </div>
                   )}

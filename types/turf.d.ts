@@ -15,6 +15,10 @@ declare module '@turf/turf' {
   export * from '@turf/union'
   export * from '@turf/intersect'
   export * from '@turf/difference'
+  export * from '@turf/boolean-intersects'
+  export * from '@turf/line-intersect'
+  export * from '@turf/midpoint'
+  export * from '@turf/boolean-point-in-polygon'
   
   // Main types
   export interface Feature<G = any, P = any> {

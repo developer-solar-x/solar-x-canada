@@ -457,6 +457,23 @@ export function calculateSystemSize(roofAreaSqFt: number, shadingLevel: string =
   // Use centralized panel specifications
   const panelAreaSqFt = getPanelAreaSqFt();
   
+  // Calculate effective area per panel including spacing
+  // Panel dimensions: 1.961m (height) x 1.134m (width)
+  // Spacing: 0.025m (2.5cm) horizontal + 0.025m vertical
+  const PANEL_DIMENSIONS = {
+    width: 1134 / 1000,  // 1.134m
+    height: 1961 / 1000, // 1.961m
+  }
+  const PANEL_SPACING = {
+    horizontal: 0.025, // 2.5cm
+    vertical: 0.025,   // 2.5cm
+  }
+  
+  // Effective area = (height + spacing) × (width + spacing)
+  const effectiveAreaSqM = (PANEL_DIMENSIONS.height + PANEL_SPACING.vertical) * 
+                          (PANEL_DIMENSIONS.width + PANEL_SPACING.horizontal)
+  const effectiveAreaSqFt = effectiveAreaSqM * 10.764 // Convert m² to sq ft
+  
   // Obstruction allowance factor (accounts for vents, chimneys, skylights, roof access, edges, etc.)
   // This is applied BEFORE shading calculations to account for physical roof obstructions
   const OBSTRUCTION_ALLOWANCE = 0.90; // 10% reduction for typical roof obstructions
@@ -475,8 +492,8 @@ export function calculateSystemSize(roofAreaSqFt: number, shadingLevel: string =
   // Calculate final usable roof area (obstruction allowance + shading factor)
   const usableArea = roofAreaAfterObstructions * (usableRoofPercent[shadingLevel.toLowerCase()] || 0.80);
   
-  // Calculate number of panels that fit
-  const numPanels = Math.floor(usableArea / panelAreaSqFt);
+  // Calculate number of panels that fit - use effective area that accounts for spacing
+  const numPanels = Math.floor(usableArea / effectiveAreaSqFt);
   
   // Calculate system size using actual panel wattage
   const panelWatts = getPanelWattage()

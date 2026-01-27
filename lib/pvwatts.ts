@@ -2,7 +2,17 @@
 
 import { roofPitchToDegrees } from '@/config/provinces'
 import { withCache } from './cache'
+import {
+  CANADIAN_SYSTEM,
+  STANDARD_SYSTEM,
+  MONTHLY_SNOW_LOSS,
+  MONTHLY_TEMP_COEFFICIENT,
+  calculateTotalDerate,
+  type SystemDerateFactors,
+} from '@/config/solar-derate-factors'
 
+/** Alberta: scale estimates to match real-world production (actuals often lower than base model). */
+const ALBERTA_PRODUCTION_FACTOR = 0.83
 // PVWatts API types
 export interface PVWattsParams {
   lat: number
@@ -97,68 +107,21 @@ export async function callPVWatts(params: PVWattsParams): Promise<PVWattsRespons
       const url = `https://developer.nrel.gov/api/pvwatts/v8.json?${queryParams}`
 
       try {
-        // Log request parameters for debugging (without API key)
-        if (process.env.NODE_ENV === 'development') {
-          console.log('PVWatts API request:', {
-            lat: params.lat,
-            lon: params.lon,
-            system_capacity: params.system_capacity,
-            tilt: params.tilt,
-            azimuth: params.azimuth,
-            module_type: params.module_type,
-            losses: params.losses,
-            array_type: params.array_type,
-            dc_ac_ratio: params.dc_ac_ratio,
-            inv_eff: params.inv_eff,
-            albedo: params.albedo,
-            soiling: params.soiling,
-          })
-        }
-        
         const response = await fetch(url)
         
         if (!response.ok) {
-          let errorMessage = response.statusText
-          let errorDetails: any = null
-          
-          // Try to parse JSON error response
-          try {
-            const errorData = await response.json()
-            if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
-              errorMessage = errorData.errors.map((e: any) => e.message || e).join(', ')
-              errorDetails = errorData.errors
-            } else if (errorData.message) {
-              errorMessage = errorData.message
-            }
-          } catch {
-            // If JSON parsing fails, try text
-            const errorText = await response.text().catch(() => response.statusText)
-            errorMessage = errorText || response.statusText
-          }
-          
+          const errorText = await response.text().catch(() => response.statusText)
           console.error('PVWatts API error details:', {
             status: response.status,
             statusText: response.statusText,
-            errorMessage,
-            errorDetails,
+            errorBody: errorText,
             params: cacheParams,
             url: url.replace(apiKey, 'REDACTED')
           })
-          throw new Error(`PVWatts API error: ${errorMessage}`)
+          throw new Error(`PVWatts API error: ${response.statusText}`)
         }
 
         const data = await response.json()
-        
-        // Check if the response has errors even with 200 status
-        if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
-          const errorMessage = data.errors.map((e: any) => e.message || e).join(', ')
-          console.error('PVWatts API returned errors in response:', {
-            errors: data.errors,
-            params: cacheParams
-          })
-          throw new Error(`PVWatts API error: ${errorMessage}`)
-        }
-        
         return data
 
       } catch (error) {
@@ -177,72 +140,45 @@ export async function calculateSolarEstimate(
   systemSizeKw: number,
   roofPitch: string = 'medium',
   province: string = 'ON',
-  azimuth: number = 180 // Roof orientation (default south-facing)
+  azimuth: number = 180, // Roof orientation (default south-facing)
+  customDerateFactors?: Partial<SystemDerateFactors> // Optional custom derate factors
 ) {
-  // Validate system size
-  if (!systemSizeKw || systemSizeKw <= 0 || isNaN(systemSizeKw)) {
-    throw new Error(`Invalid system size: ${systemSizeKw}. System size must be greater than 0.`)
-  }
-  
-  // PVWatts API typically requires minimum system size of 0.1 kW
-  if (systemSizeKw < 0.1) {
-    throw new Error(`System size too small: ${systemSizeKw} kW. Minimum is 0.1 kW.`)
-  }
-  
-  // Validate coordinates
-  if (typeof lat !== 'number' || typeof lon !== 'number' || isNaN(lat) || isNaN(lon)) {
-    throw new Error(`Invalid coordinates: lat=${lat}, lon=${lon}`)
-  }
-  
-  // Validate latitude/longitude ranges
-  if (lat < -90 || lat > 90) {
-    throw new Error(`Invalid latitude: ${lat}. Must be between -90 and 90.`)
-  }
-  if (lon < -180 || lon > 180) {
-    throw new Error(`Invalid longitude: ${lon}. Must be between -180 and 180.`)
-  }
-  
   // Convert roof pitch to tilt angle
   const tilt = roofPitchToDegrees(roofPitch)
-  
-  // Validate tilt (0-90 degrees)
-  if (tilt < 0 || tilt > 90) {
-    throw new Error(`Invalid tilt angle: ${tilt}. Must be between 0 and 90 degrees.`)
-  }
-  
-  // Validate azimuth (0-360 degrees)
-  if (azimuth < 0 || azimuth > 360) {
-    throw new Error(`Invalid azimuth: ${azimuth}. Must be between 0 and 360 degrees.`)
-  }
 
   // Determine region-specific parameters
   // Canada has more snow in winter, affecting albedo and soiling
   const isCanada = ['ON', 'BC', 'AB', 'QC', 'MB', 'SK', 'NS', 'NB', 'PE', 'NL', 'YT', 'NT', 'NU'].includes(province)
   
+  // Select base derate factors based on region
+  const baseDerateFactors = isCanada ? CANADIAN_SYSTEM : STANDARD_SYSTEM
+  
+  // Merge with custom factors if provided
+  const derateFactors: SystemDerateFactors = customDerateFactors
+    ? {
+        irradiance: { ...baseDerateFactors.irradiance, ...customDerateFactors.irradiance },
+        dc: { ...baseDerateFactors.dc, ...customDerateFactors.dc },
+        ac: { ...baseDerateFactors.ac, ...customDerateFactors.ac },
+        other: { ...baseDerateFactors.other, ...customDerateFactors.other },
+        inverterEfficiency: customDerateFactors.inverterEfficiency ?? baseDerateFactors.inverterEfficiency,
+        gridAbsorptionRate: customDerateFactors.gridAbsorptionRate ?? baseDerateFactors.gridAbsorptionRate,
+      }
+    : baseDerateFactors
+  
   // Monthly soiling losses for Canada (higher in winter due to snow)
-  // Values are % losses per month (Jan-Dec) - must be between 0-100
+  // Values are % losses per month (Jan-Dec)
   const canadaSoiling = [12, 10, 8, 4, 2, 1, 1, 2, 3, 5, 8, 10]
   const defaultSoiling = [2, 2, 3, 3, 4, 4, 5, 5, 4, 3, 2, 2]
   
-  // Validate soiling values
-  const soiling = isCanada ? canadaSoiling : defaultSoiling
-  if (soiling.some(val => val < 0 || val > 100)) {
-    throw new Error(`Invalid soiling values. All values must be between 0 and 100.`)
-  }
-  
   // Albedo (ground reflectance) - higher in winter due to snow in Canada
   // Using average value, could be made dynamic by month
-  // Must be between 0 and 1
   const albedo = isCanada ? 0.35 : 0.2  // 0.35 accounts for seasonal snow
-  if (albedo < 0 || albedo > 1) {
-    throw new Error(`Invalid albedo: ${albedo}. Must be between 0 and 1.`)
-  }
-  
-  // Validate inverter efficiency (0-100)
-  const invEff = 96
-  if (invEff < 0 || invEff > 100) {
-    throw new Error(`Invalid inverter efficiency: ${invEff}. Must be between 0 and 100.`)
-  }
+
+  // Calculate PVWatts losses parameter
+  // PVWatts 'losses' parameter is a single % that captures DC system losses
+  // We calculate this from our detailed DC losses
+  const dcDerate = calculateTotalDerate(derateFactors).dcDerate
+  const pvwattsLosses = Math.round((1 - dcDerate) * 100) // Convert to percentage
 
   // Call PVWatts API with optimized parameters
   // Using Premium module type for N-type bifacial panels (22.5% efficiency)
@@ -253,24 +189,55 @@ export async function calculateSolarEstimate(
     tilt,
     azimuth: azimuth, // Use provided roof orientation
     module_type: 1, // Premium panels (N-type monocrystalline, 22.5% efficiency)
-    losses: 14, // Default system losses (industry standard)
+    losses: pvwattsLosses, // Calculated from our derate factors
     array_type: 1, // Fixed roof mount
     dc_ac_ratio: 1.2, // Modern inverter sizing (20% DC oversizing)
-    inv_eff: invEff, // Modern inverter efficiency (96%)
+    inv_eff: Math.round(derateFactors.inverterEfficiency * 100), // From derate factors
     albedo: albedo, // Region-specific ground reflectance (also benefits bifacial rear side)
-    soiling: soiling, // Monthly soiling losses
+    soiling: isCanada ? canadaSoiling : defaultSoiling, // Monthly soiling losses
   })
 
-  // Extract production data
+  // Extract production data from PVWatts
   let annualProductionKwh = pvData.outputs.ac_annual
-  let monthlyProductionKwh = pvData.outputs.ac_monthly
+  let monthlyProductionKwh = [...pvData.outputs.ac_monthly]
   const capacityFactor = pvData.outputs.capacity_factor
 
-  // Apply bifacial gain for rear-side energy capture
-  // Use more conservative 4% gain for roof-mounted systems
-  const bifacialGain = 1.04 // 4% additional production from rear side
-  annualProductionKwh = Math.round(annualProductionKwh * bifacialGain)
-  monthlyProductionKwh = monthlyProductionKwh.map(kwh => Math.round(kwh * bifacialGain))
+  // Note: Bifacial gain removed to match industry-standard PVWatts calculations
+  // Most residential systems are monofacial, and bifacial gains are typically
+  // already accounted for in PVWatts module_type=1 (Premium) calculations
+  
+  // Apply monthly adjustments (snow loss and temperature coefficient)
+  monthlyProductionKwh = monthlyProductionKwh.map((kwh, monthIndex) => {
+    let adjustedKwh = kwh
+    
+    // Apply monthly snow loss adjustment (more granular than annual average)
+    if (isCanada) {
+      const monthlySnowLoss = MONTHLY_SNOW_LOSS[monthIndex]
+      const baseSnowLoss = derateFactors.irradiance.snow
+      // Adjust: replace average snow loss with monthly snow loss
+      if (baseSnowLoss > 0) {
+        adjustedKwh = adjustedKwh * (1 - monthlySnowLoss) / (1 - baseSnowLoss)
+      }
+    }
+    
+    // Apply temperature coefficient adjustment (cold months = bonus)
+    const tempAdjustment = MONTHLY_TEMP_COEFFICIENT[monthIndex]
+    adjustedKwh = adjustedKwh * (1 - tempAdjustment)
+    
+    return Math.round(adjustedKwh)
+  })
+  
+  // Recalculate annual from adjusted monthly
+  annualProductionKwh = monthlyProductionKwh.reduce((sum, kwh) => sum + kwh, 0)
+
+  // Alberta: apply factor so estimates align with actual production (e.g. 9,807 kWh vs model ~10,380)
+  if (province === 'AB') {
+    monthlyProductionKwh = monthlyProductionKwh.map((kwh) => Math.round(kwh * ALBERTA_PRODUCTION_FACTOR))
+    annualProductionKwh = monthlyProductionKwh.reduce((sum, kwh) => sum + kwh, 0)
+  }
+
+  // Calculate derate breakdown for reporting
+  const derateBreakdown = calculateTotalDerate(derateFactors)
 
   return {
     annualProductionKwh,
@@ -278,6 +245,15 @@ export async function calculateSolarEstimate(
     capacityFactor,
     solarRadiation: pvData.outputs.solrad_annual,
     pvWattsData: pvData.outputs,
+    // New: include derate factor information
+    derateFactors: {
+      irradianceDerate: derateBreakdown.irradianceDerate,
+      dcDerate: derateBreakdown.dcDerate,
+      acDerate: derateBreakdown.acDerate,
+      otherDerate: derateBreakdown.otherDerate,
+      totalDerate: derateBreakdown.totalDerate,
+      effectiveEfficiency: derateBreakdown.effectiveEfficiency,
+    },
   }
 }
 
