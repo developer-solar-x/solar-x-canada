@@ -4,7 +4,8 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { MapboxDrawing, type MapboxDrawingRef } from '../MapboxDrawing'
-import { ArrowLeft, ArrowRight, Star } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Star, RotateCw } from 'lucide-react'
+import type { PanelOrientation, PanelSettingsBySection } from '../MapboxDrawing/types'
 import { calculateRoofAzimuth, calculateRoofAzimuthWithConfidence, getDirectionLabel, getOrientationEfficiency, ROOF_ORIENTATIONS } from '@/lib/roof-calculations'
 import * as turf from '@turf/turf'
 import { DrawingTips } from './components/DrawingTips'
@@ -36,6 +37,12 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   const [rating, setRating] = useState<number | null>(null)
   const [showRating, setShowRating] = useState(false)
   
+  // Per-section panel layout (key = section index)
+  const [panelSettingsBySection, setPanelSettingsBySection] = useState<PanelSettingsBySection>({})
+  
+  // Toggle to hide roof polygon fill
+  const [hideRoofFill, setHideRoofFill] = useState(false)
+
   // Cleanup effect to reset loading state if component unmounts while submitting
   useEffect(() => {
     return () => {
@@ -98,6 +105,27 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
   const [editingSectionIndex, setEditingSectionIndex] = useState<number | null>(null)
   // Track which section is selected/highlighted on the map
   const [selectedSectionIndex, setSelectedSectionIndex] = useState<number | null>(null)
+  
+  // Auto-select Section 1 when there's only one section (and none selected)
+  useEffect(() => {
+    if (roofSections.length === 1 && selectedSectionIndex === null) {
+      setSelectedSectionIndex(0)
+    }
+  }, [roofSections.length, selectedSectionIndex])
+
+  // Get settings for a section (defaults if not set)
+  const getSectionPanelSettings = useCallback((index: number) => {
+    return panelSettingsBySection[index] ?? { orientation: 'portrait' as PanelOrientation, rotation: 0 }
+  }, [panelSettingsBySection])
+
+  // Update settings for the currently selected section
+  const updateSelectedSectionPanelSettings = useCallback((updates: Partial<{ orientation: PanelOrientation; rotation: number }>) => {
+    if (selectedSectionIndex === null) return
+    setPanelSettingsBySection((prev) => ({
+      ...prev,
+      [selectedSectionIndex]: { ...getSectionPanelSettings(selectedSectionIndex), ...updates },
+    }))
+  }, [selectedSectionIndex, getSectionPanelSettings])
 
   // Use refs to track current values without causing callback recreation
   const roofAreaRef = useRef<number | null>(roofArea)
@@ -180,6 +208,16 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
     if (mapboxDrawingRef.current) {
       setCanUndo(mapboxDrawingRef.current.canUndo())
       setCanRedo(mapboxDrawingRef.current.canRedo())
+      
+      // Get actual panel count from the grid overlay (after a short delay for grid to render)
+      setTimeout(() => {
+        if (mapboxDrawingRef.current) {
+          const actualCount = mapboxDrawingRef.current.getActualPanelCount()
+          if (actualCount > 0) {
+            setEstimatedPanels(actualCount)
+          }
+        }
+      }, 500)
     }
     // Prevent infinite loops by checking if data has actually changed
     const areaChanged = roofAreaRef.current !== areaSqFt
@@ -207,7 +245,7 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
     
     if (areaChanged) {
       setRoofArea(areaSqFt)
-      // Account for panel spacing in the calculation
+      // Initial estimate based on area (will be updated by actual panel count from grid)
       setEstimatedPanels(Math.floor(areaSqFt / PANEL_EFFECTIVE_AREA_SQFT))
     }
     
@@ -468,6 +506,175 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
           </button>
         </div>
 
+        {/* Panel Layout Controls (per section) */}
+        {roofArea && (
+          <div className="space-y-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <RotateCw size={16} />
+                <span>Panel Layout</span>
+              </div>
+              
+              {/* Hide roof fill toggle */}
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="text-xs text-gray-600">Hide shade</span>
+                <button
+                  onClick={() => setHideRoofFill(!hideRoofFill)}
+                  className={`relative w-9 h-5 rounded-full transition-colors ${
+                    hideRoofFill ? 'bg-blue-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                      hideRoofFill ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </label>
+            </div>
+
+            {selectedSectionIndex !== null ? (
+              <>
+                {/* Section selector */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600">Section:</span>
+                  <div className="flex gap-1">
+                    {roofSections.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedSectionIndex(idx)}
+                        className={`w-7 h-7 rounded-full text-xs font-bold transition-all ${
+                          selectedSectionIndex === idx
+                            ? 'bg-blue-600 text-white ring-2 ring-blue-300'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        {idx + 1}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Orientation Toggle */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-20">Orientation:</span>
+                  <div className="flex rounded-lg overflow-hidden border border-gray-300">
+                    <button
+                      onClick={() => updateSelectedSectionPanelSettings({ orientation: 'portrait' })}
+                      className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                        getSectionPanelSettings(selectedSectionIndex).orientation === 'portrait'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      Portrait
+                    </button>
+                    <button
+                      onClick={() => updateSelectedSectionPanelSettings({ orientation: 'landscape' })}
+                      className={`px-3 py-1.5 text-xs font-medium transition-colors border-l border-gray-300 ${
+                        getSectionPanelSettings(selectedSectionIndex).orientation === 'landscape'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      Landscape
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Rotation Control */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-600">Rotation:</span>
+                    <div className="flex items-center gap-1">
+                      {/* Fine control buttons */}
+                      <button
+                        onClick={() => updateSelectedSectionPanelSettings({ 
+                          rotation: Math.max(-180, getSectionPanelSettings(selectedSectionIndex).rotation - 5) 
+                        })}
+                        className="w-6 h-6 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-bold"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min="-180"
+                        max="180"
+                        value={getSectionPanelSettings(selectedSectionIndex).rotation}
+                        onChange={(e) => {
+                          const val = Number(e.target.value)
+                          if (val >= -180 && val <= 180) {
+                            updateSelectedSectionPanelSettings({ rotation: val })
+                          }
+                        }}
+                        className="w-14 h-6 text-center text-xs font-medium border border-gray-300 rounded"
+                      />
+                      <span className="text-xs text-gray-600">°</span>
+                      <button
+                        onClick={() => updateSelectedSectionPanelSettings({ 
+                          rotation: Math.min(180, getSectionPanelSettings(selectedSectionIndex).rotation + 5) 
+                        })}
+                        className="w-6 h-6 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-bold"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Slider for quick adjustments */}
+                  <input
+                    type="range"
+                    min="-180"
+                    max="180"
+                    step="1"
+                    value={getSectionPanelSettings(selectedSectionIndex).rotation}
+                    onChange={(e) => updateSelectedSectionPanelSettings({ rotation: Number(e.target.value) })}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  />
+                  
+                  {/* Preset angles */}
+                  <div className="flex items-center justify-between gap-1">
+                    {[-90, -45, 0, 45, 90].map((angle) => (
+                      <button
+                        key={angle}
+                        onClick={() => updateSelectedSectionPanelSettings({ rotation: angle })}
+                        className={`flex-1 py-1 text-xs rounded transition-colors ${
+                          getSectionPanelSettings(selectedSectionIndex).rotation === angle
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        {angle}°
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : roofSections.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-600">
+                  Select a section to adjust its panel layout:
+                </p>
+                <div className="flex gap-1">
+                  {roofSections.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setSelectedSectionIndex(idx)}
+                      className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 hover:bg-blue-100 hover:text-blue-700 text-xs font-bold transition-all"
+                    >
+                      {idx + 1}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500">
+                Draw a roof section to enable panel layout controls.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Live measurements */}
         {roofArea ? (
           <div className="space-y-4">
@@ -594,6 +801,8 @@ export function StepDrawRoof({ data, onComplete, onBack }: StepDrawRoofProps) {
               onAreaCalculated={handleAreaCalculated}
               initialData={roofPolygon}
               selectedSectionIndex={selectedSectionIndex}
+              panelSettingsBySection={panelSettingsBySection}
+              hideRoofFill={hideRoofFill}
             />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-50">

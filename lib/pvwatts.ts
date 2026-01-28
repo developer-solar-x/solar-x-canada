@@ -13,6 +13,9 @@ import {
 
 /** Alberta: scale estimates to match real-world production (actuals often lower than base model). */
 const ALBERTA_PRODUCTION_FACTOR = 0.83
+
+/** Ontario: scale estimates so minimum production aligns with real-world (reduces ~800 kWh vs raw model). */
+const ONTARIO_PRODUCTION_FACTOR = 0.93
 // PVWatts API types
 export interface PVWattsParams {
   lat: number
@@ -233,6 +236,12 @@ export async function calculateSolarEstimate(
   // Alberta: apply factor so estimates align with actual production (e.g. 9,807 kWh vs model ~10,380)
   if (province === 'AB') {
     monthlyProductionKwh = monthlyProductionKwh.map((kwh) => Math.round(kwh * ALBERTA_PRODUCTION_FACTOR))
+    annualProductionKwh = monthlyProductionKwh.reduce((sum, kwh) => sum + kwh, 0)
+  }
+
+  // Ontario: apply factor so minimum production aligns with real-world (reduces ~800 kWh vs raw model)
+  if (province === 'ON') {
+    monthlyProductionKwh = monthlyProductionKwh.map((kwh) => Math.round(kwh * ONTARIO_PRODUCTION_FACTOR))
     annualProductionKwh = monthlyProductionKwh.reduce((sum, kwh) => sum + kwh, 0)
   }
 

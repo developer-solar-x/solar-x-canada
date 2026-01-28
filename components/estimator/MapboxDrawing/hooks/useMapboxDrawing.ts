@@ -4,6 +4,10 @@ import MapboxDraw from '@mapbox/mapbox-gl-draw'
 import * as turf from '@turf/turf'
 import { POLYGON_COLORS } from '../constants'
 import { calculateAngle, calculateLabelOffset } from '../utils/angleCalculations'
+import { PANEL_DIMENSIONS, metersToDegreesLat, metersToDegreesLng } from '@/lib/panel-layout'
+import type { PanelSettingsBySection } from '../types'
+
+const DEFAULT_SECTION_SETTINGS = { orientation: 'portrait' as const, rotation: 0 }
 
 interface UseMapboxDrawingProps {
   coordinates: { lat: number; lng: number }
@@ -13,6 +17,8 @@ interface UseMapboxDrawingProps {
   mapContainer: React.RefObject<HTMLDivElement>
   selectedSectionIndex?: number | null
   editMode?: boolean // When true, disable dragging of roof polygons
+  panelSettingsBySection?: PanelSettingsBySection // per-section orientation and rotation
+  hideRoofFill?: boolean // Hide polygon fill to see panels clearly
 }
 
 export function useMapboxDrawing({
@@ -23,6 +29,8 @@ export function useMapboxDrawing({
   mapContainer,
   selectedSectionIndex,
   editMode = false,
+  panelSettingsBySection = {},
+  hideRoofFill = false,
 }: UseMapboxDrawingProps) {
   const map = useRef<mapboxgl.Map | null>(null)
   const draw = useRef<MapboxDraw | null>(null)
@@ -31,6 +39,59 @@ export function useMapboxDrawing({
   const snapshotTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [currentArea, setCurrentArea] = useState<number | null>(null)
   const [mapReady, setMapReady] = useState<mapboxgl.Map | null>(null) // Track map instance for external use
+  
+  // Track actual panel count from grid overlay
+  const panelCountRef = useRef<number>(0)
+  const [actualPanelCount, setActualPanelCount] = useState<number>(0)
+  
+  // Store reference to addPanelGrid function for external calls
+  const addPanelGridRef = useRef<((features: any[]) => void) | null>(null)
+  const lastValidFeaturesRef = useRef<any[]>([])
+  
+  // Store panel settings in ref so they can be accessed by the grid function
+  const panelSettingsBySectionRef = useRef<PanelSettingsBySection>(panelSettingsBySection)
+  
+  useEffect(() => {
+    panelSettingsBySectionRef.current = panelSettingsBySection
+  }, [panelSettingsBySection])
+
+  // Store hideRoofFill in ref so we can re-apply after draw layers are added
+  const hideRoofFillRef = useRef(hideRoofFill)
+  useEffect(() => {
+    hideRoofFillRef.current = hideRoofFill
+  }, [hideRoofFill])
+
+  // Apply roof fill visibility to Mapbox Draw polygon fill layers
+  const applyHideRoofFill = useCallback(() => {
+    if (!map.current) return
+    const opacity = hideRoofFillRef.current ? 0 : 0.3
+    try {
+      const style = map.current.getStyle()
+      if (!style || !style.layers) return
+      for (const layer of style.layers) {
+        if (
+          layer.id === 'gl-draw-polygon-fill-inactive' ||
+          layer.id === 'gl-draw-polygon-fill-active'
+        ) {
+          map.current.setPaintProperty(layer.id, 'fill-opacity', opacity)
+        }
+      }
+    } catch {
+      // Layers may not exist yet
+    }
+  }, [])
+
+  // Update roof fill visibility when hideRoofFill changes
+  useEffect(() => {
+    if (!map.current) return
+    // Apply immediately
+    applyHideRoofFill()
+    // Retry a few times in case draw layers are added after style load
+    const retries = [100, 300, 500]
+    retries.forEach((delay) => {
+      setTimeout(() => applyHideRoofFill(), delay)
+    })
+  }, [hideRoofFill, applyHideRoofFill])
   
   // History tracking for undo/redo
   const historyRef = useRef<any[]>([])
@@ -269,6 +330,20 @@ export function useMapboxDrawing({
     map.current.once('load', () => {
       mapStyleLoaded = true
       setMapReady(map.current) // Expose map instance when ready
+      // Apply hide roof fill state after draw layers exist (draw adds them on load)
+      setTimeout(() => {
+        if (!map.current) return
+        const opacity = hideRoofFillRef.current ? 0 : 0.3
+        try {
+          for (const layerId of ['gl-draw-polygon-fill-inactive', 'gl-draw-polygon-fill-active']) {
+            if (map.current.getLayer(layerId)) {
+              map.current.setPaintProperty(layerId, 'fill-opacity', opacity)
+            }
+          }
+        } catch {
+          // Ignore
+        }
+      }, 50)
     })
     
     // Also check if already loaded
@@ -575,6 +650,586 @@ export function useMapboxDrawing({
       }
     }
 
+    /**
+     * Advanced Aurora Solar-style panel grid overlay
+     * Creates individual panel cells clipped to each polygon with professional styling
+     */
+    function addPanelGrid(features: any[]) {
+      // Store reference for external calls
+      addPanelGridRef.current = addPanelGrid
+      
+      if (!map.current) {
+        return
+      }
+      
+      if (!map.current.isStyleLoaded()) {
+        // Retry when style is loaded
+        setTimeout(() => addPanelGrid(features), 200)
+        return
+      }
+      
+      if (features.length === 0) {
+        return
+      }
+
+      // Remove existing panel grid layers and sources
+      const layersToRemove = [
+        'panel-cells-fill',
+        'panel-cells-stroke',
+        'panel-grid-lines',
+        'panel-grid-outline',
+        'panel-grid-layer',
+        'edge-measurements-layer',
+      ]
+      const sourcesToRemove = ['panel-cells', 'panel-grid', 'panel-grid-lines', 'edge-measurements']
+
+      try {
+        layersToRemove.forEach((layerId) => {
+          if (map.current?.getLayer(layerId)) {
+            map.current.removeLayer(layerId)
+          }
+        })
+        sourcesToRemove.forEach((sourceId) => {
+          if (map.current?.getSource(sourceId)) {
+            map.current.removeSource(sourceId)
+          }
+        })
+      } catch {
+        // Source/layers may not exist yet
+      }
+
+      const spacingM = 0.025 // 2.5cm gap between panels
+
+      const panelCells: GeoJSON.Feature<GeoJSON.Polygon>[] = []
+      const gridLines: GeoJSON.Feature<GeoJSON.LineString>[] = []
+      const edgeMeasurements: GeoJSON.Feature<GeoJSON.Point>[] = []
+
+      features.forEach((feature: any, featureIndex: number) => {
+        if (feature.geometry?.type !== 'Polygon' || !feature.geometry.coordinates?.[0]) {
+          return
+        }
+
+        try {
+          // Get this section's panel settings from ref (per-section)
+          const sectionSettings = panelSettingsBySectionRef.current[featureIndex] ?? DEFAULT_SECTION_SETTINGS
+          const currentOrientation = sectionSettings.orientation
+          const currentRotation = sectionSettings.rotation
+
+          // Swap dimensions based on orientation (portrait = vertical, landscape = horizontal)
+          const panelWidthM = currentOrientation === 'landscape' ? PANEL_DIMENSIONS.height : PANEL_DIMENSIONS.width
+          const panelHeightM = currentOrientation === 'landscape' ? PANEL_DIMENSIONS.width : PANEL_DIMENSIONS.height
+
+          const polygon = turf.polygon(feature.geometry.coordinates)
+          const bbox = turf.bbox(polygon)
+          const centerLat = (bbox[1] + bbox[3]) / 2
+
+          // Convert panel dimensions to degrees
+          const panelWidthDeg = metersToDegreesLng(panelWidthM + spacingM, centerLat)
+          const panelHeightDeg = metersToDegreesLat(panelHeightM + spacingM)
+          const actualPanelWidthDeg = metersToDegreesLng(panelWidthM, centerLat)
+          const actualPanelHeightDeg = metersToDegreesLat(panelHeightM)
+
+          // Calculate the dominant edge angle for alignment
+          const coords = feature.geometry.coordinates[0]
+          let longestEdgeAngle = 0
+          let longestEdgeLength = 0
+
+          for (let i = 0; i < coords.length - 1; i++) {
+            const p1 = coords[i]
+            const p2 = coords[i + 1]
+            const edgeLength = Math.sqrt(
+              Math.pow(p2[0] - p1[0], 2) + Math.pow(p2[1] - p1[1], 2)
+            )
+            if (edgeLength > longestEdgeLength) {
+              longestEdgeLength = edgeLength
+              longestEdgeAngle = Math.atan2(p2[1] - p1[1], p2[0] - p1[0]) * (180 / Math.PI)
+            }
+          }
+
+          // Normalize angle to -90 to 90 range for panel alignment
+          let alignmentAngle = longestEdgeAngle
+          while (alignmentAngle > 90) alignmentAngle -= 180
+          while (alignmentAngle < -90) alignmentAngle += 180
+
+          // Add manual rotation offset from refs (current value)
+          alignmentAngle += currentRotation
+
+          // Create a rotated bounding box to cover the polygon
+          const centroid = turf.centroid(polygon)
+          const centroidCoords = centroid.geometry.coordinates
+
+          // Expand bbox to ensure full coverage when rotated
+          const bboxWidth = bbox[2] - bbox[0]
+          const bboxHeight = bbox[3] - bbox[1]
+          const diagonal = Math.sqrt(bboxWidth * bboxWidth + bboxHeight * bboxHeight)
+
+          // Generate panel cells in a grid pattern
+          const numCols = Math.ceil(diagonal / panelWidthDeg) + 2
+          const numRows = Math.ceil(diagonal / panelHeightDeg) + 2
+
+          // Helper function to generate panels with a given offset
+          const generatePanelsWithOffset = (offsetX: number, offsetY: number): Array<{
+            corners: [number, number][]
+            row: number
+            col: number
+          }> => {
+            const validPanels: Array<{ corners: [number, number][]; row: number; col: number }> = []
+            const startX = centroidCoords[0] - (numCols / 2) * panelWidthDeg + offsetX
+            const startY = centroidCoords[1] - (numRows / 2) * panelHeightDeg + offsetY
+
+            for (let row = 0; row < numRows; row++) {
+              for (let col = 0; col < numCols; col++) {
+                const cellCenterX = startX + col * panelWidthDeg + panelWidthDeg / 2
+                const cellCenterY = startY + row * panelHeightDeg + panelHeightDeg / 2
+
+                const rotatedCenter = rotatePointAroundCenter(
+                  [cellCenterX, cellCenterY],
+                  centroidCoords as [number, number],
+                  alignmentAngle
+                )
+
+                const halfW = actualPanelWidthDeg / 2
+                const halfH = actualPanelHeightDeg / 2
+
+                const corners: [number, number][] = [
+                  [-halfW, -halfH],
+                  [halfW, -halfH],
+                  [halfW, halfH],
+                  [-halfW, halfH],
+                ].map(([dx, dy]) => {
+                  const angleRad = (alignmentAngle * Math.PI) / 180
+                  const rotatedDx = dx * Math.cos(angleRad) - dy * Math.sin(angleRad)
+                  const rotatedDy = dx * Math.sin(angleRad) + dy * Math.cos(angleRad)
+                  return [
+                    rotatedCenter[0] + rotatedDx,
+                    rotatedCenter[1] + rotatedDy,
+                  ] as [number, number]
+                })
+
+                const panelPolygon = turf.polygon([[...corners, corners[0]]])
+
+                try {
+                  if (turf.booleanWithin(panelPolygon, polygon)) {
+                    validPanels.push({ corners, row, col })
+                  }
+                } catch {
+                  // Skip invalid panels
+                }
+              }
+            }
+            return validPanels
+          }
+
+          // PASS 1: Generate panels with no offset to find valid ones
+          const initialPanels = generatePanelsWithOffset(0, 0)
+
+          // Calculate centering offset if we have valid panels
+          let bestOffsetX = 0
+          let bestOffsetY = 0
+
+          if (initialPanels.length > 0) {
+            // Find bounding box of valid panels
+            let minPanelX = Infinity, maxPanelX = -Infinity
+            let minPanelY = Infinity, maxPanelY = -Infinity
+
+            initialPanels.forEach(({ corners }) => {
+              corners.forEach(([x, y]) => {
+                minPanelX = Math.min(minPanelX, x)
+                maxPanelX = Math.max(maxPanelX, x)
+                minPanelY = Math.min(minPanelY, y)
+                maxPanelY = Math.max(maxPanelY, y)
+              })
+            })
+
+            // Calculate center of valid panels
+            const panelsCenterX = (minPanelX + maxPanelX) / 2
+            const panelsCenterY = (minPanelY + maxPanelY) / 2
+
+            // Calculate offset to center panels at polygon centroid
+            bestOffsetX = centroidCoords[0] - panelsCenterX
+            bestOffsetY = centroidCoords[1] - panelsCenterY
+
+            // Rotate the offset to align with panel grid orientation
+            const angleRad = (-alignmentAngle * Math.PI) / 180
+            const rotatedOffsetX = bestOffsetX * Math.cos(angleRad) - bestOffsetY * Math.sin(angleRad)
+            const rotatedOffsetY = bestOffsetX * Math.sin(angleRad) + bestOffsetY * Math.cos(angleRad)
+            bestOffsetX = rotatedOffsetX
+            bestOffsetY = rotatedOffsetY
+          }
+
+          // PASS 2: Generate final panels with centering offset
+          const startX = centroidCoords[0] - (numCols / 2) * panelWidthDeg + bestOffsetX
+          const startY = centroidCoords[1] - (numRows / 2) * panelHeightDeg + bestOffsetY
+
+          for (let row = 0; row < numRows; row++) {
+            for (let col = 0; col < numCols; col++) {
+              const cellCenterX = startX + col * panelWidthDeg + panelWidthDeg / 2
+              const cellCenterY = startY + row * panelHeightDeg + panelHeightDeg / 2
+
+              const rotatedCenter = rotatePointAroundCenter(
+                [cellCenterX, cellCenterY],
+                centroidCoords as [number, number],
+                alignmentAngle
+              )
+
+              const halfW = actualPanelWidthDeg / 2
+              const halfH = actualPanelHeightDeg / 2
+
+              const corners: [number, number][] = [
+                [-halfW, -halfH],
+                [halfW, -halfH],
+                [halfW, halfH],
+                [-halfW, halfH],
+              ].map(([dx, dy]) => {
+                const angleRad = (alignmentAngle * Math.PI) / 180
+                const rotatedDx = dx * Math.cos(angleRad) - dy * Math.sin(angleRad)
+                const rotatedDy = dx * Math.sin(angleRad) + dy * Math.cos(angleRad)
+                return [
+                  rotatedCenter[0] + rotatedDx,
+                  rotatedCenter[1] + rotatedDy,
+                ] as [number, number]
+              })
+
+              const panelPolygon = turf.polygon([[...corners, corners[0]]])
+
+              try {
+                if (turf.booleanWithin(panelPolygon, polygon)) {
+                  panelCells.push({
+                    type: 'Feature',
+                    properties: {
+                      sectionIndex: featureIndex,
+                      row,
+                      col,
+                      color: POLYGON_COLORS[featureIndex % POLYGON_COLORS.length],
+                    },
+                    geometry: {
+                      type: 'Polygon',
+                      coordinates: [[...corners, corners[0]]],
+                    },
+                  })
+                }
+              } catch {
+                // Skip invalid panels
+              }
+            }
+          }
+
+          // Add clipped grid lines for this polygon (using centered startX/startY)
+          const gridLineCoords: [number, number][][] = []
+
+          // Horizontal grid lines
+          for (let row = 0; row <= numRows; row++) {
+            const y = startY + row * panelHeightDeg
+            const lineStart: [number, number] = [startX, y]
+            const lineEnd: [number, number] = [startX + numCols * panelWidthDeg, y]
+
+            const rotatedStart = rotatePointAroundCenter(lineStart, centroidCoords as [number, number], alignmentAngle)
+            const rotatedEnd = rotatePointAroundCenter(lineEnd, centroidCoords as [number, number], alignmentAngle)
+
+            gridLineCoords.push([rotatedStart, rotatedEnd])
+          }
+
+          // Vertical grid lines
+          for (let col = 0; col <= numCols; col++) {
+            const x = startX + col * panelWidthDeg
+            const lineStart: [number, number] = [x, startY]
+            const lineEnd: [number, number] = [x, startY + numRows * panelHeightDeg]
+
+            const rotatedStart = rotatePointAroundCenter(lineStart, centroidCoords as [number, number], alignmentAngle)
+            const rotatedEnd = rotatePointAroundCenter(lineEnd, centroidCoords as [number, number], alignmentAngle)
+
+            gridLineCoords.push([rotatedStart, rotatedEnd])
+          }
+
+          // Clip grid lines to polygon and add to collection
+          gridLineCoords.forEach((lineCoords) => {
+            try {
+              const line = turf.lineString(lineCoords)
+              const clipped = turf.lineIntersect(line, polygon)
+
+              if (clipped.features.length >= 2) {
+                const points = clipped.features
+                  .map((f) => f.geometry.coordinates as [number, number])
+                  .sort((a, b) => {
+                    const distA = Math.sqrt(
+                      Math.pow(a[0] - lineCoords[0][0], 2) +
+                        Math.pow(a[1] - lineCoords[0][1], 2)
+                    )
+                    const distB = Math.sqrt(
+                      Math.pow(b[0] - lineCoords[0][0], 2) +
+                        Math.pow(b[1] - lineCoords[0][1], 2)
+                    )
+                    return distA - distB
+                  })
+
+                // Create line segments between pairs of intersection points
+                for (let i = 0; i < points.length - 1; i += 2) {
+                  if (points[i + 1]) {
+                    // Check if midpoint is inside polygon
+                    const midpoint: [number, number] = [
+                      (points[i][0] + points[i + 1][0]) / 2,
+                      (points[i][1] + points[i + 1][1]) / 2,
+                    ]
+                    const midpointFeature = turf.point(midpoint)
+                    if (turf.booleanPointInPolygon(midpointFeature, polygon)) {
+                      gridLines.push({
+                        type: 'Feature',
+                        properties: { sectionIndex: featureIndex },
+                        geometry: {
+                          type: 'LineString',
+                          coordinates: [points[i], points[i + 1]],
+                        },
+                      })
+                    }
+                  }
+                }
+              }
+            } catch {
+              // Skip invalid lines
+            }
+          })
+
+          // Add edge measurements for polygon edges
+          for (let i = 0; i < coords.length - 1; i++) {
+            const p1 = coords[i] as [number, number]
+            const p2 = coords[i + 1] as [number, number]
+
+            // Calculate edge length in meters
+            const edgeLine = turf.lineString([p1, p2])
+            const lengthMeters = turf.length(edgeLine, { units: 'meters' })
+            const lengthFeet = lengthMeters * 3.28084
+
+            // Only show measurements for edges longer than 1 meter
+            if (lengthMeters >= 1) {
+              // Calculate midpoint for label
+              const midpoint: [number, number] = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2]
+
+              // Calculate edge angle for label rotation
+              const edgeAngle = Math.atan2(p2[1] - p1[1], p2[0] - p1[0]) * (180 / Math.PI)
+
+              // Calculate perpendicular offset (outward from polygon center)
+              const polygonCenter = turf.centroid(polygon).geometry.coordinates
+              const toCenter = [polygonCenter[0] - midpoint[0], polygonCenter[1] - midpoint[1]]
+              const perpAngle = edgeAngle + 90
+              const perpRad = (perpAngle * Math.PI) / 180
+              const offsetDir = [Math.cos(perpRad), Math.sin(perpRad)]
+
+              // Check if offset should be flipped (point away from center)
+              const dotProduct = toCenter[0] * offsetDir[0] + toCenter[1] * offsetDir[1]
+              const flipOffset = dotProduct > 0 ? -1 : 1
+
+              const offsetDist = metersToDegreesLat(2) // 2 meter offset
+              const labelPos: [number, number] = [
+                midpoint[0] + offsetDir[0] * offsetDist * flipOffset,
+                midpoint[1] + offsetDir[1] * offsetDist * flipOffset,
+              ]
+
+              edgeMeasurements.push({
+                type: 'Feature',
+                properties: {
+                  length: `${lengthFeet.toFixed(1)} ft`,
+                  lengthMeters: `${lengthMeters.toFixed(1)} m`,
+                  rotation: edgeAngle,
+                  sectionIndex: featureIndex,
+                },
+                geometry: {
+                  type: 'Point',
+                  coordinates: labelPos,
+                },
+              })
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to process polygon for panel grid:', e)
+        }
+      })
+
+      // Store the actual panel count for external use
+      panelCountRef.current = panelCells.length
+      setActualPanelCount(panelCells.length)
+
+      // Add panel cells to map
+      if (panelCells.length > 0) {
+        try {
+          map.current.addSource('panel-cells', {
+            type: 'geojson',
+            data: {
+              type: 'FeatureCollection',
+              features: panelCells,
+            },
+          })
+
+          // Panel fill with solar panel color (dark blue/black like real panels)
+          map.current.addLayer({
+            id: 'panel-cells-fill',
+            type: 'fill',
+            source: 'panel-cells',
+            paint: {
+              'fill-color': '#1e3a5f',
+              'fill-opacity': 0.9,
+            },
+          })
+
+          // Panel border (silver frame like real panels)
+          map.current.addLayer({
+            id: 'panel-cells-stroke',
+            type: 'line',
+            source: 'panel-cells',
+            paint: {
+              'line-color': '#c0c0c0',
+              'line-width': 1.5,
+              'line-opacity': 1,
+            },
+          })
+        } catch (e) {
+          console.warn('Failed to add panel cells:', e)
+        }
+      }
+
+      // Add clipped grid lines to map
+      if (gridLines.length > 0) {
+        try {
+          map.current.addSource('panel-grid-lines', {
+            type: 'geojson',
+            data: {
+              type: 'FeatureCollection',
+              features: gridLines,
+            },
+          })
+
+          map.current.addLayer({
+            id: 'panel-grid-lines',
+            type: 'line',
+            source: 'panel-grid-lines',
+            paint: {
+              'line-color': 'rgba(255, 255, 255, 0.4)',
+              'line-width': 0.5,
+            },
+          })
+        } catch (e) {
+          console.warn('Failed to add grid lines:', e)
+        }
+      }
+
+      // Add edge measurements to map
+      if (edgeMeasurements.length > 0) {
+        try {
+          map.current.addSource('edge-measurements', {
+            type: 'geojson',
+            data: {
+              type: 'FeatureCollection',
+              features: edgeMeasurements,
+            },
+          })
+
+          // Edge measurements should be on top of everything
+          map.current.addLayer({
+            id: 'edge-measurements-layer',
+            type: 'symbol',
+            source: 'edge-measurements',
+            layout: {
+              'text-field': ['get', 'length'],
+              'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Regular'],
+              'text-size': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                18, 10,
+                20, 12,
+                22, 14,
+              ],
+              'text-rotate': ['get', 'rotation'],
+              'text-rotation-alignment': 'map',
+              'text-allow-overlap': true,
+              'text-ignore-placement': true,
+              'text-padding': 2,
+            },
+            paint: {
+              'text-color': '#FFFF00',
+              'text-halo-color': 'rgba(0, 0, 0, 0.9)',
+              'text-halo-width': 2,
+              'text-halo-blur': 0,
+            },
+          })
+        } catch (e) {
+          console.warn('Failed to add edge measurements:', e)
+        }
+      }
+
+      // Move panel layers to the top (above MapboxDraw polygon fills)
+      // Use multiple attempts to ensure layers stay on top after draw rerender
+      const moveLayersToTop = () => {
+        if (!map.current) return
+        try {
+          const layersToMove = [
+            'panel-cells-fill',
+            'panel-cells-stroke', 
+            'panel-grid-lines',
+            'edge-measurements-layer',
+          ]
+          layersToMove.forEach((layerId) => {
+            if (map.current?.getLayer(layerId)) {
+              map.current.moveLayer(layerId)
+            }
+          })
+        } catch (e) {
+          console.warn('Failed to move panel layers:', e)
+        }
+      }
+
+      // Move immediately, then again after a short delay to override any draw rerenders
+      requestAnimationFrame(moveLayersToTop)
+      setTimeout(moveLayersToTop, 50)
+      setTimeout(moveLayersToTop, 150)
+    }
+
+    /**
+     * Helper function to rotate a point around a center
+     */
+    function rotatePointAroundCenter(
+      point: [number, number],
+      center: [number, number],
+      angleDegrees: number
+    ): [number, number] {
+      const angleRad = (angleDegrees * Math.PI) / 180
+      const cos = Math.cos(angleRad)
+      const sin = Math.sin(angleRad)
+
+      const dx = point[0] - center[0]
+      const dy = point[1] - center[1]
+
+      return [center[0] + dx * cos - dy * sin, center[1] + dx * sin + dy * cos]
+    }
+
+    function removePanelGrid() {
+      if (!map.current) return
+
+      const layersToRemove = [
+        'panel-cells-fill',
+        'panel-cells-stroke',
+        'panel-grid-lines',
+        'panel-grid-outline',
+        'panel-grid-layer',
+        'edge-measurements-layer',
+      ]
+      const sourcesToRemove = ['panel-cells', 'panel-grid', 'panel-grid-lines', 'edge-measurements']
+
+      try {
+        layersToRemove.forEach((layerId) => {
+          if (map.current?.getLayer(layerId)) {
+            map.current.removeLayer(layerId)
+          }
+        })
+        sourcesToRemove.forEach((sourceId) => {
+          if (map.current?.getSource(sourceId)) {
+            map.current.removeSource(sourceId)
+          }
+        })
+      } catch {
+        // Ignore if layers/sources don't exist
+      }
+    }
+
     // Save state to history
     function saveToHistory() {
       if (!draw.current) return
@@ -803,6 +1458,15 @@ export function useMapboxDrawing({
         // Add section labels - pass validFeatures so properties are available
         addSectionLabels(validFeatures)
         
+        // Add panel-sized grid overlay after draw state settles so it renders on top
+        const featuresForGrid = validFeatures.map((f: any) => ({ 
+          ...f,
+          geometry: { ...f.geometry }
+        }))
+        // Store for re-rendering when panel settings change
+        lastValidFeaturesRef.current = featuresForGrid
+        setTimeout(() => addPanelGrid(featuresForGrid), 300)
+        
         // Re-apply highlight if a section is selected (in case updateArea cleared it)
         if (selectedSectionIndex !== null && selectedSectionIndex !== undefined && map.current && map.current.isStyleLoaded()) {
           const selectedLayer = map.current.getLayer('gl-draw-polygon-stroke-selected')
@@ -872,6 +1536,9 @@ export function useMapboxDrawing({
           map.current.removeLayer('angle-labels-layer')
           map.current.removeSource('angle-labels')
         }
+        
+        // Remove panel grid when no roof is drawn
+        removePanelGrid()
         
         // Update immediately when deleted (no snapshot needed)
         onAreaCalculatedRef.current(0, { type: 'FeatureCollection', features: [] }, undefined)
@@ -1124,6 +1791,7 @@ export function useMapboxDrawing({
           map.current.removeLayer('angle-labels-layer')
           map.current.removeSource('angle-labels')
         }
+        removePanelGrid()
         map.current.remove()
         map.current = null
       }
@@ -1205,6 +1873,19 @@ export function useMapboxDrawing({
     
     updateHighlight()
   }, [selectedSectionIndex])
+
+  // Re-render panel grid when per-section settings change
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return
+    if (lastValidFeaturesRef.current.length === 0) return
+    if (!addPanelGridRef.current) return
+
+    setTimeout(() => {
+      if (addPanelGridRef.current && lastValidFeaturesRef.current.length > 0) {
+        addPanelGridRef.current(lastValidFeaturesRef.current)
+      }
+    }, 100)
+  }, [panelSettingsBySection])
 
   // Undo function - needs to be defined after updateArea
   const undo = useCallback(() => {
@@ -1294,6 +1975,7 @@ export function useMapboxDrawing({
     canUndo: checkCanUndo,
     canRedo: checkCanRedo,
     mapInstance: mapReady,
+    actualPanelCount,
   }
 }
 

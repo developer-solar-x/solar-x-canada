@@ -12,6 +12,7 @@ export interface MapboxDrawingRef {
   redo: () => void
   canUndo: () => boolean
   canRedo: () => boolean
+  getActualPanelCount: () => number
 }
 
 export const MapboxDrawing = forwardRef<MapboxDrawingRef, MapboxDrawingProps>(
@@ -21,10 +22,12 @@ export const MapboxDrawing = forwardRef<MapboxDrawingRef, MapboxDrawingProps>(
     onAreaCalculated,
     initialData,
     selectedSectionIndex,
+    panelSettingsBySection = {},
+    hideRoofFill = false,
   }, ref) {
     const mapContainer = useRef<HTMLDivElement>(null)
 
-    const { captureSnapshot, undo, redo, canUndo, canRedo } = useMapboxDrawing({
+    const { captureSnapshot, undo, redo, canUndo, canRedo, actualPanelCount } = useMapboxDrawing({
       coordinates,
       address,
       onAreaCalculated,
@@ -32,6 +35,8 @@ export const MapboxDrawing = forwardRef<MapboxDrawingRef, MapboxDrawingProps>(
       mapContainer,
       selectedSectionIndex,
       editMode: false,
+      panelSettingsBySection,
+      hideRoofFill,
     })
 
     useImperativeHandle(ref, () => ({
@@ -40,7 +45,8 @@ export const MapboxDrawing = forwardRef<MapboxDrawingRef, MapboxDrawingProps>(
       redo: redo || (() => {}),
       canUndo: canUndo || (() => false),
       canRedo: canRedo || (() => false),
-    }), [captureSnapshot, undo, redo, canUndo, canRedo])
+      getActualPanelCount: () => actualPanelCount,
+    }), [captureSnapshot, undo, redo, canUndo, canRedo, actualPanelCount])
 
     return (
       <div className="relative w-full h-full" style={{ minHeight: '600px' }}>
