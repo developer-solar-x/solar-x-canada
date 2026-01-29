@@ -206,6 +206,51 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         },
       ],
     }),
+    ...(slug.includes('toronto-hydro') && {
+      // Enhanced local SEO for Toronto Hydro blog
+      areaServed: [
+        { '@type': 'City', name: 'Toronto', addressRegion: 'Ontario', addressCountry: 'CA' },
+        { '@type': 'Neighborhood', name: 'North York', addressRegion: 'Ontario', addressCountry: 'CA' },
+        { '@type': 'Neighborhood', name: 'Scarborough', addressRegion: 'Ontario', addressCountry: 'CA' },
+        { '@type': 'Neighborhood', name: 'Etobicoke', addressRegion: 'Ontario', addressCountry: 'CA' },
+        { '@type': 'Neighborhood', name: 'Downtown Toronto', addressRegion: 'Ontario', addressCountry: 'CA' },
+        { '@type': 'Neighborhood', name: 'East York', addressRegion: 'Ontario', addressCountry: 'CA' },
+        { '@type': 'Neighborhood', name: 'York', addressRegion: 'Ontario', addressCountry: 'CA' },
+        { '@type': 'State', name: 'Ontario', addressCountry: 'CA' },
+      ],
+      // FAQ Schema for Toronto Hydro local SEO
+      mentions: [
+        {
+          '@type': 'FAQPage',
+          mainEntity: [
+            {
+              '@type': 'Question',
+              name: 'How much does Toronto Hydro solar connection cost?',
+              acceptedAnswer: {
+                '@type': 'Answer',
+                text: 'Toronto Hydro solar connection fees typically range from $1,200 to $2,000, including application processing fee (~$565), bi-directional meter installation (~$600-$1,000), and connection review (~$200-$400).',
+              },
+            },
+            {
+              '@type': 'Question',
+              name: 'How long does Toronto Hydro solar approval take?',
+              acceptedAnswer: {
+                '@type': 'Answer',
+                text: 'The approval timeline is typically 2-4 months for standard residential systems in Toronto. Your installer coordinates most paperwork and scheduling.',
+              },
+            },
+            {
+              '@type': 'Question',
+              name: 'How much can I save with solar in Toronto?',
+              acceptedAnswer: {
+                '@type': 'Answer',
+                text: 'Average Toronto homeowners save $1,000-$1,800+ per year with properly sized solar systems. With 7-12 year payback periods, 25-year savings typically range from $25,000-$45,000.',
+              },
+            },
+          ],
+        },
+      ],
+    }),
   }
 
   // Breadcrumb Schema for local SEO
