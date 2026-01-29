@@ -188,12 +188,16 @@ export function useMapboxDrawing({
     // Set the access token
     mapboxgl.accessToken = mapboxToken
 
-    // Initialize map with high-resolution tiles
+    // Start at "Earth from space" view (zoom 1); flyTo user location after load
+    const userCenter: [number, number] = [coordinates.lng, coordinates.lat]
+    const flyToZoom = 21
+    const flyDurationMs = 3500
+
     map.current = new mapboxgl.Map({
       container: mapContainer.current!,
       style: 'mapbox://styles/mapbox/satellite-v9',
-      center: [coordinates.lng, coordinates.lat],
-      zoom: 21,
+      center: userCenter,
+      zoom: 1,
       pitch: 0,
       minZoom: 0,
       maxZoom: 24,
@@ -330,6 +334,15 @@ export function useMapboxDrawing({
     map.current.once('load', () => {
       mapStyleLoaded = true
       setMapReady(map.current) // Expose map instance when ready
+      // Earth-to-location animation: zoom from space (zoom 1) into user location
+      if (map.current) {
+        map.current.flyTo({
+          center: userCenter,
+          zoom: flyToZoom,
+          duration: flyDurationMs,
+          essential: true,
+        })
+      }
       // Apply hide roof fill state after draw layers exist (draw adds them on load)
       setTimeout(() => {
         if (!map.current) return
