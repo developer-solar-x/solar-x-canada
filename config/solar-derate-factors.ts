@@ -271,6 +271,32 @@ export const MONTHLY_TEMP_COEFFICIENT: number[] = [
 ]
 
 // ============================================================================
+// INVERTER CLIPPING (10 kW STEPS)
+// ============================================================================
+
+/** DC/AC ratio used when inverter size is derived from system size. */
+const DEFAULT_DC_AC_RATIO = 1.2
+
+/**
+ * Inverter clipping loss when inverter AC capacity is sized in 10 kW steps.
+ * Inverter AC = next 10 kW step that can handle DC at the given ratio
+ * (e.g. 12 kW DC at 1.2 -> 10 kW AC; 22 kW DC at 1.2 -> 20 kW AC).
+ * Clipping % is derived from the resulting DC/AC ratio (empirical ~15% of
+ * (ratio - 1), capped at 10%).
+ */
+export function computeInverterClippingFromCapacity(
+  systemSizeKwDc: number,
+  dcAcRatio: number = DEFAULT_DC_AC_RATIO
+): number {
+  if (systemSizeKwDc <= 0) return 0
+  const inverterAcKw = Math.max(10, Math.ceil((systemSizeKwDc / dcAcRatio) / 10) * 10)
+  const ratio = systemSizeKwDc / inverterAcKw
+  if (ratio <= 1) return 0
+  const clippingFraction = Math.min(0.1, 0.15 * (ratio - 1))
+  return Math.round(clippingFraction * 1000) / 1000
+}
+
+// ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
 

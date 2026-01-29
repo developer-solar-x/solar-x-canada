@@ -8,6 +8,7 @@ import {
   MONTHLY_SNOW_LOSS,
   MONTHLY_TEMP_COEFFICIENT,
   calculateTotalDerate,
+  computeInverterClippingFromCapacity,
   type SystemDerateFactors,
 } from '@/config/solar-derate-factors'
 
@@ -156,17 +157,28 @@ export async function calculateSolarEstimate(
   // Select base derate factors based on region
   const baseDerateFactors = isCanada ? CANADIAN_SYSTEM : STANDARD_SYSTEM
   
-  // Merge with custom factors if provided
+  // Inverter AC sized in 10 kW steps; clipping derived from DC/AC ratio
+  const dcAcRatio = 1.2
+  const computedClipping = computeInverterClippingFromCapacity(systemSizeKw, dcAcRatio)
+
+  // Merge with custom factors if provided; inverter clipping from capacity unless overridden
   const derateFactors: SystemDerateFactors = customDerateFactors
     ? {
         irradiance: { ...baseDerateFactors.irradiance, ...customDerateFactors.irradiance },
         dc: { ...baseDerateFactors.dc, ...customDerateFactors.dc },
-        ac: { ...baseDerateFactors.ac, ...customDerateFactors.ac },
+        ac: {
+          ...baseDerateFactors.ac,
+          ...customDerateFactors.ac,
+          inverterClipping: customDerateFactors.ac?.inverterClipping ?? computedClipping,
+        },
         other: { ...baseDerateFactors.other, ...customDerateFactors.other },
         inverterEfficiency: customDerateFactors.inverterEfficiency ?? baseDerateFactors.inverterEfficiency,
         gridAbsorptionRate: customDerateFactors.gridAbsorptionRate ?? baseDerateFactors.gridAbsorptionRate,
       }
-    : baseDerateFactors
+    : {
+        ...baseDerateFactors,
+        ac: { ...baseDerateFactors.ac, inverterClipping: computedClipping },
+      }
   
   // Monthly soiling losses for Canada (higher in winter due to snow)
   // Values are % losses per month (Jan-Dec)
