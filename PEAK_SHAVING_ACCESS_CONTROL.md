@@ -16,13 +16,13 @@ The Peak Shaving Calculator implements a 2-use limit per email address (unlimite
   - Usage limit reached (2 uses for regular users)
   - Email not verified
   - Email not found in database
-- **Location**: `app/peak-shaving-sales-calculator/page.tsx` (lines 88-92)
+- **Location**: `app/peak-shaving-calculator/page.tsx` (lines 88-92)
 
 ### 2. **On Verification - Limit Already Reached**
 - **When**: User verifies email but has already used 2 times
 - **Condition**: `check-access` API returns `canAccess: false`
 - **Location**: 
-  - `app/peak-shaving-sales-calculator/page.tsx` (lines 143-148)
+  - `app/peak-shaving-calculator/page.tsx` (lines 143-148)
   - `components/peak-shaving/LeadCaptureModal.tsx` (lines 148-155)
 
 ### 3. **On Record Access Failure**
@@ -34,14 +34,14 @@ The Peak Shaving Calculator implements a 2-use limit per email address (unlimite
 - **When**: Any error occurs during access check
 - **Condition**: Network error, server error, or unexpected response
 - **Location**: 
-  - `app/peak-shaving-sales-calculator/page.tsx` (lines 94-98)
-  - `app/peak-shaving-sales-calculator/page.tsx` (lines 155-159)
+  - `app/peak-shaving-calculator/page.tsx` (lines 94-98)
+  - `app/peak-shaving-calculator/page.tsx` (lines 155-159)
 
 ### 5. **On Tab Visibility Change**
 - **When**: User returns to the tab after being away
 - **Condition**: Access check returns `canAccess: false`
 - **Purpose**: Catches cases where limit was reached while user was on another tab
-- **Location**: `app/peak-shaving-sales-calculator/page.tsx` (lines 117-124)
+- **Location**: `app/peak-shaving-calculator/page.tsx` (lines 117-124)
 
 ## When localStorage is SET (Saved)
 
@@ -52,7 +52,7 @@ The Peak Shaving Calculator implements a 2-use limit per email address (unlimite
   - Access check returns `canAccess: true`
   - Access recorded successfully (usage count incremented)
 - **Location**: 
-  - `app/peak-shaving-sales-calculator/page.tsx` (line 152)
+  - `app/peak-shaving-calculator/page.tsx` (line 152)
   - `components/peak-shaving/LeadCaptureModal.tsx` (via `onVerified` callback)
 
 ## Access Recording Logic

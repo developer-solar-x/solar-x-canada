@@ -40,7 +40,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.9,
     },
     {
-      url: `${baseUrl}/peak-shaving-sales-calculator`,
+      url: `${baseUrl}/peak-shaving-calculator`,
       lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 0.8,

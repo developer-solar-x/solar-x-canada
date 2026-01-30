@@ -48,6 +48,12 @@ export interface ProvinceConfig {
   hst: number
 }
 
+// Ontario residential inverter cap (10 kW AC); designs are limited to this size
+const ONTARIO_DC_AC_RATIO = 1.2
+export const ONTARIO_RESIDENTIAL_MAX_AC_KW = 10
+export const ONTARIO_RESIDENTIAL_MAX_DC_KW = ONTARIO_RESIDENTIAL_MAX_AC_KW * ONTARIO_DC_AC_RATIO // 12
+export const ONTARIO_RESIDENTIAL_MAX_PANELS_500W = Math.floor((ONTARIO_RESIDENTIAL_MAX_DC_KW * 1000) / 500) // 24
+
 // Configuration for each Canadian province
 // For demo/international use, default to Ontario values if province not found
 export const PROVINCE_CONFIG: Record<string, ProvinceConfig> = {

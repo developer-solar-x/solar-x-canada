@@ -253,7 +253,7 @@ export default function Page() {
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <h1 className="text-sm md:text-sm font-bold text-navy-600 truncate">Peak-Shaving Sales Calculator</h1>
+                <h1 className="text-sm md:text-sm font-bold text-navy-600 truncate">Peak-Shaving Calculator</h1>
               </div>
             </div>
           </div>
@@ -270,4 +270,3 @@ export default function Page() {
     </section>
   )
 }
-

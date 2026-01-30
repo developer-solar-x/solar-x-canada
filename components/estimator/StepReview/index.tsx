@@ -22,7 +22,9 @@ import { ProductionTab } from './tabs/ProductionTab'
 import { EnvironmentalTab } from './tabs/EnvironmentalTab'
 import { calculateCombinedMultiYear } from '@/lib/simple-peak-shaving'
 import { calculateSystemCost } from '@/config/pricing'
+import { ONTARIO_RESIDENTIAL_MAX_DC_KW, ONTARIO_RESIDENTIAL_MAX_PANELS_500W } from '@/config/provinces'
 import { isValidEmail } from '@/lib/utils'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
 interface StepReviewProps {
   data: any
@@ -390,12 +392,12 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
 
   const provinceCode = (data.province || '').toString().toUpperCase()
   const isOntarioResidential = provinceCode === 'ON' || provinceCode === 'ONTARIO'
-  // Show Ontario residential disclaimer once system is ~20 kW DC (≈10 kW AC inverter limit with ~2:1 DC/AC)
-  const ontarioDcLimitKw = 20
-  const showOntarioResidentialLimitNotice =
+  const showOntarioResidentialLimitWarning =
     isOntarioResidential &&
     data.leadType === 'residential' &&
-    effectiveSystemSizeKw > ontarioDcLimitKw
+    effectiveSystemSizeKw > ONTARIO_RESIDENTIAL_MAX_DC_KW
+  const showOntarioResidentialLimitInfo =
+    isOntarioResidential && data.leadType === 'residential' && effectiveSystemSizeKw <= ONTARIO_RESIDENTIAL_MAX_DC_KW && effectiveSystemSizeKw > 0
 
   const selectedBattery = aggregatedBattery || (hasBatteryDetails ? data.batteryDetails?.battery : null)
   const annualUsageKwh = data.peakShaving?.annualUsageKwh || data.energyUsage?.annualKwh || 0
@@ -612,14 +614,25 @@ export function StepReview({ data, onComplete, onBack }: StepReviewProps) {
             <p className="text-white/90">{data.address}</p>
           </div>
 
-          {showOntarioResidentialLimitNotice && (
+          {showOntarioResidentialLimitWarning && (
             <div className="card border border-amber-300 bg-amber-50 text-amber-900 p-4">
               <h3 className="font-semibold text-amber-900 mb-1">Ontario residential inverter limit</h3>
-              <p className="text-sm">Residential approvals in Ontario are capped at a 10 kW AC inverter. Typical DC/AC ratios mean systems above ~15–20 kW DC may be clipped or require a smaller inverter. Your design is approximately {effectiveSystemSizeKw.toFixed(1)} kW DC.</p>
-              <p className="text-xs mt-2 text-amber-800">Expect the AC side to be limited to 10 kW for residential; larger systems may need commercial review or separate approval.</p>
+              <p className="text-sm">Ontario residential systems are capped at 10 kW AC ({ONTARIO_RESIDENTIAL_MAX_DC_KW} kW DC / {ONTARIO_RESIDENTIAL_MAX_PANELS_500W} panels). Your design is approximately {effectiveSystemSizeKw.toFixed(1)} kW DC and may require commercial review or a smaller inverter.</p>
+            </div>
+          )}
+          {showOntarioResidentialLimitInfo && (
+            <div className="card border border-gray-200 bg-gray-50 text-gray-700 p-3">
+              <p className="text-sm">Ontario residential: systems are capped at 10 kW AC ({ONTARIO_RESIDENTIAL_MAX_DC_KW} kW DC / {ONTARIO_RESIDENTIAL_MAX_PANELS_500W} panels). Your design meets this limit.</p>
             </div>
           )}
 
+          {/* Savings disclaimer: based on electricity usage; delivery/regulatory also reduced when consumption drops */}
+          <div className="flex items-start gap-2 text-xs text-gray-600">
+            <InfoTooltip
+              content="Savings shown are based on electricity usage (energy charges), not your entire power bill. Delivery and regulatory fees are also reduced when consumption drops; actual reduction depends on your utility's billing structure."
+            />
+            <span>Savings are based on electricity usage; delivery and regulatory charges are also reduced when consumption drops.</span>
+          </div>
 
           {/* 2x2 Grid Layout for Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

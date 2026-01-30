@@ -1,7 +1,7 @@
 // Full solar estimate API with PVWatts integration
 
 import { NextResponse } from 'next/server'
-import { calculateSystemSize, calculateCosts, calculateSavings } from '@/config/provinces'
+import { calculateSystemSize, calculateCosts, calculateSavings, ONTARIO_RESIDENTIAL_MAX_DC_KW } from '@/config/provinces'
 import { calculateSolarEstimate } from '@/lib/pvwatts'
 import * as turf from '@turf/turf'
 import { BLENDED_RATE } from '@/components/estimator/StepEnergySimple/constants'
@@ -130,6 +130,13 @@ export async function POST(request: Request) {
       // Use the smaller of rounded size and capped max (which is also divisible by 5)
       systemSizeKw = Math.min(roundedSystemSizeKw, maxSystemSizeKwRounded)
       // Recalculate numPanels based on rounded system size
+      numPanels = Math.round((systemSizeKw * 1000) / 500)
+    }
+
+    // Ontario residential: cap at 10 kW AC (12 kW DC) per utility rules
+    const provinceUpper = (province || '').toString().toUpperCase()
+    if ((provinceUpper === 'ON' || provinceUpper === 'ONTARIO') && systemSizeKw > ONTARIO_RESIDENTIAL_MAX_DC_KW) {
+      systemSizeKw = ONTARIO_RESIDENTIAL_MAX_DC_KW
       numPanels = Math.round((systemSizeKw * 1000) / 500)
     }
 

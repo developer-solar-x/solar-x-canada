@@ -1,0 +1,31 @@
+import type { Metadata } from 'next'
+
+// Page-specific metadata for SEO
+export const metadata: Metadata = {
+  title: 'Peak Shaving Calculator | Solar Battery ROI Calculator Canada',
+  description: 'Professional peak shaving calculator for solar. Calculate TOU vs ULO savings, battery ROI, and payback period. Free tool for solar professionals in Canada.',
+  keywords: [
+    'peak shaving calculator',
+    'solar calculator',
+    'battery roi calculator',
+    'tou ulo comparison tool',
+    'solar tool canada',
+    'battery savings calculator',
+  ],
+  alternates: {
+    canonical: 'https://www.solarcalculatorcanada.org/peak-shaving-calculator',
+  },
+  openGraph: {
+    title: 'Peak Shaving Calculator | Solar Battery ROI Calculator Canada',
+    description: 'Professional peak shaving calculator for solar. Calculate TOU vs ULO savings and battery ROI.',
+    url: 'https://www.solarcalculatorcanada.org/peak-shaving-calculator',
+  },
+}
+
+export default function PeakShavingLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return <>{children}</>
+}

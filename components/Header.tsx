@@ -265,7 +265,7 @@ export function Header() {
                     />
                     <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-[100] overflow-hidden">
                       <Link
-                        href="/peak-shaving-sales-calculator"
+                        href="/peak-shaving-calculator"
                         onClick={() => setToolsDropdownOpen(false)}
                         className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-gray-700"
                       >
@@ -450,7 +450,7 @@ export function Header() {
                 <div className="pt-2 border-t border-white/20">
                   <div className="text-sm font-semibold text-white/80 mb-2 px-2">Tools</div>
                   <Link
-                    href="/peak-shaving-sales-calculator"
+                    href="/peak-shaving-calculator"
                     className="flex items-center gap-3 text-base font-medium text-white hover:text-maple-300 transition-colors py-2 px-2"
                     onClick={handleCloseMenu}
                   >

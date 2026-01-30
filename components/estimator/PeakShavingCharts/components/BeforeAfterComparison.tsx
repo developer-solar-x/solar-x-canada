@@ -57,6 +57,9 @@ export function BeforeAfterComparison({
         <div className="text-xs text-red-600 mt-2">
           That's {((totalSavings / originalAnnualCost) * 100).toFixed(1)}% off your electricity bill
         </div>
+        <p className="text-[11px] text-gray-600 mt-2">
+          Based on electricity usage (energy charges), not the full power bill. Delivery and regulatory fees are also reduced when consumption drops.
+        </p>
       </div>
     </div>
   )

@@ -18,6 +18,7 @@ import { formatCurrency, isValidEmail } from '@/lib/utils'
 import { formatProductionRange } from '@/lib/production-range'
 import { AlbertaSavingsBreakdown } from './AlbertaSavingsBreakdown'
 import { BATTERY_SPECS, type BatterySpec } from '@/config/battery-specs'
+import { ONTARIO_RESIDENTIAL_MAX_PANELS_500W } from '@/config/provinces'
 import { useBatteries } from '@/hooks/useBatteries'
 
 interface StepNetMeteringProps {
@@ -183,6 +184,13 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     
     return isAlbertaResult
   }, [data.province, data.estimate?.province, data.address])
+
+  const isOntario = useMemo(() => {
+    const province = data.province || data.estimate?.province || (data as any).location?.province || (data as any).address?.province || (data.address && extractProvinceFromAddress(data.address))
+    if (!province) return false
+    const provinceUpper = String(province).toUpperCase().trim()
+    return provinceUpper === 'ON' || provinceUpper === 'ONTARIO'
+  }, [data.province, data.estimate?.province, data.address])
   
   // Helper function to extract province from address string
   function extractProvinceFromAddress(address: string): string | null {
@@ -310,19 +318,30 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
     fetchEstimate()
   }, [data.coordinates, data.roofPolygon, data.roofAreaSqft, data.estimate, annualUsageKwh, data.energyUsage?.annualKwh, data.annualUsageKwh, data.monthlyBill])
 
-  // Initialize solar panels from estimate when it becomes available
+  // Initialize solar panels from estimate when it becomes available (Ontario: cap at 24)
   useEffect(() => {
     const currentEstimate = localEstimate || data.estimate
     
-    const initialPanels =
+    let initialPanels =
       (data as any).solarOverride?.numPanels ??
       (data as any)?.numPanels ??
       currentEstimate?.system?.numPanels ?? 0
     
+    if (isOntario && initialPanels > ONTARIO_RESIDENTIAL_MAX_PANELS_500W) {
+      initialPanels = ONTARIO_RESIDENTIAL_MAX_PANELS_500W
+    }
+    
     if (initialPanels > 0 && solarPanels === 0) {
       setSolarPanels(initialPanels)
     }
-  }, [localEstimate, data.estimate, (data as any)?.numPanels])
+  }, [localEstimate, data.estimate, (data as any)?.numPanels, isOntario])
+
+  // Clamp solar panels to Ontario max when province is Ontario (e.g. after province switch or legacy data)
+  useEffect(() => {
+    if (isOntario && solarPanels > ONTARIO_RESIDENTIAL_MAX_PANELS_500W) {
+      setSolarPanels(ONTARIO_RESIDENTIAL_MAX_PANELS_500W)
+    }
+  }, [isOntario, solarPanels])
 
   // Initialize usage separately to avoid dependency issues
   useEffect(() => {
@@ -1032,10 +1051,18 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                             type="number"
                             value={solarPanels}
                             min={0}
-                            onChange={(e) => setSolarPanels(Math.max(0, Number(e.target.value)))}
+                            max={isOntario ? ONTARIO_RESIDENTIAL_MAX_PANELS_500W : undefined}
+                            onChange={(e) => {
+                              const raw = Math.max(0, Number(e.target.value))
+                              const capped = isOntario ? Math.min(raw, ONTARIO_RESIDENTIAL_MAX_PANELS_500W) : raw
+                              setSolarPanels(capped)
+                            }}
                             className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-base md:text-lg font-semibold text-green-700"
                             disabled={overrideEstimateLoading}
-                        />
+                          />
+                          {isOntario && (
+                            <p className="mt-1 text-xs text-gray-600">Ontario residential: max 10 kW AC ({ONTARIO_RESIDENTIAL_MAX_PANELS_500W} panels).</p>
+                          )}
                       </div>
                         </div>
                       {overrideEstimateLoading && (
@@ -1991,11 +2018,13 @@ export function StepNetMetering({ data, onComplete, onBack }: StepNetMeteringPro
                 </div>
 
                 {/* Delivery fees & additional charges disclaimer */}
-                <div className="mt-4 flex items-start gap-2 text-xs text-gray-700">
-                  <InfoTooltip
-                    content="Delivery fees, regulatory charges, and utility service fees remain the responsibility of the utility provider and are not eliminated by solar. These charges may be reduced through lower consumption but cannot be fully removed. Actual fee reductions depend on the utility's billing structure and regulations."
-                  />
-                  <span>Solar does not remove delivery, regulatory, or utility service fees – only reduces them.</span>
+                <div className="mt-4 space-y-2 text-xs text-gray-700">
+                  <p className="flex items-start gap-2">
+                    <InfoTooltip
+                      content="The savings percentage shown (e.g. Bill Offset) is based on electricity usage (energy charges), not your entire power bill. Delivery fees, regulatory charges, and utility service fees remain the responsibility of the utility and are not eliminated by solar; they are typically reduced when your consumption drops. Actual fee reductions depend on your utility's billing structure and regulations."
+                    />
+                    <span>Savings are based on electricity usage; delivery and regulatory charges are also reduced when consumption drops.</span>
+                  </p>
                 </div>
               </div>
             )}
