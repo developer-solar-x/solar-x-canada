@@ -55,7 +55,7 @@ export function FAQ() {
     },
     {
       question: 'How do I get solar quotes in Canada?',
-      answer: 'Use our free solar calculator to get an unbiased estimate based on your address, roof, and usage. Then (optionally) be matched with vetted local installers who provide detailed quotes accounting for your roof condition, electrical panel, shading, and local permitting. Obtain 2–3 quotes to compare pricing, warranties, and financing options. Ask installers about certifications (ESA or provincial), insurance, warranty terms, and experience in your province. Compare bottom-line cost after rebates and financing.',
+      answer: 'Use our free solar calculator, solar power calculator, and solar PV calculator to get an unbiased estimate based on your address, roof, and usage. Our solar panel calculator, solar electricity calculator, and solar installation calculator help with calculating solar power needs. Then (optionally) be matched with vetted local installers who provide detailed quotes accounting for your roof condition, electrical panel, shading, and local permitting. Use our solar photovoltaic calculator and solar array calculator to compare 2–3 quotes. Ask installers about certifications (ESA or provincial), insurance, warranty terms, and experience in your province.',
     },
     {
       question: 'What is the HRS rebate in Ontario?',
@@ -67,7 +67,7 @@ export function FAQ() {
     },
     {
       question: 'How much can I save with solar in Canada?',
-      answer: 'Lifetime savings depend on system size and location. A typical 5 kW system saves $50,000–$100,000+ over 25 years in Ontario (with rising rates). Alberta systems save similarly with Solar Club rates. Savings increase annually as utility rates rise (Ontario up 12.8% since 2016). Net metering and time-of-use rates amplify savings. Federal 30% ITC, provincial rebates, and battery storage (peak shaving) further improve returns. Our calculator shows personalized savings based on your address, roof, and usage.',
+      answer: 'Lifetime savings depend on system size and location. A typical 5 kW system saves $50,000–$100,000+ over 25 years in Ontario (with rising rates). Alberta systems save similarly with Solar Club rates. Savings increase annually as utility rates rise (Ontario up 12.8% since 2016). Net metering and time-of-use rates amplify savings. Federal 30% ITC, provincial rebates, and battery storage (peak shaving) further improve returns. Our solar calculator, solar power calculator, solar PV calculator, and solar installation calculator show personalized savings. Use our solar electricity calculator and solar panel calculator for calculating solar power and estimated returns based on your address, roof, and usage.',
     },
     {
       question: 'What is the solar permit process in Canada?',

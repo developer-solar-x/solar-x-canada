@@ -1872,6 +1872,1345 @@ Ready to explore solar for your Toronto Hydro home? [Get Your Free Solar Estimat
     seoTitle: 'Toronto Hydro Solar Connection Guide 2026 | Net Metering, Fees, Process & Neighborhoods',
     seoDescription: 'Complete guide to solar for Toronto Hydro customers across North York, Scarborough, Etobicoke, Downtown. Learn connection process, net metering rules, typical fees ($1,200-$2,000), grid capacity, approval timeline (2-4 months), and maximize savings with Solar Calculator Canada.',
   },
+  {
+    slug: 'alectra-utilities-solar-connection-guide',
+    title: 'Alectra Utilities Solar Connection Guide: Cities Served, Net Metering, Fees & Grid Capacity',
+    excerpt: 'Alectra Utilities serves over one million Ontario customers. Learn which cities are covered, how net metering works, typical solar connection fees, grid capacity limits, and whether solar is worth it for Alectra customers.',
+    content: `
+# Alectra Utilities Solar Connection Guide: Cities Served, Net Metering, Fees & Grid Capacity
+
+Alectra Utilities is one of Ontario’s largest local electricity distributors, serving **over one million customers** across the Greater Toronto and Hamilton Area (GTHA). Homeowners connected to Alectra Utilities can install solar panels and participate in Ontario’s net metering program, allowing them to generate clean electricity and receive bill credits for excess power sent back to the grid.
+
+This guide explains:
+
+- Which cities Alectra Utilities serves
+- How solar net metering works with Alectra
+- Typical solar connection fees
+- Grid capacity and system limits
+- Whether solar is worth it for Alectra customers
+
+> ⚡ **Quick Fact**: Alectra serves some of Ontario’s fastest-growing communities where electricity demand and delivery charges continue to rise—making rooftop solar a highly practical way to reduce long-term hydro bills.
+
+## Cities Served by Alectra Utilities in Ontario
+
+Alectra Utilities provides electricity service to major Ontario cities and regions, including:
+
+- Brampton
+- Mississauga
+- Vaughan
+- Markham
+- Richmond Hill
+- Hamilton
+- Burlington
+- Oakville
+- Milton
+- Georgetown (Halton Hills)
+- Ajax
+- Pickering
+- Whitby
+- Aurora
+- Newmarket
+
+These fast-growing urban and suburban areas see rising electricity demand, which makes rooftop solar an increasingly popular option for reducing monthly hydro bills.
+
+## Does Alectra Utilities Allow Solar Panels?
+
+**Yes.** Alectra Utilities supports residential and commercial solar installations under Ontario’s Net Metering Regulation (O. Reg. 541/05).
+
+Solar customers connected to Alectra Utilities can:
+
+- **Generate electricity** from rooftop solar panels
+- **Export excess solar power** to the grid
+- **Receive bill credits** for surplus production
+- **Offset future electricity usage** in later billing periods
+
+Net metering credits can typically be carried forward for up to **12 months**.
+
+> ✅ **Bottom Line**: You can legally connect solar to Alectra’s grid and earn credits for excess energy—your system just needs to pass Alectra’s connection approval process.
+
+## Alectra Utilities Solar Connection Fees
+
+Alectra Utilities requires solar systems to go through a formal connection approval process. Costs may include:
+
+- Application and technical review fees
+- Bi-directional meter installation
+- Electrical inspection and commissioning
+- Potential transformer or feeder upgrades
+
+**Typical Alectra solar connection costs range from $500 to $2,000**, depending on:
+
+- Solar system size
+- Local grid capacity
+- Electrical upgrades required
+- Location within Alectra’s service area
+
+Final costs are confirmed during the connection assessment.
+
+### What Drives Connection Costs?
+
+- **System size (kW)**: Larger systems may trigger additional review
+- **Feeder capacity**: Saturated circuits may require upgrades
+- **Transformer age**: Older transformers sometimes need replacement
+- **Local grid constraints**: Dense neighborhoods may have export limits
+
+## Grid Capacity & Solar Limitations with Alectra Utilities
+
+**Grid capacity** refers to how much distributed generation (like rooftop solar) the local grid can safely accept. In some Alectra Utilities service zones:
+
+- Transformer capacity may limit export size
+- Feeder circuits may reach saturation
+- High solar adoption areas may face longer approval times
+
+Alectra Utilities may:
+
+- **Limit system size**
+- **Require infrastructure upgrades**
+- **Delay approvals in saturated areas**
+- **Enforce export caps** for safety
+
+Checking grid capacity early helps prevent project delays and unexpected upgrade costs.
+
+## Net Metering with Alectra Utilities
+
+Under Ontario’s net metering program, Alectra Utilities customers can:
+
+- Send excess solar electricity to the grid
+- Receive kilowatt-hour (kWh) credits
+- Use credits to offset future electricity usage
+- Balance summer production with winter consumption
+
+Credits usually **expire after 12 months**, so most systems are designed to match annual energy use rather than exceed it.
+
+For a deeper breakdown, see [How net metering works in Ontario](/blog/net-metering-vs-solar-club-canada).
+
+## Is Solar Worth It for Alectra Utilities Customers?
+
+For many Alectra Utilities customers, solar is financially worthwhile due to:
+
+- Rising Ontario electricity rates
+- High urban delivery charges
+- Federal and provincial incentives
+- Net metering bill credits
+
+Most households connected to Alectra Utilities can offset **50% to 100%** of their annual electricity usage depending on:
+
+- Roof size and orientation
+- Sunlight exposure
+- Energy consumption patterns
+
+Typical payback periods range from **7 to 11 years**, followed by decades of reduced electricity costs.
+
+For a broader view, see [Is solar worth it in Canada](/blog/complete-guide-solar-panels-canada-2026).
+
+## How SolarCalculatorCanada Helps Alectra Customers
+
+SolarCalculatorCanada.org estimates:
+
+- Required system size
+- Installation cost
+- Monthly and annual savings
+- Payback period
+- Long-term return on investment
+
+by factoring in:
+
+- Ontario electricity rates
+- Typical Alectra Utilities delivery charges
+- Regional sunlight data
+- Federal and provincial rebates
+
+Start with the [Solar savings calculator for Canada](/estimator) and compare incentives on the [Ontario solar rebates](/solar-rebates) page. If you’re considering storage, see the [Battery storage guide](/blog/solar-battery-storage-guide-canada).
+
+## Frequently Asked Questions (FAQ)
+
+### Does Alectra Utilities allow solar panels?
+
+Yes. Alectra Utilities allows solar installations under Ontario’s net metering rules.
+
+### Q: How much does Alectra Utilities charge to connect solar?
+
+**A**: Connection fees typically range from $500 to $2,000, depending on grid upgrades and system size.
+
+### Q: Can Alectra Utilities refuse a solar connection?
+
+**A**: Alectra Utilities may delay or limit connections if local grid capacity is reached.
+
+### Q: Do Alectra solar credits expire?
+
+**A**: Yes. Net metering credits generally expire after 12 months.
+
+### Q: Is solar worth it for Alectra Utilities customers?
+
+**A**: Yes. Many customers significantly reduce their electricity bills using solar and net metering.
+
+### Q: What solar calculator should I use for Alectra Utilities?
+
+**A**: Use SolarCalculatorCanada's free solar power calculator, solar PV calculator, and solar panel calculator designed for Ontario. Our solar electricity calculator helps with calculating solar power needs and estimates savings based on Alectra Utilities rates.
+
+Alectra Utilities serves many Ontario cities and allows solar installations under the net metering program. Connection fees depend on grid capacity and system size, and net metering credits help offset electricity costs. SolarCalculatorCanada estimates solar savings for Alectra Utilities customers using Ontario electricity rates and rebate programs.
+
+> **Need a fast estimate?** Use the [Solar savings calculator for Canada](/estimator) to size your system and estimate savings before speaking to an installer.
+    `,
+    author: 'Solar Calculator Canada',
+    publishedAt: '2026-01-31',
+    category: 'solar-basics',
+    tags: [
+      'alectra utilities solar',
+      'alectra utilities net metering',
+      'alectra utilities solar connection fee',
+      'alectra utilities cities served',
+      'alectra utilities grid capacity',
+      'alectra utilities solar approval',
+      'can i install solar with alectra utilities',
+      'how to connect solar to alectra utilities',
+      'alectra utilities solar rules ontario',
+      'solar panels in brampton alectra',
+      'solar net metering markham alectra',
+      'ontario net metering',
+      'solar calculator canada',
+      'rooftop solar ontario',
+      'grid-tied solar system',
+      'solar rebates ontario',
+      'alectra utilities solar guide',
+      'alectra utilities connection process',
+      'alectra utilities solar fees',
+      'alectra utilities solar limits',
+      'alectra utilities service area',
+    ],
+    readTime: 10,
+    seoTitle: 'Alectra Utilities Solar Connection Guide 2026 | Cities Served, Net Metering, Fees & Grid Capacity',
+    seoDescription: 'Alectra Utilities solar guide for Ontario homeowners. See cities served, net metering rules, typical solar connection fees ($500-$2,000), grid capacity limits, and whether solar is worth it. Includes Alectra approval steps and savings tips.',
+  },
+  {
+    slug: 'enbridge-ontario-solar-guide',
+    title: 'Enbridge (Ontario) Solar Guide: What Enbridge Covers, Net Metering Steps & How to Estimate Savings',
+    excerpt: 'Enbridge customers in Ontario wondering about solar: Learn what Enbridge covers (natural gas), how solar reduces electricity bills, Ontario net metering steps, and how to estimate your savings.',
+    content: `
+# Enbridge (Ontario) Solar Guide: What Enbridge Covers, Net Metering Steps & How to Estimate Savings
+
+Many Ontario homeowners searching "Enbridge electricity + solar" are really trying to answer one question: **Will solar reduce my home energy bills?**
+
+Here's the key:
+
+- **Enbridge in Ontario** is primarily your **natural gas provider** (heating, hot water, fireplaces, etc.)
+- **Solar panels reduce your electricity bill**, and exporting extra power (net metering) is done through your **electricity distributor** under Ontario net metering rules
+
+This guide explains how Enbridge customers in Ontario can still benefit from solar, how net metering works, and how SolarCalculatorCanada helps estimate savings.
+
+> ⚡ **Quick Clarification**: If you're an Enbridge Gas customer searching for solar options, you're in the right place! Solar works alongside your gas service to reduce your overall home energy costs.
+
+## Enbridge in Ontario: What Service Is It?
+
+**Enbridge Gas** provides natural gas service across Ontario and offers programs such as:
+
+- Rebates for energy-efficient equipment
+- Energy conservation resources
+- Home heating programs
+- Natural gas appliance support
+
+That's why you'll see Enbridge tied to heating and home energy—**not your solar grid connection**.
+
+### Key Service Areas
+
+Enbridge Gas serves major Ontario communities including:
+- Greater Toronto Area (GTA)
+- Ottawa region
+- Hamilton area
+- London and surrounding areas
+- Many other Ontario municipalities
+
+## Solar for Enbridge Customers: When Does It Help?
+
+If your home uses Enbridge gas, **solar can still be a strong investment** because it reduces electricity used by:
+
+- **Air conditioning** (major summer electricity draw)
+- **Appliances + lighting** (year-round usage)
+- **EV charging** (growing electricity demand)
+- **Heat pumps / hybrid heating** (if you're electrifying part of your home)
+
+Even if your gas bill remains, solar can **significantly lower the electricity side** of your total home energy costs.
+
+### Understanding Your Energy Mix
+
+Many Ontario homes have:
+- **Enbridge Gas**: For heating, hot water, cooking
+- **Electricity Distributor**: For lights, appliances, cooling, electronics
+
+Solar specifically targets your **electricity costs**, which can represent 30-50% of your total annual home energy expenses.
+
+## Net Metering in Ontario: Who Approves It?
+
+Ontario net metering generally works like this:
+
+1. You generate renewable electricity mainly for your own use
+2. Any surplus is sent to the grid for credits on your bill
+3. You typically sign a net metering agreement with your **electricity utility/distributor**
+
+That means:
+
+If you searched "Enbridge net metering Ontario," the **net metering part usually belongs to your electricity distributor, not Enbridge gas**.
+
+### How Net Metering Credits Work
+
+- **Export excess solar** to the grid when production exceeds consumption
+- **Receive credits** at retail electricity rates
+- **Use credits** to offset future electricity usage
+- **Credits carry forward** for up to 12 months
+
+For example, Hydro One explicitly describes [net metering credits carried forward for up to 12 months](/blog/hydro-one-solar-connection-guide) and eligibility conditions for Hydro One customers.
+
+Learn more about [how net metering works in Ontario](/blog/net-metering-vs-solar-club-canada).
+
+## How to Find Your Electricity Distributor (So Solar Can Connect Properly)
+
+If your bills say Enbridge, that's your **gas bill**. For solar + net metering, check your **electricity bill** for the distributor name (commonly one of these in Ontario):
+
+- **Hydro One** - [See Hydro One solar guide](/blog/hydro-one-solar-connection-guide)
+- **Toronto Hydro** - [See Toronto Hydro solar guide](/blog/toronto-hydro-solar-connection-guide)
+- **Alectra Utilities** - [See Alectra solar guide](/blog/alectra-utilities-solar-connection-guide)
+- Plus other local utilities depending on your city
+
+This matters because **connection rules, capacity checks, and application steps** are set by the electricity utility.
+
+### Why This Matters for Solar
+
+Your electricity distributor handles:
+- Solar system connection approvals
+- Net metering agreements
+- Bi-directional meter installation
+- Grid capacity assessments
+- Technical requirements
+
+Enbridge Gas is not involved in the solar grid connection process.
+
+## Is Solar Worth It in Ontario If You Have Enbridge Gas?
+
+Often, **yes**—especially if:
+
+- Your **electricity usage is high** (large home, EV, AC, electric appliances)
+- You plan to **add a heat pump** (partial electrification)
+- You want **predictable long-term energy costs**
+- You're looking to **reduce overall home energy expenses**
+
+Solar is usually most valuable when it offsets a large share of your annual electricity use—then net metering credits help smooth seasonal differences.
+
+### Financial Benefits
+
+**Typical Savings for Ontario Homeowners:**
+- Annual electricity savings: $800-$1,800/year
+- Payback period: 8-12 years
+- 25-year savings: $20,000-$45,000+
+
+### Additional Benefits
+
+- **Property value increase** (3-4% on average)
+- **Energy independence** from rising electricity rates
+- **Environmental impact** (reduce 3-5 tonnes of CO2 annually)
+- **Future-proof** your home for electrification trends
+
+## Electrification: When Solar + Gas Work Together
+
+Many Ontario homeowners are moving toward **hybrid energy systems**:
+
+**Keep Enbridge Gas for:**
+- Main heating (especially in cold months)
+- Hot water backup
+- Gas fireplace
+- Cooking (if preferred)
+
+**Add Solar for:**
+- Electricity offset
+- AC cooling in summer
+- EV charging
+- Heat pump supplement (shoulder seasons)
+
+This approach **maximizes efficiency** while reducing overall energy costs.
+
+## Use SolarCalculatorCanada to Estimate Your Solar Savings
+
+Our comprehensive **solar calculator** suite helps Enbridge Gas customers estimate solar electricity savings. Use our **solar photovoltaic calculator** and **solar power calculator** to determine:
+
+- Recommended solar system size (kW) - calculated by our **solar array calculator**
+- Estimated annual production (using our **solar PV calculator**)
+- Monthly + yearly electricity savings
+- Payback period
+- Long-term ROI
+
+### To Get a Better Estimate, Use Inputs Like:
+
+- Your city in Ontario
+- Your monthly kWh usage (from electricity bill)
+- Roof sun exposure (if known)
+- Whether you plan to add EV charging or a heat pump
+
+Our **solar installation calculator** makes it easier to plan before starting the utility connection process, helping you with **calculating solar power** needs accurately.
+
+[Get Your Free Solar Electricity Calculator](/estimator) and see how much you can save on your electricity costs, even as an Enbridge Gas customer.
+
+## Ontario Solar Incentives for Enbridge Customers
+
+As an Ontario homeowner, you can access:
+
+### Federal Programs
+
+- **Canada Greener Homes Grant**: Up to $5,000 for solar installations
+- **Interest-free loans**: Up to $40,000 for home energy upgrades
+- **Combined solar + efficiency upgrades**: Maximize incentives
+
+### Provincial Support
+
+- **Net metering program**: Credits at retail electricity rates
+- **Time-of-use optimization**: Use solar during peak rate periods
+- **Local utility programs**: Check with your electricity distributor
+
+Learn more about [Ontario solar rebates](/solar-rebates) and available incentives.
+
+## Steps to Install Solar as an Enbridge Gas Customer
+
+1. **Calculate your potential savings** using [Solar Calculator Canada](/estimator)
+2. **Identify your electricity distributor** (check your electricity bill)
+3. **Get quotes from solar installers** in your area
+4. **Apply for net metering** through your electricity distributor
+5. **Install your system** (installer coordinates ESA inspection)
+6. **Connect to grid** (bi-directional meter installation)
+7. **Start generating savings** on your electricity bill
+
+Your solar installer typically handles steps 4-6, coordinating with your electricity distributor.
+
+## Frequently Asked Questions (FAQ)
+
+### Q: Is Enbridge an electricity company in Ontario?
+
+**A**: In Ontario, Enbridge is primarily the natural gas utility (Enbridge Gas). They provide natural gas for heating, hot water, and cooking—not electricity distribution.
+
+### Q: Can I get net metering if I'm an Enbridge customer?
+
+**A**: Yes—if you install solar, net metering is handled through your electricity distributor (like Hydro One, Toronto Hydro, or Alectra) under Ontario net metering rules, not through Enbridge Gas.
+
+### Q: Who do I contact to connect solar to the grid?
+
+**A**: You typically contact your electricity utility/distributor to apply, meet technical requirements, and set up the net metering agreement. Your solar installer will guide you through this process.
+
+### Q: Will solar reduce my Enbridge gas bill?
+
+**A**: Solar primarily reduces your electricity bill. It can reduce gas costs indirectly if you electrify heating (e.g., heat pump), but solar itself does not directly lower natural gas usage.
+
+### Q: Can I use solar with a heat pump to reduce both gas and electricity?
+
+**A**: Yes. Many homeowners use solar to power heat pumps for shoulder season heating/cooling, keeping gas heating for the coldest months. This hybrid approach can significantly reduce total energy costs.
+
+### Q: How do I know if solar is worth it for my home?
+
+**A**: Use our free solar calculator, solar power calculator, and solar PV calculator to estimate savings based on your location, electricity usage, and roof characteristics. Our solar panel calculator and solar installation calculator show most Ontario homeowners see 8-12 year payback periods with 25+ years of benefits. Start calculating solar power needs with our solar electricity calculator.
+
+Enbridge customers in Ontario can achieve significant home energy savings by adding solar to reduce electricity costs while maintaining natural gas service for heating. Use [Solar Calculator Canada](/estimator) to estimate your potential savings and find qualified installers to get started.
+
+> **Ready to explore solar?** Even as an Enbridge Gas customer, solar can dramatically reduce your total home energy costs by targeting your electricity bill. [Calculate your savings now](/estimator).
+    `,
+    author: 'Solar Calculator Canada',
+    publishedAt: '2026-01-31',
+    category: 'solar-basics',
+    tags: [
+      'enbridge ontario solar',
+      'enbridge gas solar panels',
+      'enbridge ontario electricity',
+      'enbridge net metering ontario',
+      'solar for enbridge customers',
+      'ontario solar savings',
+      'enbridge bill solar',
+      'home energy ontario',
+      'enbridge rebates ontario',
+      'solar calculator canada',
+      'ontario net metering',
+      'solar panels ontario savings',
+      'gas heated home solar',
+      'enbridge gas ontario',
+      'ontario electricity distributor',
+      'hydro one net metering',
+      'toronto hydro solar',
+      'alectra utilities solar',
+      'ontario solar rebates',
+      'heat pump solar ontario',
+      'ev charging solar',
+      'home electrification ontario',
+      'natural gas solar combination',
+      'ontario solar installation',
+      'enbridge customer solar',
+    ],
+    readTime: 11,
+    seoTitle: 'Enbridge (Ontario) Solar Guide 2026 | What Enbridge Covers, Net Metering & Savings Estimate',
+    seoDescription: 'Enbridge Gas customers in Ontario: Learn how solar reduces electricity bills, who handles net metering (your electricity distributor), and how to estimate savings. Includes steps to connect solar even with Enbridge natural gas service.',
+  },
+  {
+    slug: 'bc-hydro-solar-net-metering-guide',
+    title: 'BC Hydro Solar Net Metering Guide: Self-Generation, Eligibility, Application Steps & Service Areas',
+    excerpt: 'BC Hydro solar guide: self-generation (net metering), eligibility, system size limits, application steps, credits, and service areas in British Columbia.',
+    content: `
+# BC Hydro Solar Net Metering Guide: Self-Generation, Eligibility, Application Steps & Service Areas in British Columbia
+
+If you're searching for "BC Hydro solar" or "BC Hydro net metering," BC Hydro now refers to this program as **self-generation** (previously called net metering). The goal is simple: generate your own renewable electricity (usually solar PV), use it in your home first, and earn credits when your system produces more than you need.
+
+This guide covers:
+
+- Where BC Hydro provides electricity service (and where it doesn't)
+- How BC Hydro self-generation credits work
+- Eligibility and system size limits
+- The "simple net metering" application steps for smaller systems
+- What grid capacity / interconnection checks mean for solar approvals
+
+> ⚡ **Quick Fact**: As of September 2025, over **15,000 BC Hydro customers** participate in self-generation, with the majority using solar PV systems.
+
+## Where Does BC Hydro Provide Electricity Service?
+
+BC Hydro is one of the two largest utilities serving BC residents (along with FortisBC). BC also has several municipalities that sell electricity directly to customers (for example, Nelson, New Westminster, Grand Forks, Penticton, and Summerland).
+
+BC Hydro publishes a service area map showing BC Hydro service areas versus FortisBC and key municipal utility areas.
+
+### Major BC Hydro-Served Cities (Examples)
+
+If you're in Metro Vancouver or on Vancouver Island, you're often in a BC Hydro service area (but always verify via your bill or the map). Examples include:
+
+- **Vancouver**
+- **Surrey**
+- **Burnaby**
+- **Richmond**
+- **Coquitlam**
+- **Victoria**
+- **Saanich**
+- **Nanaimo**
+- **Kelowna** (parts)
+- **Prince George**
+- **Kamloops**
+- **Abbotsford**
+
+**Important**: Always verify using BC Hydro's service area map or check your electricity bill to confirm your utility provider.
+
+### Areas NOT Served by BC Hydro
+
+Some BC communities are served by:
+
+- **FortisBC** (Kootenay, Okanagan, and other regions)
+- **Municipal utilities** (Nelson, New Westminster, Grand Forks, Penticton, Summerland, etc.)
+
+If you're not sure, check your electricity bill—the utility name will be clearly shown.
+
+## Does BC Hydro Allow Solar Panels?
+
+**Yes.** BC Hydro's self-generation program is designed for customers who want to reduce electricity bills and generate their own power (most commonly using solar PV). 
+
+BC Hydro notes that as of September 2025, **over 15,000 customers participate in self-generation**, with the majority using solar PV systems.
+
+> ✅ **Bottom Line**: BC Hydro actively supports residential and commercial solar installations through their self-generation program.
+
+## How BC Hydro Self-Generation Credits Work
+
+BC Hydro explains self-generation like this:
+
+1. **Your solar powers your home/business first**
+2. **Any excess is sent to the distribution grid**
+3. **Your meter measures both energy used from BC Hydro and energy exported back**
+4. **You earn generation credits** that can offset future electricity use
+5. **If credits remain on the annual payout date**, BC Hydro pays you for the excess electricity
+
+This structure is a key reason "BC Hydro solar net metering" searches are so common—people want to know how export credits and bill offsets work in real life.
+
+### Understanding Your Solar Credits
+
+- **Export credits** are valued at your retail electricity rate
+- Credits **carry forward** to offset future bills
+- **Annual settlement**: Excess credits are paid out once per year
+- **No expiration** within the annual cycle
+
+This makes BC Hydro's self-generation program very valuable for homeowners looking to maximize solar savings.
+
+## Eligibility and System Size Limits (Important for Approvals)
+
+BC Hydro states self-generation is open to **residential and commercial customers** if the system:
+
+- Is **owned or leased by the customer**
+- Is **connected to BC Hydro's distribution system**
+- Uses a **clean/renewable resource** (solar qualifies)
+- Has **aggregate nameplate capacity no more than 100 kW**
+
+### System Size Guidelines
+
+- **Residential systems**: Typically 3-10 kW
+- **Small commercial**: Up to 27 kW (Simple Net Metering)
+- **Larger systems**: 27-100 kW (standard interconnection process)
+- **Maximum**: 100 kW for self-generation program
+
+Most residential solar systems fall well within these limits.
+
+## Simple Net Metering (Small Systems) — Application Process & Timeline
+
+For smaller projects, BC Hydro provides a **Simple Net Metering process**. You can apply if your project:
+
+- Has an **aggregate size up to 27 kW**
+- Has **self-contained revenue metering** (service 200 A or less)
+
+### Steps (as Published by BC Hydro)
+
+**1. Submit an Application**
+- BC Hydro notes it can take **up to 2 weeks** to review and assess connection
+
+**2. Install Your System After Acceptance**
+- Hire a qualified solar installer
+- System must meet BC electrical codes
+
+**3. Inspect Your System**
+- Submit electrical inspection/authorization documentation
+- Required by BC Safety Authority (Technical Safety BC)
+
+**4. Connect to the Grid**
+- BC Hydro says this is usually **about two weeks** after receiving the electrical inspection
+
+**5. Start Saving**
+- Your bill reflects reduced usage plus any excess generation credit
+
+> 🎯 **Total Timeline**: Most Simple Net Metering applications take **4-8 weeks** from submission to grid connection.
+
+## Grid Capacity & Interconnection: What It Means for BC Hydro Solar
+
+Even for small renewable systems, utilities still review technical compatibility and system impacts. BC Hydro explains that **generator interconnection requests** are reviewed for technical compatibility, then assessed for impacts based on location, generator type, size, and proposed output.
+
+### BC Hydro Interconnection Framework
+
+For larger or more complex projects, BC Hydro outlines an interconnection framework that includes:
+
+- **Basic distribution system info request**
+- **Optional screening study**
+- **System impact study**
+- **Facilities study**
+- **Interconnection agreement**
+
+### What This Means in Plain Terms
+
+- **Approvals can move faster** when your local infrastructure can handle export
+- **Slower approvals** if studies or upgrades are needed
+- **Most residential systems** (under 10 kW) qualify for Simple Net Metering with minimal delays
+- **Grid capacity varies** by location—urban areas typically have better capacity
+
+## Rebates: Solar Panels and Battery Storage
+
+BC Hydro's self-generation page notes you can **apply for rebates for eligible solar panels and battery storage**, and that the same application can be used to apply for those rebates.
+
+### Available BC Solar Incentives
+
+- **Federal Greener Homes Grant**: Up to $5,000 for solar installations
+- **BC Hydro rebates**: For eligible solar and battery systems
+- **CleanBC programs**: Additional provincial incentives
+- **Combined incentives**: Stack federal and provincial programs
+
+Learn more about [solar rebates in Canada](/solar-rebates) and available BC-specific programs.
+
+## Connection Fees and Costs
+
+BC Hydro connection costs for self-generation typically include:
+
+- **Application processing fee**
+- **Meter upgrade** (if needed for bi-directional metering)
+- **Electrical inspection** by Technical Safety BC
+- **Grid connection** assessment
+
+Most residential systems see connection costs of **$500-$1,500**, though this varies by location and system size.
+
+## Is Solar Worth It for BC Hydro Customers?
+
+**Yes**, for many BC Hydro customers, solar is financially attractive due to:
+
+- **High BC electricity rates** (especially residential rates)
+- **Excellent solar potential** in southern BC
+- **Self-generation credits** at retail rates
+- **Federal and provincial incentives**
+
+### Typical BC Hydro Solar Savings
+
+- **Annual savings**: $600-$1,400/year for average homes
+- **Payback period**: 10-15 years
+- **25-year savings**: $15,000-$35,000+
+- **ROI**: 150-300% return on investment
+
+British Columbia has excellent solar potential, especially in the Okanagan, South Coast, and Vancouver Island regions.
+
+## How SolarCalculatorCanada Helps BC Hydro Customers
+
+Our advanced **solar calculator** tools help BC Hydro customers estimate savings accurately. Use our **solar panel calculator**, **solar power calculator**, and **solar PV calculator** to determine:
+
+- Suggested system size (kW) - optimized with our **solar array calculator**
+- Expected annual production (based on location)
+- Electricity bill offset using self-generation credit logic
+- Simple payback range and long-term savings
+
+### To Get the Best Estimate
+
+Use your last **12 months of kWh usage** and confirm whether your property is in a BC Hydro, FortisBC, or municipal utility area first. Our **solar installation calculator** and **solar electricity calculator** help with **calculating solar power** needs for British Columbia's climate.
+
+[Get Your Free Solar Photovoltaic Calculator](/estimator) and discover how much you can save with BC Hydro's self-generation program.
+
+## BC Hydro vs FortisBC: Key Differences
+
+If you're in British Columbia, it's important to know which utility serves your area:
+
+### BC Hydro
+
+- Largest utility in BC
+- Serves Metro Vancouver, Vancouver Island, northern BC
+- Self-generation program (net metering)
+- Over 15,000 solar customers
+
+### FortisBC
+
+- Serves interior BC (Kootenays, Okanagan)
+- Separate net metering program
+- Different rates and connection process
+- Contact FortisBC directly for solar information
+
+Always check your electricity bill to confirm your utility provider before starting a solar project.
+
+## Frequently Asked Questions (FAQ)
+
+### Q: Is BC Hydro net metering the same as self-generation?
+
+**A**: BC Hydro describes self-generation as the program previously called net metering, designed to help customers reduce bills by generating their own renewable electricity.
+
+### Q: How do BC Hydro solar credits work?
+
+**A**: If your system generates more than you need, BC Hydro says you earn generation credits to offset future use, and excess remaining on the annual payout date is paid out.
+
+### Q: What's the BC Hydro size limit for self-generation?
+
+**A**: BC Hydro lists an eligibility cap of 100 kW aggregate nameplate capacity for self-generation. Most residential systems are 3-10 kW.
+
+### Q: How long does the Simple Net Metering process take?
+
+**A**: BC Hydro indicates up to 2 weeks to review the application, and grid connection is usually about two weeks after they receive the electrical inspection documentation. Total timeline is typically 4-8 weeks.
+
+### Q: How do I know if I'm with BC Hydro or FortisBC?
+
+**A**: BC's government site notes BC Hydro and FortisBC are the two largest utilities and lists municipalities with their own utilities. BC Hydro also publishes a service area map. Check your electricity bill to confirm your provider.
+
+### Q: Can I install battery storage with BC Hydro solar?
+
+**A**: Yes. BC Hydro allows battery storage systems and offers rebates for eligible installations. Batteries can increase self-consumption and provide backup power.
+
+### Q: What happens to excess solar credits at the end of the year?
+
+**A**: BC Hydro pays out remaining credits on the annual settlement date. You receive compensation for any excess generation that wasn't used to offset your consumption.
+
+### Q: What solar calculator should I use for BC Hydro?
+
+**A**: Use our BC-optimized solar calculator, solar power calculator, and solar PV calculator. Our solar panel calculator, solar electricity calculator, and solar photovoltaic calculator help with calculating solar power for BC Hydro's self-generation program. The solar installation calculator and solar array calculator provide accurate estimates for British Columbia.
+
+BC Hydro's self-generation program makes solar an excellent investment for British Columbia homeowners. Use [Solar Calculator Canada](/estimator) to estimate your potential savings and find qualified installers in your area.
+
+> **Ready to go solar in BC?** BC Hydro's self-generation program offers excellent value with retail-rate credits and annual payouts for excess generation. [Calculate your savings now](/estimator).
+    `,
+    author: 'Solar Calculator Canada',
+    publishedAt: '2026-01-31',
+    category: 'solar-basics',
+    tags: [
+      'bc hydro solar',
+      'bc hydro net metering',
+      'bc hydro self-generation',
+      'bc hydro solar panels',
+      'bc hydro solar rebates',
+      'bc hydro solar application',
+      'bc hydro service area',
+      'bc hydro solar credits',
+      'simple net metering bc',
+      'british columbia solar',
+      'vancouver solar panels',
+      'victoria solar panels',
+      'bc solar calculator',
+      'bc hydro interconnection',
+      'bc hydro grid capacity',
+      'bc solar savings',
+      'bc hydro electricity',
+      'fortisbc vs bc hydro',
+      'bc municipal utilities',
+      'bc hydro solar eligibility',
+      'bc hydro 100 kw limit',
+      'bc hydro solar timeline',
+      'bc solar incentives',
+      'bc solar rebates 2026',
+      'vancouver island solar',
+    ],
+    readTime: 10,
+    seoTitle: 'BC Hydro Solar Net Metering Guide 2026 | Self-Generation, Eligibility & Application',
+    seoDescription: 'BC Hydro solar guide: self-generation (net metering), eligibility, system size limits (100 kW max), Simple Net Metering application steps, credits, and service areas in British Columbia.',
+  },
+  {
+    slug: 'fortisbc-solar-net-metering-guide',
+    title: 'FortisBC Solar Net Metering Guide: Service Area, 50 kW Limit, kWh Bank Credits & Approval Steps (BC)',
+    excerpt: 'FortisBC solar guide for BC: net metering rules, 50 kW limit, kWh bank credits, approval steps, rates context, and Southern Interior service areas.',
+    content: `
+# FortisBC Solar Net Metering Guide: Service Area, 50 kW Limit, kWh Bank Credits & Approval Steps (BC)
+
+If you're in British Columbia's Southern Interior and searching "FortisBC solar" or "FortisBC net metering", the big question is: **How do I connect solar to FortisBC and how do credits work?**
+
+FortisBC runs a **Net Metering Program** that lets eligible customers generate renewable electricity (commonly solar), reduce their electricity bill, and bank excess generation for future bills using a **Kilowatt Hour (kWh) Bank**.
+
+This guide covers:
+
+- Where FortisBC provides electricity service (and who it's for)
+- Eligibility rules (including the 50 kW cap)
+- How FortisBC's kWh Bank works
+- Application + approval steps for connecting solar
+- Rate context that affects savings
+- How SolarCalculatorCanada helps estimate savings for FortisBC customers
+
+> ⚡ **Quick Fact**: FortisBC serves almost **1.3 million customers** across 135 communities in British Columbia, making it the second-largest electricity utility in the province.
+
+## FortisBC Electricity Service Area in BC
+
+FortisBC is a major energy provider across BC and states it serves almost **1.3 million customers** across 135 communities (plus 58 First Nations communities), operating both electricity and natural gas infrastructure.
+
+For electricity specifically, FortisBC states it provides electricity service for the **Southern Interior region of BC**.
+
+A FortisBC media release also describes FortisBC Inc. as serving about **195,300 direct and indirect electricity customers** in BC's Southern Interior.
+
+### Common Southern Interior Communities (FortisBC Electricity)
+
+Depending on your address, FortisBC electricity service is commonly associated with communities such as:
+
+- **Kelowna**
+- **Penticton**
+- **Trail**
+- **Castlegar**
+- **Creston**
+- **Grand Forks**
+- **Rossland**
+- **Nelson**
+- **Osoyoos**
+- **Vernon**
+
+**Important**: Always confirm by checking your electricity bill—BC has multiple utilities (including [BC Hydro](/blog/bc-hydro-solar-net-metering-guide)) and some municipal providers.
+
+## Does FortisBC Allow Solar Panels?
+
+**Yes.** FortisBC's **Net Metering Program** is for customers who want to generate renewable energy to reduce their FortisBC electricity bill. It supports **residential, commercial, and irrigation customers**.
+
+> ✅ **Bottom Line**: FortisBC actively supports solar installations through their net metering program for eligible customers in the Southern Interior.
+
+## FortisBC Net Metering Eligibility Rules
+
+FortisBC lists several eligibility requirements, including:
+
+- Your **generator must use a renewable source** (solar qualifies)
+- The generation equipment **must be on your property**
+- The power produced **serves your property**
+- Your system **must be designed to offset some/all of your consumption**
+- **Maximum allowable generating capacity is 50 kW**
+- Production is **limited to offset your expected annual consumption**
+
+These limits are important for searches like:
+
+- "FortisBC net metering limit"
+- "FortisBC solar size limit"
+- "FortisBC 50 kW net metering"
+
+### System Size Recommendations
+
+- **Residential systems**: Typically 3-8 kW
+- **Small commercial**: 8-25 kW
+- **Larger systems**: 25-50 kW (FortisBC maximum)
+- **Maximum**: 50 kW aggregate capacity
+
+Most residential solar systems fall well within these limits.
+
+## How FortisBC's kWh Bank Works (Credits Explained)
+
+FortisBC explains that net metering uses a meter that tracks:
+
+- **kWh delivered to you** (what you use from the grid)
+- **kWh received from you** (what you export)
+
+If you generate more than you use in a billing period, the extra energy is **banked and can be used in a future billing period**.
+
+### Understanding Your kWh Bank
+
+FortisBC notes:
+
+- Most customers use **more electricity than they generate**, but the kWh bank can **lower annual bills**
+- **Excess electricity is settled annually** (rather than each billing period at the same rate paid to other producers)
+- **Credits carry forward** within the annual cycle
+- **Annual settlement**: Remaining credits are addressed at year-end
+
+This banking system is particularly valuable for seasonal variation, helping homeowners offset winter consumption with summer production.
+
+## FortisBC Solar Connection Steps (How to Apply)
+
+FortisBC outlines a straightforward process:
+
+**1. Submit the Net Metering Application**
+- Complete FortisBC's official net metering application form
+- Include system specifications and site details
+
+**2. FortisBC Reviews and Approves for Construction**
+- FortisBC assesses technical feasibility
+- Confirms eligibility and system design
+- Usually takes 2-4 weeks
+
+**3. Build Your Generation Facility After Approval**
+- Hire a certified solar installer
+- System must meet BC electrical codes
+- Requires BC Safety Authority (Technical Safety BC) inspection
+
+**4. After Construction, Submit the Interconnection Agreement**
+- Your contractor provides inspection documentation
+- FortisBC completes final verification
+- Grid connection is activated
+
+### Total Timeline
+
+Most FortisBC solar projects take **4-8 weeks** from application to grid connection.
+
+## Connection Fees and What to Expect
+
+FortisBC doesn't present a single "flat fee" on the net metering overview page, but in practice most grid-tied solar projects can involve:
+
+- **Application/engineering review** (utility-side)
+- **Bi-directional metering setup**
+- **Inspection/commissioning requirements**
+- **Possible upgrades** if local equipment needs it
+
+**Best practice**: Fees and requirements are confirmed during the review/approval stage once FortisBC evaluates the specific connection point and system design.
+
+## Electricity Rates Matter for Savings (FortisBC Rate Context)
+
+Your solar savings depend heavily on your rate structure (fixed + variable charges) and annual rate changes.
+
+FortisBC notes:
+
+- **Rates are reviewed annually** by the British Columbia Utilities Commission
+- **As of January 1, 2026**, FortisBC electricity rates **increased by 3.63%**
+
+This is useful context for "is solar worth it" searches because **rate increases increase the value** of offsetting grid electricity over time.
+
+### Why This Matters
+
+- Higher electricity rates = greater annual savings from solar
+- Rate increases protect your solar investment (locked-in value)
+- kWh credits offset rising grid rates
+
+## Is Solar Worth It for FortisBC Customers?
+
+**Often yes**, especially in the Southern Interior where:
+
+- Electricity rates are **rising annually**
+- **Excellent solar potential** in Kelowna, Penticton, and surrounding areas
+- **kWh banking system** maximizes value of excess generation
+- **Federal and provincial incentives** available
+
+### Typical FortisBC Solar Savings
+
+- **Annual savings**: $600-$1,300/year for average homes
+- **Payback period**: 10-14 years
+- **25-year savings**: $15,000-$35,000+
+
+The Southern Interior's high sun exposure makes solar particularly attractive for FortisBC customers.
+
+## How SolarCalculatorCanada Helps FortisBC Customers Estimate Solar Savings
+
+Our **solar calculator** tools are specifically designed for **calculating solar power** in BC's Southern Interior. Use our **solar PV calculator**, **solar power calculator**, and **solar panel calculator** by entering:
+
+- Your city/region (Southern Interior)
+- Monthly kWh usage (12 months is best)
+- Roof sun exposure assumptions (if known)
+
+Our **solar installation calculator** and **solar array calculator** then estimate:
+
+- System size range (kW)
+- How much usage you can offset
+- Your expected credit/banking behavior over the year
+- Payback range and lifetime savings
+
+[Get Your Free Solar Electricity Calculator](/estimator) and discover how much you can save with FortisBC's net metering program using our **solar photovoltaic calculator**.
+
+## FortisBC vs BC Hydro: Key Differences
+
+If you're in British Columbia, it's important to know which utility serves your area:
+
+### FortisBC
+
+- Serves Southern Interior BC
+- 50 kW net metering limit
+- kWh Bank for excess credits
+- Annual settlement of credits
+- ~195,000 electricity customers
+
+### BC Hydro
+
+- Serves Metro Vancouver, Vancouver Island, Northern BC
+- 100 kW self-generation limit (called "self-generation" now)
+- Different credit structure
+- Over 15,000 solar customers
+- [BC Hydro Solar Net Metering Guide](/blog/bc-hydro-solar-net-metering-guide)
+
+Always verify your utility by checking your electricity bill before starting a solar project.
+
+## Federal and BC Solar Incentives
+
+FortisBC customers can access:
+
+- **Canada Greener Homes Grant**: Up to $5,000 for solar installations
+- **BC provincial programs**: Additional rebates and financing options
+- **Tax credits**: Federal renewable energy tax credits
+- **Combined incentives**: Stack federal and provincial programs
+
+Learn more about [solar rebates in Canada](/solar-rebates) and available BC-specific programs.
+
+## Frequently Asked Questions (FAQ)
+
+### Q: What is the FortisBC net metering limit?
+
+**A**: FortisBC states the maximum allowable generating capacity is 50 kW, and production is limited to offset your expected annual consumption.
+
+### Q: How do FortisBC net metering credits work?
+
+**A**: If you export more than you use in a billing period, FortisBC banks the excess in a kWh Bank for use in a future billing period. Excess is settled annually.
+
+### Q: Who can apply for FortisBC net metering?
+
+**A**: FortisBC says residential, commercial, and irrigation customers can participate, as long as the system meets eligibility rules.
+
+### Q: Does FortisBC electricity only serve certain parts of BC?
+
+**A**: FortisBC states it provides electricity service for the Southern Interior region of BC, serving communities like Kelowna, Penticton, Trail, and Castlegar.
+
+### Q: How long does FortisBC solar approval take?
+
+**A**: Application review typically takes 2-4 weeks. Total timeline from application to grid connection is usually 4-8 weeks.
+
+### Q: Can I combine battery storage with FortisBC net metering?
+
+**A**: Yes. Battery storage can complement net metering by increasing self-consumption and providing backup power during outages.
+
+### Q: What happens to unused kWh Bank credits at the end of the year?
+
+**A**: FortisBC settles remaining credits annually. Policies on credits carried to the next year should be confirmed with FortisBC directly.
+
+### Q: How can I calculate solar power needs for FortisBC?
+
+**A**: Use our solar calculator suite including the solar power calculator, solar PV calculator, and solar panel calculator. Our solar array calculator and solar installation calculator are optimized for Southern Interior BC. The solar electricity calculator helps with calculating solar power based on FortisBC rates and kWh banking.
+
+FortisBC's net metering program makes solar an excellent investment for Southern Interior homeowners. Use [Solar Calculator Canada](/estimator) to estimate your potential savings and find qualified installers in your area.
+
+> **Ready to go solar in the Southern Interior?** FortisBC's net metering program offers excellent value with kWh banking for excess generation. [Calculate your savings now](/estimator).
+    `,
+    author: 'Solar Calculator Canada',
+    publishedAt: '2026-01-31',
+    category: 'solar-basics',
+    tags: [
+      'fortisbc solar',
+      'fortisbc net metering',
+      'fortisbc solar panels',
+      'fortisbc 50 kw limit',
+      'fortisbc kwh bank',
+      'fortisbc solar application',
+      'fortisbc service area',
+      'southern interior solar',
+      'kelowna solar panels',
+      'penticton solar panels',
+      'bc solar calculator',
+      'fortisbc electricity',
+      'fortisbc solar credits',
+      'british columbia solar',
+      'fortisbc grid connection',
+      'bc solar rebates',
+      'fortisbc rates 2026',
+      'fortisbc solar timeline',
+      'fortisbc solar eligibility',
+      'bc solar incentives',
+      'trail solar panels',
+      'castlegar solar',
+      'fortisbc vs bc hydro',
+      'southern interior electricity',
+    ],
+    readTime: 10,
+    seoTitle: 'FortisBC Solar Net Metering Guide 2026 | 50 kW Limit, kWh Bank & Approval Steps',
+    seoDescription: 'FortisBC solar guide for BC: net metering rules, 50 kW limit, kWh bank credits, approval steps, rates context, and Southern Interior service areas in Kelowna, Penticton, Trail & more.',
+  },
+  {
+    slug: 'epcor-solar-micro-generation-net-billing-guide',
+    title: 'EPCOR Solar Guide (Alberta): Micro-Generation, Net Billing Credits, Approval Steps & How to Calculate Solar Power',
+    excerpt: 'EPCOR Alberta solar guide: micro-generation steps, net billing credits, meter + retailer credits, 12-month carry-forward, and SolarCalculatorCanada estimates.',
+    content: `
+# EPCOR Solar Guide (Alberta): Micro-Generation, Net Billing Credits, Approval Steps & How to Calculate Solar Power
+
+If you're in an EPCOR service area in Edmonton or other Alberta regions served by EPCOR, going solar usually means **registering as a micro-generator** under Alberta rules. EPCOR explains that **micro-generation** includes small renewable systems (like solar panels) intended to meet part or all of your electricity needs, and it's supported through coordination with the **Alberta Utilities Commission (AUC)**.
+
+This guide covers:
+
+- What EPCOR micro-generation is (Alberta)
+- How net billing credits work (the "Alberta net metering" style)
+- EPCOR application + approval steps (including ≥20 kW requirements)
+- What to tell your electricity retailer so credits show up
+- How SolarCalculatorCanada acts as your solar calculator + PV sizing tool
+
+> ⚡ **Quick Fact**: EPCOR is one of Alberta's major electricity distributors serving Edmonton, Strathcona County, parts of southern Alberta, and other regions with micro-generation support through Alberta's regulatory framework.
+
+## What Is EPCOR Micro-Generation in Alberta?
+
+EPCOR defines **micro-generation** as small-scale renewable generation (up to 5 MW) such as solar panels, wind, biomass, and more—built to **offset your on-site electricity use**. 
+
+EPCOR also notes that eligible **micro-generation options must meet Alberta's greenhouse-gas intensity requirement (≤ 418 kg/MWh)** to connect as micro-generation. Solar qualifies.
+
+EPCOR states that when you **export power, you receive bill credits** based on your electricity retailer's energy rate (the credit appears on your monthly bill).
+
+### Micro-Generation vs. Other Options
+
+- **Micro-generation**: Small renewable systems (typically residential 3-20 kW) registered with the AUC
+- **Solar Club**: Larger systems with active management (Alberta-specific program)
+- **Standard net metering**: Other provinces' approach
+
+EPCOR customers typically use **micro-generation** for residential and small commercial solar.
+
+## How Net Billing Credits Work (Alberta Micro-Generation)
+
+Alberta's rules require **net billing for micro-generators**, and credits can be **carried forward for up to 12 months** to offset future electricity charges. The regulation also describes **annual settlement of unused credits**.
+
+Alberta's official micro-generation guidance explains the roles clearly:
+
+1. **You apply to your distribution company** (like EPCOR) and sign an **interconnection agreement**
+2. **Your retailer handles compensation and billing**, crediting you for excess electricity you supply to the grid
+
+### Understanding Your Net Billing Credits
+
+- **Export tracking**: Your meter tracks electricity exported to the grid
+- **Retailer credits**: Your electricity retailer applies generation credits at their energy rate
+- **Monthly application**: Credits typically appear on your monthly bill once registered
+- **12-month carry-forward**: Unused credits can offset future months
+- **Annual settlement**: Excess credits are settled at least annually
+
+This system is straightforward once your retailer is properly notified and your micro-generation registration is complete.
+
+## EPCOR Solar PV and Your Electricity Retailer (Important Step People Miss)
+
+EPCOR's solar PV page explains the practical flow:
+
+1. **Your solar powers your home first**
+2. **Excess goes through your power meter to the grid**
+3. **The meter tracks exported energy**, and EPCOR sends the measurement to your electricity retailer
+4. **If you've notified the retailer**, they add a generation credit to your monthly bill for excess energy
+
+### Critical Step
+
+**Key takeaway**: Even if your system is producing, **credits may not appear until the retailer is properly notified** and your micro-generation paperwork is complete.
+
+Always ensure your electricity retailer (e.g., Enmax, Direct Energy, or other Alberta retailer) is aware of your micro-generation installation so they apply credits correctly.
+
+## EPCOR Service Areas in Alberta
+
+EPCOR serves major Alberta communities including:
+
+- **Edmonton** (primary service area)
+- **Strathcona County**
+- **Southern Alberta** (various municipalities)
+- **Other EPCOR-served regions** (check your bill to confirm)
+
+Always verify EPCOR is your distributor by checking your electricity bill, as Alberta has multiple distributors (Fortis, AltaLink, etc.).
+
+## How to Become a Micro-Generator with EPCOR (Step-by-Step)
+
+### Step 1: Design Your System (Size + Drawings)
+
+EPCOR advises that for **micro-generation projects 20 kW or larger**, you should **email them before starting design** so they can identify special requirements. 
+
+EPCOR also lists detailed drawing elements they expect:
+- Single line diagram
+- Disconnects and grounding
+- Equipment specifications
+- Site-specific details
+
+### Step 2: Prepare the Documents EPCOR Requires
+
+EPCOR's application page lists common required items:
+
+- **Site line diagram**
+- **Site plan / real property report**
+- **Manufacturer equipment specifications**
+- **Permit information** (e.g., City of Edmonton electrical permit number)
+- **Proof of ownership** (if applicable)
+- **System design drawings**
+
+### Step 3: Apply + Get Approvals + Sign Interconnection Agreement
+
+Alberta's official guide confirms micro-generators must:
+
+1. **Apply to their distribution company** (EPCOR)
+2. **Sign an interconnection agreement**
+3. **Follow AUC guidelines** (permits, site plan, contractor requirements)
+4. **Work with a licensed electrician** (Technical Safety Alberta requirements)
+
+### Step 4: Grid Connection and Meter Upgrade
+
+- EPCOR arranges **bi-directional meter installation**
+- Your system is **tested and commissioned**
+- **Grid connection is activated**
+- **Generation credits begin appearing** on your bill (once retailer is notified)
+
+### Total Timeline
+
+Most EPCOR micro-generation projects take **6-12 weeks** from initial application to grid connection and credit activation, depending on complexity and ≥20 kW requirements.
+
+## Size Limits and Special Considerations
+
+### Standard Residential Systems (Under 20 kW)
+
+- Typically **3-10 kW** for residential homes
+- Standard application process
+- No special engineering required
+
+### Larger Systems (20 kW or More)
+
+EPCOR advises **contacting them before starting design** for ≥20 kW systems:
+- Special requirements identification
+- Network impact studies may be required
+- Longer approval timeline
+- More detailed drawings and specs
+
+### Maximum Micro-Generation Size
+
+- EPCOR's upper limit: **5 MW** (but residential is typically ≤20 kW)
+- Designed for on-site consumption offset
+- Export is secondary to self-consumption
+
+## How SolarCalculatorCanada Helps EPCOR Customers
+
+Most EPCOR-area solar systems are designed to **offset annual usage** (so you don't overbuild and end up with excess credits you can't efficiently use before settlement).
+
+Use our **solar calculator** suite for **calculating solar power** needs in Alberta. Our **solar PV calculator**, **solar power calculator**, and **solar panel calculator** estimate:
+
+- **Recommended system size** (kW) - optimized with our **solar array calculator**
+- **Estimated annual generation** (kWh) - via our **solar photovoltaic calculator**
+- **Expected bill offset** under Alberta net billing
+- **Rough payback range** using our **solar installation calculator**
+- **Long-term savings** with micro-generation credits
+
+### To Get the Best Estimate
+
+Use your last **12 months of kWh usage** from your EPCOR bill and confirm your electricity retailer (Enmax, Direct Energy, etc.) to understand your energy rate for accurate credit projections.
+
+[Get Your Free Solar Electricity Calculator](/estimator) and discover how much you can save as an EPCOR micro-generator.
+
+## Alberta Solar Incentives for EPCOR Customers
+
+EPCOR customers can access:
+
+### Federal Programs
+
+- **Canada Greener Homes Grant**: Up to $5,000 for solar installations
+- **Interest-free loans**: Up to $40,000 for energy upgrades
+- **Combined solar + efficiency**: Maximize incentives with bundled projects
+
+### Alberta-Specific Support
+
+- **Micro-generation registration**: AUC oversight
+- **Net billing framework**: 12-month carry-forward credits
+- **Municipal rebates**: Some Alberta cities offer solar incentives
+
+Learn more about [Alberta solar rebates](/solar-rebates) and available incentives.
+
+## Is Solar Worth It for EPCOR Customers?
+
+**Often yes**, especially for EPCOR customers because:
+
+- **Rising Alberta electricity rates**
+- **Excellent Alberta sun exposure** (especially in Edmonton)
+- **12-month credit carry-forward** maximizes savings
+- **Federal and provincial incentives** available
+- **Micro-generation framework** is straightforward
+
+### Typical EPCOR Solar Savings
+
+- **Annual savings**: $800-$1,600/year for average homes
+- **Payback period**: 8-12 years
+- **25-year savings**: $20,000-$40,000+
+- **ROI**: 250-400% return on investment
+
+## Frequently Asked Questions (FAQ)
+
+### Q: Does EPCOR allow solar panels in Alberta?
+
+**A**: Yes. EPCOR supports micro-generation, including solar panels, under Alberta rules and works with the AUC to ensure safety and reliability.
+
+### Q: How do I get credits for excess solar in Alberta?
+
+**A**: Your exported energy is measured and sent to your retailer; once your retailer is notified and your micro-generation registration is complete, your retailer applies a generation credit to your bill.
+
+### Q: Do micro-generation credits expire in Alberta?
+
+**A**: Credits can be carried forward for up to 12 months, and unused credits are settled at least annually under the regulation.
+
+### Q: What if my EPCOR solar system is 20 kW or larger?
+
+**A**: EPCOR advises contacting them before starting design for ≥20 kW systems so special requirements can be identified early.
+
+### Q: How long does EPCOR micro-generation approval take?
+
+**A**: Most residential systems (under 20 kW) take 6-12 weeks from application to grid connection. Larger systems may take longer due to impact studies.
+
+### Q: Do I need to notify my electricity retailer separately?
+
+**A**: Yes. Even after EPCOR approves your system, ensure your retailer (Enmax, Direct Energy, etc.) is notified so generation credits appear on your monthly bill.
+
+### Q: Can I use my micro-generation credits to offset time-of-use rates?
+
+**A**: Credits typically apply to your energy consumption at your retailer's standard rate. Time-of-use optimization depends on your retailer's specific rules.
+
+### Q: What solar calculator works best for EPCOR micro-generation?
+
+**A**: Use our Alberta-optimized solar power calculator, solar PV calculator, and solar panel calculator. Our solar electricity calculator and solar photovoltaic calculator help with calculating solar power for EPCOR's micro-generation program. The solar installation calculator and solar array calculator ensure proper system sizing for net billing credits.
+
+## Key Takeaway
+
+EPCOR's micro-generation framework makes solar an attractive investment for Alberta homeowners. The key to success is:
+
+1. **Design properly** using [Solar Calculator Canada](/estimator)
+2. **Apply to EPCOR** with complete documentation
+3. **Notify your retailer** so credits appear on your bill
+4. **Start saving** on your electricity costs
+
+Use our free solar calculator to estimate your potential savings and find qualified installers in your EPCOR service area.
+
+> **Ready to become a micro-generator with EPCOR?** The Alberta micro-generation framework offers excellent value with net billing credits and 12-month carry-forward. [Calculate your savings now](/estimator).
+    `,
+    author: 'Solar Calculator Canada',
+    publishedAt: '2026-01-31',
+    category: 'solar-basics',
+    tags: [
+      'epcor solar',
+      'epcor micro-generation',
+      'epcor net billing',
+      'epcor solar panels',
+      'epcor solar application',
+      'epcor edmonton solar',
+      'alberta micro-generation',
+      'alberta net billing',
+      'solar calculator canada',
+      'edmonton solar panels',
+      'epcor solar calculator',
+      'epcor solar guide',
+      'alberta solar rebates',
+      'solar micro-generator alberta',
+      'epcor service area',
+      'epcor electricity',
+      'alberta solar incentives',
+      'epcor grid connection',
+      'micro-generation approval',
+      'alberta solar savings',
+      'solar pv calculator',
+      'solar installation calculator',
+      'solar power calculator',
+      'epcor 20 kw requirement',
+      'alberta auc micro-generation',
+      'strathcona county solar',
+    ],
+    readTime: 11,
+    seoTitle: 'EPCOR Solar Micro-Generation Guide 2026 | Net Billing, Credits & Approval Steps',
+    seoDescription: 'EPCOR Alberta solar guide: micro-generation steps, net billing credits, meter + retailer notifications, 12-month carry-forward, and how SolarCalculatorCanada helps estimate savings.',
+  },
 ]
 
 export function getBlogPost(slug: string): BlogPost | undefined {

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import { blogPosts } from '@/lib/blog-data'
-import { Calendar, Clock, ArrowRight, Zap, TrendingUp, Lightbulb, CheckCircle } from 'lucide-react'
+import { Calendar, Clock, ArrowRight, Zap, TrendingUp, Lightbulb, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 const categories = [
@@ -17,11 +17,35 @@ const categories = [
 
 export default function BlogPage() {
   const [activeCategory, setActiveCategory] = useState<(typeof categories)[number]['id']>('all')
+  const [currentPage, setCurrentPage] = useState(0)
+  const postsPerPage = 6
 
   const filteredPosts = useMemo(
     () => (activeCategory === 'all' ? blogPosts : blogPosts.filter((post) => post.category === activeCategory)),
     [activeCategory]
   )
+
+  const totalPages = Math.ceil(filteredPosts.length / postsPerPage)
+  const displayedPosts = filteredPosts.slice(currentPage * postsPerPage, (currentPage + 1) * postsPerPage)
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages - 1) {
+      setCurrentPage(currentPage + 1)
+      window.scrollTo({ top: 600, behavior: 'smooth' })
+    }
+  }
+
+  const handlePrevPage = () => {
+    if (currentPage > 0) {
+      setCurrentPage(currentPage - 1)
+      window.scrollTo({ top: 600, behavior: 'smooth' })
+    }
+  }
+
+  const handleCategoryChange = (categoryId: (typeof categories)[number]['id']) => {
+    setActiveCategory(categoryId)
+    setCurrentPage(0) // Reset to first page when changing category
+  }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -131,7 +155,7 @@ export default function BlogPage() {
               {categories.map((category) => (
                 <button
                   key={category.id}
-                  onClick={() => setActiveCategory(category.id)}
+                  onClick={() => handleCategoryChange(category.id)}
                   className={`group relative px-6 py-3 rounded-full font-medium text-sm transition-all duration-300 ${
                     activeCategory === category.id
                       ? 'bg-gradient-to-r from-forest-600 to-blue-600 text-white shadow-lg shadow-forest-500/30 scale-105'
@@ -154,8 +178,8 @@ export default function BlogPage() {
           </div>
 
           {/* Posts Grid - Stunning Cards */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredPosts.map((post) => (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+            {displayedPosts.map((post) => (
               <article
                 key={post.slug}
                 className="group relative h-full bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-forest-300 transition-all duration-500 hover:shadow-2xl hover:-translate-y-2"
@@ -203,13 +227,68 @@ export default function BlogPage() {
                 </Link>
               </article>
             ))}
-            {filteredPosts.length === 0 && (
+            {displayedPosts.length === 0 && (
               <div className="col-span-full text-center py-16">
                 <Lightbulb className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-600 text-lg font-medium">No articles in this category yet.</p>
                 <p className="text-gray-500 mt-2">Check back soon for fresh insights!</p>
               </div>
             )}
+          </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 mt-12">
+              <button
+                onClick={handlePrevPage}
+                disabled={currentPage === 0}
+                className={`flex items-center gap-2 px-6 py-3 rounded-full font-medium transition-all duration-300 ${
+                  currentPage === 0
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-white border-2 border-forest-600 text-forest-600 hover:bg-forest-600 hover:text-white shadow-lg hover:shadow-xl'
+                }`}
+              >
+                <ChevronLeft size={20} />
+                Previous
+              </button>
+
+              <div className="flex items-center gap-2">
+                {Array.from({ length: totalPages }, (_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      setCurrentPage(i)
+                      window.scrollTo({ top: 600, behavior: 'smooth' })
+                    }}
+                    className={`w-10 h-10 rounded-full font-bold transition-all duration-300 ${
+                      currentPage === i
+                        ? 'bg-gradient-to-r from-forest-600 to-blue-600 text-white shadow-lg scale-110'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages - 1}
+                className={`flex items-center gap-2 px-6 py-3 rounded-full font-medium transition-all duration-300 ${
+                  currentPage === totalPages - 1
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-white border-2 border-forest-600 text-forest-600 hover:bg-forest-600 hover:text-white shadow-lg hover:shadow-xl'
+                }`}
+              >
+                Next
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          )}
+
+          {/* Results counter */}
+          <div className="text-center mt-8 text-gray-600">
+            Showing {currentPage * postsPerPage + 1}-{Math.min((currentPage + 1) * postsPerPage, filteredPosts.length)} of {filteredPosts.length} articles
           </div>
         </div>
       </section>
